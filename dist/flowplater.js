@@ -8,7 +8,7 @@ var FlowPlater = function() {
     var s = {};
     var d = {};
     var c = 0;
-    var p = {
+    var m = {
         onRender: function() {},
         onRendered: function() {},
         onRemove: function() {},
@@ -16,8 +16,8 @@ var FlowPlater = function() {
         animation: false
     };
     document.querySelectorAll("[fp-template]").forEach(function(e) {
-        var t = e.getAttribute("fp-animation") || p.animation;
-        if (t) {
+        var t = e.getAttribute("fp-animation") || m.animation;
+        if (t === "true") {
             var r = e.getAttribute("hx-swap");
             if (!r) {
                 e.setAttribute("hx-swap", "innerHTML transition:true");
@@ -26,8 +26,8 @@ var FlowPlater = function() {
             }
         }
     });
-    function o(e, t) {
-        var r = e.getAttribute("fp-animation") || p.animation;
+    function e(e, t) {
+        var r = e.getAttribute("fp-animation") || m.animation;
         if (!r) {
             t();
             return;
@@ -36,7 +36,7 @@ var FlowPlater = function() {
             t();
         }
     }
-    function m(e, t) {
+    function p(e, t) {
         var r = new CustomEvent("flowplater:" + e, {
             detail: t
         });
@@ -46,7 +46,7 @@ var FlowPlater = function() {
         var t = e.detail.elt;
         if (t.hasAttribute("fp-instance")) {
             var r = t.getAttribute("fp-instance");
-            m("request-start", {
+            p("request-start", {
                 instanceName: r,
                 ...e.detail
             });
@@ -56,7 +56,7 @@ var FlowPlater = function() {
         var t = e.detail.elt;
         if (t.hasAttribute("fp-instance")) {
             var r = t.getAttribute("fp-instance");
-            m("request-end", {
+            p("request-end", {
                 instanceName: r,
                 ...e.detail
             });
@@ -69,9 +69,9 @@ var FlowPlater = function() {
                 g("Template not found: " + e);
                 return null;
             }
-            var o = t.innerHTML;
+            var f = t.innerHTML;
             var r = new DOMParser();
-            var n = r.parseFromString(o, "text/html");
+            var n = r.parseFromString(f, "text/html");
             var a = n.querySelectorAll("[fp]");
             a.forEach(function(e) {
                 var t = e.tagName.toLowerCase();
@@ -80,17 +80,19 @@ var FlowPlater = function() {
                     return;
                 }
                 var r = e.getAttribute("fp");
-                var n = new RegExp("<" + t + '(.*?) fp="(.*?)">', "g");
-                var a = "{{#" + t + " " + r + "}}";
-                var i = "{{/" + t + "}}";
-                o = o.replace(n, a);
-                o = o.replace(new RegExp("</" + t + ">", "g"), i);
+                var n = document.createElement("textarea");
+                n.innerHTML = r;
+                var a = n.value;
+                var i = new RegExp("<" + t + '(.*?) fp="(.*?)"', "g");
+                var o = "{{#" + t + " " + a + "}}";
+                f = f.replace(i, o);
+                f = f.replace(new RegExp("</" + t + ">", "g"), "{{/" + t + "}}");
             });
             try {
-                s[e] = Handlebars.compile(o);
+                s[e] = Handlebars.compile(f);
                 return s[e];
-            } catch {
-                g("Template not valid: " + o);
+            } catch (e) {
+                g("Template not valid: " + f + " | Error: " + e.message);
                 return null;
             }
         }
@@ -101,12 +103,14 @@ var FlowPlater = function() {
         data: e,
         target: t,
         returnHtml: r,
-        onRender: a = p.onRender,
-        onRendered: i = p.onRendered,
+        onRender: a = m.onRender,
+        onRendered: i = m.onRendered,
         instanceName: o = c
     }) {
-        a();
-        m("render", {
+        f.forEach(function(e) {
+            a.call(e);
+        });
+        p("render", {
             instanceName: o,
             template: n,
             data: e,
@@ -169,8 +173,10 @@ var FlowPlater = function() {
         if (r) {
             try {
                 var l = n(d[o].proxy);
-                i();
-                m("rendered", {
+                f.forEach(function(e) {
+                    i.call(e);
+                });
+                p("rendered", {
                     instance: o,
                     template: n,
                     data: e,
@@ -187,9 +193,9 @@ var FlowPlater = function() {
             try {
                 f.forEach(function(e) {
                     e.innerHTML = n(d[o].proxy);
+                    i.call(e);
                 });
-                i();
-                m("rendered", {
+                p("rendered", {
                     instance: o,
                     template: n,
                     data: e,
@@ -201,15 +207,6 @@ var FlowPlater = function() {
             } catch (e) {
                 g("Error rendering template: " + e.message);
             }
-        }
-    }
-    function r(e, t) {
-        var r = d[e];
-        if (r) {
-            r.proxy.push(t);
-            r.refresh();
-        } else {
-            g("Instance not found: " + e);
         }
     }
     function h(e) {
@@ -274,7 +271,7 @@ var FlowPlater = function() {
     document.querySelectorAll("[fp-template]").forEach(function(e) {
         e.setAttribute("hx-ext", "flowplater");
     });
-    function e(e) {
+    function t(e) {
         if (typeof e === "string") {
             var t = e;
             if (t) {
@@ -320,18 +317,19 @@ var FlowPlater = function() {
     function g(e) {
         console.error("%cFlowPlater:%c " + e, "font-weight: bold", "font-weight: normal");
     }
-    var y = function(t) {
+    var y = function(e) {
         return {
             refresh: function() {
-                e(t);
+                t(e);
             },
             render: function({
                 template: e = this.template,
                 data: t = this.data,
                 target: r = this.elements,
                 returnHtml: n = false,
-                onRender: a = p.onRender,
-                onRendered: i = p.onRendered
+                onRender: a = m.onRender,
+                onRendered: i = m.onRendered,
+                animate: o = m.animate
             }) {
                 o(r, function() {
                     l({
@@ -340,25 +338,27 @@ var FlowPlater = function() {
                         target: r,
                         returnHtml: n,
                         onRender: a,
-                        onRendered: i
+                        onRendered: i,
+                        animate: o
                     });
                 });
-            },
-            add: function(e) {
-                r(t, e);
             }
         };
     };
     return {
         compileTemplate: v,
         render: l,
-        refresh: e,
+        refresh: t,
         getInstance: function(e) {
             return d[e];
         },
         getInstances: function() {
             return d;
         },
-        add: r
+        options: function(e) {
+            for (var t in e) {
+                m[t] = e[t];
+            }
+        }
     };
 }();
