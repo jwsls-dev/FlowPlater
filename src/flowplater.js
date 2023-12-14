@@ -30,7 +30,7 @@ var FlowPlater = (function () {
     document.querySelectorAll("[fp-template]").forEach(function (element) {
         var shouldAnimate =
             element.getAttribute("fp-animation") || defaults.animation;
-        if (shouldAnimate) {
+        if (shouldAnimate === "true") {
             var swap = element.getAttribute("hx-swap");
             if (!swap) {
                 element.setAttribute("hx-swap", "innerHTML transition:true");
@@ -100,7 +100,6 @@ var FlowPlater = (function () {
             var elementsWithFp = doc.querySelectorAll("[fp]");
             elementsWithFp.forEach(function (element) {
                 var tag = element.tagName.toLowerCase();
-                // error if self-closing tag
                 if (element.outerHTML.indexOf("/>") !== -1) {
                     errorLog(
                         "Self-closing tag not supported: " + element.outerHTML
@@ -108,22 +107,34 @@ var FlowPlater = (function () {
                     return;
                 }
                 var fpValue = element.getAttribute("fp");
-                var regex = new RegExp("<" + tag + '(.*?) fp="(.*?)">', "g"); // searces for <tag fp="value">
-                var helperStart = "{{#" + tag + " " + fpValue + "}}"; // converts to {{#tag value}}
-                var helperEnd = "{{/" + tag + "}}"; // converts to {{/tag}}
-                templateHtml = templateHtml.replace(regex, helperStart); // replaces <tag fp="value"> with {{#tag value}}
+                // Decode HTML entities in the attribute value
+                var textArea = document.createElement("textarea");
+                textArea.innerHTML = fpValue;
+                var decodedFpValue = textArea.value;
+
+                // Replace <tag fp="value"> with {{#tag value}}
+                var regex = new RegExp("<" + tag + '(.*?) fp="(.*?)"', "g");
+                var helperStart = "{{#" + tag + " " + decodedFpValue + "}}";
+                templateHtml = templateHtml.replace(regex, helperStart);
+
+                // Replace </tag> with {{/tag}}
                 templateHtml = templateHtml.replace(
                     new RegExp("</" + tag + ">", "g"),
-                    helperEnd
-                ); // replaces </tag> with {{/tag}}
+                    "{{/" + tag + "}}"
+                );
             });
 
             // Compile and cache
             try {
                 templateCache[templateId] = Handlebars.compile(templateHtml);
                 return templateCache[templateId];
-            } catch {
-                errorLog("Template not valid: " + templateHtml);
+            } catch (e) {
+                errorLog(
+                    "Template not valid: " +
+                        templateHtml +
+                        " | Error: " +
+                        e.message
+                );
                 return null;
             }
         }
@@ -142,7 +153,9 @@ var FlowPlater = (function () {
         onRendered = defaults.onRendered,
         instanceName = length,
     }) {
-        onRender();
+        elements.forEach(function (element) {
+            onRender.call(element);
+        });
         sendEvent("render", {
             instanceName,
             template,
@@ -216,7 +229,9 @@ var FlowPlater = (function () {
         if (returnHtml) {
             try {
                 var html = template(instances[instanceName].proxy);
-                onRendered();
+                elements.forEach(function (element) {
+                    onRendered.call(element);
+                });
                 sendEvent("rendered", {
                     instance: instanceName,
                     template,
@@ -234,8 +249,8 @@ var FlowPlater = (function () {
             try {
                 elements.forEach(function (element) {
                     element.innerHTML = template(instances[instanceName].proxy);
+                    onRendered.call(element);
                 });
-                onRendered();
                 sendEvent("rendered", {
                     instance: instanceName,
                     template,
@@ -248,16 +263,6 @@ var FlowPlater = (function () {
             } catch (error) {
                 errorLog("Error rendering template: " + error.message);
             }
-        }
-    }
-
-    function add(instanceName, data) {
-        var instance = instances[instanceName];
-        if (instance) {
-            instance.proxy.push(data);
-            instance.refresh();
-        } else {
-            errorLog("Instance not found: " + instanceName);
         }
     }
 
@@ -407,6 +412,7 @@ var FlowPlater = (function () {
                 returnHtml = false,
                 onRender = defaults.onRender,
                 onRendered = defaults.onRendered,
+                animate = defaults.animate,
             }) {
                 animate(target, function () {
                     render({
@@ -416,11 +422,9 @@ var FlowPlater = (function () {
                         returnHtml: returnHtml,
                         onRender: onRender,
                         onRendered: onRendered,
+                        animate: animate,
                     });
                 });
-            },
-            add: function (data) {
-                add(instanceName, data);
             },
         };
     };
@@ -436,6 +440,10 @@ var FlowPlater = (function () {
         getInstances: function () {
             return instances;
         },
-        add: add,
+        options: function (options) {
+            for (var key in options) {
+                defaults[key] = options[key];
+            }
+        },
     };
 })();
