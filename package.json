@@ -1,0 +1,12 @@
+{
+  "name": "flowplater",
+  "version": "1.0.5",
+  "scripts": {
+    "minify": "uglifyjs src/flowplater.js -o dist/flowplater.min.js -m",
+    "prod": "uglifyjs src/flowplater.js -o dist/flowplater.js -b -m",
+    "build": "npm run minify && npm run prod"
+  },
+  "devDependencies": {
+    "uglify-js": "^3.17.4"
+  }
+}
