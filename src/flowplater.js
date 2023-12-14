@@ -21,7 +21,7 @@ var FlowPlater = (function () {
         onRemove: function () {},
         onRemoved: function () {},
         animation: false,
-        debug: false,
+        debug: true,
     };
 
     // * For each element with an fp-animation attribute set to true, or if defaults.animation is true, get the hx-swap attribute.
