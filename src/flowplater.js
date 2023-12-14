@@ -21,6 +21,7 @@ var FlowPlater = (function () {
         onRemove: function () {},
         onRemoved: function () {},
         animation: false,
+        debug: false,
     };
 
     // * For each element with an fp-animation attribute set to true, or if defaults.animation is true, get the hx-swap attribute.
@@ -62,6 +63,13 @@ var FlowPlater = (function () {
         });
         document.dispatchEvent(event);
         // console.log("event sent: " + eventName);
+    }
+
+    // * Log data if debug is true
+    function log(data) {
+        if (defaults.debug) {
+            console.log("Flowplater: " + data);
+        }
     }
 
     // * Listen for htmx request start
@@ -122,6 +130,7 @@ var FlowPlater = (function () {
                     new RegExp("</" + tag + ">", "g"),
                     "{{/" + tag + "}}"
                 );
+                log("Template compiled: " + templateHtml);
             });
 
             // Compile and cache
@@ -163,6 +172,7 @@ var FlowPlater = (function () {
             target,
             returnHtml,
         });
+        log("Rendering instance: " + instanceName, template, data, target);
 
         var elements;
         var instanceName;
@@ -225,6 +235,9 @@ var FlowPlater = (function () {
                 ...instanceMethods(instanceName),
             };
         }
+
+        log("Proxy created: " + instances[instanceName].proxy);
+
         // Render the template with the current data
         if (returnHtml) {
             try {
@@ -241,6 +254,7 @@ var FlowPlater = (function () {
                     returnHtml,
                     html,
                 });
+                log("Rendered HTML: " + html);
                 return html;
             } catch (error) {
                 errorLog("Error rendering template: " + error.message);
@@ -259,6 +273,12 @@ var FlowPlater = (function () {
                     elements,
                     returnHtml,
                 });
+                log(
+                    "Rendered instance: " + instanceName,
+                    template,
+                    data,
+                    target
+                );
                 return instances[instanceName];
             } catch (error) {
                 errorLog("Error rendering template: " + error.message);
@@ -309,6 +329,7 @@ var FlowPlater = (function () {
     htmx.defineExtension("flowplater", {
         transformResponse: function (text, xhr, elt) {
             var templateId = elt.getAttribute("fp-template");
+            log("Response received: " + text, xhr, elt, templateId);
             // if text is XML, convert to JSON
             if (xhr.getResponseHeader("Content-Type") === "text/xml") {
                 var parser = new DOMParser();
@@ -316,6 +337,11 @@ var FlowPlater = (function () {
                 text = JSON.stringify(xmlToJson(doc));
             }
             if (templateId) {
+                log(
+                    "Rendering html to " +
+                        templateId +
+                        " based on htmx response"
+                );
                 var data = JSON.parse(text);
                 var renderedHtml = render({
                     template: templateId,
@@ -326,6 +352,7 @@ var FlowPlater = (function () {
                 return renderedHtml;
             } else {
                 //asume current element is a template
+                log("Rendering html to current element based on htmx response");
                 var data = JSON.parse(text);
                 var template = compileTemplate("#" + elt.id);
                 if (!template) {
@@ -342,6 +369,7 @@ var FlowPlater = (function () {
     // * Add hx-ext attribute
     document.querySelectorAll("[fp-template]").forEach(function (element) {
         element.setAttribute("hx-ext", "flowplater");
+        log("Added hx-ext attribute to " + element.id);
     });
 
     // * Refresh all instances or a specific instance by instance key
