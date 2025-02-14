@@ -1759,6 +1759,25 @@ var FlowPlater = (function () {
   /* -------------------------------------------------------------------------- */
 
   var instanceMethods = function (instanceName) {
+    // Helper function to resolve a path within the data
+    function _resolvePath(path) {
+      const pathParts = path.split(/[\.\[\]'"]/);
+      let current = this.data;
+      for (let i = 0; i < pathParts.length; i++) {
+        const part = pathParts[i];
+        if (part === "") continue; // Ignore empty parts
+        if (
+          current === undefined ||
+          current === null ||
+          !current.hasOwnProperty(part)
+        ) {
+          return undefined; // Path segment not found
+        }
+        current = current[part];
+      }
+      return current; // Return resolved value
+    }
+
     return {
       refresh: function () {
         refresh(instanceName);
@@ -1783,6 +1802,74 @@ var FlowPlater = (function () {
             animate: animate,
           });
         });
+      },
+      set: function (path, value) {
+        if (!path) return; // Handle empty path
+        const pathParts = path.split(/[\.\[\]'"]/); // Split path here once
+        let current = this.data;
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          const part = pathParts[i];
+          if (part === "") continue; // Ignore empty parts
+          if (
+            current === undefined ||
+            current === null ||
+            !current.hasOwnProperty(part)
+          ) {
+            // Check hasOwnProperty
+            console.warn(
+              `Path segment "${part}" not found in data for path "${path}"`,
+            );
+            return;
+          }
+          current = current[part];
+        }
+        const lastPart = pathParts[pathParts.length - 1];
+        if (lastPart !== "") {
+          current[lastPart] = value;
+        }
+      },
+      update: function (newData) {
+        Object.assign(this.data, newData); // Shallow merge for update
+      },
+      push: function (arrayPath, value) {
+        let array;
+        if (arrayPath) {
+          array = _resolvePath.call({ data: this.data }, arrayPath); // Use helper, call with context
+          if (!array) {
+            console.warn(`Array path "${arrayPath}" not found.`);
+            return;
+          }
+        } else {
+          array = this.data; // Target root data if no path
+        }
+
+        if (Array.isArray(array)) {
+          array.push(value);
+        } else {
+          console.error("Target at path is not an array:", array);
+        }
+      },
+      remove: function (arrayPath, index) {
+        let array;
+        if (arrayPath) {
+          array = _resolvePath.call({ data: this.data }, arrayPath); // Use helper, call with context
+          if (!array) {
+            console.warn(`Array path "${arrayPath}" not found.`);
+            return;
+          }
+        } else {
+          array = this.data; // Target root data if no path
+        }
+
+        if (Array.isArray(array)) {
+          array.splice(index, 1);
+        } else {
+          console.error("Target at path is not an array:", array);
+        }
+      },
+      get: function (path) {
+        if (!path) return this.data; // Handle empty path, return root data
+        return _resolvePath.call({ data: this.data }, path); // Use helper, call with context
       },
     };
   };
