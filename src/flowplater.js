@@ -58,6 +58,10 @@ var FlowPlater = (function () {
 
   // Add htmx:afterSwap event listener to process new content
   document.body.addEventListener("htmx:afterSwap", function (event) {
+    Debug.log(
+      Debug.levels.INFO,
+      "htmx:afterSwap event detected, processing new content",
+    );
     const swappedElement = event.detail.target;
     // Ensure swappedElement is not null before processing
     if (swappedElement) {
@@ -135,7 +139,7 @@ var FlowPlater = (function () {
       if (!this.marks[label]) return;
       const duration = performance.now() - this.marks[label];
       delete this.marks[label];
-      if (_state.defaults.debug) {
+      if (FlowPlaterObj.config.debug) {
         Debug.log(Debug.levels.INFO, `${label} took ${duration.toFixed(2)}ms`);
       }
       return duration;
@@ -169,10 +173,22 @@ var FlowPlater = (function () {
       DEBUG: 3,
     },
 
-    level: 3,
+    get level() {
+      return FlowPlaterObj.config.debugLevel;
+    },
+    set level(value) {
+      FlowPlaterObj.config.debugLevel = value;
+    },
+
+    get debugMode() {
+      return FlowPlaterObj.config.debug;
+    },
+    set debugMode(value) {
+      FlowPlaterObj.config.debug = value;
+    },
 
     log: function (level, ...args) {
-      if (!_state.defaults.debug) return;
+      if (!this.debugMode) return;
       if (level <= this.level) {
         const prefix = ["ERROR", "WARN", "INFO", "DEBUG"][level];
         console.log(`FlowPlater [${prefix}]:`, ...args);
@@ -219,7 +235,7 @@ var FlowPlater = (function () {
 
   function setupAnimation(element) {
     var shouldAnimate =
-      element.getAttribute("fp-animation") || _state.defaults.animation;
+      element.getAttribute("fp-animation") || FlowPlaterObj.config.animation;
     if (shouldAnimate === "true") {
       var swap = element.getAttribute("hx-swap");
       if (!swap) {
@@ -235,7 +251,7 @@ var FlowPlater = (function () {
   /* -------------------------------------------------------------------------- */
 
   function processUrlAffixes(element) {
-    var methods = ["get", "post", "put", "patch", "delete"];
+    const methods = ["get", "post", "put", "patch", "delete"];
 
     function findAttributeInParents(el, attributeName) {
       while (el) {
@@ -306,7 +322,7 @@ var FlowPlater = (function () {
       var proxyUrl = element.getAttribute("fp-proxy");
     } else {
       // else use corsproxy.io
-      var proxyUrl = "https://corsproxy.io/?";
+      var proxyUrl = FlowPlaterObj.config.proxyUrl;
     }
     var methods = ["get", "post", "put", "patch", "delete"];
     methods.forEach(function (method) {
@@ -488,9 +504,6 @@ var FlowPlater = (function () {
   /* ANCHOR                 process(element = document)                         */
   /* -------------------------------------------------------------------------- */
 
-  const FP_SELECTOR =
-    "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]";
-
   const ProcessingChain = {
     processors: [
       {
@@ -514,8 +527,10 @@ var FlowPlater = (function () {
         process: setupProxy,
       },
     ],
+    FP_SELECTOR: FlowPlaterObj.config.fpSelector,
 
     execute(element) {
+      ProcessingChain.FP_SELECTOR = FlowPlaterObj.config.fpSelector;
       return this.processors.reduce((element, processor) => {
         try {
           return processor.process(element);
@@ -528,8 +543,8 @@ var FlowPlater = (function () {
   };
 
   function process(element = document) {
-    if (element === document || !element.matches(FP_SELECTOR)) {
-      const fpElements = element.querySelectorAll(FP_SELECTOR);
+    if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
+      const fpElements = element.querySelectorAll(ProcessingChain.FP_SELECTOR);
       fpElements.forEach(processForElement);
     } else {
       processForElement(element);
@@ -555,13 +570,12 @@ var FlowPlater = (function () {
   // Takes an element and a callback function
   function animate(element, callback) {
     var shouldAnimate =
-      element.getAttribute("fp-animation") || _state.defaults.animation;
+      element.getAttribute("fp-animation") || FlowPlaterObj.config.animation;
     if (!shouldAnimate) {
       callback();
       return;
     } else {
-      var transition = document.startViewTransition(element);
-      callback();
+      var transition = document.startViewTransition(callback);
     }
   }
 
@@ -736,9 +750,10 @@ var FlowPlater = (function () {
     data,
     target,
     returnHtml,
-    onRender = _state.defaults.onRender,
-    onRendered = _state.defaults.onRendered,
+    onRender = FlowPlaterObj.config.onRender,
+    onRendered = FlowPlaterObj.config.onRendered,
     instanceName,
+    animate = FlowPlaterObj.config.animation,
   }) {
     Performance.start("render:" + (instanceName || "anonymous"));
 
@@ -1787,9 +1802,9 @@ var FlowPlater = (function () {
         data = this.data,
         target = this.elements,
         returnHtml = false,
-        onRender = _state.defaults.onRender,
-        onRendered = _state.defaults.onRendered,
-        animate = _state.defaults.animate,
+        onRender = FlowPlaterObj.config.onRender,
+        onRendered = FlowPlaterObj.config.onRendered,
+        animate = FlowPlaterObj.config.animation,
       }) {
         animate(target, function () {
           render({
