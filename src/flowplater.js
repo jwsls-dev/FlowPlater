@@ -86,16 +86,6 @@ var FlowPlater = (function () {
     },
   };
 
-  // Private methods (closure)
-  const _private = {
-    compile: function () {
-      /* ... */
-    },
-    process: function () {
-      /* ... */
-    },
-  };
-
   /* -------------------------------------------------------------------------- */
   /* SECTION                        Event System                                */
   /* -------------------------------------------------------------------------- */
@@ -622,14 +612,6 @@ var FlowPlater = (function () {
           attributes += ` ${attr.name}="${attr.value}"`;
         }
         return `<${tagName}${attributes}>`;
-      }
-
-      function preProcessArgs(args) {
-        // Regular expression to match operators
-        const operatorRegex = /(>=|<=|==|!=|&&|\|\||>|<|regex)/g;
-
-        // Replace operators with their quoted versions
-        return args.replace(operatorRegex, ' "$1" ');
       }
 
       function processNode(node) {
