@@ -1880,6 +1880,62 @@ var FlowPlater = (function () {
 
   // Create the base FlowPlater object
   const FlowPlaterObj = {
+    config: {
+      debug: false,
+      debugLevel: Debug.levels.WARN,
+      animation: true,
+      proxyUrl: "https://corsproxy.io/?url=",
+      customTags: [{ tag: "fpselect", replaceWith: "select" }],
+      htmxAttributes: [
+        "boost",
+        "get",
+        "post",
+        "on",
+        "push-url",
+        "select",
+        "select-oob",
+        "swap",
+        "swap-oob",
+        "target",
+        "trigger",
+        "vals",
+        "confirm",
+        "delete",
+        "disable",
+        "disabled-elt",
+        "disinherit",
+        "encoding",
+        "ext",
+        "headers",
+        "history",
+        "history-elt",
+        "include",
+        "indicator",
+        "params",
+        "patch",
+        "preserve",
+        "prompt",
+        "put",
+        "replace-url",
+        "request",
+        "sync",
+        "validate",
+        "vars",
+      ],
+      fpSelector:
+        "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]",
+      onRender: null,
+      onRendered: null,
+    },
+
+    options: function (options) {
+      // Merge provided options into FlowPlater.config
+      for (var key in options) {
+        FlowPlaterObj.config[key] = options[key];
+      }
+      return this;
+    },
+
     compileTemplate: compileTemplate,
 
     render: function (options) {
@@ -1900,14 +1956,6 @@ var FlowPlater = (function () {
       return _state.instances;
     },
 
-    options: function (options) {
-      for (var key in options) {
-        _state.defaults[key] = options[key];
-      }
-      return this;
-    },
-
-    // Bind EventEmitter methods to FlowPlater
     on: function (...args) {
       EventSystem.subscribe(...args);
       return this;
@@ -1938,6 +1986,30 @@ var FlowPlater = (function () {
     init: function () {
       Performance.start("init");
       Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
+
+      // Load configuration from meta tag if present
+      const metaConfig = document.querySelector('meta[name="fp-config"]');
+      if (metaConfig) {
+        try {
+          const config = JSON.parse(metaConfig.content);
+          // Merge meta config into FlowPlater.config
+          for (const key in config) {
+            FlowPlaterObj.config[key] = config[key];
+          }
+          log("Configuration loaded from meta tag: ", FlowPlaterObj.config); //!log
+        } catch (e) {
+          errorLog("Error parsing fp-config meta tag: " + e); //!error
+        }
+      }
+
+      // Apply configuration from FlowPlater.config
+      Debug.level = FlowPlaterObj.config.debugLevel;
+      Debug.debugMode = FlowPlaterObj.config.debug;
+      replaceCustomTags.customTags = FlowPlaterObj.config.customTags;
+      translateCustomHTMXAttributes.htmxAttributes =
+        FlowPlaterObj.config.htmxAttributes;
+      ProcessingChain.FP_SELECTOR = FlowPlaterObj.config.fpSelector;
+
       process();
       Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
       Performance.end("init");
