@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.3.7 | (c) 2023 FlowPlater | https://flowplater.com
+ @license FlowPlater v1.4.5 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -48,12 +48,12 @@ TO BE BOUND BY ITS TERMS AND CONDITIONS.
 */
 
 if (typeof Handlebars != "undefined") {
-    console.warn(
-        "It looks like you already have Handlebars loaded. Flowplater has Handlebars included. Please remove the other version of Handlebars to prevent conflicts."
-    );
+  console.warn(
+    "It looks like you already have Handlebars loaded. Flowplater has Handlebars included. Please remove the other version of Handlebars to prevent conflicts.",
+  );
 }
 if (typeof htmx != "undefined") {
-    console.warn(
-        "It looks like you already have htmx loaded. Flowplater has htmx included. Please remove the other version of htmx to prevent conflicts."
-    );
+  console.warn(
+    "It looks like you already have htmx loaded. Flowplater has htmx included. Please remove the other version of htmx to prevent conflicts.",
+  );
 }
