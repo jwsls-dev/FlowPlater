@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.5 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.19 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -85,27 +85,27 @@ THE SOFTWARE.
 })(this, function() {
     return function(r) {
         var n = {};
-        function i(e) {
+        function a(e) {
             if (n[e]) return n[e].exports;
             var t = n[e] = {
                 exports: {},
                 id: e,
                 loaded: false
             };
-            r[e].call(t.exports, t, t.exports, i);
+            r[e].call(t.exports, t, t.exports, a);
             t.loaded = true;
             return t.exports;
         }
-        i.m = r;
-        i.c = n;
-        i.p = "";
-        return i(0);
+        a.m = r;
+        a.c = n;
+        a.p = "";
+        return a(0);
     }([ function(e, t, r) {
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var i = r(2);
-        var a = n(i);
+        var a = r(2);
+        var i = n(a);
         var s = r(84);
         var o = n(s);
         var l = r(85);
@@ -115,10 +115,10 @@ THE SOFTWARE.
         var h = r(88);
         var p = n(h);
         var d = r(83);
-        var g = n(d);
-        var m = a["default"].create;
+        var m = n(d);
+        var g = i["default"].create;
         function v() {
-            var r = m();
+            var r = g();
             r.compile = function(e, t) {
                 return u.compile(e, t, r);
             };
@@ -135,7 +135,7 @@ THE SOFTWARE.
         }
         var y = v();
         y.create = v;
-        g["default"](y);
+        m["default"](y);
         y.Visitor = p["default"];
         y["default"] = y;
         t["default"] = y;
@@ -151,20 +151,20 @@ THE SOFTWARE.
     }, function(e, t, r) {
         "use strict";
         var n = r(3)["default"];
-        var i = r(1)["default"];
+        var a = r(1)["default"];
         t.__esModule = true;
-        var a = r(4);
-        var s = n(a);
+        var i = r(4);
+        var s = n(i);
         var o = r(77);
-        var l = i(o);
+        var l = a(o);
         var u = r(6);
-        var c = i(u);
+        var c = a(u);
         var f = r(5);
         var h = n(f);
         var p = r(78);
         var d = n(p);
-        var g = r(83);
-        var m = i(g);
+        var m = r(83);
+        var g = a(m);
         function v() {
             var t = new s.HandlebarsEnvironment();
             h.extend(t, s);
@@ -180,7 +180,7 @@ THE SOFTWARE.
         }
         var y = v();
         y.create = v;
-        m["default"](y);
+        g["default"](y);
         y["default"] = y;
         t["default"] = y;
         e.exports = t["default"];
@@ -206,9 +206,9 @@ THE SOFTWARE.
         var n = r(1)["default"];
         t.__esModule = true;
         t.HandlebarsEnvironment = v;
-        var i = r(5);
-        var a = r(6);
-        var s = n(a);
+        var a = r(5);
+        var i = r(6);
+        var s = n(i);
         var o = r(10);
         var l = r(70);
         var u = r(72);
@@ -220,7 +220,7 @@ THE SOFTWARE.
         t.COMPILER_REVISION = p;
         var d = 7;
         t.LAST_COMPATIBLE_COMPILER_REVISION = d;
-        var g = {
+        var m = {
             1: "<= 1.0.rc.2",
             2: "== 1.0.0-rc.3",
             3: "== 1.0.0-rc.4",
@@ -230,8 +230,8 @@ THE SOFTWARE.
             7: ">= 4.0.0 <4.3.0",
             8: ">= 4.3.0"
         };
-        t.REVISION_CHANGES = g;
-        var m = "[object Object]";
+        t.REVISION_CHANGES = m;
+        var g = "[object Object]";
         function v(e, t, r) {
             this.helpers = e || {};
             this.partials = t || {};
@@ -244,11 +244,11 @@ THE SOFTWARE.
             logger: c["default"],
             log: c["default"].log,
             registerHelper: function e(t, r) {
-                if (i.toString.call(t) === m) {
+                if (a.toString.call(t) === g) {
                     if (r) {
                         throw new s["default"]("Arg not supported with multiple helpers");
                     }
-                    i.extend(this.helpers, t);
+                    a.extend(this.helpers, t);
                 } else {
                     this.helpers[t] = r;
                 }
@@ -257,8 +257,8 @@ THE SOFTWARE.
                 delete this.helpers[t];
             },
             registerPartial: function e(t, r) {
-                if (i.toString.call(t) === m) {
-                    i.extend(this.partials, t);
+                if (a.toString.call(t) === g) {
+                    a.extend(this.partials, t);
                 } else {
                     if (typeof r === "undefined") {
                         throw new s["default"]('Attempting to register a partial called "' + t + '" as undefined');
@@ -270,11 +270,11 @@ THE SOFTWARE.
                 delete this.partials[t];
             },
             registerDecorator: function e(t, r) {
-                if (i.toString.call(t) === m) {
+                if (a.toString.call(t) === g) {
                     if (r) {
                         throw new s["default"]("Arg not supported with multiple decorators");
                     }
-                    i.extend(this.decorators, t);
+                    a.extend(this.decorators, t);
                 } else {
                     this.decorators[t] = r;
                 }
@@ -288,7 +288,7 @@ THE SOFTWARE.
         };
         var y = c["default"].log;
         t.log = y;
-        t.createFrame = i.createFrame;
+        t.createFrame = a.createFrame;
         t.logger = c["default"];
     }, function(e, t) {
         "use strict";
@@ -299,7 +299,7 @@ THE SOFTWARE.
         t.isEmpty = h;
         t.createFrame = p;
         t.blockParams = d;
-        t.appendContextPath = g;
+        t.appendContextPath = m;
         var r = {
             "&": "&amp;",
             "<": "&lt;",
@@ -309,8 +309,8 @@ THE SOFTWARE.
             "`": "&#x60;",
             "=": "&#x3D;"
         };
-        var n = /[&<>"'`=]/g, i = /[&<>"'`=]/;
-        function a(e) {
+        var n = /[&<>"'`=]/g, a = /[&<>"'`=]/;
+        function i(e) {
             return r[e];
         }
         function s(e) {
@@ -357,10 +357,10 @@ THE SOFTWARE.
                 }
                 e = "" + e;
             }
-            if (!i.test(e)) {
+            if (!a.test(e)) {
                 return e;
             }
-            return e.replace(n, a);
+            return e.replace(n, i);
         }
         function h(e) {
             if (!e && e !== 0) {
@@ -380,7 +380,7 @@ THE SOFTWARE.
             e.path = t;
             return e;
         }
-        function g(e, t) {
+        function m(e, t) {
             return (e ? e + "." : "") + t;
         }
     }, function(e, t, r) {
@@ -389,13 +389,13 @@ THE SOFTWARE.
         t.__esModule = true;
         var c = [ "description", "fileName", "lineNumber", "endLineNumber", "message", "name", "number", "stack" ];
         function f(e, t) {
-            var r = t && t.loc, n = undefined, i = undefined, a = undefined, s = undefined;
+            var r = t && t.loc, n = undefined, a = undefined, i = undefined, s = undefined;
             if (r) {
                 n = r.start.line;
-                i = r.end.line;
-                a = r.start.column;
+                a = r.end.line;
+                i = r.start.column;
                 s = r.end.column;
-                e += " - " + n + ":" + a;
+                e += " - " + n + ":" + i;
             }
             var o = Error.prototype.constructor.call(this, e);
             for (var l = 0; l < c.length; l++) {
@@ -407,10 +407,10 @@ THE SOFTWARE.
             try {
                 if (r) {
                     this.lineNumber = n;
-                    this.endLineNumber = i;
+                    this.endLineNumber = a;
                     if (u) {
                         Object.defineProperty(this, "column", {
-                            value: a,
+                            value: i,
                             enumerable: true
                         });
                         Object.defineProperty(this, "endColumn", {
@@ -418,7 +418,7 @@ THE SOFTWARE.
                             enumerable: true
                         });
                     } else {
-                        this.column = a;
+                        this.column = i;
                         this.endColumn = s;
                     }
                 }
@@ -433,9 +433,9 @@ THE SOFTWARE.
             __esModule: true
         };
     }, function(e, t, r) {
-        var i = r(9);
+        var a = r(9);
         e.exports = function e(t, r, n) {
-            return i.setDesc(t, r, n);
+            return a.setDesc(t, r, n);
         };
     }, function(e, t) {
         var r = Object;
@@ -457,8 +457,8 @@ THE SOFTWARE.
         t.__esModule = true;
         t.registerDefaultHelpers = y;
         t.moveHelperToHooks = b;
-        var i = r(11);
-        var a = n(i);
+        var a = r(11);
+        var i = n(a);
         var s = r(12);
         var o = n(s);
         var l = r(65);
@@ -468,16 +468,16 @@ THE SOFTWARE.
         var h = r(67);
         var p = n(h);
         var d = r(68);
-        var g = n(d);
-        var m = r(69);
-        var v = n(m);
+        var m = n(d);
+        var g = r(69);
+        var v = n(g);
         function y(e) {
-            a["default"](e);
+            i["default"](e);
             o["default"](e);
             u["default"](e);
             f["default"](e);
             p["default"](e);
-            g["default"](e);
+            m["default"](e);
             v["default"](e);
         }
         function b(e, t, r) {
@@ -492,8 +492,8 @@ THE SOFTWARE.
         "use strict";
         t.__esModule = true;
         var s = r(5);
-        t["default"] = function(a) {
-            a.registerHelper("blockHelperMissing", function(e, t) {
+        t["default"] = function(i) {
+            i.registerHelper("blockHelperMissing", function(e, t) {
                 var r = t.inverse, n = t.fn;
                 if (e === true) {
                     return n(this);
@@ -504,16 +504,16 @@ THE SOFTWARE.
                         if (t.ids) {
                             t.ids = [ t.name ];
                         }
-                        return a.helpers.each(e, t);
+                        return i.helpers.each(e, t);
                     } else {
                         return r(this);
                     }
                 } else {
                     if (t.data && t.ids) {
-                        var i = s.createFrame(t.data);
-                        i.contextPath = s.appendContextPath(t.data.contextPath, t.name);
+                        var a = s.createFrame(t.data);
+                        a.contextPath = s.appendContextPath(t.data.contextPath, t.name);
                         t = {
-                            data: i
+                            data: a
                         };
                     }
                     return n(e, t);
@@ -525,19 +525,19 @@ THE SOFTWARE.
         "use strict";
         var p = r(13)["default"];
         var d = r(43)["default"];
-        var g = r(55)["default"];
-        var m = r(60)["default"];
+        var m = r(55)["default"];
+        var g = r(60)["default"];
         var n = r(1)["default"];
         t.__esModule = true;
         var v = r(5);
-        var i = r(6);
-        var y = n(i);
+        var a = r(6);
+        var y = n(a);
         t["default"] = function(e) {
             e.registerHelper("each", function(n, e) {
                 if (!e) {
                     throw new y["default"]("Must pass iterator to #each");
                 }
-                var i = e.fn, t = e.inverse, r = 0, a = "", s = undefined, o = undefined;
+                var a = e.fn, t = e.inverse, r = 0, i = "", s = undefined, o = undefined;
                 if (e.data && e.ids) {
                     o = v.appendContextPath(e.data.contextPath, e.ids[0]) + ".";
                 }
@@ -557,7 +557,7 @@ THE SOFTWARE.
                             s.contextPath = o + e;
                         }
                     }
-                    a = a + i(n[e], {
+                    i = i + a(n[e], {
                         data: s,
                         blockParams: v.blockParams([ n[e], e ], [ o + e, null ])
                     });
@@ -571,7 +571,7 @@ THE SOFTWARE.
                         }
                     } else if (typeof p === "function" && n[d]) {
                         var c = [];
-                        var f = g(n);
+                        var f = m(n);
                         for (var h = f.next(); !h.done; h = f.next()) {
                             c.push(h.value);
                         }
@@ -582,7 +582,7 @@ THE SOFTWARE.
                     } else {
                         (function() {
                             var t = undefined;
-                            m(n).forEach(function(e) {
+                            g(n).forEach(function(e) {
                                 if (t !== undefined) {
                                     l(t, r - 1);
                                 }
@@ -596,9 +596,9 @@ THE SOFTWARE.
                     }
                 }
                 if (r === 0) {
-                    a = t(this);
+                    i = t(this);
                 }
-                return a;
+                return i;
             });
         };
         e.exports = t["default"];
@@ -613,11 +613,11 @@ THE SOFTWARE.
         e.exports = r(21).Symbol;
     }, function(D, M, e) {
         "use strict";
-        var t = e(9), r = e(16), s = e(17), n = e(18), i = e(20), a = e(24), o = e(19), l = e(27), u = e(28), B = e(30), c = e(29), F = e(31), f = e(36), q = e(37), V = e(38), $ = e(39), h = e(32), p = e(26), d = t.getDesc, g = t.setDesc, m = t.create, v = f.get, y = r.Symbol, b = r.JSON, x = b && b.stringify, E = false, S = c("_hidden"), j = t.isEnum, w = l("symbol-registry"), k = l("symbols"), A = typeof y == "function", C = Object.prototype;
+        var t = e(9), r = e(16), s = e(17), n = e(18), a = e(20), i = e(24), o = e(19), l = e(27), u = e(28), B = e(30), c = e(29), F = e(31), f = e(36), q = e(37), $ = e(38), V = e(39), h = e(32), p = e(26), d = t.getDesc, m = t.setDesc, g = t.create, v = f.get, y = r.Symbol, b = r.JSON, E = b && b.stringify, x = false, S = c("_hidden"), j = t.isEnum, w = l("symbol-registry"), k = l("symbols"), A = typeof y == "function", C = Object.prototype;
         var P = n && o(function() {
-            return m(g({}, "a", {
+            return g(m({}, "a", {
                 get: function() {
-                    return g(this, "a", {
+                    return m(this, "a", {
                         value: 7
                     }).a;
                 }
@@ -625,13 +625,13 @@ THE SOFTWARE.
         }) ? function(e, t, r) {
             var n = d(C, t);
             if (n) delete C[t];
-            g(e, t, r);
-            if (n && e !== C) g(C, t, n);
-        } : g;
+            m(e, t, r);
+            if (n && e !== C) m(C, t, n);
+        } : m;
         var _ = function(t) {
-            var e = k[t] = m(y.prototype);
+            var e = k[t] = g(y.prototype);
             e._k = t;
-            n && E && P(C, t, {
+            n && x && P(C, t, {
                 configurable: true,
                 set: function(e) {
                     if (s(this, S) && s(this[S], t)) this[S][t] = false;
@@ -646,28 +646,28 @@ THE SOFTWARE.
         var O = function e(t, r, n) {
             if (n && s(k, r)) {
                 if (!n.enumerable) {
-                    if (!s(t, S)) g(t, S, p(1, {}));
+                    if (!s(t, S)) m(t, S, p(1, {}));
                     t[S][r] = true;
                 } else {
                     if (s(t, S) && t[S][r]) t[S][r] = false;
-                    n = m(n, {
+                    n = g(n, {
                         enumerable: p(0, false)
                     });
                 }
                 return P(t, r, n);
             }
-            return g(t, r, n);
+            return m(t, r, n);
         };
         var T = function e(t, r) {
-            $(t);
-            var n = q(r = h(r)), i = 0, a = n.length, s;
-            while (a > i) O(t, s = n[i++], r[s]);
+            V(t);
+            var n = q(r = h(r)), a = 0, i = n.length, s;
+            while (i > a) O(t, s = n[a++], r[s]);
             return t;
         };
-        var H = function e(t, r) {
-            return r === undefined ? m(t) : T(m(t), r);
+        var R = function e(t, r) {
+            return r === undefined ? g(t) : T(g(t), r);
         };
-        var R = function e(t) {
+        var H = function e(t) {
             var r = j.call(this, t);
             return r || !s(this, t) || !s(k, t) || s(this, S) && this[S][t] ? r : true;
         };
@@ -677,54 +677,54 @@ THE SOFTWARE.
             return n;
         };
         var N = function e(t) {
-            var r = v(h(t)), n = [], i = 0, a;
-            while (r.length > i) if (!s(k, a = r[i++]) && a != S) n.push(a);
+            var r = v(h(t)), n = [], a = 0, i;
+            while (r.length > a) if (!s(k, i = r[a++]) && i != S) n.push(i);
             return n;
         };
         var U = function e(t) {
-            var r = v(h(t)), n = [], i = 0, a;
-            while (r.length > i) if (s(k, a = r[i++])) n.push(k[a]);
+            var r = v(h(t)), n = [], a = 0, i;
+            while (r.length > a) if (s(k, i = r[a++])) n.push(k[i]);
             return n;
         };
         var W = function e(t) {
             if (t === undefined || I(t)) return;
-            var r = [ t ], n = 1, i = arguments, a, s;
-            while (i.length > n) r.push(i[n++]);
-            a = r[1];
-            if (typeof a == "function") s = a;
-            if (s || !V(a)) a = function(e, t) {
+            var r = [ t ], n = 1, a = arguments, i, s;
+            while (a.length > n) r.push(a[n++]);
+            i = r[1];
+            if (typeof i == "function") s = i;
+            if (s || !$(i)) i = function(e, t) {
                 if (s) t = s.call(this, e, t);
                 if (!I(t)) return t;
             };
-            r[1] = a;
-            return x.apply(b, r);
+            r[1] = i;
+            return E.apply(b, r);
         };
         var X = o(function() {
             var e = y();
-            return x([ e ]) != "[null]" || x({
+            return E([ e ]) != "[null]" || E({
                 a: e
-            }) != "{}" || x(Object(e)) != "{}";
+            }) != "{}" || E(Object(e)) != "{}";
         });
         if (!A) {
             y = function e() {
                 if (I(this)) throw TypeError("Symbol is not a constructor");
                 return _(B(arguments.length > 0 ? arguments[0] : undefined));
             };
-            a(y.prototype, "toString", function e() {
+            i(y.prototype, "toString", function e() {
                 return this._k;
             });
             I = function(e) {
                 return e instanceof y;
             };
-            t.create = H;
-            t.isEnum = R;
+            t.create = R;
+            t.isEnum = H;
             t.getDesc = L;
             t.setDesc = O;
             t.setDescs = T;
             t.getNames = f.get = N;
             t.getSymbols = U;
             if (n && !e(41)) {
-                a(C, "propertyIsEnumerable", R, true);
+                i(C, "propertyIsEnumerable", H, true);
             }
         }
         var G = {
@@ -735,30 +735,30 @@ THE SOFTWARE.
                 return F(w, t);
             },
             useSetter: function() {
-                E = true;
+                x = true;
             },
             useSimple: function() {
-                E = false;
+                x = false;
             }
         };
         t.each.call(("hasInstance,isConcatSpreadable,iterator,match,replace,search," + "species,split,toPrimitive,toStringTag,unscopables").split(","), function(e) {
             var t = c(e);
             G[e] = A ? t : _(t);
         });
-        E = true;
-        i(i.G + i.W, {
+        x = true;
+        a(a.G + a.W, {
             Symbol: y
         });
-        i(i.S, "Symbol", G);
-        i(i.S + i.F * !A, "Object", {
-            create: H,
+        a(a.S, "Symbol", G);
+        a(a.S + a.F * !A, "Object", {
+            create: R,
             defineProperty: O,
             defineProperties: T,
             getOwnPropertyDescriptor: L,
             getOwnPropertyNames: N,
             getOwnPropertySymbols: U
         });
-        b && i(i.S + i.F * (!A || X), "JSON", {
+        b && a(a.S + a.F * (!A || X), "JSON", {
             stringify: W
         });
         u(y, "Symbol");
@@ -789,21 +789,21 @@ THE SOFTWARE.
             }
         };
     }, function(e, t, r) {
-        var d = r(16), g = r(21), m = r(22), v = "prototype";
+        var d = r(16), m = r(21), g = r(22), v = "prototype";
         var y = function(e, t, r) {
-            var n = e & y.F, i = e & y.G, a = e & y.S, s = e & y.P, o = e & y.B, l = e & y.W, u = i ? g : g[t] || (g[t] = {}), c = i ? d : a ? d[t] : (d[t] || {})[v], f, h, p;
-            if (i) r = t;
+            var n = e & y.F, a = e & y.G, i = e & y.S, s = e & y.P, o = e & y.B, l = e & y.W, u = a ? m : m[t] || (m[t] = {}), c = a ? d : i ? d[t] : (d[t] || {})[v], f, h, p;
+            if (a) r = t;
             for (f in r) {
                 h = !n && c && f in c;
                 if (h && f in u) continue;
                 p = h ? c[f] : r[f];
-                u[f] = i && typeof c[f] != "function" ? r[f] : o && h ? m(p, d) : l && c[f] == p ? function(t) {
+                u[f] = a && typeof c[f] != "function" ? r[f] : o && h ? g(p, d) : l && c[f] == p ? function(t) {
                     var e = function(e) {
                         return this instanceof t ? new t(e) : t(e);
                     };
                     e[v] = t[v];
                     return e;
-                }(p) : s && typeof p == "function" ? m(Function.call, p) : p;
+                }(p) : s && typeof p == "function" ? g(Function.call, p) : p;
                 if (s) (u[v] || (u[v] = {}))[f] = p;
             }
         };
@@ -820,28 +820,28 @@ THE SOFTWARE.
         };
         if (typeof __e == "number") __e = r;
     }, function(e, t, r) {
-        var a = r(23);
-        e.exports = function(n, i, e) {
-            a(n);
-            if (i === undefined) return n;
+        var i = r(23);
+        e.exports = function(n, a, e) {
+            i(n);
+            if (a === undefined) return n;
             switch (e) {
               case 1:
                 return function(e) {
-                    return n.call(i, e);
+                    return n.call(a, e);
                 };
 
               case 2:
                 return function(e, t) {
-                    return n.call(i, e, t);
+                    return n.call(a, e, t);
                 };
 
               case 3:
                 return function(e, t, r) {
-                    return n.call(i, e, t, r);
+                    return n.call(a, e, t, r);
                 };
             }
             return function() {
-                return n.apply(i, arguments);
+                return n.apply(a, arguments);
             };
         };
     }, function(e, t) {
@@ -852,9 +852,9 @@ THE SOFTWARE.
     }, function(e, t, r) {
         e.exports = r(25);
     }, function(e, t, r) {
-        var n = r(9), i = r(26);
+        var n = r(9), a = r(26);
         e.exports = r(18) ? function(e, t, r) {
-            return n.setDesc(e, t, i(1, r));
+            return n.setDesc(e, t, a(1, r));
         } : function(e, t, r) {
             e[t] = r;
             return e;
@@ -869,22 +869,22 @@ THE SOFTWARE.
             };
         };
     }, function(e, t, r) {
-        var n = r(16), i = "__core-js_shared__", a = n[i] || (n[i] = {});
+        var n = r(16), a = "__core-js_shared__", i = n[a] || (n[a] = {});
         e.exports = function(e) {
-            return a[e] || (a[e] = {});
+            return i[e] || (i[e] = {});
         };
     }, function(e, t, r) {
-        var n = r(9).setDesc, i = r(17), a = r(29)("toStringTag");
+        var n = r(9).setDesc, a = r(17), i = r(29)("toStringTag");
         e.exports = function(e, t, r) {
-            if (e && !i(e = r ? e : e.prototype, a)) n(e, a, {
+            if (e && !a(e = r ? e : e.prototype, i)) n(e, i, {
                 configurable: true,
                 value: t
             });
         };
     }, function(e, t, r) {
-        var n = r(27)("wks"), i = r(30), a = r(16).Symbol;
+        var n = r(27)("wks"), a = r(30), i = r(16).Symbol;
         e.exports = function(e) {
-            return n[e] || (n[e] = a && a[e] || (a || i)("Symbol." + e));
+            return n[e] || (n[e] = i && i[e] || (i || a)("Symbol." + e));
         };
     }, function(e, t) {
         var r = 0, n = Math.random();
@@ -894,13 +894,13 @@ THE SOFTWARE.
     }, function(e, t, r) {
         var o = r(9), l = r(32);
         e.exports = function(e, t) {
-            var r = l(e), n = o.getKeys(r), i = n.length, a = 0, s;
-            while (i > a) if (r[s = n[a++]] === t) return s;
+            var r = l(e), n = o.getKeys(r), a = n.length, i = 0, s;
+            while (a > i) if (r[s = n[i++]] === t) return s;
         };
     }, function(e, t, r) {
-        var n = r(33), i = r(35);
+        var n = r(33), a = r(35);
         e.exports = function(e) {
-            return n(i(e));
+            return n(a(e));
         };
     }, function(e, t, r) {
         var n = r(34);
@@ -918,26 +918,26 @@ THE SOFTWARE.
             return e;
         };
     }, function(e, t, r) {
-        var n = r(32), i = r(9).getNames, a = {}.toString;
+        var n = r(32), a = r(9).getNames, i = {}.toString;
         var s = typeof window == "object" && Object.getOwnPropertyNames ? Object.getOwnPropertyNames(window) : [];
         var o = function(e) {
             try {
-                return i(e);
+                return a(e);
             } catch (e) {
                 return s.slice();
             }
         };
         e.exports.get = function e(t) {
-            if (s && a.call(t) == "[object Window]") return o(t);
-            return i(n(t));
+            if (s && i.call(t) == "[object Window]") return o(t);
+            return a(n(t));
         };
     }, function(e, t, r) {
         var o = r(9);
         e.exports = function(e) {
             var t = o.getKeys(e), r = o.getSymbols;
             if (r) {
-                var n = r(e), i = o.isEnum, a = 0, s;
-                while (n.length > a) if (i.call(e, s = n[a++])) t.push(s);
+                var n = r(e), a = o.isEnum, i = 0, s;
+                while (n.length > i) if (a.call(e, s = n[i++])) t.push(s);
             }
             return t;
         };
@@ -990,10 +990,10 @@ THE SOFTWARE.
         var l = r(47), u = r(35);
         e.exports = function(o) {
             return function(e, t) {
-                var r = String(u(e)), n = l(t), i = r.length, a, s;
-                if (n < 0 || n >= i) return o ? "" : undefined;
-                a = r.charCodeAt(n);
-                return a < 55296 || a > 56319 || n + 1 === i || (s = r.charCodeAt(n + 1)) < 56320 || s > 57343 ? o ? r.charAt(n) : a : o ? r.slice(n, n + 2) : (a - 55296 << 10) + (s - 56320) + 65536;
+                var r = String(u(e)), n = l(t), a = r.length, i, s;
+                if (n < 0 || n >= a) return o ? "" : undefined;
+                i = r.charCodeAt(n);
+                return i < 55296 || i > 56319 || n + 1 === a || (s = r.charCodeAt(n + 1)) < 56320 || s > 57343 ? o ? r.charAt(n) : i : o ? r.slice(n, n + 2) : (i - 55296 << 10) + (s - 56320) + 65536;
             };
         };
     }, function(e, t) {
@@ -1003,11 +1003,11 @@ THE SOFTWARE.
         };
     }, function(e, t, r) {
         "use strict";
-        var v = r(41), y = r(20), b = r(24), x = r(25), E = r(17), S = r(49), w = r(50), k = r(28), A = r(9).getProto, C = r(29)("iterator"), P = !([].keys && "next" in [].keys()), _ = "@@iterator", I = "keys", O = "values";
+        var v = r(41), y = r(20), b = r(24), E = r(25), x = r(17), S = r(49), w = r(50), k = r(28), A = r(9).getProto, C = r(29)("iterator"), P = !([].keys && "next" in [].keys()), _ = "@@iterator", I = "keys", O = "values";
         var T = function() {
             return this;
         };
-        e.exports = function(e, t, r, n, i, a, s) {
+        e.exports = function(e, t, r, n, a, i, s) {
             w(r, t, n);
             var o = function(t) {
                 if (!P && t in f) return f[t];
@@ -1026,11 +1026,11 @@ THE SOFTWARE.
                     return new r(this, t);
                 };
             };
-            var l = t + " Iterator", u = i == O, c = false, f = e.prototype, h = f[C] || f[_] || i && f[i], p = h || o(i), d, g;
+            var l = t + " Iterator", u = a == O, c = false, f = e.prototype, h = f[C] || f[_] || a && f[a], p = h || o(a), d, m;
             if (h) {
-                var m = A(p.call(new e()));
-                k(m, l, true);
-                if (!v && E(f, _)) x(m, C, T);
+                var g = A(p.call(new e()));
+                k(g, l, true);
+                if (!v && x(f, _)) E(g, C, T);
                 if (u && h.name !== O) {
                     c = true;
                     p = function e() {
@@ -1039,18 +1039,18 @@ THE SOFTWARE.
                 }
             }
             if ((!v || s) && (P || c || !f[C])) {
-                x(f, C, p);
+                E(f, C, p);
             }
             S[t] = p;
             S[l] = T;
-            if (i) {
+            if (a) {
                 d = {
                     values: u ? p : o(O),
-                    keys: a ? p : o(I),
+                    keys: i ? p : o(I),
                     entries: !u ? p : o("entries")
                 };
-                if (s) for (g in d) {
-                    if (!(g in f)) b(f, g, d[g]);
+                if (s) for (m in d) {
+                    if (!(m in f)) b(f, m, d[m]);
                 } else y(y.P + y.F * (P || c), t, d);
             }
             return d;
@@ -1059,15 +1059,15 @@ THE SOFTWARE.
         e.exports = {};
     }, function(e, t, r) {
         "use strict";
-        var n = r(9), i = r(26), a = r(28), s = {};
+        var n = r(9), a = r(26), i = r(28), s = {};
         r(25)(s, r(29)("iterator"), function() {
             return this;
         });
         e.exports = function(e, t, r) {
             e.prototype = n.create(s, {
-                next: i(1, r)
+                next: a(1, r)
             });
-            a(e, t + " Iterator");
+            i(e, t + " Iterator");
         };
     }, function(e, t, r) {
         r(52);
@@ -1075,7 +1075,7 @@ THE SOFTWARE.
         n.NodeList = n.HTMLCollection = n.Array;
     }, function(e, t, r) {
         "use strict";
-        var n = r(53), i = r(54), a = r(49), s = r(32);
+        var n = r(53), a = r(54), i = r(49), s = r(32);
         e.exports = r(48)(Array, "Array", function(e, t) {
             this._t = s(e);
             this._i = 0;
@@ -1084,13 +1084,13 @@ THE SOFTWARE.
             var e = this._t, t = this._k, r = this._i++;
             if (!e || r >= e.length) {
                 this._t = undefined;
-                return i(1);
+                return a(1);
             }
-            if (t == "keys") return i(0, r);
-            if (t == "values") return i(0, e[r]);
-            return i(0, [ r, e[r] ]);
+            if (t == "keys") return a(0, r);
+            if (t == "values") return a(0, e[r]);
+            return a(0, [ r, e[r] ]);
         }, "values");
-        a.Arguments = a.Array;
+        i.Arguments = i.Array;
         n("keys");
         n("values");
         n("entries");
@@ -1113,24 +1113,24 @@ THE SOFTWARE.
         r(45);
         e.exports = r(57);
     }, function(e, t, r) {
-        var n = r(39), i = r(58);
+        var n = r(39), a = r(58);
         e.exports = r(21).getIterator = function(e) {
-            var t = i(e);
+            var t = a(e);
             if (typeof t != "function") throw TypeError(e + " is not iterable!");
             return n(t.call(e));
         };
     }, function(e, t, r) {
-        var n = r(59), i = r(29)("iterator"), a = r(49);
+        var n = r(59), a = r(29)("iterator"), i = r(49);
         e.exports = r(21).getIteratorMethod = function(e) {
-            if (e != undefined) return e[i] || e["@@iterator"] || a[n(e)];
+            if (e != undefined) return e[a] || e["@@iterator"] || i[n(e)];
         };
     }, function(e, t, r) {
-        var i = r(34), a = r(29)("toStringTag"), s = i(function() {
+        var a = r(34), i = r(29)("toStringTag"), s = a(function() {
             return arguments;
         }()) == "Arguments";
         e.exports = function(e) {
             var t, r, n;
-            return e === undefined ? "Undefined" : e === null ? "Null" : typeof (r = (t = Object(e))[a]) == "string" ? r : s ? i(t) : (n = i(t)) == "Object" && typeof t.callee == "function" ? "Arguments" : n;
+            return e === undefined ? "Undefined" : e === null ? "Null" : typeof (r = (t = Object(e))[i]) == "string" ? r : s ? a(t) : (n = a(t)) == "Object" && typeof t.callee == "function" ? "Arguments" : n;
         };
     }, function(e, t, r) {
         e.exports = {
@@ -1153,11 +1153,11 @@ THE SOFTWARE.
             return Object(n(e));
         };
     }, function(e, t, r) {
-        var i = r(20), a = r(21), s = r(19);
+        var a = r(20), i = r(21), s = r(19);
         e.exports = function(e, t) {
-            var r = (a.Object || {})[e] || Object[e], n = {};
+            var r = (i.Object || {})[e] || Object[e], n = {};
             n[e] = t(r);
-            i(i.S + i.F * s(function() {
+            a(a.S + a.F * s(function() {
                 r(1);
             }), "Object", n);
         };
@@ -1165,14 +1165,14 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var i = r(6);
-        var a = n(i);
+        var a = r(6);
+        var i = n(a);
         t["default"] = function(e) {
             e.registerHelper("helperMissing", function() {
                 if (arguments.length === 1) {
                     return undefined;
                 } else {
-                    throw new a["default"]('Missing helper: "' + arguments[arguments.length - 1].name + '"');
+                    throw new i["default"]('Missing helper: "' + arguments[arguments.length - 1].name + '"');
                 }
             });
         };
@@ -1181,18 +1181,18 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var i = r(5);
-        var a = r(6);
-        var s = n(a);
+        var a = r(5);
+        var i = r(6);
+        var s = n(i);
         t["default"] = function(r) {
             r.registerHelper("if", function(e, t) {
                 if (arguments.length != 2) {
                     throw new s["default"]("#if requires exactly one argument");
                 }
-                if (i.isFunction(e)) {
+                if (a.isFunction(e)) {
                     e = e.call(this);
                 }
-                if (!t.hash.includeZero && !e || i.isEmpty(e)) {
+                if (!t.hash.includeZero && !e || a.isEmpty(e)) {
                     return t.inverse(this);
                 } else {
                     return t.fn(this);
@@ -1213,8 +1213,8 @@ THE SOFTWARE.
     }, function(e, t) {
         "use strict";
         t.__esModule = true;
-        t["default"] = function(i) {
-            i.registerHelper("log", function() {
+        t["default"] = function(a) {
+            a.registerHelper("log", function() {
                 var e = [ undefined ], t = arguments[arguments.length - 1];
                 for (var r = 0; r < arguments.length - 1; r++) {
                     e.push(arguments[r]);
@@ -1226,7 +1226,7 @@ THE SOFTWARE.
                     n = t.data.level;
                 }
                 e[0] = n;
-                i.log.apply(i, e);
+                a.log.apply(a, e);
             });
         };
         e.exports = t["default"];
@@ -1246,27 +1246,27 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var i = r(5);
-        var a = r(6);
-        var s = n(a);
+        var a = r(5);
+        var i = r(6);
+        var s = n(i);
         t["default"] = function(e) {
             e.registerHelper("with", function(e, t) {
                 if (arguments.length != 2) {
                     throw new s["default"]("#with requires exactly one argument");
                 }
-                if (i.isFunction(e)) {
+                if (a.isFunction(e)) {
                     e = e.call(this);
                 }
                 var r = t.fn;
-                if (!i.isEmpty(e)) {
+                if (!a.isEmpty(e)) {
                     var n = t.data;
                     if (t.data && t.ids) {
-                        n = i.createFrame(t.data);
-                        n.contextPath = i.appendContextPath(t.data.contextPath, t.ids[0]);
+                        n = a.createFrame(t.data);
+                        n.contextPath = a.appendContextPath(t.data.contextPath, t.ids[0]);
                     }
                     return r(e, {
                         data: n,
-                        blockParams: i.blockParams([ e ], [ n && n.contextPath ])
+                        blockParams: a.blockParams([ e ], [ n && n.contextPath ])
                     });
                 } else {
                     return t.inverse(this);
@@ -1279,29 +1279,29 @@ THE SOFTWARE.
         var n = r(1)["default"];
         t.__esModule = true;
         t.registerDefaultDecorators = s;
-        var i = r(71);
-        var a = n(i);
+        var a = r(71);
+        var i = n(a);
         function s(e) {
-            a["default"](e);
+            i["default"](e);
         }
     }, function(e, t, r) {
         "use strict";
         t.__esModule = true;
         var o = r(5);
         t["default"] = function(e) {
-            e.registerDecorator("inline", function(i, a, s, e) {
-                var t = i;
-                if (!a.partials) {
-                    a.partials = {};
+            e.registerDecorator("inline", function(a, i, s, e) {
+                var t = a;
+                if (!i.partials) {
+                    i.partials = {};
                     t = function(e, t) {
                         var r = s.partials;
-                        s.partials = o.extend({}, r, a.partials);
-                        var n = i(e, t);
+                        s.partials = o.extend({}, r, i.partials);
+                        var n = a(e, t);
                         s.partials = r;
                         return n;
                     };
                 }
-                a.partials[e.args[0]] = e.fn;
+                i.partials[e.args[0]] = e.fn;
                 return t;
             });
         };
@@ -1331,10 +1331,10 @@ THE SOFTWARE.
                     if (!console[r]) {
                         r = "log";
                     }
-                    for (var n = arguments.length, i = Array(n > 1 ? n - 1 : 0), a = 1; a < n; a++) {
-                        i[a - 1] = arguments[a];
+                    for (var n = arguments.length, a = Array(n > 1 ? n - 1 : 0), i = 1; i < n; i++) {
+                        a[i - 1] = arguments[i];
                     }
-                    console[r].apply(console, i);
+                    console[r].apply(console, a);
                 }
             }
         };
@@ -1343,15 +1343,15 @@ THE SOFTWARE.
     }, function(e, t, r) {
         "use strict";
         var n = r(74)["default"];
-        var i = r(60)["default"];
-        var a = r(1)["default"];
+        var a = r(60)["default"];
+        var i = r(1)["default"];
         t.__esModule = true;
         t.createProtoAccessControl = c;
         t.resultIsAllowed = f;
         t.resetLoggedProperties = d;
         var s = r(76);
         var o = r(72);
-        var l = a(o);
+        var l = i(o);
         var u = n(null);
         function c(e) {
             var t = n(null);
@@ -1396,7 +1396,7 @@ THE SOFTWARE.
             }
         }
         function d() {
-            i(u).forEach(function(e) {
+            a(u).forEach(function(e) {
                 delete u[e];
             });
         }
@@ -1414,13 +1414,13 @@ THE SOFTWARE.
         "use strict";
         var n = r(74)["default"];
         t.__esModule = true;
-        t.createNewLookupObject = a;
-        var i = r(5);
-        function a() {
+        t.createNewLookupObject = i;
+        var a = r(5);
+        function i() {
             for (var e = arguments.length, t = Array(e), r = 0; r < e; r++) {
                 t[r] = arguments[r];
             }
-            return i.extend.apply(undefined, [ n(null) ].concat(t));
+            return a.extend.apply(undefined, [ n(null) ].concat(t));
         }
     }, function(e, t) {
         "use strict";
@@ -1435,17 +1435,17 @@ THE SOFTWARE.
         e.exports = t["default"];
     }, function(e, t, r) {
         "use strict";
-        var i = r(79)["default"];
-        var a = r(60)["default"];
+        var a = r(79)["default"];
+        var i = r(60)["default"];
         var n = r(3)["default"];
         var s = r(1)["default"];
         t.__esModule = true;
-        t.checkRevision = g;
-        t.template = m;
+        t.checkRevision = m;
+        t.template = g;
         t.wrapProgram = v;
         t.resolvePartial = y;
         t.invokePartial = b;
-        t.noop = x;
+        t.noop = E;
         var o = r(5);
         var c = n(o);
         var l = r(6);
@@ -1454,19 +1454,19 @@ THE SOFTWARE.
         var h = r(10);
         var p = r(82);
         var d = r(73);
-        function g(e) {
+        function m(e) {
             var t = e && e[0] || 1, r = u.COMPILER_REVISION;
             if (t >= u.LAST_COMPATIBLE_COMPILER_REVISION && t <= u.COMPILER_REVISION) {
                 return;
             }
             if (t < u.LAST_COMPATIBLE_COMPILER_REVISION) {
-                var n = u.REVISION_CHANGES[r], i = u.REVISION_CHANGES[t];
-                throw new f["default"]("Template was precompiled with an older version of Handlebars than the current runtime. " + "Please update your precompiler to a newer version (" + n + ") or downgrade your runtime to an older version (" + i + ").");
+                var n = u.REVISION_CHANGES[r], a = u.REVISION_CHANGES[t];
+                throw new f["default"]("Template was precompiled with an older version of Handlebars than the current runtime. " + "Please update your precompiler to a newer version (" + n + ") or downgrade your runtime to an older version (" + a + ").");
             } else {
                 throw new f["default"]("Template was precompiled with a newer version of Handlebars than the current runtime. " + "Please update your runtime to a newer version (" + e[1] + ").");
             }
         }
-        function m(l, u) {
+        function g(l, u) {
             if (!u) {
                 throw new f["default"]("No environment passed to template");
             }
@@ -1488,23 +1488,23 @@ THE SOFTWARE.
                     hooks: this.hooks,
                     protoAccessControl: this.protoAccessControl
                 });
-                var i = u.VM.invokePartial.call(this, e, t, n);
-                if (i == null && u.compile) {
+                var a = u.VM.invokePartial.call(this, e, t, n);
+                if (a == null && u.compile) {
                     r.partials[r.name] = u.compile(e, l.compilerOptions, u);
-                    i = r.partials[r.name](t, n);
+                    a = r.partials[r.name](t, n);
                 }
-                if (i != null) {
+                if (a != null) {
                     if (r.indent) {
-                        var a = i.split("\n");
-                        for (var s = 0, o = a.length; s < o; s++) {
-                            if (!a[s] && s + 1 === o) {
+                        var i = a.split("\n");
+                        for (var s = 0, o = i.length; s < o; s++) {
+                            if (!i[s] && s + 1 === o) {
                                 break;
                             }
-                            a[s] = r.indent + a[s];
+                            i[s] = r.indent + i[s];
                         }
-                        i = a.join("\n");
+                        a = i.join("\n");
                     }
-                    return i;
+                    return a;
                 } else {
                     throw new f["default"]("The partial " + r.name + " could not be compiled when running in runtime-only mode");
                 }
@@ -1533,10 +1533,10 @@ THE SOFTWARE.
                 },
                 lookup: function e(t, r) {
                     var n = t.length;
-                    for (var i = 0; i < n; i++) {
-                        var a = t[i] && s.lookupProperty(t[i], r);
-                        if (a != null) {
-                            return t[i][r];
+                    for (var a = 0; a < n; a++) {
+                        var i = t[a] && s.lookupProperty(t[a], r);
+                        if (i != null) {
+                            return t[a][r];
                         }
                     }
                 },
@@ -1551,10 +1551,10 @@ THE SOFTWARE.
                     return r;
                 },
                 programs: [],
-                program: function e(t, r, n, i, a) {
+                program: function e(t, r, n, a, i) {
                     var s = this.programs[t], o = this.fn(t);
-                    if (r || a || i || n) {
-                        s = v(this, t, o, r, n, i, a);
+                    if (r || i || a || n) {
+                        s = v(this, t, o, r, n, a, i);
                     } else if (!s) {
                         s = this.programs[t] = v(this, t, o);
                     }
@@ -1573,7 +1573,7 @@ THE SOFTWARE.
                     }
                     return n;
                 },
-                nullContext: i({}),
+                nullContext: a({}),
                 noop: u.VM.noop,
                 compilerInfo: l.compiler
             };
@@ -1582,9 +1582,9 @@ THE SOFTWARE.
                 var r = t.data;
                 o._setup(t);
                 if (!t.partial && l.useData) {
-                    r = E(e, r);
+                    r = x(e, r);
                 }
-                var n = undefined, i = l.useBlockParams ? [] : undefined;
+                var n = undefined, a = l.useBlockParams ? [] : undefined;
                 if (l.useDepths) {
                     if (t.depths) {
                         n = e != t.depths[0] ? [ e ].concat(t.depths) : t.depths;
@@ -1592,11 +1592,11 @@ THE SOFTWARE.
                         n = [ e ];
                     }
                 }
-                function a(e) {
-                    return "" + l.main(s, e, s.helpers, s.partials, r, i, n);
+                function i(e) {
+                    return "" + l.main(s, e, s.helpers, s.partials, r, a, n);
                 }
-                a = S(l.main, a, s, t.depths || [], r, i);
-                return a(e, t);
+                i = S(l.main, i, s, t.depths || [], r, a);
+                return i(e, t);
             }
             o.isTop = true;
             o._setup = function(e) {
@@ -1634,16 +1634,16 @@ THE SOFTWARE.
             };
             return o;
         }
-        function v(n, e, i, a, t, s, o) {
+        function v(n, e, a, i, t, s, o) {
             function r(e) {
                 var t = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
                 var r = o;
                 if (o && e != o[0] && !(e === n.nullContext && o[0] === null)) {
                     r = [ e ].concat(o);
                 }
-                return i(n, e, n.helpers, n.partials, t.data || a, s && [ t.blockParams ].concat(s), r);
+                return a(n, e, n.helpers, n.partials, t.data || i, s && [ t.blockParams ].concat(s), r);
             }
-            r = S(i, r, n, o, a, s);
+            r = S(a, r, n, o, i, s);
             r.program = e;
             r.depth = o ? o.length : 0;
             r.blockParams = t || 0;
@@ -1663,20 +1663,20 @@ THE SOFTWARE.
             return e;
         }
         function b(e, t, r) {
-            var i = r.data && r.data["partial-block"];
+            var a = r.data && r.data["partial-block"];
             r.partial = true;
             if (r.ids) {
                 r.data.contextPath = r.ids[0] || r.data.contextPath;
             }
-            var a = undefined;
-            if (r.fn && r.fn !== x) {
+            var i = undefined;
+            if (r.fn && r.fn !== E) {
                 (function() {
                     r.data = u.createFrame(r.data);
                     var n = r.fn;
-                    a = r.data["partial-block"] = function e(t) {
+                    i = r.data["partial-block"] = function e(t) {
                         var r = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
                         r.data = u.createFrame(r.data);
-                        r.data["partial-block"] = i;
+                        r.data["partial-block"] = a;
                         return n(t, r);
                     };
                     if (n.partials) {
@@ -1684,8 +1684,8 @@ THE SOFTWARE.
                     }
                 })();
             }
-            if (e === undefined && a) {
-                e = a;
+            if (e === undefined && i) {
+                e = i;
             }
             if (e === undefined) {
                 throw new f["default"]("The partial " + r.name + " could not be found");
@@ -1693,26 +1693,26 @@ THE SOFTWARE.
                 return e(t, r);
             }
         }
-        function x() {
+        function E() {
             return "";
         }
-        function E(e, t) {
+        function x(e, t) {
             if (!t || !("root" in t)) {
                 t = t ? u.createFrame(t) : {};
                 t.root = e;
             }
             return t;
         }
-        function S(e, t, r, n, i, a) {
+        function S(e, t, r, n, a, i) {
             if (e.decorator) {
                 var s = {};
-                t = e.decorator(t, s, r, n && n[0], i, a, n);
+                t = e.decorator(t, s, r, n && n[0], a, i, n);
                 c.extend(t, s);
             }
             return t;
         }
         function w(r, n) {
-            a(r).forEach(function(e) {
+            i(r).forEach(function(e) {
                 var t = r[e];
                 r[e] = k(t, n);
             });
@@ -1797,16 +1797,16 @@ THE SOFTWARE.
     }, function(e, t, r) {
         "use strict";
         var n = r(1)["default"];
-        var i = r(3)["default"];
+        var a = r(3)["default"];
         t.__esModule = true;
         t.parseWithoutProcessing = p;
         t.parse = d;
-        var a = r(86);
-        var s = n(a);
+        var i = r(86);
+        var s = n(i);
         var o = r(87);
         var l = n(o);
         var u = r(89);
-        var c = i(u);
+        var c = a(u);
         var f = r(5);
         t.parser = s["default"];
         var h = {};
@@ -1958,15 +1958,15 @@ THE SOFTWARE.
                     87: "SEP"
                 },
                 productions_: [ 0, [ 3, 2 ], [ 4, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 13, 1 ], [ 10, 3 ], [ 16, 5 ], [ 9, 4 ], [ 9, 4 ], [ 24, 6 ], [ 27, 6 ], [ 38, 6 ], [ 43, 2 ], [ 45, 3 ], [ 45, 1 ], [ 26, 3 ], [ 8, 5 ], [ 8, 5 ], [ 11, 5 ], [ 12, 3 ], [ 59, 5 ], [ 63, 1 ], [ 63, 1 ], [ 64, 5 ], [ 69, 1 ], [ 71, 3 ], [ 74, 3 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 56, 1 ], [ 56, 1 ], [ 79, 2 ], [ 78, 1 ], [ 86, 3 ], [ 86, 1 ], [ 6, 0 ], [ 6, 2 ], [ 17, 0 ], [ 17, 2 ], [ 21, 0 ], [ 21, 2 ], [ 22, 0 ], [ 22, 1 ], [ 25, 0 ], [ 25, 1 ], [ 28, 0 ], [ 28, 1 ], [ 30, 0 ], [ 30, 2 ], [ 31, 0 ], [ 31, 1 ], [ 32, 0 ], [ 32, 1 ], [ 35, 0 ], [ 35, 2 ], [ 36, 0 ], [ 36, 1 ], [ 37, 0 ], [ 37, 1 ], [ 40, 0 ], [ 40, 2 ], [ 41, 0 ], [ 41, 1 ], [ 42, 0 ], [ 42, 1 ], [ 46, 0 ], [ 46, 1 ], [ 49, 0 ], [ 49, 2 ], [ 50, 0 ], [ 50, 1 ], [ 52, 0 ], [ 52, 2 ], [ 53, 0 ], [ 53, 1 ], [ 57, 0 ], [ 57, 2 ], [ 58, 0 ], [ 58, 1 ], [ 61, 0 ], [ 61, 2 ], [ 62, 0 ], [ 62, 1 ], [ 66, 0 ], [ 66, 2 ], [ 67, 0 ], [ 67, 1 ], [ 70, 1 ], [ 70, 2 ], [ 76, 1 ], [ 76, 2 ] ],
-                performAction: function e(t, r, n, i, a, s, o) {
+                performAction: function e(t, r, n, a, i, s, o) {
                     var l = s.length - 1;
-                    switch (a) {
+                    switch (i) {
                       case 1:
                         return s[l - 1];
                         break;
 
                       case 2:
-                        this.$ = i.prepareProgram(s[l]);
+                        this.$ = a.prepareProgram(s[l]);
                         break;
 
                       case 3:
@@ -1996,9 +1996,9 @@ THE SOFTWARE.
                       case 9:
                         this.$ = {
                             type: "CommentStatement",
-                            value: i.stripComment(s[l]),
-                            strip: i.stripFlags(s[l], s[l]),
-                            loc: i.locInfo(this._$)
+                            value: a.stripComment(s[l]),
+                            strip: a.stripFlags(s[l], s[l]),
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
@@ -2007,12 +2007,12 @@ THE SOFTWARE.
                             type: "ContentStatement",
                             original: s[l],
                             value: s[l],
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
                       case 11:
-                        this.$ = i.prepareRawBlock(s[l - 2], s[l - 1], s[l], this._$);
+                        this.$ = a.prepareRawBlock(s[l - 2], s[l - 1], s[l], this._$);
                         break;
 
                       case 12:
@@ -2024,11 +2024,11 @@ THE SOFTWARE.
                         break;
 
                       case 13:
-                        this.$ = i.prepareBlock(s[l - 3], s[l - 2], s[l - 1], s[l], false, this._$);
+                        this.$ = a.prepareBlock(s[l - 3], s[l - 2], s[l - 1], s[l], false, this._$);
                         break;
 
                       case 14:
-                        this.$ = i.prepareBlock(s[l - 3], s[l - 2], s[l - 1], s[l], true, this._$);
+                        this.$ = a.prepareBlock(s[l - 3], s[l - 2], s[l - 1], s[l], true, this._$);
                         break;
 
                       case 15:
@@ -2038,7 +2038,7 @@ THE SOFTWARE.
                             params: s[l - 3],
                             hash: s[l - 2],
                             blockParams: s[l - 1],
-                            strip: i.stripFlags(s[l - 5], s[l])
+                            strip: a.stripFlags(s[l - 5], s[l])
                         };
                         break;
 
@@ -2048,7 +2048,7 @@ THE SOFTWARE.
                             params: s[l - 3],
                             hash: s[l - 2],
                             blockParams: s[l - 1],
-                            strip: i.stripFlags(s[l - 5], s[l])
+                            strip: a.stripFlags(s[l - 5], s[l])
                         };
                         break;
 
@@ -2058,19 +2058,19 @@ THE SOFTWARE.
                             params: s[l - 3],
                             hash: s[l - 2],
                             blockParams: s[l - 1],
-                            strip: i.stripFlags(s[l - 5], s[l])
+                            strip: a.stripFlags(s[l - 5], s[l])
                         };
                         break;
 
                       case 18:
                         this.$ = {
-                            strip: i.stripFlags(s[l - 1], s[l - 1]),
+                            strip: a.stripFlags(s[l - 1], s[l - 1]),
                             program: s[l]
                         };
                         break;
 
                       case 19:
-                        var u = i.prepareBlock(s[l - 2], s[l - 1], s[l], s[l], false, this._$), c = i.prepareProgram([ u ], s[l - 1].loc);
+                        var u = a.prepareBlock(s[l - 2], s[l - 1], s[l], s[l], false, this._$), c = a.prepareProgram([ u ], s[l - 1].loc);
                         c.chained = true;
                         this.$ = {
                             strip: s[l - 2].strip,
@@ -2086,16 +2086,16 @@ THE SOFTWARE.
                       case 21:
                         this.$ = {
                             path: s[l - 1],
-                            strip: i.stripFlags(s[l - 2], s[l])
+                            strip: a.stripFlags(s[l - 2], s[l])
                         };
                         break;
 
                       case 22:
-                        this.$ = i.prepareMustache(s[l - 3], s[l - 2], s[l - 1], s[l - 4], i.stripFlags(s[l - 4], s[l]), this._$);
+                        this.$ = a.prepareMustache(s[l - 3], s[l - 2], s[l - 1], s[l - 4], a.stripFlags(s[l - 4], s[l]), this._$);
                         break;
 
                       case 23:
-                        this.$ = i.prepareMustache(s[l - 3], s[l - 2], s[l - 1], s[l - 4], i.stripFlags(s[l - 4], s[l]), this._$);
+                        this.$ = a.prepareMustache(s[l - 3], s[l - 2], s[l - 1], s[l - 4], a.stripFlags(s[l - 4], s[l]), this._$);
                         break;
 
                       case 24:
@@ -2105,13 +2105,13 @@ THE SOFTWARE.
                             params: s[l - 2],
                             hash: s[l - 1],
                             indent: "",
-                            strip: i.stripFlags(s[l - 4], s[l]),
-                            loc: i.locInfo(this._$)
+                            strip: a.stripFlags(s[l - 4], s[l]),
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
                       case 25:
-                        this.$ = i.preparePartialBlock(s[l - 2], s[l - 1], s[l], this._$);
+                        this.$ = a.preparePartialBlock(s[l - 2], s[l - 1], s[l], this._$);
                         break;
 
                       case 26:
@@ -2119,7 +2119,7 @@ THE SOFTWARE.
                             path: s[l - 3],
                             params: s[l - 2],
                             hash: s[l - 1],
-                            strip: i.stripFlags(s[l - 4], s[l])
+                            strip: a.stripFlags(s[l - 4], s[l])
                         };
                         break;
 
@@ -2137,7 +2137,7 @@ THE SOFTWARE.
                             path: s[l - 3],
                             params: s[l - 2],
                             hash: s[l - 1],
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
@@ -2145,21 +2145,21 @@ THE SOFTWARE.
                         this.$ = {
                             type: "Hash",
                             pairs: s[l],
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
                       case 31:
                         this.$ = {
                             type: "HashPair",
-                            key: i.id(s[l - 2]),
+                            key: a.id(s[l - 2]),
                             value: s[l],
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
                       case 32:
-                        this.$ = i.id(s[l - 1]);
+                        this.$ = a.id(s[l - 1]);
                         break;
 
                       case 33:
@@ -2175,7 +2175,7 @@ THE SOFTWARE.
                             type: "StringLiteral",
                             value: s[l],
                             original: s[l],
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
@@ -2184,7 +2184,7 @@ THE SOFTWARE.
                             type: "NumberLiteral",
                             value: Number(s[l]),
                             original: Number(s[l]),
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
@@ -2193,7 +2193,7 @@ THE SOFTWARE.
                             type: "BooleanLiteral",
                             value: s[l] === "true",
                             original: s[l] === "true",
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
@@ -2202,7 +2202,7 @@ THE SOFTWARE.
                             type: "UndefinedLiteral",
                             original: undefined,
                             value: undefined,
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
@@ -2211,7 +2211,7 @@ THE SOFTWARE.
                             type: "NullLiteral",
                             original: null,
                             value: null,
-                            loc: i.locInfo(this._$)
+                            loc: a.locInfo(this._$)
                         };
                         break;
 
@@ -2224,16 +2224,16 @@ THE SOFTWARE.
                         break;
 
                       case 42:
-                        this.$ = i.preparePath(true, s[l], this._$);
+                        this.$ = a.preparePath(true, s[l], this._$);
                         break;
 
                       case 43:
-                        this.$ = i.preparePath(false, s[l], this._$);
+                        this.$ = a.preparePath(false, s[l], this._$);
                         break;
 
                       case 44:
                         s[l - 2].push({
-                            part: i.id(s[l]),
+                            part: a.id(s[l]),
                             original: s[l],
                             separator: s[l - 1]
                         });
@@ -2242,7 +2242,7 @@ THE SOFTWARE.
 
                       case 45:
                         this.$ = [ {
-                            part: i.id(s[l]),
+                            part: a.id(s[l]),
                             original: s[l]
                         } ];
                         break;
@@ -3702,22 +3702,22 @@ THE SOFTWARE.
                     throw new Error(t);
                 },
                 parse: function e(t) {
-                    var r = this, n = [ 0 ], i = [ null ], a = [], s = this.table, o = "", l = 0, u = 0, c = 0, f = 2, h = 1;
+                    var r = this, n = [ 0 ], a = [ null ], i = [], s = this.table, o = "", l = 0, u = 0, c = 0, f = 2, h = 1;
                     this.lexer.setInput(t);
                     this.lexer.yy = this.yy;
                     this.yy.lexer = this.lexer;
                     this.yy.parser = this;
                     if (typeof this.lexer.yylloc == "undefined") this.lexer.yylloc = {};
                     var p = this.lexer.yylloc;
-                    a.push(p);
+                    i.push(p);
                     var d = this.lexer.options && this.lexer.options.ranges;
                     if (typeof this.yy.parseError === "function") this.parseError = this.yy.parseError;
-                    function g(e) {
+                    function m(e) {
                         n.length = n.length - 2 * e;
-                        i.length = i.length - e;
                         a.length = a.length - e;
+                        i.length = i.length - e;
                     }
-                    function m() {
+                    function g() {
                         var e;
                         e = r.lexer.lex() || 1;
                         if (typeof e !== "number") {
@@ -3725,18 +3725,18 @@ THE SOFTWARE.
                         }
                         return e;
                     }
-                    var v, y, b, x, E, S, w = {}, k, A, C, P;
+                    var v, y, b, E, x, S, w = {}, k, A, C, P;
                     while (true) {
                         b = n[n.length - 1];
                         if (this.defaultActions[b]) {
-                            x = this.defaultActions[b];
+                            E = this.defaultActions[b];
                         } else {
                             if (v === null || typeof v == "undefined") {
-                                v = m();
+                                v = g();
                             }
-                            x = s[b] && s[b][v];
+                            E = s[b] && s[b][v];
                         }
-                        if (typeof x === "undefined" || !x.length || !x[0]) {
+                        if (typeof E === "undefined" || !E.length || !E[0]) {
                             var _ = "";
                             if (!c) {
                                 P = [];
@@ -3757,15 +3757,15 @@ THE SOFTWARE.
                                 });
                             }
                         }
-                        if (x[0] instanceof Array && x.length > 1) {
+                        if (E[0] instanceof Array && E.length > 1) {
                             throw new Error("Parse Error: multiple actions possible at state: " + b + ", token: " + v);
                         }
-                        switch (x[0]) {
+                        switch (E[0]) {
                           case 1:
                             n.push(v);
-                            i.push(this.lexer.yytext);
-                            a.push(this.lexer.yylloc);
-                            n.push(x[1]);
+                            a.push(this.lexer.yytext);
+                            i.push(this.lexer.yylloc);
+                            n.push(E[1]);
                             v = null;
                             if (!y) {
                                 u = this.lexer.yyleng;
@@ -3780,29 +3780,29 @@ THE SOFTWARE.
                             break;
 
                           case 2:
-                            A = this.productions_[x[1]][1];
-                            w.$ = i[i.length - A];
+                            A = this.productions_[E[1]][1];
+                            w.$ = a[a.length - A];
                             w._$ = {
-                                first_line: a[a.length - (A || 1)].first_line,
-                                last_line: a[a.length - 1].last_line,
-                                first_column: a[a.length - (A || 1)].first_column,
-                                last_column: a[a.length - 1].last_column
+                                first_line: i[i.length - (A || 1)].first_line,
+                                last_line: i[i.length - 1].last_line,
+                                first_column: i[i.length - (A || 1)].first_column,
+                                last_column: i[i.length - 1].last_column
                             };
                             if (d) {
-                                w._$.range = [ a[a.length - (A || 1)].range[0], a[a.length - 1].range[1] ];
+                                w._$.range = [ i[i.length - (A || 1)].range[0], i[i.length - 1].range[1] ];
                             }
-                            S = this.performAction.call(w, o, u, l, this.yy, x[1], i, a);
+                            S = this.performAction.call(w, o, u, l, this.yy, E[1], a, i);
                             if (typeof S !== "undefined") {
                                 return S;
                             }
                             if (A) {
                                 n = n.slice(0, -1 * A * 2);
-                                i = i.slice(0, -1 * A);
                                 a = a.slice(0, -1 * A);
+                                i = i.slice(0, -1 * A);
                             }
-                            n.push(this.productions_[x[1]][0]);
-                            i.push(w.$);
-                            a.push(w._$);
+                            n.push(this.productions_[E[1]][0]);
+                            a.push(w.$);
+                            i.push(w._$);
                             C = s[n[n.length - 2]][n[n.length - 1]];
                             n.push(C);
                             break;
@@ -3864,19 +3864,19 @@ THE SOFTWARE.
                         this._input = t + this._input;
                         this.yytext = this.yytext.substr(0, this.yytext.length - r - 1);
                         this.offset -= r;
-                        var i = this.match.split(/(?:\r\n?|\n)/g);
+                        var a = this.match.split(/(?:\r\n?|\n)/g);
                         this.match = this.match.substr(0, this.match.length - 1);
                         this.matched = this.matched.substr(0, this.matched.length - 1);
                         if (n.length - 1) this.yylineno -= n.length - 1;
-                        var a = this.yylloc.range;
+                        var i = this.yylloc.range;
                         this.yylloc = {
                             first_line: this.yylloc.first_line,
                             last_line: this.yylineno + 1,
                             first_column: this.yylloc.first_column,
-                            last_column: n ? (n.length === i.length ? this.yylloc.first_column : 0) + i[i.length - n.length].length - n[0].length : this.yylloc.first_column - r
+                            last_column: n ? (n.length === a.length ? this.yylloc.first_column : 0) + a[a.length - n.length].length - n[0].length : this.yylloc.first_column - r
                         };
                         if (this.options.ranges) {
-                            this.yylloc.range = [ a[0], a[0] + this.yyleng - r ];
+                            this.yylloc.range = [ i[0], i[0] + this.yyleng - r ];
                         }
                         return this;
                     },
@@ -3908,7 +3908,7 @@ THE SOFTWARE.
                             return this.EOF;
                         }
                         if (!this._input) this.done = true;
-                        var t, r, n, i, a, s;
+                        var t, r, n, a, i, s;
                         if (!this._more) {
                             this.yytext = "";
                             this.match = "";
@@ -3918,7 +3918,7 @@ THE SOFTWARE.
                             n = this._input.match(this.rules[o[l]]);
                             if (n && (!r || n[0].length > r[0].length)) {
                                 r = n;
-                                i = l;
+                                a = l;
                                 if (!this.options.flex) break;
                             }
                         }
@@ -3941,7 +3941,7 @@ THE SOFTWARE.
                             this._more = false;
                             this._input = this._input.slice(r[0].length);
                             this.matched += r[0];
-                            t = this.performAction.call(this, this.yy, this, o[i], this.conditionStack[this.conditionStack.length - 1]);
+                            t = this.performAction.call(this, this.yy, this, o[a], this.conditionStack[this.conditionStack.length - 1]);
                             if (this.done && this._input) this.done = false;
                             if (t) return t; else return;
                         }
@@ -3980,18 +3980,18 @@ THE SOFTWARE.
                     }
                 };
                 e.options = {};
-                e.performAction = function e(t, r, n, i) {
-                    function a(e, t) {
+                e.performAction = function e(t, r, n, a) {
+                    function i(e, t) {
                         return r.yytext = r.yytext.substring(e, r.yyleng - t + e);
                     }
-                    var s = i;
+                    var s = a;
                     switch (n) {
                       case 0:
                         if (r.yytext.slice(-2) === "\\\\") {
-                            a(0, 1);
+                            i(0, 1);
                             this.begin("mu");
                         } else if (r.yytext.slice(-1) === "\\") {
-                            a(0, 1);
+                            i(0, 1);
                             this.begin("emu");
                         } else {
                             this.begin("mu");
@@ -4018,7 +4018,7 @@ THE SOFTWARE.
                         if (this.conditionStack[this.conditionStack.length - 1] === "raw") {
                             return 15;
                         } else {
-                            a(5, 9);
+                            i(5, 9);
                             return "END_RAW_BLOCK";
                         }
                         break;
@@ -4137,12 +4137,12 @@ THE SOFTWARE.
                         break;
 
                       case 31:
-                        r.yytext = a(1, 2).replace(/\\"/g, '"');
+                        r.yytext = i(1, 2).replace(/\\"/g, '"');
                         return 80;
                         break;
 
                       case 32:
-                        r.yytext = a(1, 2).replace(/\\'/g, "'");
+                        r.yytext = i(1, 2).replace(/\\'/g, "'");
                         return 80;
                         break;
 
@@ -4235,45 +4235,45 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var i = r(88);
-        var a = n(i);
+        var a = r(88);
+        var i = n(a);
         function s() {
             var e = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
             this.options = e;
         }
-        s.prototype = new a["default"]();
+        s.prototype = new i["default"]();
         s.prototype.Program = function(e) {
             var t = !this.options.ignoreStandalone;
             var r = !this.isRootSeen;
             this.isRootSeen = true;
             var n = e.body;
-            for (var i = 0, a = n.length; i < a; i++) {
-                var s = n[i], o = this.accept(s);
+            for (var a = 0, i = n.length; a < i; a++) {
+                var s = n[a], o = this.accept(s);
                 if (!o) {
                     continue;
                 }
-                var l = p(n, i, r), u = d(n, i, r), c = o.openStandalone && l, f = o.closeStandalone && u, h = o.inlineStandalone && l && u;
+                var l = p(n, a, r), u = d(n, a, r), c = o.openStandalone && l, f = o.closeStandalone && u, h = o.inlineStandalone && l && u;
                 if (o.close) {
-                    g(n, i, true);
+                    m(n, a, true);
                 }
                 if (o.open) {
-                    m(n, i, true);
+                    g(n, a, true);
                 }
                 if (t && h) {
-                    g(n, i);
-                    if (m(n, i)) {
+                    m(n, a);
+                    if (g(n, a)) {
                         if (s.type === "PartialStatement") {
-                            s.indent = /([ \t]+$)/.exec(n[i - 1].original)[1];
+                            s.indent = /([ \t]+$)/.exec(n[a - 1].original)[1];
                         }
                     }
                 }
                 if (t && c) {
-                    g((s.program || s.inverse).body);
-                    m(n, i);
+                    m((s.program || s.inverse).body);
+                    g(n, a);
                 }
                 if (t && f) {
-                    g(n, i);
-                    m((s.inverse || s.program).body);
+                    m(n, a);
+                    g((s.inverse || s.program).body);
                 }
             }
             return e;
@@ -4281,41 +4281,41 @@ THE SOFTWARE.
         s.prototype.BlockStatement = s.prototype.DecoratorBlock = s.prototype.PartialBlockStatement = function(e) {
             this.accept(e.program);
             this.accept(e.inverse);
-            var t = e.program || e.inverse, r = e.program && e.inverse, n = r, i = r;
+            var t = e.program || e.inverse, r = e.program && e.inverse, n = r, a = r;
             if (r && r.chained) {
                 n = r.body[0].program;
-                while (i.chained) {
-                    i = i.body[i.body.length - 1].program;
+                while (a.chained) {
+                    a = a.body[a.body.length - 1].program;
                 }
             }
-            var a = {
+            var i = {
                 open: e.openStrip.open,
                 close: e.closeStrip.close,
                 openStandalone: d(t.body),
                 closeStandalone: p((n || t).body)
             };
             if (e.openStrip.close) {
-                g(t.body, null, true);
+                m(t.body, null, true);
             }
             if (r) {
                 var s = e.inverseStrip;
                 if (s.open) {
-                    m(t.body, null, true);
+                    g(t.body, null, true);
                 }
                 if (s.close) {
-                    g(n.body, null, true);
+                    m(n.body, null, true);
                 }
                 if (e.closeStrip.open) {
-                    m(i.body, null, true);
+                    g(a.body, null, true);
                 }
                 if (!this.options.ignoreStandalone && p(t.body) && d(n.body)) {
-                    m(t.body);
-                    g(n.body);
+                    g(t.body);
+                    m(n.body);
                 }
             } else if (e.closeStrip.open) {
-                m(t.body, null, true);
+                g(t.body, null, true);
             }
-            return a;
+            return i;
         };
         s.prototype.Decorator = s.prototype.MustacheStatement = function(e) {
             return e.strip;
@@ -4332,43 +4332,43 @@ THE SOFTWARE.
             if (t === undefined) {
                 t = e.length;
             }
-            var n = e[t - 1], i = e[t - 2];
+            var n = e[t - 1], a = e[t - 2];
             if (!n) {
                 return r;
             }
             if (n.type === "ContentStatement") {
-                return (i || !r ? /\r?\n\s*?$/ : /(^|\r?\n)\s*?$/).test(n.original);
+                return (a || !r ? /\r?\n\s*?$/ : /(^|\r?\n)\s*?$/).test(n.original);
             }
         }
         function d(e, t, r) {
             if (t === undefined) {
                 t = -1;
             }
-            var n = e[t + 1], i = e[t + 2];
+            var n = e[t + 1], a = e[t + 2];
             if (!n) {
                 return r;
             }
             if (n.type === "ContentStatement") {
-                return (i || !r ? /^\s*?\r?\n/ : /^\s*?(\r?\n|$)/).test(n.original);
+                return (a || !r ? /^\s*?\r?\n/ : /^\s*?(\r?\n|$)/).test(n.original);
             }
         }
-        function g(e, t, r) {
+        function m(e, t, r) {
             var n = e[t == null ? 0 : t + 1];
             if (!n || n.type !== "ContentStatement" || !r && n.rightStripped) {
                 return;
             }
-            var i = n.value;
+            var a = n.value;
             n.value = n.value.replace(r ? /^\s+/ : /^[ \t]*\r?\n?/, "");
-            n.rightStripped = n.value !== i;
+            n.rightStripped = n.value !== a;
         }
-        function m(e, t, r) {
+        function g(e, t, r) {
             var n = e[t == null ? e.length - 1 : t - 1];
             if (!n || n.type !== "ContentStatement" || !r && n.leftStripped) {
                 return;
             }
-            var i = n.value;
+            var a = n.value;
             n.value = n.value.replace(r ? /\s+$/ : /[ \t]+$/, "");
-            n.leftStripped = n.value !== i;
+            n.leftStripped = n.value !== a;
             return n.leftStripped;
         }
         t["default"] = s;
@@ -4377,8 +4377,8 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var i = r(6);
-        var a = n(i);
+        var a = r(6);
+        var i = n(a);
         function s() {
             this.parents = [];
         }
@@ -4389,7 +4389,7 @@ THE SOFTWARE.
                 var n = this.accept(t[r]);
                 if (this.mutating) {
                     if (n && !s.prototype[n.type]) {
-                        throw new a["default"]('Unexpected node type "' + n.type + '" found when accepting ' + r + " on " + t.type);
+                        throw new i["default"]('Unexpected node type "' + n.type + '" found when accepting ' + r + " on " + t.type);
                     }
                     t[r] = n;
                 }
@@ -4397,7 +4397,7 @@ THE SOFTWARE.
             acceptRequired: function e(t, r) {
                 this.acceptKey(t, r);
                 if (!t[r]) {
-                    throw new a["default"](t.type + " requires " + r);
+                    throw new i["default"](t.type + " requires " + r);
                 }
             },
             acceptArray: function e(t) {
@@ -4415,7 +4415,7 @@ THE SOFTWARE.
                     return;
                 }
                 if (!this[t.type]) {
-                    throw new a["default"]("Unknown type: " + t.type, t);
+                    throw new i["default"]("Unknown type: " + t.type, t);
                 }
                 if (this.current) {
                     this.parents.unshift(this.current);
@@ -4478,7 +4478,7 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        t.SourceLocation = a;
+        t.SourceLocation = i;
         t.id = s;
         t.stripFlags = o;
         t.stripComment = l;
@@ -4486,10 +4486,10 @@ THE SOFTWARE.
         t.prepareMustache = h;
         t.prepareRawBlock = p;
         t.prepareBlock = d;
-        t.prepareProgram = g;
-        t.preparePartialBlock = m;
-        var i = r(6);
-        var c = n(i);
+        t.prepareProgram = m;
+        t.preparePartialBlock = g;
+        var a = r(6);
+        var c = n(a);
         function u(e, t) {
             t = t.path ? t.path.original : t;
             if (e.path.original !== t) {
@@ -4499,7 +4499,7 @@ THE SOFTWARE.
                 throw new c["default"](e.path.original + " doesn't match " + t, r);
             }
         }
-        function a(e, t) {
+        function i(e, t) {
             this.source = e;
             this.start = {
                 line: t.first_line,
@@ -4528,32 +4528,32 @@ THE SOFTWARE.
         }
         function f(e, t, r) {
             r = this.locInfo(r);
-            var n = e ? "@" : "", i = [], a = 0;
+            var n = e ? "@" : "", a = [], i = 0;
             for (var s = 0, o = t.length; s < o; s++) {
                 var l = t[s].part, u = t[s].original !== l;
                 n += (t[s].separator || "") + l;
                 if (!u && (l === ".." || l === "." || l === "this")) {
-                    if (i.length > 0) {
+                    if (a.length > 0) {
                         throw new c["default"]("Invalid path: " + n, {
                             loc: r
                         });
                     } else if (l === "..") {
-                        a++;
+                        i++;
                     }
                 } else {
-                    i.push(l);
+                    a.push(l);
                 }
             }
             return {
                 type: "PathExpression",
                 data: e,
-                depth: a,
-                parts: i,
+                depth: i,
+                parts: a,
                 original: n,
                 loc: r
             };
         }
-        function h(e, t, r, n, i, a) {
+        function h(e, t, r, n, a, i) {
             var s = n.charAt(3) || n.charAt(2), o = s !== "{" && s !== "&";
             var l = /\*/.test(n);
             return {
@@ -4562,14 +4562,14 @@ THE SOFTWARE.
                 params: t,
                 hash: r,
                 escaped: o,
-                strip: i,
-                loc: this.locInfo(a)
+                strip: a,
+                loc: this.locInfo(i)
             };
         }
         function p(e, t, r, n) {
             u(e, r);
             n = this.locInfo(n);
-            var i = {
+            var a = {
                 type: "Program",
                 body: t,
                 strip: {},
@@ -4580,14 +4580,14 @@ THE SOFTWARE.
                 path: e.path,
                 params: e.params,
                 hash: e.hash,
-                program: i,
+                program: a,
                 openStrip: {},
                 inverseStrip: {},
                 closeStrip: {},
                 loc: n
             };
         }
-        function d(e, t, r, n, i, a) {
+        function d(e, t, r, n, a, i) {
             if (n && n.path) {
                 u(e, n);
             }
@@ -4604,10 +4604,10 @@ THE SOFTWARE.
                 l = r.strip;
                 o = r.program;
             }
-            if (i) {
-                i = o;
+            if (a) {
+                a = o;
                 o = t;
-                t = i;
+                t = a;
             }
             return {
                 type: s ? "DecoratorBlock" : "BlockStatement",
@@ -4619,10 +4619,10 @@ THE SOFTWARE.
                 openStrip: e.strip,
                 inverseStrip: l,
                 closeStrip: n && n.strip,
-                loc: this.locInfo(a)
+                loc: this.locInfo(i)
             };
         }
-        function g(e, t) {
+        function m(e, t) {
             if (!t && e.length) {
                 var r = e[0].loc, n = e[e.length - 1].loc;
                 if (r && n) {
@@ -4646,7 +4646,7 @@ THE SOFTWARE.
                 loc: t
             };
         }
-        function m(e, t, r, n) {
+        function g(e, t, r, n) {
             u(e, r);
             return {
                 type: "PartialBlockStatement",
@@ -4662,16 +4662,16 @@ THE SOFTWARE.
     }, function(e, t, r) {
         "use strict";
         var n = r(74)["default"];
-        var i = r(1)["default"];
+        var a = r(1)["default"];
         t.__esModule = true;
         t.Compiler = f;
         t.precompile = h;
         t.compile = p;
-        var a = r(6);
-        var l = i(a);
+        var i = r(6);
+        var l = a(i);
         var u = r(5);
         var s = r(84);
-        var c = i(s);
+        var c = a(s);
         var o = [].slice;
         function f() {}
         f.prototype = {
@@ -4682,8 +4682,8 @@ THE SOFTWARE.
                     return false;
                 }
                 for (var n = 0; n < r; n++) {
-                    var i = this.opcodes[n], a = t.opcodes[n];
-                    if (i.opcode !== a.opcode || !d(i.args, a.args)) {
+                    var a = this.opcodes[n], i = t.opcodes[n];
+                    if (a.opcode !== i.opcode || !d(a.args, i.args)) {
                         return false;
                     }
                 }
@@ -4717,11 +4717,11 @@ THE SOFTWARE.
                 return this.accept(t);
             },
             compileProgram: function e(t) {
-                var r = new this.compiler(), n = r.compile(t, this.options), i = this.guid++;
+                var r = new this.compiler(), n = r.compile(t, this.options), a = this.guid++;
                 this.usePartial = this.usePartial || n.usePartial;
-                this.children[i] = n;
+                this.children[a] = n;
                 this.useDepths = this.useDepths || n.useDepths;
-                return i;
+                return a;
             },
             accept: function e(t) {
                 if (!this[t.type]) {
@@ -4735,8 +4735,8 @@ THE SOFTWARE.
             Program: function e(t) {
                 this.options.blockParams.unshift(t.blockParams);
                 var r = t.body, n = r.length;
-                for (var i = 0; i < n; i++) {
-                    this.accept(r[i]);
+                for (var a = 0; a < n; a++) {
+                    this.accept(r[a]);
                 }
                 this.options.blockParams.shift();
                 this.isSimple = n === 1;
@@ -4744,14 +4744,14 @@ THE SOFTWARE.
                 return this;
             },
             BlockStatement: function e(t) {
-                g(t);
+                m(t);
                 var r = t.program, n = t.inverse;
                 r = r && this.compileProgram(r);
                 n = n && this.compileProgram(n);
-                var i = this.classifySexpr(t);
-                if (i === "helper") {
+                var a = this.classifySexpr(t);
+                if (a === "helper") {
                     this.helperSexpr(t, r, n);
-                } else if (i === "simple") {
+                } else if (a === "simple") {
                     this.simpleSexpr(t);
                     this.opcode("pushProgram", r);
                     this.opcode("pushProgram", n);
@@ -4768,9 +4768,9 @@ THE SOFTWARE.
             },
             DecoratorBlock: function e(t) {
                 var r = t.program && this.compileProgram(t.program);
-                var n = this.setupFullMustacheParams(t, r, undefined), i = t.path;
+                var n = this.setupFullMustacheParams(t, r, undefined), a = t.path;
                 this.useDecorators = true;
-                this.opcode("registerDecorator", n.length, i.original);
+                this.opcode("registerDecorator", n.length, a.original);
             },
             PartialStatement: function e(t) {
                 this.usePartial = true;
@@ -4792,8 +4792,8 @@ THE SOFTWARE.
                         });
                     }
                 }
-                var i = t.name.original, a = t.name.type === "SubExpression";
-                if (a) {
+                var a = t.name.original, i = t.name.type === "SubExpression";
+                if (i) {
                     this.accept(t.name);
                 }
                 this.setupFullMustacheParams(t, r, undefined, true);
@@ -4802,7 +4802,7 @@ THE SOFTWARE.
                     this.opcode("appendContent", s);
                     s = "";
                 }
-                this.opcode("invokePartial", a, i, s);
+                this.opcode("invokePartial", i, a, s);
                 this.opcode("append");
             },
             PartialBlockStatement: function e(t) {
@@ -4826,7 +4826,7 @@ THE SOFTWARE.
             },
             CommentStatement: function e() {},
             SubExpression: function e(t) {
-                g(t);
+                m(t);
                 var r = this.classifySexpr(t);
                 if (r === "simple") {
                     this.simpleSexpr(t);
@@ -4837,13 +4837,13 @@ THE SOFTWARE.
                 }
             },
             ambiguousSexpr: function e(t, r, n) {
-                var i = t.path, a = i.parts[0], s = r != null || n != null;
-                this.opcode("getContext", i.depth);
+                var a = t.path, i = a.parts[0], s = r != null || n != null;
+                this.opcode("getContext", a.depth);
                 this.opcode("pushProgram", r);
                 this.opcode("pushProgram", n);
-                i.strict = true;
-                this.accept(i);
-                this.opcode("invokeAmbiguous", a, s);
+                a.strict = true;
+                this.accept(a);
+                this.opcode("invokeAmbiguous", i, s);
             },
             simpleSexpr: function e(t) {
                 var r = t.path;
@@ -4852,24 +4852,24 @@ THE SOFTWARE.
                 this.opcode("resolvePossibleLambda");
             },
             helperSexpr: function e(t, r, n) {
-                var i = this.setupFullMustacheParams(t, r, n), a = t.path, s = a.parts[0];
+                var a = this.setupFullMustacheParams(t, r, n), i = t.path, s = i.parts[0];
                 if (this.options.knownHelpers[s]) {
-                    this.opcode("invokeKnownHelper", i.length, s);
+                    this.opcode("invokeKnownHelper", a.length, s);
                 } else if (this.options.knownHelpersOnly) {
                     throw new l["default"]("You specified knownHelpersOnly, but used the unknown helper " + s, t);
                 } else {
-                    a.strict = true;
-                    a.falsy = true;
-                    this.accept(a);
-                    this.opcode("invokeHelper", i.length, a.original, c["default"].helpers.simpleId(a));
+                    i.strict = true;
+                    i.falsy = true;
+                    this.accept(i);
+                    this.opcode("invokeHelper", a.length, i.original, c["default"].helpers.simpleId(i));
                 }
             },
             PathExpression: function e(t) {
                 this.addDepth(t.depth);
                 this.opcode("getContext", t.depth);
-                var r = t.parts[0], n = c["default"].helpers.scopedId(t), i = !t.depth && !n && this.blockParamIndex(r);
-                if (i) {
-                    this.opcode("lookupBlockParam", i, t.parts);
+                var r = t.parts[0], n = c["default"].helpers.scopedId(t), a = !t.depth && !n && this.blockParamIndex(r);
+                if (a) {
+                    this.opcode("lookupBlockParam", a, t.parts);
                 } else if (!r) {
                     this.opcode("pushContext");
                 } else if (t.data) {
@@ -4895,9 +4895,9 @@ THE SOFTWARE.
                 this.opcode("pushLiteral", "null");
             },
             Hash: function e(t) {
-                var r = t.pairs, n = 0, i = r.length;
+                var r = t.pairs, n = 0, a = r.length;
                 this.opcode("pushHash");
-                for (;n < i; n++) {
+                for (;n < a; n++) {
                     this.pushParam(r[n].value);
                 }
                 while (n--) {
@@ -4921,19 +4921,19 @@ THE SOFTWARE.
             classifySexpr: function e(t) {
                 var r = c["default"].helpers.simpleId(t.path);
                 var n = r && !!this.blockParamIndex(t.path.parts[0]);
-                var i = !n && c["default"].helpers.helperExpression(t);
-                var a = !n && (i || r);
-                if (a && !i) {
+                var a = !n && c["default"].helpers.helperExpression(t);
+                var i = !n && (a || r);
+                if (i && !a) {
                     var s = t.path.parts[0], o = this.options;
                     if (o.knownHelpers[s]) {
-                        i = true;
+                        a = true;
                     } else if (o.knownHelpersOnly) {
-                        a = false;
+                        i = false;
                     }
                 }
-                if (i) {
+                if (a) {
                     return "helper";
-                } else if (a) {
+                } else if (i) {
                     return "ambiguous";
                 } else {
                     return "simple";
@@ -4965,8 +4965,8 @@ THE SOFTWARE.
                             n = this.blockParamIndex(t.parts[0]);
                         }
                         if (n) {
-                            var i = t.parts.slice(1).join(".");
-                            this.opcode("pushId", "BlockParam", n, i);
+                            var a = t.parts.slice(1).join(".");
+                            this.opcode("pushId", "BlockParam", n, a);
                         } else {
                             r = t.original || r;
                             if (r.replace) {
@@ -4978,23 +4978,23 @@ THE SOFTWARE.
                     this.accept(t);
                 }
             },
-            setupFullMustacheParams: function e(t, r, n, i) {
-                var a = t.params;
-                this.pushParams(a);
+            setupFullMustacheParams: function e(t, r, n, a) {
+                var i = t.params;
+                this.pushParams(i);
                 this.opcode("pushProgram", r);
                 this.opcode("pushProgram", n);
                 if (t.hash) {
                     this.accept(t.hash);
                 } else {
-                    this.opcode("emptyHash", i);
+                    this.opcode("emptyHash", a);
                 }
-                return a;
+                return i;
             },
             blockParamIndex: function e(t) {
                 for (var r = 0, n = this.options.blockParams.length; r < n; r++) {
-                    var i = this.options.blockParams[r], a = i && u.indexOf(i, t);
-                    if (i && a >= 0) {
-                        return [ r, a ];
+                    var a = this.options.blockParams[r], i = a && u.indexOf(a, t);
+                    if (a && i >= 0) {
+                        return [ r, i ];
                     }
                 }
             }
@@ -5010,25 +5010,25 @@ THE SOFTWARE.
             if (t.compat) {
                 t.useDepths = true;
             }
-            var n = r.parse(e, t), i = new r.Compiler().compile(n, t);
-            return new r.JavaScriptCompiler().compile(i, t);
+            var n = r.parse(e, t), a = new r.Compiler().compile(n, t);
+            return new r.JavaScriptCompiler().compile(a, t);
         }
-        function p(n, i, a) {
-            if (i === undefined) i = {};
+        function p(n, a, i) {
+            if (a === undefined) a = {};
             if (n == null || typeof n !== "string" && n.type !== "Program") {
                 throw new l["default"]("You must pass a string or Handlebars AST to Handlebars.compile. You passed " + n);
             }
-            i = u.extend({}, i);
-            if (!("data" in i)) {
-                i.data = true;
+            a = u.extend({}, a);
+            if (!("data" in a)) {
+                a.data = true;
             }
-            if (i.compat) {
-                i.useDepths = true;
+            if (a.compat) {
+                a.useDepths = true;
             }
             var s = undefined;
             function o() {
-                var e = a.parse(n, i), t = new a.Compiler().compile(e, i), r = new a.JavaScriptCompiler().compile(t, i, undefined, true);
-                return a.template(r);
+                var e = i.parse(n, a), t = new i.Compiler().compile(e, a), r = new i.JavaScriptCompiler().compile(t, a, undefined, true);
+                return i.template(r);
             }
             function e(e, t) {
                 if (!s) {
@@ -5063,7 +5063,7 @@ THE SOFTWARE.
                 return true;
             }
         }
-        function g(e) {
+        function m(e) {
             if (!e.path.parts) {
                 var t = e.path;
                 e.path = {
@@ -5081,9 +5081,9 @@ THE SOFTWARE.
         var l = r(60)["default"];
         var n = r(1)["default"];
         t.__esModule = true;
-        var i = r(4);
-        var a = r(6);
-        var g = n(a);
+        var a = r(4);
+        var i = r(6);
+        var m = n(i);
         var s = r(5);
         var o = r(92);
         var u = n(o);
@@ -5099,7 +5099,7 @@ THE SOFTWARE.
                 return [ this.aliasable("container.lookup"), "(depths, ", JSON.stringify(t), ")" ];
             },
             compilerInfo: function e() {
-                var t = i.COMPILER_REVISION, r = i.REVISION_CHANGES[t];
+                var t = a.COMPILER_REVISION, r = a.REVISION_CHANGES[t];
                 return [ t, r ];
             },
             appendToBuffer: function e(t, r, n) {
@@ -5124,12 +5124,12 @@ THE SOFTWARE.
                 return [ "lookupProperty(", t, ",", JSON.stringify(r), ")" ];
             },
             lookupPropertyFunctionIsUsed: false,
-            compile: function e(t, r, n, i) {
+            compile: function e(t, r, n, a) {
                 this.environment = t;
                 this.options = r;
                 this.stringParams = this.options.stringParams;
                 this.trackIds = this.options.trackIds;
-                this.precompile = !i;
+                this.precompile = !a;
                 this.name = this.environment.name;
                 this.isChild = !!n;
                 this.context = n || {
@@ -5151,9 +5151,9 @@ THE SOFTWARE.
                 this.compileChildren(t, r);
                 this.useDepths = this.useDepths || t.useDepths || t.useDecorators || this.options.compat;
                 this.useBlockParams = this.useBlockParams || t.useBlockParams;
-                var a = t.opcodes, s = undefined, o = undefined, l = undefined, u = undefined;
-                for (l = 0, u = a.length; l < u; l++) {
-                    s = a[l];
+                var i = t.opcodes, s = undefined, o = undefined, l = undefined, u = undefined;
+                for (l = 0, u = i.length; l < u; l++) {
+                    s = i[l];
                     this.source.currentLocation = s.loc;
                     o = o || s.loc;
                     this[s.opcode].apply(this, s.args);
@@ -5161,13 +5161,13 @@ THE SOFTWARE.
                 this.source.currentLocation = o;
                 this.pushSource("");
                 if (this.stackSlot || this.inlineStack.length || this.compileStack.length) {
-                    throw new g["default"]("Compile completed with content left on stack");
+                    throw new m["default"]("Compile completed with content left on stack");
                 }
                 if (!this.decorators.isEmpty()) {
                     this.useDecorators = true;
                     this.decorators.prepend([ "var decorators = container.decorators, ", this.lookupPropertyFunctionVarDeclaration(), ";\n" ]);
                     this.decorators.push("return fn;");
-                    if (i) {
+                    if (a) {
                         this.decorators = Function.apply(this, [ "fn", "props", "container", "depth0", "data", "blockParams", "depths", this.decorators.merge() ]);
                     } else {
                         this.decorators.prepend("function(fn, props, container, depth0, data, blockParams, depths) {\n");
@@ -5177,7 +5177,7 @@ THE SOFTWARE.
                 } else {
                     this.decorators = undefined;
                 }
-                var c = this.createFunctionContext(i);
+                var c = this.createFunctionContext(a);
                 if (!this.isChild) {
                     var f = {
                         compiler: this.compilerInfo(),
@@ -5214,7 +5214,7 @@ THE SOFTWARE.
                     if (this.options.compat) {
                         f.compat = true;
                     }
-                    if (!i) {
+                    if (!a) {
                         f.compiler = JSON.stringify(f.compiler);
                         this.source.currentLocation = {
                             start: {
@@ -5247,16 +5247,16 @@ THE SOFTWARE.
             createFunctionContext: function e(t) {
                 var r = this;
                 var n = "";
-                var i = this.stackVars.concat(this.registers.list);
-                if (i.length > 0) {
-                    n += ", " + i.join(", ");
+                var a = this.stackVars.concat(this.registers.list);
+                if (a.length > 0) {
+                    n += ", " + a.join(", ");
                 }
-                var a = 0;
+                var i = 0;
                 l(this.aliases).forEach(function(e) {
                     var t = r.aliases[e];
                     if (t.children && t.referenceCount > 1) {
-                        n += ", alias" + ++a + "=" + e;
-                        t.children[0] = "alias" + a;
+                        n += ", alias" + ++i + "=" + e;
+                        t.children[0] = "alias" + i;
                     }
                 });
                 if (this.lookupPropertyFunctionIsUsed) {
@@ -5278,7 +5278,7 @@ THE SOFTWARE.
                 }
             },
             mergeSource: function e(t) {
-                var r = this.environment.isSimple, n = !this.forceBuffer, i = undefined, a = undefined, s = undefined, o = undefined;
+                var r = this.environment.isSimple, n = !this.forceBuffer, a = undefined, i = undefined, s = undefined, o = undefined;
                 this.source.each(function(e) {
                     if (e.appendToBuffer) {
                         if (s) {
@@ -5289,15 +5289,15 @@ THE SOFTWARE.
                         o = e;
                     } else {
                         if (s) {
-                            if (!a) {
-                                i = true;
+                            if (!i) {
+                                a = true;
                             } else {
                                 s.prepend("buffer += ");
                             }
                             o.add(";");
                             s = o = undefined;
                         }
-                        a = true;
+                        i = true;
                         if (!r) {
                             n = false;
                         }
@@ -5307,11 +5307,11 @@ THE SOFTWARE.
                     if (s) {
                         s.prepend("return ");
                         o.add(";");
-                    } else if (!a) {
+                    } else if (!i) {
                         this.source.push('return "";');
                     }
                 } else {
-                    t += ", buffer = " + (i ? "" : this.initializeBuffer());
+                    t += ", buffer = " + (a ? "" : this.initializeBuffer());
                     if (s) {
                         s.prepend("return buffer + ");
                         o.add(";");
@@ -5320,7 +5320,7 @@ THE SOFTWARE.
                     }
                 }
                 if (t) {
-                    this.source.prepend("var " + t.substring(2) + (i ? "" : ";\n"));
+                    this.source.prepend("var " + t.substring(2) + (a ? "" : ";\n"));
                 }
                 return this.source.merge();
             },
@@ -5330,8 +5330,8 @@ THE SOFTWARE.
             blockValue: function e(t) {
                 var r = this.aliasable("container.hooks.blockHelperMissing"), n = [ this.contextName(0) ];
                 this.setupHelperArgs(t, 0, n);
-                var i = this.popStack();
-                n.splice(1, 0, i);
+                var a = this.popStack();
+                n.splice(1, 0, a);
                 this.push(this.source.functionCall(r, "call", n));
             },
             ambiguousBlockValue: function e() {
@@ -5373,14 +5373,14 @@ THE SOFTWARE.
             pushContext: function e() {
                 this.pushStackLiteral(this.contextName(this.lastContext));
             },
-            lookupOnContext: function e(t, r, n, i) {
-                var a = 0;
-                if (!i && this.options.compat && !this.lastContext) {
-                    this.push(this.depthedLookup(t[a++]));
+            lookupOnContext: function e(t, r, n, a) {
+                var i = 0;
+                if (!a && this.options.compat && !this.lastContext) {
+                    this.push(this.depthedLookup(t[i++]));
                 } else {
                     this.pushContext();
                 }
-                this.resolvePath("context", t, a, r, n);
+                this.resolvePath("context", t, i, r, n);
             },
             lookupBlockParam: function e(t, r) {
                 this.useBlockParams = true;
@@ -5395,17 +5395,17 @@ THE SOFTWARE.
                 }
                 this.resolvePath("data", r, 0, true, n);
             },
-            resolvePath: function e(r, n, i, a, t) {
+            resolvePath: function e(r, n, a, i, t) {
                 var s = this;
                 if (this.options.strict || this.options.assumeObjects) {
-                    this.push(h(this.options.strict && t, this, n, i, r));
+                    this.push(h(this.options.strict && t, this, n, a, r));
                     return;
                 }
                 var o = n.length;
-                for (;i < o; i++) {
+                for (;a < o; a++) {
                     this.replaceStack(function(e) {
-                        var t = s.nameLookup(e, n[i], r);
-                        if (!a) {
+                        var t = s.nameLookup(e, n[a], r);
+                        if (!i) {
                             return [ " != null ? ", t, " : ", e ];
                         } else {
                             return [ " && ", t ];
@@ -5474,28 +5474,28 @@ THE SOFTWARE.
                 }
             },
             registerDecorator: function e(t, r) {
-                var n = this.nameLookup("decorators", r, "decorator"), i = this.setupHelperArgs(r, t);
-                this.decorators.push([ "fn = ", this.decorators.functionCall(n, "", [ "fn", "props", "container", i ]), " || fn;" ]);
+                var n = this.nameLookup("decorators", r, "decorator"), a = this.setupHelperArgs(r, t);
+                this.decorators.push([ "fn = ", this.decorators.functionCall(n, "", [ "fn", "props", "container", a ]), " || fn;" ]);
             },
             invokeHelper: function e(t, r, n) {
-                var i = this.popStack(), a = this.setupHelper(t, r);
+                var a = this.popStack(), i = this.setupHelper(t, r);
                 var s = [];
                 if (n) {
-                    s.push(a.name);
+                    s.push(i.name);
                 }
-                s.push(i);
+                s.push(a);
                 if (!this.options.strict) {
                     s.push(this.aliasable("container.hooks.helperMissing"));
                 }
                 var o = [ "(", this.itemsSeparatedBy(s, "||"), ")" ];
-                var l = this.source.functionCall(o, "call", a.callParams);
+                var l = this.source.functionCall(o, "call", i.callParams);
                 this.push(l);
             },
             itemsSeparatedBy: function e(t, r) {
                 var n = [];
                 n.push(t[0]);
-                for (var i = 1; i < t.length; i++) {
-                    n.push(r, t[i]);
+                for (var a = 1; a < t.length; a++) {
+                    n.push(r, t[a]);
                 }
                 return n;
             },
@@ -5507,57 +5507,57 @@ THE SOFTWARE.
                 this.useRegister("helper");
                 var n = this.popStack();
                 this.emptyHash();
-                var i = this.setupHelper(0, t, r);
-                var a = this.lastHelper = this.nameLookup("helpers", t, "helper");
-                var s = [ "(", "(helper = ", a, " || ", n, ")" ];
+                var a = this.setupHelper(0, t, r);
+                var i = this.lastHelper = this.nameLookup("helpers", t, "helper");
+                var s = [ "(", "(helper = ", i, " || ", n, ")" ];
                 if (!this.options.strict) {
                     s[0] = "(helper = ";
                     s.push(" != null ? helper : ", this.aliasable("container.hooks.helperMissing"));
                 }
-                this.push([ "(", s, i.paramsInit ? [ "),(", i.paramsInit ] : [], "),", "(typeof helper === ", this.aliasable('"function"'), " ? ", this.source.functionCall("helper", "call", i.callParams), " : helper))" ]);
+                this.push([ "(", s, a.paramsInit ? [ "),(", a.paramsInit ] : [], "),", "(typeof helper === ", this.aliasable('"function"'), " ? ", this.source.functionCall("helper", "call", a.callParams), " : helper))" ]);
             },
             invokePartial: function e(t, r, n) {
-                var i = [], a = this.setupParams(r, 1, i);
+                var a = [], i = this.setupParams(r, 1, a);
                 if (t) {
                     r = this.popStack();
-                    delete a.name;
+                    delete i.name;
                 }
                 if (n) {
-                    a.indent = JSON.stringify(n);
+                    i.indent = JSON.stringify(n);
                 }
-                a.helpers = "helpers";
-                a.partials = "partials";
-                a.decorators = "container.decorators";
+                i.helpers = "helpers";
+                i.partials = "partials";
+                i.decorators = "container.decorators";
                 if (!t) {
-                    i.unshift(this.nameLookup("partials", r, "partial"));
+                    a.unshift(this.nameLookup("partials", r, "partial"));
                 } else {
-                    i.unshift(r);
+                    a.unshift(r);
                 }
                 if (this.options.compat) {
-                    a.depths = "depths";
+                    i.depths = "depths";
                 }
-                a = this.objectLiteral(a);
-                i.push(a);
-                this.push(this.source.functionCall("container.invokePartial", "", i));
+                i = this.objectLiteral(i);
+                a.push(i);
+                this.push(this.source.functionCall("container.invokePartial", "", a));
             },
             assignToHash: function e(t) {
-                var r = this.popStack(), n = undefined, i = undefined, a = undefined;
+                var r = this.popStack(), n = undefined, a = undefined, i = undefined;
                 if (this.trackIds) {
-                    a = this.popStack();
+                    i = this.popStack();
                 }
                 if (this.stringParams) {
-                    i = this.popStack();
+                    a = this.popStack();
                     n = this.popStack();
                 }
                 var s = this.hash;
                 if (n) {
                     s.contexts[t] = n;
                 }
-                if (i) {
-                    s.types[t] = i;
-                }
                 if (a) {
-                    s.ids[t] = a;
+                    s.types[t] = a;
+                }
+                if (i) {
+                    s.ids[t] = i;
                 }
                 s.values[t] = r;
             },
@@ -5574,26 +5574,26 @@ THE SOFTWARE.
             },
             compiler: f,
             compileChildren: function e(t, r) {
-                var n = t.children, i = undefined, a = undefined;
+                var n = t.children, a = undefined, i = undefined;
                 for (var s = 0, o = n.length; s < o; s++) {
-                    i = n[s];
-                    a = new this.compiler();
-                    var l = this.matchExistingProgram(i);
+                    a = n[s];
+                    i = new this.compiler();
+                    var l = this.matchExistingProgram(a);
                     if (l == null) {
                         this.context.programs.push("");
                         var u = this.context.programs.length;
-                        i.index = u;
-                        i.name = "program" + u;
-                        this.context.programs[u] = a.compile(i, r, this.context, !this.precompile);
-                        this.context.decorators[u] = a.decorators;
-                        this.context.environments[u] = i;
-                        this.useDepths = this.useDepths || a.useDepths;
-                        this.useBlockParams = this.useBlockParams || a.useBlockParams;
-                        i.useDepths = this.useDepths;
-                        i.useBlockParams = this.useBlockParams;
+                        a.index = u;
+                        a.name = "program" + u;
+                        this.context.programs[u] = i.compile(a, r, this.context, !this.precompile);
+                        this.context.decorators[u] = i.decorators;
+                        this.context.environments[u] = a;
+                        this.useDepths = this.useDepths || i.useDepths;
+                        this.useBlockParams = this.useBlockParams || i.useBlockParams;
+                        a.useDepths = this.useDepths;
+                        a.useBlockParams = this.useBlockParams;
                     } else {
-                        i.index = l.index;
-                        i.name = "program" + l.index;
+                        a.index = l.index;
+                        a.name = "program" + l.index;
                         this.useDepths = this.useDepths || l.useDepths;
                         this.useBlockParams = this.useBlockParams || l.useBlockParams;
                     }
@@ -5601,9 +5601,9 @@ THE SOFTWARE.
             },
             matchExistingProgram: function e(t) {
                 for (var r = 0, n = this.context.environments.length; r < n; r++) {
-                    var i = this.context.environments[r];
-                    if (i && i.equals(t)) {
-                        return i;
+                    var a = this.context.environments[r];
+                    if (a && a.equals(t)) {
+                        return a;
                     }
                 }
             },
@@ -5643,26 +5643,26 @@ THE SOFTWARE.
                 }
             },
             replaceStack: function e(t) {
-                var r = [ "(" ], n = undefined, i = undefined, a = undefined;
+                var r = [ "(" ], n = undefined, a = undefined, i = undefined;
                 if (!this.isInline()) {
-                    throw new g["default"]("replaceStack on non-inline");
+                    throw new m["default"]("replaceStack on non-inline");
                 }
                 var s = this.popStack(true);
                 if (s instanceof c) {
                     n = [ s.value ];
                     r = [ "(", n ];
-                    a = true;
-                } else {
                     i = true;
+                } else {
+                    a = true;
                     var o = this.incrStack();
                     r = [ "((", this.push(o), " = ", s, ")" ];
                     n = this.topStack();
                 }
                 var l = t.call(this, n);
-                if (!a) {
+                if (!i) {
                     this.popStack();
                 }
-                if (i) {
+                if (a) {
                     this.stackSlot--;
                 }
                 this.push(r.concat(l, ")"));
@@ -5681,13 +5681,13 @@ THE SOFTWARE.
                 var t = this.inlineStack;
                 this.inlineStack = [];
                 for (var r = 0, n = t.length; r < n; r++) {
-                    var i = t[r];
-                    if (i instanceof c) {
-                        this.compileStack.push(i);
-                    } else {
-                        var a = this.incrStack();
-                        this.pushSource([ a, " = ", i, ";" ]);
+                    var a = t[r];
+                    if (a instanceof c) {
                         this.compileStack.push(a);
+                    } else {
+                        var i = this.incrStack();
+                        this.pushSource([ i, " = ", a, ";" ]);
+                        this.compileStack.push(i);
                     }
                 }
             },
@@ -5701,7 +5701,7 @@ THE SOFTWARE.
                 } else {
                     if (!r) {
                         if (!this.stackSlot) {
-                            throw new g["default"]("Invalid stack pop");
+                            throw new m["default"]("Invalid stack pop");
                         }
                         this.stackSlot--;
                     }
@@ -5741,33 +5741,33 @@ THE SOFTWARE.
                 return r;
             },
             setupHelper: function e(t, r, n) {
-                var i = [], a = this.setupHelperArgs(r, t, i, n);
+                var a = [], i = this.setupHelperArgs(r, t, a, n);
                 var s = this.nameLookup("helpers", r, "helper"), o = this.aliasable(this.contextName(0) + " != null ? " + this.contextName(0) + " : (container.nullContext || {})");
                 return {
-                    params: i,
-                    paramsInit: a,
+                    params: a,
+                    paramsInit: i,
                     name: s,
-                    callParams: [ o ].concat(i)
+                    callParams: [ o ].concat(a)
                 };
             },
             setupParams: function e(t, r, n) {
-                var i = {}, a = [], s = [], o = [], l = !n, u = undefined;
+                var a = {}, i = [], s = [], o = [], l = !n, u = undefined;
                 if (l) {
                     n = [];
                 }
-                i.name = this.quotedString(t);
-                i.hash = this.popStack();
+                a.name = this.quotedString(t);
+                a.hash = this.popStack();
                 if (this.trackIds) {
-                    i.hashIds = this.popStack();
+                    a.hashIds = this.popStack();
                 }
                 if (this.stringParams) {
-                    i.hashTypes = this.popStack();
-                    i.hashContexts = this.popStack();
+                    a.hashTypes = this.popStack();
+                    a.hashContexts = this.popStack();
                 }
                 var c = this.popStack(), f = this.popStack();
                 if (f || c) {
-                    i.fn = f || "container.noop";
-                    i.inverse = c || "container.noop";
+                    a.fn = f || "container.noop";
+                    a.inverse = c || "container.noop";
                 }
                 var h = r;
                 while (h--) {
@@ -5778,40 +5778,40 @@ THE SOFTWARE.
                     }
                     if (this.stringParams) {
                         s[h] = this.popStack();
-                        a[h] = this.popStack();
+                        i[h] = this.popStack();
                     }
                 }
                 if (l) {
-                    i.args = this.source.generateArray(n);
+                    a.args = this.source.generateArray(n);
                 }
                 if (this.trackIds) {
-                    i.ids = this.source.generateArray(o);
+                    a.ids = this.source.generateArray(o);
                 }
                 if (this.stringParams) {
-                    i.types = this.source.generateArray(s);
-                    i.contexts = this.source.generateArray(a);
+                    a.types = this.source.generateArray(s);
+                    a.contexts = this.source.generateArray(i);
                 }
                 if (this.options.data) {
-                    i.data = "data";
+                    a.data = "data";
                 }
                 if (this.useBlockParams) {
-                    i.blockParams = "blockParams";
+                    a.blockParams = "blockParams";
                 }
-                return i;
+                return a;
             },
-            setupHelperArgs: function e(t, r, n, i) {
-                var a = this.setupParams(t, r, n);
-                a.loc = JSON.stringify(this.source.currentLocation);
-                a = this.objectLiteral(a);
-                if (i) {
+            setupHelperArgs: function e(t, r, n, a) {
+                var i = this.setupParams(t, r, n);
+                i.loc = JSON.stringify(this.source.currentLocation);
+                i = this.objectLiteral(i);
+                if (a) {
                     this.useRegister("options");
                     n.push("options");
-                    return [ "options=", a ];
+                    return [ "options=", i ];
                 } else if (n) {
-                    n.push(a);
+                    n.push(i);
                     return "";
                 } else {
-                    return a;
+                    return i;
                 }
             }
         };
@@ -5825,32 +5825,32 @@ THE SOFTWARE.
         f.isValidJavaScriptVariableName = function(e) {
             return !f.RESERVED_WORDS[e] && /^[a-zA-Z_$][0-9a-zA-Z_$]*$/.test(e);
         };
-        function h(e, t, r, n, i) {
-            var a = t.popStack(), s = r.length;
+        function h(e, t, r, n, a) {
+            var i = t.popStack(), s = r.length;
             if (e) {
                 s--;
             }
             for (;n < s; n++) {
-                a = t.nameLookup(a, r[n], i);
+                i = t.nameLookup(i, r[n], a);
             }
             if (e) {
-                return [ t.aliasable("container.strict"), "(", a, ", ", t.quotedString(r[n]), ", ", JSON.stringify(t.source.currentLocation), " )" ];
+                return [ t.aliasable("container.strict"), "(", i, ", ", t.quotedString(r[n]), ", ", JSON.stringify(t.source.currentLocation), " )" ];
             } else {
-                return a;
+                return i;
             }
         }
         t["default"] = f;
         e.exports = t["default"];
     }, function(e, t, r) {
         "use strict";
-        var a = r(60)["default"];
+        var i = r(60)["default"];
         t.__esModule = true;
         var s = r(5);
         var n = undefined;
         try {
             if (false) {
-                var i = require("source-map");
-                n = i.SourceNode;
+                var a = require("source-map");
+                n = a.SourceNode;
             }
         } catch (e) {}
         if (!n) {
@@ -5886,8 +5886,8 @@ THE SOFTWARE.
         function o(e, t, r) {
             if (s.isArray(e)) {
                 var n = [];
-                for (var i = 0, a = e.length; i < a; i++) {
-                    n.push(t.wrap(e[i], r));
+                for (var a = 0, i = e.length; a < i; a++) {
+                    n.push(t.wrap(e[a], r));
                 }
                 return n;
             } else if (typeof e === "boolean" || typeof e === "number") {
@@ -5946,21 +5946,21 @@ THE SOFTWARE.
             },
             objectLiteral: function e(r) {
                 var n = this;
-                var i = [];
-                a(r).forEach(function(e) {
+                var a = [];
+                i(r).forEach(function(e) {
                     var t = o(r[e], n);
                     if (t !== "undefined") {
-                        i.push([ n.quotedString(e), ":", t ]);
+                        a.push([ n.quotedString(e), ":", t ]);
                     }
                 });
-                var t = this.generateList(i);
+                var t = this.generateList(a);
                 t.prepend("{");
                 t.add("}");
                 return t;
             },
             generateList: function e(t) {
                 var r = this.empty();
-                for (var n = 0, i = t.length; n < i; n++) {
+                for (var n = 0, a = t.length; n < a; n++) {
                     if (n) {
                         r.add(",");
                     }
@@ -6168,8 +6168,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
         function getAttributeValueWithDisinheritance(e, t, r) {
             var n = getAttributeValue(t, r);
-            var i = getAttributeValue(t, "hx-disinherit");
-            if (e !== t && i && (i === "*" || i.split(" ").indexOf(r) >= 0)) {
+            var a = getAttributeValue(t, "hx-disinherit");
+            if (e !== t && a && (a === "*" || a.split(" ").indexOf(r) >= 0)) {
                 return "unset";
             } else {
                 return n;
@@ -6200,15 +6200,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function parseHTML(e, t) {
             var r = new DOMParser();
             var n = r.parseFromString(e, "text/html");
-            var i = n.body;
+            var a = n.body;
             while (t > 0) {
                 t--;
-                i = i.firstChild;
+                a = a.firstChild;
             }
-            if (i == null) {
-                i = getDocument().createDocumentFragment();
+            if (a == null) {
+                a = getDocument().createDocumentFragment();
             }
-            return i;
+            return a;
         }
         function aFullPageResponse(e) {
             return /<body/.test(e);
@@ -6221,21 +6221,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 n = n.replace(HEAD_TAG_REGEX, "");
             }
             if (htmx.config.useTemplateFragments && t) {
-                var i = parseHTML("<body><template>" + n + "</template></body>", 0);
-                var a = i.querySelector("template").content;
+                var a = parseHTML("<body><template>" + n + "</template></body>", 0);
+                var i = a.querySelector("template").content;
                 if (htmx.config.allowScriptTags) {
-                    forEach(a.querySelectorAll("script"), function(e) {
+                    forEach(i.querySelectorAll("script"), function(e) {
                         if (htmx.config.inlineScriptNonce) {
                             e.nonce = htmx.config.inlineScriptNonce;
                         }
                         e.htmxExecuted = navigator.userAgent.indexOf("Firefox") === -1;
                     });
                 } else {
-                    forEach(a.querySelectorAll("script"), function(e) {
+                    forEach(i.querySelectorAll("script"), function(e) {
                         removeElement(e);
                     });
                 }
-                return a;
+                return i;
             }
             switch (r) {
               case "thead":
@@ -6494,18 +6494,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         var scanForwardQuery = function(e, t) {
             var r = getDocument().querySelectorAll(t);
             for (var n = 0; n < r.length; n++) {
-                var i = r[n];
-                if (i.compareDocumentPosition(e) === Node.DOCUMENT_POSITION_PRECEDING) {
-                    return i;
+                var a = r[n];
+                if (a.compareDocumentPosition(e) === Node.DOCUMENT_POSITION_PRECEDING) {
+                    return a;
                 }
             }
         };
         var scanBackwardsQuery = function(e, t) {
             var r = getDocument().querySelectorAll(t);
             for (var n = r.length - 1; n >= 0; n--) {
-                var i = r[n];
-                if (i.compareDocumentPosition(e) === Node.DOCUMENT_POSITION_FOLLOWING) {
-                    return i;
+                var a = r[n];
+                if (a.compareDocumentPosition(e) === Node.DOCUMENT_POSITION_FOLLOWING) {
+                    return a;
                 }
             }
         };
@@ -6616,9 +6616,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function isInlineSwap(e, t) {
             var r = getExtensions(t);
             for (var n = 0; n < r.length; n++) {
-                var i = r[n];
+                var a = r[n];
                 try {
-                    if (i.isInlineSwap(e)) {
+                    if (a.isInlineSwap(e)) {
                         return true;
                     }
                 } catch (e) {
@@ -6627,8 +6627,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             }
             return e === "outerHTML";
         }
-        function oobSwap(e, i, a) {
-            var t = "#" + getRawAttribute(i, "id");
+        function oobSwap(e, a, i) {
+            var t = "#" + getRawAttribute(a, "id");
             var s = "outerHTML";
             if (e === "true") {} else if (e.indexOf(":") > 0) {
                 s = e.substr(0, e.indexOf(":"));
@@ -6640,7 +6640,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (r) {
                 forEach(r, function(e) {
                     var t;
-                    var r = i.cloneNode(true);
+                    var r = a.cloneNode(true);
                     t = getDocument().createDocumentFragment();
                     t.appendChild(r);
                     if (!isInlineSwap(s, e)) {
@@ -6654,17 +6654,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     if (!triggerEvent(e, "htmx:oobBeforeSwap", n)) return;
                     e = n.target;
                     if (n["shouldSwap"]) {
-                        swap(s, e, e, t, a);
+                        swap(s, e, e, t, i);
                     }
-                    forEach(a.elts, function(e) {
+                    forEach(i.elts, function(e) {
                         triggerEvent(e, "htmx:oobAfterSwap", n);
                     });
                 });
-                i.parentNode.removeChild(i);
+                a.parentNode.removeChild(a);
             } else {
-                i.parentNode.removeChild(i);
+                a.parentNode.removeChild(a);
                 triggerErrorEvent(getDocument().body, "htmx:oobErrorNoTarget", {
-                    content: i
+                    content: a
                 });
             }
             return e;
@@ -6672,9 +6672,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function handleOutOfBandSwaps(e, t, r) {
             var n = getClosestAttributeValue(e, "hx-select-oob");
             if (n) {
-                var i = n.split(",");
-                for (var a = 0; a < i.length; a++) {
-                    var s = i[a].split(":", 2);
+                var a = n.split(",");
+                for (var i = 0; i < a.length; i++) {
+                    var s = a[i].split(":", 2);
                     var o = s[0].trim();
                     if (o.indexOf("#") === 0) {
                         o = o.substring(1);
@@ -6708,12 +6708,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 if (t && t.length > 0) {
                     var r = t.replace("'", "\\'");
                     var n = e.tagName.replace(":", "\\:");
-                    var i = s.querySelector(n + "[id='" + r + "']");
-                    if (i && i !== s) {
-                        var a = e.cloneNode();
-                        cloneAttributes(e, i);
+                    var a = s.querySelector(n + "[id='" + r + "']");
+                    if (a && a !== s) {
+                        var i = e.cloneNode();
+                        cloneAttributes(e, a);
                         o.tasks.push(function() {
-                            cloneAttributes(e, a);
+                            cloneAttributes(e, i);
                         });
                     }
                 }
@@ -6738,11 +6738,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function insertNodesBefore(e, t, r, n) {
             handleAttributes(e, r, n);
             while (r.childNodes.length > 0) {
-                var i = r.firstChild;
-                addClassToElement(i, htmx.config.addedClass);
-                e.insertBefore(i, t);
-                if (i.nodeType !== Node.TEXT_NODE && i.nodeType !== Node.COMMENT_NODE) {
-                    n.tasks.push(makeAjaxLoadTask(i));
+                var a = r.firstChild;
+                addClassToElement(a, htmx.config.addedClass);
+                e.insertBefore(a, t);
+                if (a.nodeType !== Node.TEXT_NODE && a.nodeType !== Node.COMMENT_NODE) {
+                    n.tasks.push(makeAjaxLoadTask(a));
                 }
             }
         }
@@ -6813,12 +6813,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 return swapInnerHTML(t, e, r);
             } else {
                 var n;
-                var i = t.previousSibling;
+                var a = t.previousSibling;
                 insertNodesBefore(parentElt(t), t, e, r);
-                if (i == null) {
+                if (a == null) {
                     n = parentElt(t).firstChild;
                 } else {
-                    n = i.nextSibling;
+                    n = a.nextSibling;
                 }
                 r.elts = r.elts.filter(function(e) {
                     return e != t;
@@ -6864,55 +6864,55 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function maybeSelectFromResponse(e, t, r) {
             var n = r || getClosestAttributeValue(e, "hx-select");
             if (n) {
-                var i = getDocument().createDocumentFragment();
+                var a = getDocument().createDocumentFragment();
                 forEach(t.querySelectorAll(n), function(e) {
-                    i.appendChild(e);
+                    a.appendChild(e);
                 });
-                t = i;
+                t = a;
             }
             return t;
         }
-        function swap(e, t, r, n, i) {
+        function swap(e, t, r, n, a) {
             switch (e) {
               case "none":
                 return;
 
               case "outerHTML":
-                swapOuterHTML(r, n, i);
+                swapOuterHTML(r, n, a);
                 return;
 
               case "afterbegin":
-                swapAfterBegin(r, n, i);
+                swapAfterBegin(r, n, a);
                 return;
 
               case "beforebegin":
-                swapBeforeBegin(r, n, i);
+                swapBeforeBegin(r, n, a);
                 return;
 
               case "beforeend":
-                swapBeforeEnd(r, n, i);
+                swapBeforeEnd(r, n, a);
                 return;
 
               case "afterend":
-                swapAfterEnd(r, n, i);
+                swapAfterEnd(r, n, a);
                 return;
 
               case "delete":
-                swapDelete(r, n, i);
+                swapDelete(r, n, a);
                 return;
 
               default:
-                var a = getExtensions(t);
-                for (var s = 0; s < a.length; s++) {
-                    var o = a[s];
+                var i = getExtensions(t);
+                for (var s = 0; s < i.length; s++) {
+                    var o = i[s];
                     try {
-                        var l = o.handleSwap(e, r, n, i);
+                        var l = o.handleSwap(e, r, n, a);
                         if (l) {
                             if (typeof l.length !== "undefined") {
                                 for (var u = 0; u < l.length; u++) {
                                     var c = l[u];
                                     if (c.nodeType !== Node.TEXT_NODE && c.nodeType !== Node.COMMENT_NODE) {
-                                        i.tasks.push(makeAjaxLoadTask(c));
+                                        a.tasks.push(makeAjaxLoadTask(c));
                                     }
                                 }
                             }
@@ -6923,9 +6923,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                 }
                 if (e === "innerHTML") {
-                    swapInnerHTML(r, n, i);
+                    swapInnerHTML(r, n, a);
                 } else {
-                    swap(htmx.config.defaultSwapStyle, t, r, n, i);
+                    swap(htmx.config.defaultSwapStyle, t, r, n, a);
                 }
             }
         }
@@ -6938,29 +6938,29 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             }
         }
-        function selectAndSwap(e, t, r, n, i, a) {
-            i.title = findTitle(n);
+        function selectAndSwap(e, t, r, n, a, i) {
+            a.title = findTitle(n);
             var s = makeFragment(n);
             if (s) {
-                handleOutOfBandSwaps(r, s, i);
-                s = maybeSelectFromResponse(r, s, a);
+                handleOutOfBandSwaps(r, s, a);
+                s = maybeSelectFromResponse(r, s, i);
                 handlePreservedElements(s);
-                return swap(e, r, t, s, i);
+                return swap(e, r, t, s, a);
             }
         }
         function handleTrigger(e, t, r) {
             var n = e.getResponseHeader(t);
             if (n.indexOf("{") === 0) {
-                var i = parseJSON(n);
-                for (var a in i) {
-                    if (i.hasOwnProperty(a)) {
-                        var s = i[a];
+                var a = parseJSON(n);
+                for (var i in a) {
+                    if (a.hasOwnProperty(i)) {
+                        var s = a[i];
                         if (!isRawObject(s)) {
                             s = {
                                 value: s
                             };
                         }
-                        triggerEvent(r, a, s);
+                        triggerEvent(r, i, s);
                     }
                 }
             } else {
@@ -6989,10 +6989,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                     t.push(e.substr(n, r - n + 1));
                 } else if (STRINGISH_START.indexOf(e.charAt(r)) !== -1) {
-                    var i = e.charAt(r);
+                    var a = e.charAt(r);
                     var n = r;
                     r++;
-                    while (r < e.length && e.charAt(r) !== i) {
+                    while (r < e.length && e.charAt(r) !== a) {
                         if (e.charAt(r) === "\\") {
                             r++;
                         }
@@ -7000,8 +7000,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                     t.push(e.substr(n, r - n + 1));
                 } else {
-                    var a = e.charAt(r);
-                    t.push(a);
+                    var i = e.charAt(r);
+                    t.push(i);
                 }
                 r++;
             }
@@ -7014,30 +7014,30 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (t[0] === "[") {
                 t.shift();
                 var n = 1;
-                var i = " return (function(" + r + "){ return (";
-                var a = null;
+                var a = " return (function(" + r + "){ return (";
+                var i = null;
                 while (t.length > 0) {
                     var s = t[0];
                     if (s === "]") {
                         n--;
                         if (n === 0) {
-                            if (a === null) {
-                                i = i + "true";
+                            if (i === null) {
+                                a = a + "true";
                             }
                             t.shift();
-                            i += ")})";
+                            a += ")})";
                             try {
                                 var o = maybeEval(e, function() {
-                                    return Function(i)();
+                                    return Function(a)();
                                 }, function() {
                                     return true;
                                 });
-                                o.source = i;
+                                o.source = a;
                                 return o;
                             } catch (e) {
                                 triggerErrorEvent(getDocument().body, "htmx:syntax:error", {
                                     error: e,
-                                    source: i
+                                    source: a
                                 });
                                 return null;
                             }
@@ -7045,12 +7045,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     } else if (s === "[") {
                         n++;
                     }
-                    if (isPossibleRelativeReference(s, a, r)) {
-                        i += "((" + r + "." + s + ") ? (" + r + "." + s + ") : (window." + s + "))";
+                    if (isPossibleRelativeReference(s, i, r)) {
+                        a += "((" + r + "." + s + ") ? (" + r + "." + s + ") : (window." + s + "))";
                     } else {
-                        i = i + s;
+                        a = a + s;
                     }
-                    a = t.shift();
+                    i = t.shift();
                 }
             }
         }
@@ -7075,20 +7075,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         var INPUT_SELECTOR = "input, textarea, select";
         function parseAndCacheTrigger(e, t, r) {
             var n = [];
-            var i = tokenizeString(t);
+            var a = tokenizeString(t);
             do {
-                consumeUntil(i, NOT_WHITESPACE);
-                var a = i.length;
-                var s = consumeUntil(i, /[,\[\s]/);
+                consumeUntil(a, NOT_WHITESPACE);
+                var i = a.length;
+                var s = consumeUntil(a, /[,\[\s]/);
                 if (s !== "") {
                     if (s === "every") {
                         var o = {
                             trigger: "every"
                         };
-                        consumeUntil(i, NOT_WHITESPACE);
-                        o.pollInterval = parseInterval(consumeUntil(i, /[,\[\s]/));
-                        consumeUntil(i, NOT_WHITESPACE);
-                        var l = maybeGenerateConditional(e, i, "event");
+                        consumeUntil(a, NOT_WHITESPACE);
+                        o.pollInterval = parseInterval(consumeUntil(a, /[,\[\s]/));
+                        consumeUntil(a, NOT_WHITESPACE);
+                        var l = maybeGenerateConditional(e, a, "event");
                         if (l) {
                             o.eventFilter = l;
                         }
@@ -7102,68 +7102,68 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         var u = {
                             trigger: s
                         };
-                        var l = maybeGenerateConditional(e, i, "event");
+                        var l = maybeGenerateConditional(e, a, "event");
                         if (l) {
                             u.eventFilter = l;
                         }
-                        while (i.length > 0 && i[0] !== ",") {
-                            consumeUntil(i, NOT_WHITESPACE);
-                            var c = i.shift();
+                        while (a.length > 0 && a[0] !== ",") {
+                            consumeUntil(a, NOT_WHITESPACE);
+                            var c = a.shift();
                             if (c === "changed") {
                                 u.changed = true;
                             } else if (c === "once") {
                                 u.once = true;
                             } else if (c === "consume") {
                                 u.consume = true;
-                            } else if (c === "delay" && i[0] === ":") {
-                                i.shift();
-                                u.delay = parseInterval(consumeUntil(i, WHITESPACE_OR_COMMA));
-                            } else if (c === "from" && i[0] === ":") {
-                                i.shift();
-                                if (COMBINED_SELECTOR_START.test(i[0])) {
-                                    var f = consumeCSSSelector(i);
+                            } else if (c === "delay" && a[0] === ":") {
+                                a.shift();
+                                u.delay = parseInterval(consumeUntil(a, WHITESPACE_OR_COMMA));
+                            } else if (c === "from" && a[0] === ":") {
+                                a.shift();
+                                if (COMBINED_SELECTOR_START.test(a[0])) {
+                                    var f = consumeCSSSelector(a);
                                 } else {
-                                    var f = consumeUntil(i, WHITESPACE_OR_COMMA);
+                                    var f = consumeUntil(a, WHITESPACE_OR_COMMA);
                                     if (f === "closest" || f === "find" || f === "next" || f === "previous") {
-                                        i.shift();
-                                        var h = consumeCSSSelector(i);
+                                        a.shift();
+                                        var h = consumeCSSSelector(a);
                                         if (h.length > 0) {
                                             f += " " + h;
                                         }
                                     }
                                 }
                                 u.from = f;
-                            } else if (c === "target" && i[0] === ":") {
-                                i.shift();
-                                u.target = consumeCSSSelector(i);
-                            } else if (c === "throttle" && i[0] === ":") {
-                                i.shift();
-                                u.throttle = parseInterval(consumeUntil(i, WHITESPACE_OR_COMMA));
-                            } else if (c === "queue" && i[0] === ":") {
-                                i.shift();
-                                u.queue = consumeUntil(i, WHITESPACE_OR_COMMA);
-                            } else if (c === "root" && i[0] === ":") {
-                                i.shift();
-                                u[c] = consumeCSSSelector(i);
-                            } else if (c === "threshold" && i[0] === ":") {
-                                i.shift();
-                                u[c] = consumeUntil(i, WHITESPACE_OR_COMMA);
+                            } else if (c === "target" && a[0] === ":") {
+                                a.shift();
+                                u.target = consumeCSSSelector(a);
+                            } else if (c === "throttle" && a[0] === ":") {
+                                a.shift();
+                                u.throttle = parseInterval(consumeUntil(a, WHITESPACE_OR_COMMA));
+                            } else if (c === "queue" && a[0] === ":") {
+                                a.shift();
+                                u.queue = consumeUntil(a, WHITESPACE_OR_COMMA);
+                            } else if (c === "root" && a[0] === ":") {
+                                a.shift();
+                                u[c] = consumeCSSSelector(a);
+                            } else if (c === "threshold" && a[0] === ":") {
+                                a.shift();
+                                u[c] = consumeUntil(a, WHITESPACE_OR_COMMA);
                             } else {
                                 triggerErrorEvent(e, "htmx:syntax:error", {
-                                    token: i.shift()
+                                    token: a.shift()
                                 });
                             }
                         }
                         n.push(u);
                     }
                 }
-                if (i.length === a) {
+                if (a.length === i) {
                     triggerErrorEvent(e, "htmx:syntax:error", {
-                        token: i.shift()
+                        token: a.shift()
                     });
                 }
-                consumeUntil(i, NOT_WHITESPACE);
-            } while (i[0] === "," && i.shift());
+                consumeUntil(a, NOT_WHITESPACE);
+            } while (a[0] === "," && a.shift());
             if (r) {
                 r[t] = n;
             }
@@ -7219,15 +7219,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function boostElement(t, r, e) {
             if (t.tagName === "A" && isLocalLink(t) && (t.target === "" || t.target === "_self") || t.tagName === "FORM") {
                 r.boosted = true;
-                var n, i;
+                var n, a;
                 if (t.tagName === "A") {
                     n = "get";
-                    i = getRawAttribute(t, "href");
+                    a = getRawAttribute(t, "href");
                 } else {
-                    var a = getRawAttribute(t, "method");
-                    n = a ? a.toLowerCase() : "get";
+                    var i = getRawAttribute(t, "method");
+                    n = i ? i.toLowerCase() : "get";
                     if (n === "get") {}
-                    i = getRawAttribute(t, "action");
+                    a = getRawAttribute(t, "action");
                 }
                 e.forEach(function(e) {
                     addEventListener(t, function(e, t) {
@@ -7235,7 +7235,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             cleanUpElement(e);
                             return;
                         }
-                        issueAjaxRequest(n, i, e, t);
+                        issueAjaxRequest(n, a, e, t);
                     }, r, e, true);
                 });
             }
@@ -7272,13 +7272,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             }
             return false;
         }
-        function addEventListener(a, s, e, o, l) {
-            var u = getInternalData(a);
+        function addEventListener(i, s, e, o, l) {
+            var u = getInternalData(i);
             var t;
             if (o.from) {
-                t = querySelectorAllExt(a, o.from);
+                t = querySelectorAllExt(i, o.from);
             } else {
-                t = [ a ];
+                t = [ i ];
             }
             if (o.changed) {
                 t.forEach(function(e) {
@@ -7287,18 +7287,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 });
             }
             forEach(t, function(n) {
-                var i = function(e) {
-                    if (!bodyContains(a)) {
-                        n.removeEventListener(o.trigger, i);
+                var a = function(e) {
+                    if (!bodyContains(i)) {
+                        n.removeEventListener(o.trigger, a);
                         return;
                     }
-                    if (ignoreBoostedAnchorCtrlClick(a, e)) {
+                    if (ignoreBoostedAnchorCtrlClick(i, e)) {
                         return;
                     }
-                    if (l || shouldCancel(e, a)) {
+                    if (l || shouldCancel(e, i)) {
                         e.preventDefault();
                     }
-                    if (maybeFilterEvent(o, a, e)) {
+                    if (maybeFilterEvent(o, i, e)) {
                         return;
                     }
                     var t = getInternalData(e);
@@ -7306,8 +7306,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     if (t.handledFor == null) {
                         t.handledFor = [];
                     }
-                    if (t.handledFor.indexOf(a) < 0) {
-                        t.handledFor.push(a);
+                    if (t.handledFor.indexOf(i) < 0) {
+                        t.handledFor.push(i);
                         if (o.consume) {
                             e.stopPropagation();
                         }
@@ -7338,18 +7338,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         }
                         if (o.throttle > 0) {
                             if (!u.throttle) {
-                                s(a, e);
+                                s(i, e);
                                 u.throttle = setTimeout(function() {
                                     u.throttle = null;
                                 }, o.throttle);
                             }
                         } else if (o.delay > 0) {
                             u.delayed = setTimeout(function() {
-                                s(a, e);
+                                s(i, e);
                             }, o.delay);
                         } else {
-                            triggerEvent(a, "htmx:trigger");
-                            s(a, e);
+                            triggerEvent(i, "htmx:trigger");
+                            s(i, e);
                         }
                     }
                 };
@@ -7358,10 +7358,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
                 e.listenerInfos.push({
                     trigger: o.trigger,
-                    listener: i,
+                    listener: a,
                     on: n
                 });
-                n.addEventListener(o.trigger, i);
+                n.addEventListener(o.trigger, a);
             });
         }
         var windowIsScrolling = false;
@@ -7399,12 +7399,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
         function processWebSocketInfo(e, t, r) {
             var n = splitOnWhitespace(r);
-            for (var i = 0; i < n.length; i++) {
-                var a = n[i].split(/:(.+)/);
-                if (a[0] === "connect") {
-                    ensureWebSocket(e, a[1], 0);
+            for (var a = 0; a < n.length; a++) {
+                var i = n[a].split(/:(.+)/);
+                if (i[0] === "connect") {
+                    ensureWebSocket(e, i[1], 0);
                 }
-                if (a[0] === "send") {
+                if (i[0] === "send") {
                     processWebSocketSend(e);
                 }
             }
@@ -7451,9 +7451,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 });
                 var r = makeSettleInfo(o);
                 var n = makeFragment(t);
-                var i = toArray(n.children);
-                for (var a = 0; a < i.length; a++) {
-                    var s = i[a];
+                var a = toArray(n.children);
+                for (var i = 0; i < a.length; i++) {
+                    var s = a[i];
                     oobSwap(getAttributeValue(s, "hx-swap-oob") || "true", s, r);
                 }
                 settleImmediately(r.tasks);
@@ -7474,14 +7474,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     var t = getInternalData(c).webSocket;
                     var r = getHeaders(u, c);
                     var n = getInputValues(u, "post");
-                    var i = n.errors;
-                    var a = n.values;
+                    var a = n.errors;
+                    var i = n.values;
                     var s = getExpressionVars(u);
-                    var o = mergeObjects(a, s);
+                    var o = mergeObjects(i, s);
                     var l = filterValues(o, u);
                     l["HEADERS"] = r;
-                    if (i && i.length > 0) {
-                        triggerEvent(u, "htmx:validation:halted", i);
+                    if (a && a.length > 0) {
+                        triggerEvent(u, "htmx:validation:halted", a);
                         return;
                     }
                     t.send(JSON.stringify(l));
@@ -7507,13 +7507,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
         function processSSEInfo(e, t, r) {
             var n = splitOnWhitespace(r);
-            for (var i = 0; i < n.length; i++) {
-                var a = n[i].split(/:(.+)/);
-                if (a[0] === "connect") {
-                    processSSESource(e, a[1]);
+            for (var a = 0; a < n.length; a++) {
+                var i = n[a].split(/:(.+)/);
+                if (i[0] === "connect") {
+                    processSSESource(e, i[1]);
                 }
-                if (a[0] === "swap") {
-                    processSSESwap(e, a[1]);
+                if (i[0] === "swap") {
+                    processSSESwap(e, i[1]);
                 }
             }
         }
@@ -7528,50 +7528,50 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             };
             getInternalData(t).sseEventSource = r;
         }
-        function processSSESwap(a, s) {
-            var o = getClosestMatch(a, hasEventSource);
+        function processSSESwap(i, s) {
+            var o = getClosestMatch(i, hasEventSource);
             if (o) {
                 var l = getInternalData(o).sseEventSource;
                 var u = function(e) {
                     if (maybeCloseSSESource(o)) {
                         return;
                     }
-                    if (!bodyContains(a)) {
+                    if (!bodyContains(i)) {
                         l.removeEventListener(s, u);
                         return;
                     }
                     var t = e.data;
-                    withExtensions(a, function(e) {
-                        t = e.transformResponse(t, null, a);
+                    withExtensions(i, function(e) {
+                        t = e.transformResponse(t, null, i);
                     });
-                    var r = getSwapSpecification(a);
-                    var n = getTarget(a);
-                    var i = makeSettleInfo(a);
-                    selectAndSwap(r.swapStyle, n, a, t, i);
-                    settleImmediately(i.tasks);
-                    triggerEvent(a, "htmx:sseMessage", e);
+                    var r = getSwapSpecification(i);
+                    var n = getTarget(i);
+                    var a = makeSettleInfo(i);
+                    selectAndSwap(r.swapStyle, n, i, t, a);
+                    settleImmediately(a.tasks);
+                    triggerEvent(i, "htmx:sseMessage", e);
                 };
-                getInternalData(a).sseListener = u;
+                getInternalData(i).sseListener = u;
                 l.addEventListener(s, u);
             } else {
-                triggerErrorEvent(a, "htmx:noSSESourceError");
+                triggerErrorEvent(i, "htmx:noSSESourceError");
             }
         }
         function processSSETrigger(e, t, r) {
             var n = getClosestMatch(e, hasEventSource);
             if (n) {
-                var i = getInternalData(n).sseEventSource;
-                var a = function() {
+                var a = getInternalData(n).sseEventSource;
+                var i = function() {
                     if (!maybeCloseSSESource(n)) {
                         if (bodyContains(e)) {
                             t(e);
                         } else {
-                            i.removeEventListener(r, a);
+                            a.removeEventListener(r, i);
                         }
                     }
                 };
-                getInternalData(e).sseListener = a;
-                i.addEventListener(r, a);
+                getInternalData(e).sseListener = i;
+                a.addEventListener(r, i);
             } else {
                 triggerErrorEvent(e, "htmx:noSSESourceError");
             }
@@ -7586,28 +7586,28 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             return getInternalData(e).sseEventSource != null;
         }
         function loadImmediately(e, t, r, n) {
-            var i = function() {
+            var a = function() {
                 if (!r.loaded) {
                     r.loaded = true;
                     t(e);
                 }
             };
             if (n > 0) {
-                setTimeout(i, n);
+                setTimeout(a, n);
             } else {
-                i();
+                a();
             }
         }
-        function processVerbs(t, i, e) {
-            var a = false;
+        function processVerbs(t, a, e) {
+            var i = false;
             forEach(VERBS, function(r) {
                 if (hasAttribute(t, "hx-" + r)) {
                     var n = getAttributeValue(t, "hx-" + r);
-                    a = true;
-                    i.path = n;
-                    i.verb = r;
+                    i = true;
+                    a.path = n;
+                    a.verb = r;
                     e.forEach(function(e) {
-                        addTriggerHandler(t, e, i, function(e, t) {
+                        addTriggerHandler(t, e, a, function(e, t) {
                             if (closest(e, htmx.config.disableSelector)) {
                                 cleanUpElement(e);
                                 return;
@@ -7617,7 +7617,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     });
                 }
             });
-            return a;
+            return i;
         }
         function addTriggerHandler(n, e, t, r) {
             if (e.sseEvent) {
@@ -7627,14 +7627,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 addEventListener(n, r, t, e);
                 maybeReveal(n);
             } else if (e.trigger === "intersect") {
-                var i = {};
+                var a = {};
                 if (e.root) {
-                    i.root = querySelectorExt(n, e.root);
+                    a.root = querySelectorExt(n, e.root);
                 }
                 if (e.threshold) {
-                    i.threshold = parseFloat(e.threshold);
+                    a.threshold = parseFloat(e.threshold);
                 }
-                var a = new IntersectionObserver(function(e) {
+                var i = new IntersectionObserver(function(e) {
                     for (var t = 0; t < e.length; t++) {
                         var r = e[t];
                         if (r.isIntersecting) {
@@ -7642,8 +7642,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             break;
                         }
                     }
-                }, i);
-                a.observe(n);
+                }, a);
+                i.observe(n);
                 addEventListener(n, r, t, e);
             } else if (e.trigger === "load") {
                 if (!maybeFilterEvent(e, n, makeEvent("load", {
@@ -7712,10 +7712,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 var n = document.evaluate('.//*[@*[ starts-with(name(), "hx-on:") or starts-with(name(), "data-hx-on:") or' + ' starts-with(name(), "hx-on-") or starts-with(name(), "data-hx-on-") ]]', e);
                 while (t = n.iterateNext()) r.push(t);
             } else if (typeof e.getElementsByTagName === "function") {
-                var i = e.getElementsByTagName("*");
-                for (var a = 0; a < i.length; a++) {
-                    if (shouldProcessHxOn(i[a])) {
-                        r.push(i[a]);
+                var a = e.getElementsByTagName("*");
+                for (var i = 0; i < a.length; i++) {
+                    if (shouldProcessHxOn(a[i])) {
+                        r.push(a[i]);
                     }
                 }
             }
@@ -7763,10 +7763,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             var t = tokenizeString(e);
             var r = 0;
             for (var n = 0; n < t.length; n++) {
-                const i = t[n];
-                if (i === "{") {
+                const a = t[n];
+                if (a === "{") {
                     r++;
-                } else if (i === "}") {
+                } else if (a === "}") {
                     r--;
                 }
             }
@@ -7777,19 +7777,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (!Array.isArray(n.onHandlers)) {
                 n.onHandlers = [];
             }
-            var i;
-            var a = function(e) {
+            var a;
+            var i = function(e) {
                 return maybeEval(t, function() {
-                    if (!i) {
-                        i = new Function("event", r);
+                    if (!a) {
+                        a = new Function("event", r);
                     }
-                    i.call(t, e);
+                    a.call(t, e);
                 });
             };
-            t.addEventListener(e, a);
+            t.addEventListener(e, i);
             n.onHandlers.push({
                 event: e,
-                listener: a
+                listener: i
             });
         }
         function processHxOn(e) {
@@ -7797,19 +7797,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (t) {
                 var r = {};
                 var n = t.split("\n");
-                var i = null;
-                var a = 0;
+                var a = null;
+                var i = 0;
                 while (n.length > 0) {
                     var s = n.shift();
                     var o = s.match(/^\s*([a-zA-Z:\-\.]+:)(.*)/);
-                    if (a === 0 && o) {
+                    if (i === 0 && o) {
                         s.split(":");
-                        i = o[1].slice(0, -1);
-                        r[i] = o[2];
+                        a = o[1].slice(0, -1);
+                        r[a] = o[2];
                     } else {
-                        r[i] += s;
+                        r[a] += s;
                     }
-                    a += countCurlies(s);
+                    i += countCurlies(s);
                 }
                 for (var l in r) {
                     addHxOnEventHandler(e, l, r[l]);
@@ -7822,10 +7822,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 var r = e.attributes[t].name;
                 var n = e.attributes[t].value;
                 if (startsWith(r, "hx-on") || startsWith(r, "data-hx-on")) {
-                    var i = r.indexOf("-on") + 3;
-                    var a = r.slice(i, i + 1);
-                    if (a === "-" || a === ":") {
-                        var s = r.slice(i + 1);
+                    var a = r.indexOf("-on") + 3;
+                    var i = r.slice(a, a + 1);
+                    if (i === "-" || i === ":") {
+                        var s = r.slice(a + 1);
                         if (startsWith(s, ":")) {
                             s = "htmx" + s;
                         } else if (startsWith(s, "-")) {
@@ -7866,13 +7866,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 if (t.tagName === "FORM" || getRawAttribute(t, "type") === "submit" && hasAttribute(t, "form")) {
                     initButtonTracking(t);
                 }
-                var i = getAttributeValue(t, "hx-sse");
-                if (i) {
-                    processSSEInfo(t, r, i);
-                }
-                var a = getAttributeValue(t, "hx-ws");
+                var a = getAttributeValue(t, "hx-sse");
                 if (a) {
-                    processWebSocketInfo(t, r, a);
+                    processSSEInfo(t, r, a);
+                }
+                var i = getAttributeValue(t, "hx-ws");
+                if (i) {
+                    processWebSocketInfo(t, r, i);
                 }
                 triggerEvent(t, "htmx:afterProcessNode");
             }
@@ -7946,16 +7946,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     errorInfo: r
                 });
             }
-            var i = e.dispatchEvent(n);
-            var a = kebabEventName(t);
-            if (i && a !== t) {
-                var s = makeEvent(a, n.detail);
-                i = i && e.dispatchEvent(s);
+            var a = e.dispatchEvent(n);
+            var i = kebabEventName(t);
+            if (a && i !== t) {
+                var s = makeEvent(i, n.detail);
+                a = a && e.dispatchEvent(s);
             }
             withExtensions(e, function(e) {
-                i = i && (e.onEvent(t, n) !== false && !n.defaultPrevented);
+                a = a && (e.onEvent(t, n) !== false && !n.defaultPrevented);
             });
-            return i;
+            return a;
         }
         var currentPathForHistory = location.pathname + location.search;
         function getHistoryElement() {
@@ -7971,10 +7971,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 return;
             }
             e = normalizePath(e);
-            var i = parseJSON(localStorage.getItem("htmx-history-cache")) || [];
-            for (var a = 0; a < i.length; a++) {
-                if (i[a].url === e) {
-                    i.splice(a, 1);
+            var a = parseJSON(localStorage.getItem("htmx-history-cache")) || [];
+            for (var i = 0; i < a.length; i++) {
+                if (a[i].url === e) {
+                    a.splice(i, 1);
                     break;
                 }
             }
@@ -7986,22 +7986,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             };
             triggerEvent(getDocument().body, "htmx:historyItemCreated", {
                 item: s,
-                cache: i
+                cache: a
             });
-            i.push(s);
-            while (i.length > htmx.config.historyCacheSize) {
-                i.shift();
+            a.push(s);
+            while (a.length > htmx.config.historyCacheSize) {
+                a.shift();
             }
-            while (i.length > 0) {
+            while (a.length > 0) {
                 try {
-                    localStorage.setItem("htmx-history-cache", JSON.stringify(i));
+                    localStorage.setItem("htmx-history-cache", JSON.stringify(a));
                     break;
                 } catch (e) {
                     triggerErrorEvent(getDocument().body, "htmx:historyCacheError", {
                         cause: e,
-                        cache: i
+                        cache: a
                     });
-                    i.shift();
+                    a.shift();
                 }
             }
         }
@@ -8071,14 +8071,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 e.call();
             });
         }
-        function loadHistoryFromServer(a) {
+        function loadHistoryFromServer(i) {
             var e = new XMLHttpRequest();
             var s = {
-                path: a,
+                path: i,
                 xhr: e
             };
             triggerEvent(getDocument().body, "htmx:historyCacheMiss", s);
-            e.open("GET", a, true);
+            e.open("GET", i, true);
             e.setRequestHeader("HX-Request", "true");
             e.setRequestHeader("HX-History-Restore-Request", "true");
             e.setRequestHeader("HX-Current-URL", getDocument().location.href);
@@ -8091,18 +8091,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     var r = makeSettleInfo(t);
                     var n = findTitle(this.response);
                     if (n) {
-                        var i = find("title");
-                        if (i) {
-                            i.innerHTML = n;
+                        var a = find("title");
+                        if (a) {
+                            a.innerHTML = n;
                         } else {
                             window.document.title = n;
                         }
                     }
                     swapInnerHTML(t, e, r);
                     settleImmediately(r.tasks);
-                    currentPathForHistory = a;
+                    currentPathForHistory = i;
                     triggerEvent(getDocument().body, "htmx:historyRestore", {
-                        path: a,
+                        path: i,
                         cacheMiss: true,
                         serverResponse: this.response
                     });
@@ -8119,9 +8119,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (t) {
                 var r = makeFragment(t.content);
                 var n = getHistoryElement();
-                var i = makeSettleInfo(n);
-                swapInnerHTML(n, r, i);
-                settleImmediately(i.tasks);
+                var a = makeSettleInfo(n);
+                swapInnerHTML(n, r, a);
+                settleImmediately(a.tasks);
                 document.title = t.title;
                 setTimeout(function() {
                     window.scrollTo(0, t.scroll);
@@ -8220,14 +8220,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             }
         }
-        function processInputValue(t, r, n, e, i) {
+        function processInputValue(t, r, n, e, a) {
             if (e == null || haveSeenNode(t, e)) {
                 return;
             } else {
                 t.push(e);
             }
             if (shouldInclude(e)) {
-                var a = getRawAttribute(e, "name");
+                var i = getRawAttribute(e, "name");
                 var s = e.value;
                 if (e.multiple && e.tagName === "SELECT") {
                     s = toArray(e.querySelectorAll("option:checked")).map(function(e) {
@@ -8237,15 +8237,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 if (e.files) {
                     s = toArray(e.files);
                 }
-                addValueToValues(a, s, r);
-                if (i) {
+                addValueToValues(i, s, r);
+                if (a) {
                     validateElement(e, n);
                 }
             }
             if (matches(e, "form")) {
                 var o = e.elements;
                 forEach(o, function(e) {
-                    processInputValue(t, r, n, e, i);
+                    processInputValue(t, r, n, e, a);
                 });
             }
         }
@@ -8268,8 +8268,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function getInputValues(e, t) {
             var r = [];
             var n = {};
-            var i = {};
-            var a = [];
+            var a = {};
+            var i = [];
             var s = getInternalData(e);
             if (s.lastButtonClicked && !bodyContains(s.lastButtonClicked)) {
                 s.lastButtonClicked = null;
@@ -8279,26 +8279,26 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 o = o && s.lastButtonClicked.formNoValidate !== true;
             }
             if (t !== "get") {
-                processInputValue(r, i, a, closest(e, "form"), o);
+                processInputValue(r, a, i, closest(e, "form"), o);
             }
-            processInputValue(r, n, a, e, o);
+            processInputValue(r, n, i, e, o);
             if (s.lastButtonClicked || e.tagName === "BUTTON" || e.tagName === "INPUT" && getRawAttribute(e, "type") === "submit") {
                 var l = s.lastButtonClicked || e;
                 var u = getRawAttribute(l, "name");
-                addValueToValues(u, l.value, i);
+                addValueToValues(u, l.value, a);
             }
             var c = findAttributeTargets(e, "hx-include");
             forEach(c, function(e) {
-                processInputValue(r, n, a, e, o);
+                processInputValue(r, n, i, e, o);
                 if (!matches(e, "form")) {
                     forEach(e.querySelectorAll(INPUT_SELECTOR), function(e) {
-                        processInputValue(r, n, a, e, o);
+                        processInputValue(r, n, i, e, o);
                     });
                 }
             });
-            n = mergeObjects(n, i);
+            n = mergeObjects(n, a);
             return {
-                errors: a,
+                errors: i,
                 values: n
             };
         }
@@ -8401,10 +8401,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 n["show"] = "top";
             }
             if (r) {
-                var i = splitOnWhitespace(r);
-                if (i.length > 0) {
-                    for (var a = 0; a < i.length; a++) {
-                        var s = i[a];
+                var a = splitOnWhitespace(r);
+                if (a.length > 0) {
+                    for (var i = 0; i < a.length; i++) {
+                        var s = a[i];
                         if (s.indexOf("swap:") === 0) {
                             n["swapDelay"] = parseInterval(s.substr(5));
                         } else if (s.indexOf("settle:") === 0) {
@@ -8430,7 +8430,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         } else if (s.indexOf("focus-scroll:") === 0) {
                             var p = s.substr("focus-scroll:".length);
                             n["focusScroll"] = p == "true";
-                        } else if (a == 0) {
+                        } else if (i == 0) {
                             n["swapStyle"] = s;
                         } else {
                             logError("Unknown modifier in hx-swap: " + s);
@@ -8444,14 +8444,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             return getClosestAttributeValue(e, "hx-encoding") === "multipart/form-data" || matches(e, "form") && getRawAttribute(e, "enctype") === "multipart/form-data";
         }
         function encodeParamsForBody(t, r, n) {
-            var i = null;
+            var a = null;
             withExtensions(r, function(e) {
-                if (i == null) {
-                    i = e.encodeParameters(t, n, r);
+                if (a == null) {
+                    a = e.encodeParameters(t, n, r);
                 }
             });
-            if (i != null) {
-                return i;
+            if (a != null) {
+                return a;
             } else {
                 if (usesFormData(r)) {
                     return makeFormData(n);
@@ -8470,38 +8470,38 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             var r = e[0];
             var n = e[e.length - 1];
             if (t.scroll) {
-                var i = null;
+                var a = null;
                 if (t.scrollTarget) {
-                    i = querySelectorExt(r, t.scrollTarget);
+                    a = querySelectorExt(r, t.scrollTarget);
                 }
-                if (t.scroll === "top" && (r || i)) {
-                    i = i || r;
-                    i.scrollTop = 0;
+                if (t.scroll === "top" && (r || a)) {
+                    a = a || r;
+                    a.scrollTop = 0;
                 }
-                if (t.scroll === "bottom" && (n || i)) {
-                    i = i || n;
-                    i.scrollTop = i.scrollHeight;
+                if (t.scroll === "bottom" && (n || a)) {
+                    a = a || n;
+                    a.scrollTop = a.scrollHeight;
                 }
             }
             if (t.show) {
-                var i = null;
+                var a = null;
                 if (t.showTarget) {
-                    var a = t.showTarget;
+                    var i = t.showTarget;
                     if (t.showTarget === "window") {
-                        a = "body";
+                        i = "body";
                     }
-                    i = querySelectorExt(r, a);
+                    a = querySelectorExt(r, i);
                 }
-                if (t.show === "top" && (r || i)) {
-                    i = i || r;
-                    i.scrollIntoView({
+                if (t.show === "top" && (r || a)) {
+                    a = a || r;
+                    a.scrollIntoView({
                         block: "start",
                         behavior: htmx.config.scrollBehavior
                     });
                 }
-                if (t.show === "bottom" && (n || i)) {
-                    i = i || n;
-                    i.scrollIntoView({
+                if (t.show === "bottom" && (n || a)) {
+                    a = a || n;
+                    a.scrollIntoView({
                         block: "end",
                         behavior: htmx.config.scrollBehavior
                     });
@@ -8515,30 +8515,30 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (e == null) {
                 return n;
             }
-            var i = getAttributeValue(e, t);
-            if (i) {
-                var a = i.trim();
+            var a = getAttributeValue(e, t);
+            if (a) {
+                var i = a.trim();
                 var s = r;
-                if (a === "unset") {
+                if (i === "unset") {
                     return null;
                 }
-                if (a.indexOf("javascript:") === 0) {
-                    a = a.substr(11);
+                if (i.indexOf("javascript:") === 0) {
+                    i = i.substr(11);
                     s = true;
-                } else if (a.indexOf("js:") === 0) {
-                    a = a.substr(3);
+                } else if (i.indexOf("js:") === 0) {
+                    i = i.substr(3);
                     s = true;
                 }
-                if (a.indexOf("{") !== 0) {
-                    a = "{" + a + "}";
+                if (i.indexOf("{") !== 0) {
+                    i = "{" + i + "}";
                 }
                 var o;
                 if (s) {
                     o = maybeEval(e, function() {
-                        return Function("return (" + a + ")")();
+                        return Function("return (" + i + ")")();
                     }, {});
                 } else {
-                    o = parseJSON(a);
+                    o = parseJSON(i);
                 }
                 for (var l in o) {
                     if (o.hasOwnProperty(l)) {
@@ -8627,13 +8627,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
         function verifyPath(e, t, r) {
             var n;
-            var i;
+            var a;
             if (typeof URL === "function") {
-                i = new URL(t, document.location.href);
-                var a = document.location.origin;
-                n = a === i.origin;
+                a = new URL(t, document.location.href);
+                var i = document.location.origin;
+                n = i === a.origin;
             } else {
-                i = t;
+                a = t;
                 n = startsWith(t, document.location.origin);
             }
             if (htmx.config.selfRequestsOnly) {
@@ -8642,15 +8642,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             }
             return triggerEvent(e, "htmx:validateUrl", mergeObjects({
-                url: i,
+                url: a,
                 sameHost: n
             }, r));
         }
-        function issueAjaxRequest(t, r, n, i, a, e) {
+        function issueAjaxRequest(t, r, n, a, i, e) {
             var s = null;
             var o = null;
-            a = a != null ? a : {};
-            if (a.returnPromise && typeof Promise !== "undefined") {
+            i = i != null ? i : {};
+            if (i.returnPromise && typeof Promise !== "undefined") {
                 var l = new Promise(function(e, t) {
                     s = e;
                     o = t;
@@ -8659,13 +8659,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (n == null) {
                 n = getDocument().body;
             }
-            var D = a.handler || handleAjaxResponse;
-            var M = a.select || null;
+            var D = i.handler || handleAjaxResponse;
+            var M = i.select || null;
             if (!bodyContains(n)) {
                 maybeCall(s);
                 return l;
             }
-            var u = a.targetOverride || getTarget(n);
+            var u = i.targetOverride || getTarget(n);
             if (u == null || u == DUMMY_ELT) {
                 triggerErrorEvent(n, "htmx:targetError", {
                     target: getAttributeValue(n, "hx-target")
@@ -8690,15 +8690,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             var d = getClosestAttributeValue(n, "hx-confirm");
             if (e === undefined) {
                 var B = function(e) {
-                    return issueAjaxRequest(t, r, n, i, a, !!e);
+                    return issueAjaxRequest(t, r, n, a, i, !!e);
                 };
                 var F = {
                     target: u,
                     elt: n,
                     path: r,
                     verb: t,
-                    triggeringEvent: i,
-                    etc: a,
+                    triggeringEvent: a,
+                    etc: i,
                     issueRequest: B,
                     question: d
                 };
@@ -8707,44 +8707,44 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     return l;
                 }
             }
-            var g = n;
-            var m = getClosestAttributeValue(n, "hx-sync");
+            var m = n;
+            var g = getClosestAttributeValue(n, "hx-sync");
             var v = null;
             var y = false;
-            if (m) {
-                var q = m.split(":");
-                var V = q[0].trim();
-                if (V === "this") {
-                    g = findThisElement(n, "hx-sync");
+            if (g) {
+                var q = g.split(":");
+                var $ = q[0].trim();
+                if ($ === "this") {
+                    m = findThisElement(n, "hx-sync");
                 } else {
-                    g = querySelectorExt(n, V);
+                    m = querySelectorExt(n, $);
                 }
-                m = (q[1] || "drop").trim();
-                c = getInternalData(g);
-                if (m === "drop" && c.xhr && c.abortable !== true) {
+                g = (q[1] || "drop").trim();
+                c = getInternalData(m);
+                if (g === "drop" && c.xhr && c.abortable !== true) {
                     maybeCall(s);
                     return l;
-                } else if (m === "abort") {
+                } else if (g === "abort") {
                     if (c.xhr) {
                         maybeCall(s);
                         return l;
                     } else {
                         y = true;
                     }
-                } else if (m === "replace") {
-                    triggerEvent(g, "htmx:abort");
-                } else if (m.indexOf("queue") === 0) {
-                    var $ = m.split(" ");
-                    v = ($[1] || "last").trim();
+                } else if (g === "replace") {
+                    triggerEvent(m, "htmx:abort");
+                } else if (g.indexOf("queue") === 0) {
+                    var V = g.split(" ");
+                    v = (V[1] || "last").trim();
                 }
             }
             if (c.xhr) {
                 if (c.abortable) {
-                    triggerEvent(g, "htmx:abort");
+                    triggerEvent(m, "htmx:abort");
                 } else {
                     if (v == null) {
-                        if (i) {
-                            var b = getInternalData(i);
+                        if (a) {
+                            var b = getInternalData(a);
                             if (b && b.triggerSpec && b.triggerSpec.queue) {
                                 v = b.triggerSpec.queue;
                             }
@@ -8758,26 +8758,26 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                     if (v === "first" && c.queuedRequests.length === 0) {
                         c.queuedRequests.push(function() {
-                            issueAjaxRequest(t, r, n, i, a);
+                            issueAjaxRequest(t, r, n, a, i);
                         });
                     } else if (v === "all") {
                         c.queuedRequests.push(function() {
-                            issueAjaxRequest(t, r, n, i, a);
+                            issueAjaxRequest(t, r, n, a, i);
                         });
                     } else if (v === "last") {
                         c.queuedRequests = [];
                         c.queuedRequests.push(function() {
-                            issueAjaxRequest(t, r, n, i, a);
+                            issueAjaxRequest(t, r, n, a, i);
                         });
                     }
                     maybeCall(s);
                     return l;
                 }
             }
-            var x = new XMLHttpRequest();
-            c.xhr = x;
+            var E = new XMLHttpRequest();
+            c.xhr = E;
             c.abortable = y;
-            var E = function() {
+            var x = function() {
                 c.xhr = null;
                 c.abortable = false;
                 if (c.queuedRequests != null && c.queuedRequests.length > 0) {
@@ -8793,14 +8793,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     target: u
                 })) {
                     maybeCall(s);
-                    E();
+                    x();
                     return l;
                 }
             }
             if (d && !e) {
                 if (!confirm(d)) {
                     maybeCall(s);
-                    E();
+                    x();
                     return l;
                 }
             }
@@ -8808,14 +8808,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (t !== "get" && !usesFormData(n)) {
                 w["Content-Type"] = "application/x-www-form-urlencoded";
             }
-            if (a.headers) {
-                w = mergeObjects(w, a.headers);
+            if (i.headers) {
+                w = mergeObjects(w, i.headers);
             }
             var U = getInputValues(n, t);
             var k = U.errors;
             var A = U.values;
-            if (a.values) {
-                A = mergeObjects(A, a.values);
+            if (i.values) {
+                A = mergeObjects(A, i.values);
             }
             var W = getExpressionVars(n);
             var X = mergeObjects(A, W);
@@ -8838,14 +8838,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 target: u,
                 verb: t,
                 errors: k,
-                withCredentials: a.credentials || P.credentials || htmx.config.withCredentials,
-                timeout: a.timeout || P.timeout || htmx.config.timeout,
+                withCredentials: i.credentials || P.credentials || htmx.config.withCredentials,
+                timeout: i.timeout || P.timeout || htmx.config.timeout,
                 path: r,
-                triggeringEvent: i
+                triggeringEvent: a
             };
             if (!triggerEvent(n, "htmx:configRequest", I)) {
                 maybeCall(s);
-                E();
+                x();
                 return l;
             }
             r = I.path;
@@ -8857,7 +8857,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (k && k.length > 0) {
                 triggerEvent(n, "htmx:validation:halted", I);
                 maybeCall(s);
-                E();
+                x();
                 return l;
             }
             var z = r.split("#");
@@ -8884,23 +8884,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 maybeCall(o);
                 return l;
             }
-            x.open(t.toUpperCase(), T, true);
-            x.overrideMimeType("text/html");
-            x.withCredentials = I.withCredentials;
-            x.timeout = I.timeout;
+            E.open(t.toUpperCase(), T, true);
+            E.overrideMimeType("text/html");
+            E.withCredentials = I.withCredentials;
+            E.timeout = I.timeout;
             if (P.noHeaders) {} else {
-                for (var H in w) {
-                    if (w.hasOwnProperty(H)) {
-                        var Y = w[H];
-                        safelySetHeaderValue(x, H, Y);
+                for (var R in w) {
+                    if (w.hasOwnProperty(R)) {
+                        var Y = w[R];
+                        safelySetHeaderValue(E, R, Y);
                     }
                 }
             }
-            var R = {
-                xhr: x,
+            var H = {
+                xhr: E,
                 target: u,
                 requestConfig: I,
-                etc: a,
+                etc: i,
                 boosted: G,
                 select: M,
                 pathInfo: {
@@ -8909,14 +8909,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     anchor: O
                 }
             };
-            x.onload = function() {
+            E.onload = function() {
                 try {
                     var e = hierarchyForElt(n);
-                    R.pathInfo.responsePath = getPathFromResponse(x);
-                    D(n, R);
+                    H.pathInfo.responsePath = getPathFromResponse(E);
+                    D(n, H);
                     removeRequestIndicators(L, N);
-                    triggerEvent(n, "htmx:afterRequest", R);
-                    triggerEvent(n, "htmx:afterOnLoad", R);
+                    triggerEvent(n, "htmx:afterRequest", H);
+                    triggerEvent(n, "htmx:afterOnLoad", H);
                     if (!bodyContains(n)) {
                         var t = null;
                         while (e.length > 0 && t == null) {
@@ -8926,49 +8926,49 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             }
                         }
                         if (t) {
-                            triggerEvent(t, "htmx:afterRequest", R);
-                            triggerEvent(t, "htmx:afterOnLoad", R);
+                            triggerEvent(t, "htmx:afterRequest", H);
+                            triggerEvent(t, "htmx:afterOnLoad", H);
                         }
                     }
                     maybeCall(s);
-                    E();
+                    x();
                 } catch (e) {
                     triggerErrorEvent(n, "htmx:onLoadError", mergeObjects({
                         error: e
-                    }, R));
+                    }, H));
                     throw e;
                 }
             };
-            x.onerror = function() {
+            E.onerror = function() {
                 removeRequestIndicators(L, N);
-                triggerErrorEvent(n, "htmx:afterRequest", R);
-                triggerErrorEvent(n, "htmx:sendError", R);
+                triggerErrorEvent(n, "htmx:afterRequest", H);
+                triggerErrorEvent(n, "htmx:sendError", H);
                 maybeCall(o);
-                E();
+                x();
             };
-            x.onabort = function() {
+            E.onabort = function() {
                 removeRequestIndicators(L, N);
-                triggerErrorEvent(n, "htmx:afterRequest", R);
-                triggerErrorEvent(n, "htmx:sendAbort", R);
+                triggerErrorEvent(n, "htmx:afterRequest", H);
+                triggerErrorEvent(n, "htmx:sendAbort", H);
                 maybeCall(o);
-                E();
+                x();
             };
-            x.ontimeout = function() {
+            E.ontimeout = function() {
                 removeRequestIndicators(L, N);
-                triggerErrorEvent(n, "htmx:afterRequest", R);
-                triggerErrorEvent(n, "htmx:timeout", R);
+                triggerErrorEvent(n, "htmx:afterRequest", H);
+                triggerErrorEvent(n, "htmx:timeout", H);
                 maybeCall(o);
-                E();
+                x();
             };
-            if (!triggerEvent(n, "htmx:beforeRequest", R)) {
+            if (!triggerEvent(n, "htmx:beforeRequest", H)) {
                 maybeCall(s);
-                E();
+                x();
                 return l;
             }
             var L = addRequestIndicatorClasses(n);
             var N = disableElements(n);
             forEach([ "loadstart", "loadend", "progress", "abort" ], function(t) {
-                forEach([ x, x.upload ], function(e) {
+                forEach([ E, E.upload ], function(e) {
                     e.addEventListener(t, function(e) {
                         triggerEvent(n, "htmx:xhr:" + t, {
                             lengthComputable: e.lengthComputable,
@@ -8978,36 +8978,36 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     });
                 });
             });
-            triggerEvent(n, "htmx:beforeSend", R);
-            var Z = _ ? null : encodeParamsForBody(x, n, C);
-            x.send(Z);
+            triggerEvent(n, "htmx:beforeSend", H);
+            var Z = _ ? null : encodeParamsForBody(E, n, C);
+            E.send(Z);
             return l;
         }
         function determineHistoryUpdates(e, t) {
             var r = t.xhr;
             var n = null;
-            var i = null;
+            var a = null;
             if (hasHeader(r, /HX-Push:/i)) {
                 n = r.getResponseHeader("HX-Push");
-                i = "push";
+                a = "push";
             } else if (hasHeader(r, /HX-Push-Url:/i)) {
                 n = r.getResponseHeader("HX-Push-Url");
-                i = "push";
+                a = "push";
             } else if (hasHeader(r, /HX-Replace-Url:/i)) {
                 n = r.getResponseHeader("HX-Replace-Url");
-                i = "replace";
+                a = "replace";
             }
             if (n) {
                 if (n === "false") {
                     return {};
                 } else {
                     return {
-                        type: i,
+                        type: a,
                         path: n
                     };
                 }
             }
-            var a = t.pathInfo.finalRequestPath;
+            var i = t.pathInfo.finalRequestPath;
             var s = t.pathInfo.responsePath;
             var o = getClosestAttributeValue(e, "hx-push-url");
             var l = getClosestAttributeValue(e, "hx-replace-url");
@@ -9022,14 +9022,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 f = l;
             } else if (u) {
                 c = "push";
-                f = s || a;
+                f = s || i;
             }
             if (f) {
                 if (f === "false") {
                     return {};
                 }
                 if (f === "true") {
-                    f = s || a;
+                    f = s || i;
                 }
                 if (t.pathInfo.anchor && f.indexOf("#") === -1) {
                     f = f + "#" + t.pathInfo.anchor;
@@ -9084,30 +9084,30 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             }
             var d = determineHistoryUpdates(l, u);
-            var i = c.status >= 200 && c.status < 400 && c.status !== 204;
-            var g = c.response;
-            var a = c.status >= 400;
-            var m = htmx.config.ignoreTitle;
+            var a = c.status >= 200 && c.status < 400 && c.status !== 204;
+            var m = c.response;
+            var i = c.status >= 400;
+            var g = htmx.config.ignoreTitle;
             var s = mergeObjects({
-                shouldSwap: i,
-                serverResponse: g,
-                isError: a,
-                ignoreTitle: m
+                shouldSwap: a,
+                serverResponse: m,
+                isError: i,
+                ignoreTitle: g
             }, u);
             if (!triggerEvent(f, "htmx:beforeSwap", s)) return;
             f = s.target;
-            g = s.serverResponse;
-            a = s.isError;
-            m = s.ignoreTitle;
+            m = s.serverResponse;
+            i = s.isError;
+            g = s.ignoreTitle;
             u.target = f;
-            u.failed = a;
-            u.successful = !a;
+            u.failed = i;
+            u.successful = !i;
             if (s.shouldSwap) {
                 if (c.status === 286) {
                     cancelPolling(l);
                 }
                 withExtensions(l, function(e) {
-                    g = e.transformResponse(g, c, l);
+                    m = e.transformResponse(m, c, l);
                 });
                 if (d.type) {
                     saveCurrentPageToHistory();
@@ -9118,7 +9118,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
                 var p = getSwapSpecification(l, o);
                 if (p.hasOwnProperty("ignoreTitle")) {
-                    m = p.ignoreTitle;
+                    g = p.ignoreTitle;
                 }
                 f.classList.add(htmx.config.swappingClass);
                 var v = null;
@@ -9158,19 +9158,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             }
                         }
                         var n = makeSettleInfo(f);
-                        selectAndSwap(p.swapStyle, f, l, g, n, r);
+                        selectAndSwap(p.swapStyle, f, l, m, n, r);
                         if (t.elt && !bodyContains(t.elt) && getRawAttribute(t.elt, "id")) {
-                            var i = document.getElementById(getRawAttribute(t.elt, "id"));
-                            var a = {
+                            var a = document.getElementById(getRawAttribute(t.elt, "id"));
+                            var i = {
                                 preventScroll: p.focusScroll !== undefined ? !p.focusScroll : !htmx.config.defaultFocusScroll
                             };
-                            if (i) {
-                                if (t.start && i.setSelectionRange) {
+                            if (a) {
+                                if (t.start && a.setSelectionRange) {
                                     try {
-                                        i.setSelectionRange(t.start, t.end);
+                                        a.setSelectionRange(t.start, t.end);
                                     } catch (e) {}
                                 }
-                                i.focus(a);
+                                a.focus(i);
                             }
                         }
                         f.classList.remove(htmx.config.swappingClass);
@@ -9206,7 +9206,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                                     });
                                 }
                             }
-                            if (n.title && !m) {
+                            if (n.title && !g) {
                                 var t = find("title");
                                 if (t) {
                                     t.innerHTML = n.title;
@@ -9235,12 +9235,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         throw e;
                     }
                 };
-                var x = htmx.config.globalViewTransitions;
+                var E = htmx.config.globalViewTransitions;
                 if (p.hasOwnProperty("transition")) {
-                    x = p.transition;
+                    E = p.transition;
                 }
-                if (x && triggerEvent(l, "htmx:beforeTransition", u) && typeof Promise !== "undefined" && document.startViewTransition) {
-                    var E = new Promise(function(e, t) {
+                if (E && triggerEvent(l, "htmx:beforeTransition", u) && typeof Promise !== "undefined" && document.startViewTransition) {
+                    var x = new Promise(function(e, t) {
                         v = e;
                         y = t;
                     });
@@ -9248,7 +9248,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     b = function() {
                         document.startViewTransition(function() {
                             S();
-                            return E;
+                            return x;
                         });
                     };
                 }
@@ -9258,7 +9258,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     b();
                 }
             }
-            if (a) {
+            if (i) {
                 triggerErrorEvent(l, "htmx:responseError", mergeObjects({
                     error: "Response Status Error Code " + c.status + " from " + u.pathInfo.requestPath
                 }, u));
@@ -9397,7 +9397,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 var FlowPlater = function() {
     "use strict";
-    const D = "1.4.5";
+    const D = "1.4.19";
     const M = "JWSLS";
     const B = "Flowplater standard licence";
     class e extends Error {
@@ -9406,13 +9406,13 @@ var FlowPlater = function() {
             this.name = "FlowPlaterError";
         }
     }
-    class h extends e {
+    class c extends e {
         constructor(e) {
             super(e);
             this.name = "TemplateError";
         }
     }
-    class c extends e {
+    class F extends e {
         constructor(e) {
             super(e);
             this.name = "RenderError";
@@ -9427,48 +9427,223 @@ var FlowPlater = function() {
     document.body.addEventListener("htmx:configRequest", function(e) {
         e.detail.headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8";
     });
-    document.body.addEventListener("htmx:afterSwap", function(e) {
-        const t = e.detail.target;
-        if (t) {
-            S(t);
-        } else {
-            b("Swapped element is null, cannot process.");
+    const f = new Map();
+    let t = 0;
+    function i() {
+        return `fp-${Date.now()}-${t++}`;
+    }
+    function s(e, t, r) {
+        if (!e || !e.hasAttribute("fp-template")) return;
+        const n = f.get(e);
+        t = t || i();
+        switch (r) {
+          case "start":
+            if (!n || n.requestId !== t) {
+                f.set(e, {
+                    requestId: t,
+                    timestamp: Date.now(),
+                    processed: false
+                });
+                m.log(m.levels.DEBUG, "Added element to processing set", e, t);
+            }
+            break;
+
+          case "process":
+            if (n && n.requestId === t && !n.processed) {
+                n.processed = true;
+                f.set(e, n);
+                return true;
+            }
+            return false;
+
+          case "cleanup":
+            if (n && n.requestId === t) {
+                f.delete(e);
+                m.log(m.levels.DEBUG, "Cleaned up after request", e, t);
+            }
+            break;
+        }
+    }
+    document.body.removeEventListener("htmx:afterSwap", null);
+    document.body.removeEventListener("htmx:beforeSwap", null);
+    document.body.removeEventListener("htmx:beforeRequest", null);
+    document.body.addEventListener("htmx:beforeRequest", function(e) {
+        const t = e.detail.elt;
+        const r = e.detail.requestId || i();
+        e.detail.requestId = r;
+        s(t, r, "start");
+    });
+    document.body.addEventListener("htmx:beforeSwap", function(e) {
+        const t = e.detail.elt;
+        const r = e.detail.requestId;
+        const n = f.get(t);
+        if (!n || n.requestId !== r) {
+            e.preventDefault();
+            m.log(m.levels.DEBUG, "Prevented swap - request ID mismatch");
         }
     });
-    var f = {};
-    var p = {};
-    var d = 0;
-    var g = {
-        onRender: function() {},
-        onRendered: function() {},
-        onRemove: function() {},
-        onRemoved: function() {},
-        animation: false,
-        debug: true
-    };
-    const m = {
-        _events: {},
-        on: function(e, t) {
-            if (!this._events[e]) this._events[e] = [];
-            this._events[e].push(t);
-            return this;
-        },
-        off: function(e, t) {
-            if (!this._events[e]) return this;
-            if (!t) {
-                delete this._events[e];
-            } else {
-                this._events[e] = this._events[e].filter(e => e !== t);
+    htmx.defineExtension("flowplater", {
+        transformResponse: function(t, e, r) {
+            const n = e.requestId || f.get(r)?.requestId;
+            const a = f.get(r);
+            m.log(m.levels.DEBUG, "Transform response for request", n, "current info:", a);
+            if (!a || a.requestId !== n) {
+                m.log(m.levels.DEBUG, "Skipping transformation - request ID mismatch", {
+                    current: a?.requestId,
+                    received: n
+                });
+                return t;
             }
-            return this;
+            if (!r.hasAttribute("fp-template")) {
+                return t;
+            }
+            let i;
+            try {
+                if (e.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
+                    var s = new DOMParser();
+                    var o = s.parseFromString(t, "text/xml");
+                    i = I(o);
+                } else {
+                    i = JSON.parse(t);
+                }
+            } catch (e) {
+                v("Failed to parse response:", e);
+                return t;
+            }
+            var l = r.getAttribute("fp-template");
+            g("Response received for request " + n + ": " + t);
+            try {
+                let e;
+                if (l) {
+                    g("Rendering html to " + l + " based on htmx response");
+                    e = _({
+                        template: l,
+                        data: i,
+                        target: r,
+                        returnHtml: true
+                    });
+                } else {
+                    if (!r.id) {
+                        v("No template found. If the current element is a template, it must have an id.");
+                        return t;
+                    }
+                    g("Rendering html to current element based on htmx response");
+                    var u = "#" + r.id;
+                    y(r);
+                    e = _({
+                        template: u,
+                        data: i,
+                        target: r,
+                        returnHtml: true
+                    });
+                }
+                if (e) {
+                    m.log(m.levels.DEBUG, "Template rendered successfully for request", n);
+                    return e;
+                }
+                return t;
+            } catch (e) {
+                v("Error rendering template:", e);
+                return t;
+            }
         },
-        emit: function(e, t) {
-            if (!this._events[e]) return;
-            this._events[e].forEach(e => e(t));
-            return this;
+        onEvent: function(e, t) {
+            if (t.detail.handled) return;
+            const r = t.detail.elt;
+            const n = t.detail.requestId || i();
+            switch (e) {
+              case "htmx:beforeRequest":
+                t.detail.requestId = n;
+                t.detail.xhr.requestId = n;
+                s(r, n, "start");
+                break;
+
+              case "htmx:beforeSwap":
+                const a = f.get(r);
+                if (!a || a.requestId !== n) {
+                    t.preventDefault();
+                    m.log(m.levels.DEBUG, "Prevented swap - request ID mismatch");
+                    return;
+                }
+                break;
+
+              case "htmx:afterSwap":
+                s(r, n, "cleanup");
+                break;
+            }
+        }
+    });
+    document.body.addEventListener("htmx:responseError", function(e) {
+        s(e.detail.elt, e.detail.requestId, "cleanup");
+    });
+    function r() {
+        const e = Date.now();
+        const t = 1e4;
+        for (const [ r, n ] of f.entries()) {
+            if (e - n.timestamp > t) {
+                f.delete(r);
+                m.log(m.levels.DEBUG, "Cleaned up stale processing entry", r, n.requestId);
+            }
+        }
+    }
+    setInterval(r, 1e4);
+    window.addEventListener("unload", function() {
+        f.clear();
+    });
+    const h = {
+        templateCache: {},
+        instances: {},
+        length: 0,
+        defaults: {
+            onRender: function() {},
+            onRendered: function() {},
+            onRemove: function() {},
+            onRemoved: function() {},
+            animation: false,
+            debug: true
         }
     };
-    const v = {
+    const p = function() {
+        const n = new Map();
+        return {
+            subscribe(e, t, r = null) {
+                if (!n.has(e)) {
+                    n.set(e, []);
+                }
+                n.get(e).push({
+                    callback: t,
+                    context: r
+                });
+                return () => this.unsubscribe(e, t);
+            },
+            unsubscribe(e, t) {
+                if (!n.has(e)) return;
+                const r = n.get(e);
+                n.set(e, r.filter(e => e.callback !== t));
+            },
+            publish(e, r) {
+                if (!n.has(e)) return;
+                n.get(e).forEach(({
+                    callback: e,
+                    context: t
+                }) => {
+                    e.call(t, r);
+                });
+                if (r && r.instanceName) {
+                    const t = `${r.instanceName}:${e}`;
+                    if (n.has(t)) {
+                        n.get(t).forEach(({
+                            callback: e,
+                            context: t
+                        }) => {
+                            e.call(t, r);
+                        });
+                    }
+                }
+            }
+        };
+    }();
+    const d = {
         marks: {},
         start: function(e) {
             this.marks[e] = performance.now();
@@ -9477,27 +9652,27 @@ var FlowPlater = function() {
             if (!this.marks[e]) return;
             const t = performance.now() - this.marks[e];
             delete this.marks[e];
-            if (g.debug) {
-                a.log(a.levels.INFO, `${e} took ${t.toFixed(2)}ms`);
+            if (m.debugMode) {
+                m.log(m.levels.INFO, `${e} took ${t.toFixed(2)}ms`);
             }
             return t;
         }
     };
-    function t(n) {
-        const i = new Map();
+    function n(n) {
+        const a = new Map();
         return function(...e) {
             const t = JSON.stringify(e);
-            if (i.has(t)) {
-                a.log(a.levels.DEBUG, "Cache hit:", t);
-                return i.get(t);
+            if (a.has(t)) {
+                m.log(m.levels.DEBUG, "Cache hit:", t);
+                return a.get(t);
             }
-            a.log(a.levels.DEBUG, "Cache miss:", t);
+            m.log(m.levels.DEBUG, "Cache miss:", t);
             const r = n.apply(this, e);
-            i.set(t, r);
+            a.set(t, r);
             return r;
         };
     }
-    const a = {
+    const m = {
         levels: {
             ERROR: 0,
             WARN: 1,
@@ -9505,25 +9680,26 @@ var FlowPlater = function() {
             DEBUG: 3
         },
         level: 3,
+        debugMode: true,
         log: function(e, ...t) {
-            if (!g.debug) return;
+            if (!this.debugMode) return;
             if (e <= this.level) {
                 const r = [ "ERROR", "WARN", "INFO", "DEBUG" ][e];
                 console.log(`FlowPlater [${r}]:`, ...t);
             }
         }
     };
-    function y(...e) {
-        a.log(a.levels.INFO, ...e);
+    function g(...e) {
+        m.log(m.levels.INFO, ...e);
     }
-    function b(...e) {
-        a.log(a.levels.ERROR, ...e);
+    function v(...e) {
+        m.log(m.levels.ERROR, ...e);
     }
     document.addEventListener("htmx:beforeRequest", function(e) {
         var t = e.detail.elt;
         if (t.hasAttribute("fp-instance")) {
             var r = t.getAttribute("fp-instance");
-            m.emit("request-start", {
+            p.publish("request-start", {
                 instanceName: r,
                 ...e.detail
             });
@@ -9533,204 +9709,309 @@ var FlowPlater = function() {
         var t = e.detail.elt;
         if (t.hasAttribute("fp-instance")) {
             var r = t.getAttribute("fp-instance");
-            m.emit("request-end", {
+            p.publish("request-end", {
                 instanceName: r,
                 ...e.detail
             });
         }
     });
-    function i(e) {
-        var t = e.getAttribute("fp-animation") || g.animation;
-        if (t === "true") {
-            var r = e.getAttribute("hx-swap");
-            if (!r) {
-                e.setAttribute("hx-swap", "innerHTML transition:true");
-            } else {
-                e.setAttribute("hx-swap", r + " transition:true");
+    function a(t) {
+        try {
+            var e = t.getAttribute("fp-animation") || h.defaults.animation;
+            if (e === "true") {
+                var r = t.getAttribute("hx-swap");
+                if (!r) {
+                    t.setAttribute("hx-swap", "innerHTML transition:true");
+                } else {
+                    t.setAttribute("hx-swap", r + " transition:true");
+                }
             }
+            return t;
+        } catch (e) {
+            m.log(m.levels.ERROR, `Error in setupAnimation: ${e.message}`);
+            return t;
         }
     }
-    function s(t) {
-        var e = [ "get", "post", "put", "patch", "delete" ];
-        function o(e, t) {
-            while (e) {
-                if (e.hasAttribute(t)) {
-                    return e.getAttribute(t);
+    function o(t) {
+        try {
+            const r = [ "get", "post", "put", "patch", "delete" ];
+            function o(e, t) {
+                while (e) {
+                    if (e.hasAttribute(t)) {
+                        return e.getAttribute(t);
+                    }
+                    e = e.parentElement;
                 }
-                e = e.parentElement;
+                return null;
             }
-            return null;
+            function e(s) {
+                r.forEach(function(e) {
+                    var t = "hx-" + e;
+                    if (s.hasAttribute(t)) {
+                        var r = s.getAttribute(t);
+                        g("Original URL: " + r);
+                        var n = o(s, "fp-prepend");
+                        var a = o(s, "fp-append");
+                        var i = r;
+                        if (n) {
+                            i = n + i;
+                        }
+                        if (a) {
+                            i += a;
+                        }
+                        s.setAttribute(t, i);
+                        g("Modified URL: " + i);
+                        if (i !== r) {
+                            g("Modification successful for", e, "on element", s);
+                        } else {
+                            v("Modification failed for", e, "on element", s);
+                        }
+                    }
+                });
+            }
+            if (t.hasAttribute("fp-prepend") || t.hasAttribute("fp-append") || r.some(e => t.hasAttribute("hx-" + e))) {
+                e(t);
+            }
+            return t;
+        } catch (e) {
+            m.log(m.levels.ERROR, `Error in processUrlAffixes: ${e.message}`);
+            return t;
         }
-        function r(s) {
+    }
+    function l(r) {
+        try {
+            if (r.hasAttribute("data-fp-proxy-processed") || !r.hasAttribute("fp-proxy") || r.getAttribute("fp-proxy") === "false") {
+                return r;
+            }
+            const n = r.getAttribute("fp-proxy").startsWith("http") ? r.getAttribute("fp-proxy") : "https://corsproxy.io/?";
+            const e = [ "get", "post", "put", "patch", "delete" ];
             e.forEach(function(e) {
-                var t = "hx-" + e;
-                if (s.hasAttribute(t)) {
-                    var r = s.getAttribute(t);
-                    y("Original URL: " + r);
-                    var n = o(s, "fp-prepend");
-                    var i = o(s, "fp-append");
-                    var a = r;
-                    if (n) {
-                        a = n + a;
-                    }
-                    if (i) {
-                        a += i;
-                    }
-                    s.setAttribute(t, a);
-                    y("Modified URL: " + a);
-                    if (a !== r) {
-                        y("Modification successful for", e, "on element", s);
-                    } else {
-                        b("Modification failed for", e, "on element", s);
-                    }
+                if (r.hasAttribute("hx-" + e)) {
+                    const t = r.getAttribute("hx-" + e);
+                    r.setAttribute("hx-" + e, n + encodeURIComponent(t));
                 }
             });
-        }
-        if (t.hasAttribute("fp-prepend") || t.hasAttribute("fp-append") || e.some(e => t.hasAttribute("hx-" + e))) {
-            r(t);
+            r.setAttribute("data-fp-proxy-processed", "true");
+            return r;
+        } catch (e) {
+            m.log(m.levels.ERROR, `Error in setupProxy: ${e.message}`);
+            return r;
         }
     }
-    function o(r) {
-        if (r.hasAttribute("fp-proxy") === false || r.getAttribute("fp-proxy") === "false") {
-            return;
+    const u = [ "boost", "get", "post", "on", "push-url", "select", "select-oob", "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable", "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt", "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url", "request", "sync", "validate", "vars" ];
+    function y(n) {
+        try {
+            const a = "fp-";
+            const i = "hx-";
+            u.forEach(e => {
+                const t = a + e;
+                if (n.hasAttribute(t)) {
+                    const r = n.getAttribute(t);
+                    n.setAttribute(i + e, r);
+                    n.removeAttribute(t);
+                }
+            });
+            return n;
+        } catch (e) {
+            m.log(m.levels.ERROR, `Error in translateCustomHTMXAttributes: ${e.message}`);
+            return n;
         }
-        if (r.getAttribute("fp-proxy").startsWith("http")) {
-            var n = r.getAttribute("fp-proxy");
-        } else {
-            var n = "https://corsproxy.io/?";
-        }
-        var e = [ "get", "post", "put", "patch", "delete" ];
-        e.forEach(function(e) {
-            if (r.hasAttribute("hx-" + e)) {
-                var t = r.getAttribute("hx-" + e);
-                r.setAttribute("hx-" + e, n + encodeURIComponent(t));
-            }
-        });
     }
-    const r = [ "boost", "get", "post", "on", "push-url", "select", "select-oob", "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable", "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt", "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url", "request", "sync", "validate", "vars" ];
-    function l(n) {
-        const i = "fp-";
-        const a = "hx-";
-        r.forEach(e => {
-            const t = i + e;
-            if (n.hasAttribute(t)) {
-                const r = n.getAttribute(t);
-                n.setAttribute(a + e, r);
-                n.removeAttribute(t);
-            }
-        });
-    }
-    const n = [ {
+    let b = [ {
         tag: "fpselect",
         replaceWith: "select"
     } ];
-    function F(e) {
-        n.forEach(t => {
+    let E = b;
+    function x(e) {
+        E.forEach(t => {
             const r = Array.from(e.getElementsByTagName(t.tag));
             for (let e = 0; e < r.length; e++) {
                 const n = r[e];
-                const i = document.createElement(t.replaceWith);
-                i.innerHTML = n.innerHTML;
+                const a = document.createElement(t.replaceWith);
+                a.innerHTML = n.innerHTML;
                 for (let e of n.attributes) {
-                    i.setAttribute(e.name, e.value);
+                    a.setAttribute(e.name, e.value);
                 }
-                n.parentNode.replaceChild(i, n);
+                n.parentNode.replaceChild(a, n);
             }
         });
+        return e;
     }
-    function u(e) {
-        const t = document.createElement("link");
-        t.rel = "preload";
-        t.href = e;
-        t.as = "fetch";
-        t.crossOrigin = "anonymous";
+    function S(t) {
+        if (!t) {
+            v("No URL provided for preloading");
+            return;
+        }
+        const e = document.createElement("link");
+        e.rel = "preload";
+        e.href = t;
+        e.as = "fetch";
+        e.crossOrigin = "anonymous";
         const r = () => {
-            if (t.parentNode) {
-                t.remove();
+            if (e.parentNode) {
+                e.remove();
             }
         };
-        t.onerror = r;
-        setTimeout(r, 3e3);
-        document.head.appendChild(t);
+        e.onerror = e => {
+            v(`Failed to preload URL: ${t}`, e);
+            r();
+        };
+        const n = setTimeout(r, 3e3);
+        document.head.appendChild(e);
+        return {
+            cleanup: r,
+            timeoutId: n
+        };
     }
-    function x(e) {
-        const t = e.getAttribute("fp-preload") || "mouseover";
-        if (t === "mouseover") {
-            var r = true;
-            setTimeout(() => {
-                if (r) {
-                    u(e.getAttribute("href") || e.getAttribute("hx-get") || e.getAttribute("fp-get"));
+    function w(n) {
+        const e = n.getAttribute("fp-preload") || "mouseover";
+        if (e === "mouseover") {
+            let t = true;
+            let e;
+            let r;
+            const a = () => {
+                t = true;
+                e = setTimeout(() => {
+                    if (t) {
+                        const e = n.getAttribute("href") || n.getAttribute("hx-get") || n.getAttribute("fp-get");
+                        r = S(e);
+                    }
+                }, 100);
+            };
+            const i = () => {
+                t = false;
+                if (e) {
+                    clearTimeout(e);
                 }
-            }, 100);
-            e.addEventListener("mouseout", () => {
-                r = false;
-            }, {
-                once: true
-            });
+                if (r) {
+                    clearTimeout(r.timeoutId);
+                    r.cleanup();
+                }
+            };
+            n.addEventListener("mouseover", a);
+            n.addEventListener("mouseout", i);
+            n._preloadCleanup = () => {
+                n.removeEventListener("mouseover", a);
+                n.removeEventListener("mouseout", i);
+                i();
+            };
         } else {
-            e.addEventListener(t, () => {
-                u(e.getAttribute("href") || e.getAttribute("hx-get") || e.getAttribute("fp-get"));
-            });
+            const t = () => {
+                const e = n.getAttribute("href") || n.getAttribute("hx-get") || n.getAttribute("fp-get");
+                S(e);
+            };
+            n.addEventListener(e, t);
+            n._preloadCleanup = () => {
+                n.removeEventListener(e, t);
+            };
         }
     }
-    function E(e) {
-        if (e.hasAttribute("fp-preload")) {
+    function k(t) {
+        try {
+            if (t.hasAttribute("data-fp-preload-processed")) {
+                return t;
+            }
+            if (t.hasAttribute("fp-preload")) {
+                w(t);
+                t.setAttribute("data-fp-preload-processed", "true");
+            }
+            return t;
+        } catch (e) {
+            m.log(m.levels.ERROR, `Error in processPreload: ${e.message}`);
+            return t;
+        }
+    }
+    const A = {
+        processors: [ {
+            name: "customTags",
+            process: x
+        }, {
+            name: "htmxAttributes",
+            process: y
+        }, {
+            name: "extension",
+            process: O
+        }, {
+            name: "urlAffixes",
+            process: o
+        }, {
+            name: "animation",
+            process: a
+        }, {
+            name: "proxy",
+            process: l
+        }, {
+            name: "preload",
+            process: k
+        }, {
+            name: "htmxProcess",
+            process: e => {
+                htmx.process(e);
+                return e;
+            }
+        } ],
+        FP_SELECTOR: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]",
+        process: function(e = document) {
+            if (e.matches && e.matches(this.FP_SELECTOR)) {
+                this.run(e);
+            }
+            const t = e.querySelectorAll ? e.querySelectorAll(this.FP_SELECTOR) : [];
+            t.forEach(e => this.run(e));
+        },
+        run: function(e) {
+            this.processors.reduce((t, r, e) => {
+                if (!t) {
+                    m.log(m.levels.ERROR, `Element became undefined in ProcessingChain at processor index ${e}. Previous processor:`, this.processors[e - 1]);
+                    return;
+                }
+                try {
+                    return r.process(t);
+                } catch (e) {
+                    m.log(m.levels.ERROR, `Error in processor ${r.name}: ${e.message}`);
+                    return t;
+                }
+            }, e);
+        }
+    };
+    function C(e = document) {
+        if (e === document || !e.matches(A.FP_SELECTOR)) {
+            const r = e.querySelectorAll(A.FP_SELECTOR);
+            r.forEach(t);
+        } else {
             t(e);
         }
         function t(e) {
-            if (e.hasAttribute("fp-preload")) {
-                e.getAttribute("fp-preload") === "pageload" ? u(e.getAttribute("href") || e.getAttribute("hx-get") || e.getAttribute("fp-get")) : x(e);
+            if (e._preloadCleanup) {
+                e._preloadCleanup();
             }
-        }
-    }
-    function S(e = document) {
-        const t = "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]";
-        if (e === document || !e.matches(t)) {
-            const n = e.querySelectorAll(t);
-            n.forEach(e => {
-                r(e);
-            });
-        } else {
-            r(e);
-        }
-        function r(e) {
-            l(e);
-            C(e);
-            s(e);
-            o(e);
-            i(e);
-            E(e);
+            A.process(e);
+            k(e);
             htmx.process(e);
         }
     }
     function q(e, t) {
-        var r = e.getAttribute("fp-animation") || g.animation;
+        var r = e.getAttribute("fp-animation") || h.defaults.animation;
         if (!r) {
             t();
             return;
         } else {
-            var n = document.startViewTransition(e);
-            t();
+            var n = document.startViewTransition(t);
         }
     }
-    const w = t(function(t) {
-        v.start("compile:" + t);
+    const P = n(function(t) {
+        d.start("compile:" + t);
         var e = document.querySelector(t);
-        y("Trying to compile template: " + t);
+        g("Trying to compile template: " + t);
         if (!e) {
-            b("Template not found: " + t);
-            v.end("compile:" + t);
+            v("Template not found: " + t);
+            d.end("compile:" + t);
             return null;
         }
-        if (!f[t] || e.hasAttribute("fp-dynamic") && e.getAttribute("fp-dynamic") !== "false") {
-            y("compiling template: " + t);
+        if (!h.templateCache[t] || e.hasAttribute("fp-dynamic") && e.getAttribute("fp-dynamic") !== "false") {
+            g("compiling template: " + t);
             function u(t) {
                 let r = t.tagName.toLowerCase();
-                const e = [ {
-                    tag: "fpselect",
-                    replaceWith: "select"
-                } ];
-                e.forEach(e => {
+                E.forEach(e => {
                     if (r === e.tag) {
                         r = e.replaceWith;
                     }
@@ -9741,209 +10022,207 @@ var FlowPlater = function() {
                 }
                 return `<${r}${n}>`;
             }
-            function r(e) {
-                const t = /(>=|<=|==|!=|&&|\|\||>|<|regex)/g;
-                return e.replace(t, ' "$1" ');
-            }
             function c(e) {
                 let l = "";
-                e.childNodes.forEach(r => {
-                    if (r.nodeType === Node.TEXT_NODE) {
-                        l += r.textContent;
-                    } else if (r.nodeType === Node.ELEMENT_NODE) {
-                        if (r.hasAttribute("fp")) {
-                            const e = r.tagName.toLowerCase();
-                            const t = r.getAttribute("fp").split(" ").map(e => {
+                e.childNodes.forEach(e => {
+                    if (e.nodeType === Node.TEXT_NODE) {
+                        l += e.textContent;
+                    } else if (e.nodeType === Node.ELEMENT_NODE) {
+                        if (e.hasAttribute("fp")) {
+                            const t = e.tagName.toLowerCase();
+                            const r = e.getAttribute("fp").split(" ").map(e => {
                                 return e.replace(/&quot;/g, '"');
                             }).join(" ");
-                            const n = c(r);
-                            if (e === "log" || e === "lookup" || e === "execute") {
+                            const n = c(e);
+                            if (t === "log" || t === "lookup" || t === "execute") {
                                 if (n) {
-                                    l += `{{${e} ${n} ${t}}}`;
+                                    l += `{{${t} ${n} ${r}}}`;
                                 } else {
-                                    l += `{{${e} ${t}}}`;
+                                    l += `{{${t} ${r}}}`;
                                 }
-                            } else if (e === "comment") {
-                                l += `{{!-- ${t} --}}`;
-                            } else if (e === "if") {
-                                const i = t.replace(/"/g, '\\"');
-                                l += `{{#${e} "${i}"}}${n}{{/${e}}}`;
-                            } else if (e === "else") {
-                                l += `{{${e}}}${n}`;
-                            } else if (e === "math") {
+                            } else if (t === "comment") {
+                                l += `{{!-- ${r} --}}`;
+                            } else if (t === "if") {
+                                const a = r.replace(/"/g, '\\"');
+                                l += `{{#${t} "${a}"}}${n}{{/${t}}}`;
+                            } else if (t === "else") {
+                                l += `{{${t}}}${n}`;
+                            } else if (t === "math") {
                                 if (n) {
-                                    console.warn(`FlowPlater: The <${e}> helper does not accept inner content.`);
+                                    console.warn(`FlowPlater: The <${t}> helper does not accept inner content.`);
                                 }
-                                l += `{{#${e} "${t}"}}`;
+                                l += `{{#${t} "${r}"}}`;
                             } else {
-                                l += `{{#${e} ${t}}}${n}{{/${e}}}`;
+                                l += `{{#${t} ${r}}}${n}{{/${t}}}`;
                             }
-                        } else if (r.tagName === "else") {
-                            const n = c(r);
-                            l += `{{${r.tagName.toLowerCase()}}}${n}`;
-                        } else if (r.tagName === "template" || r.tagName === "fptemplate" || r.hasAttribute("fp-template")) {
-                            l += r.outerHTML;
+                        } else if (e.tagName === "else") {
+                            const n = c(e);
+                            l += `{{${e.tagName.toLowerCase()}}}${n}`;
+                        } else if (e.tagName === "template" || e.tagName === "fptemplate" || e.hasAttribute("fp-template")) {
+                            l += e.outerHTML;
                         } else {
-                            const a = c(r);
-                            const s = u(r);
-                            let t = r.tagName.toLowerCase();
-                            const e = [ {
-                                tag: "fpselect",
-                                replaceWith: "select"
-                            } ];
-                            e.forEach(e => {
+                            const i = c(e);
+                            const s = u(e);
+                            let t = e.tagName.toLowerCase();
+                            E.forEach(e => {
                                 if (t === e.tag) {
                                     t = e.replaceWith;
                                 }
                             });
                             const o = `</${t}>`;
-                            l += `${s}${a}${o}`;
+                            l += `${s}${i}${o}`;
                         }
                     }
                 });
                 return l;
             }
-            const n = c(e);
-            y("Compiling Handlebars template: " + n);
+            const r = c(e);
+            g("Compiling Handlebars template: " + r);
             try {
-                f[t] = Handlebars.compile(n);
-                v.end("compile:" + t);
-                return f[t];
+                h.templateCache[t] = Handlebars.compile(r);
+                d.end("compile:" + t);
+                return h.templateCache[t];
             } catch (e) {
-                b("Template not valid: " + n + " | Error: " + e.message);
-                v.end("compile:" + t);
+                v("Template not valid: " + r + " | Error: " + e.message);
+                d.end("compile:" + t);
                 return null;
-            } finally {
-                e.remove();
-            }
+            } finally {}
         }
-        v.end("compile:" + t);
-        return f[t];
+        d.end("compile:" + t);
+        return h.templateCache[t];
     });
-    function k({
+    function _({
         template: n,
         data: e,
         target: t,
         returnHtml: r,
-        onRender: i = g.onRender,
-        onRendered: a = g.onRendered,
-        instanceName: s
+        onRender: a = h.defaults.onRender,
+        onRendered: i = h.defaults.onRendered,
+        instanceName: s,
+        animate: o = h.defaults.animation
     }) {
-        v.start("render:" + (s || "anonymous"));
-        m.emit("beforeRender", {
+        d.start("render:" + (s || "anonymous"));
+        p.publish("beforeRender", {
             instanceName: s,
             template: n,
             data: e,
             target: t,
             returnHtml: r
         });
-        var o;
+        var l;
         if (typeof t === "string") {
-            o = document.querySelectorAll(t);
+            l = document.querySelectorAll(t);
         } else if (typeof t === "object" && t.jquery) {
-            o = t.toArray();
+            l = t.toArray();
         } else if (typeof t === "object") {
-            o = t;
+            l = t;
         } else {
-            b("Invalid target type: " + typeof t);
+            v("Invalid target type: " + typeof t);
             return;
         }
-        if (o.length === undefined) {
-            o = [ o ];
+        if (l.length === undefined) {
+            l = [ l ];
         }
         if (s) {
             s = s;
-        } else if (o[0].hasAttribute("fp-instance")) {
-            s = o[0].getAttribute("fp-instance");
-        } else if (o[0].id) {
-            s = o[0].id;
+        } else if (l[0].hasAttribute("fp-instance")) {
+            s = l[0].getAttribute("fp-instance");
+        } else if (l[0].id) {
+            s = l[0].id;
         } else {
-            s = d;
+            s = h.length;
         }
-        y("Rendering instance: " + s, n, e, t);
-        o.forEach(function(e) {
-            i.call(e);
+        g("Rendering instance: " + s, n, e, t);
+        l.forEach(function(e) {
+            a.call(e);
         });
-        if (!f[n]) {
-            w(n);
-            d++;
+        if (!h.templateCache[n]) {
+            P(n);
+            h.length++;
         }
-        var n = f[n];
+        var n = h.templateCache[n];
         if (!n) {
-            b("Template not found: " + n);
+            v("Template not found: " + n);
             return;
         }
-        if (o.length === 0) {
-            b("Target not found: " + t);
+        if (l.length === 0) {
+            v("Target not found: " + t);
             return;
         }
-        if (!p[s] || p[s].data !== e) {
-            var l = new Proxy(e, {
+        if (!h.instances[s] || h.instances[s].data !== e) {
+            var u = new Proxy(e, {
                 set: function(t, e, r) {
                     t[e] = r;
-                    o.forEach(function(e) {
+                    l.forEach(function(e) {
                         e.innerHTML = n(t);
                     });
                     return true;
                 }
             });
-            p[s] = {
-                elements: o,
+            h.instances[s] = {
+                elements: l,
                 template: n,
-                proxy: l,
+                proxy: u,
                 data: e,
-                ...N(s)
+                ...W(s)
             };
         }
-        y("Proxy created: ", p[s].proxy);
+        g("Proxy created: ", h.instances[s].proxy);
         if (r) {
             try {
-                var u = n(p[s].proxy);
-                return u;
+                var c = n(h.instances[s].proxy);
+                return c;
             } catch (e) {
-                throw new c(`Failed to render template: ${e.message}`);
+                const f = `<div class="fp-error">Error rendering template: ${e.message}</div>`;
+                m.log(m.levels.ERROR, `Failed to render template: ${e.message}`);
+                return f;
             } finally {
-                o.forEach(function(e) {
-                    a.call(e);
+                l.forEach(function(e) {
+                    i.call(e);
                 });
-                m.emit("rendered", {
-                    instance: s,
+                p.publish("afterRender", {
+                    instanceName: s,
                     template: n,
                     data: e,
                     target: t,
-                    elements: o,
-                    returnHtml: r,
-                    html: u
+                    elements: l,
+                    returnHtml: r
                 });
-                y("Rendered HTML: " + u);
-                v.end("render:" + (s || "anonymous"));
+                g("Rendered instance: " + s, n, e, t);
+                d.end("render:" + (s || "anonymous"));
             }
         } else {
             try {
-                o.forEach(function(e) {
-                    e.innerHTML = n(p[s].proxy);
+                l.forEach(function(t) {
+                    try {
+                        t.innerHTML = n(h.instances[s].proxy);
+                    } catch (e) {
+                        t.innerHTML = `<div class="fp-error">Error rendering template: ${e.message}</div>`;
+                        m.log(m.levels.ERROR, `Failed to render template: ${e.message}`);
+                    }
                 });
-                return p[s];
+                return h.instances[s];
             } catch (e) {
-                throw new c(`Failed to render template: ${e.message}`);
+                m.log(m.levels.ERROR, `Failed to render template: ${e.message}`);
+                throw e;
             } finally {
-                o.forEach(function(e) {
-                    a.call(e);
+                l.forEach(function(e) {
+                    i.call(e);
                 });
-                m.emit("afterRender", {
-                    instance: s,
+                p.publish("afterRender", {
+                    instanceName: s,
                     template: n,
                     data: e,
                     target: t,
-                    elements: o,
+                    elements: l,
                     returnHtml: r
                 });
-                y("Rendered instance: " + s, n, e, t);
-                v.end("render:" + (s || "anonymous"));
+                g("Rendered instance: " + s, n, e, t);
+                d.end("render:" + (s || "anonymous"));
             }
         }
     }
-    function A(e) {
+    function I(e) {
         function l(e) {
             var t = {};
             if (e.attributes) {
@@ -9952,12 +10231,12 @@ var FlowPlater = function() {
                     t["_" + n.nodeName] = n.nodeValue;
                 }
             }
-            var i = e.childNodes;
-            if (i.length === 1 && i[0].nodeType === 3) {
-                return i[0].nodeValue.trim();
+            var a = e.childNodes;
+            if (a.length === 1 && a[0].nodeType === 3) {
+                return a[0].nodeValue.trim();
             } else {
-                for (var a = 0; a < i.length; a++) {
-                    var s = i[a];
+                for (var i = 0; i < a.length; i++) {
+                    var s = a[i];
                     if (s.nodeType === 1) {
                         var o = l(s);
                         if (t[s.nodeName]) {
@@ -9977,79 +10256,22 @@ var FlowPlater = function() {
         var r = t.parseFromString(e, "text/xml");
         return l(r.documentElement);
     }
-    htmx.defineExtension("flowplater", {
-        transformResponse: function(e, t, r) {
-            if (t.getResponseHeader("Content-Type") === "text/plain" || t.getResponseHeader("Content-Type") === "text/html" || !r.hasAttribute("fp-template")) {
-                return e;
+    function O(t) {
+        try {
+            var e = t.getAttribute("hx-ext") || "";
+            if (!e.includes("flowplater")) {
+                var r = e ? e + ", flowplater" : "flowplater";
+                t.setAttribute("hx-ext", r);
+                m.log(m.levels.INFO, "Added hx-ext attribute to " + t.id);
             }
-            var n = r.getAttribute("fp-template");
-            y("Response received: " + e, t, r, n);
-            if (t.getResponseHeader("Content-Type") === "text/xml") {
-                var i = new DOMParser();
-                var a = i.parseFromString(e, "text/xml");
-                e = JSON.stringify(A(a));
-            }
-            if (n) {
-                y("Rendering html to " + n + " based on htmx response");
-                var s = JSON.parse(e);
-                var o = k({
-                    template: n,
-                    data: s,
-                    target: r,
-                    returnHtml: true
-                });
-                return o;
-            } else {
-                y("Rendering html to current element based on htmx response");
-                var s = JSON.parse(e);
-                if (r.id === "" || r.id === undefined) {
-                    b("No template found. If the current element is a template, it must have an id.");
-                    return null;
-                }
-                var n = "#" + r.id;
-                l(r);
-                var o = k({
-                    template: n,
-                    data: s,
-                    target: r,
-                    returnHtml: true
-                });
-                return o;
-            }
-            return e;
-        },
-        onEvent: function(e, t) {
-            if (e === "htmx:afterRequest") {
-                var r = t.detail.elt.getAttribute("fp-template");
-                if (!r) {
-                    return;
-                }
-                if (f[r] || f["#" + t.detail.elt.id]) {
-                    y("Template found in cache: " + r);
-                    if (t.detail.elt.hasAttribute("fp-dynamic") && t.detail.elt.getAttribute("fp-dynamic") != "false") {
-                        y("Template is dynamic: " + r);
-                        w(r);
-                    }
-                } else if (r) {
-                    y("Request started: " + r);
-                    w(r);
-                } else {
-                    y("Request started: current element");
-                    w("#" + t.detail.elt.id);
-                }
-            }
+            return t;
+        } catch (e) {
+            m.log(m.levels.ERROR, `Error in defineExtension: ${e.message}`);
+            return t;
         }
-    });
-    function C(e) {
-        if (e.hasAttribute("hx-ext")) {
-            e.setAttribute("hx-ext", e.getAttribute("hx-ext") + ", flowplater");
-        } else {
-            e.setAttribute("hx-ext", "flowplater");
-        }
-        y("Added hx-ext attribute to " + e.id);
     }
-    function V(e, t) {
-        var n = p[e];
+    function $(e, t) {
+        var n = h.instances[e];
         if (n) {
             n.data = t;
             n.proxy = new Proxy(t, {
@@ -10061,24 +10283,24 @@ var FlowPlater = function() {
                     return true;
                 }
             });
-            y("Proxy replaced: ", n.proxy);
+            g("Proxy replaced: ", n.proxy);
         } else {
-            b("Instance not found: " + e);
+            v("Instance not found: " + e);
         }
     }
-    function P(e) {
+    function T(e) {
         if (!e) {
-            for (var t in p) {
-                n(p[t]);
+            for (var t in h.instances) {
+                n(h.instances[t]);
             }
             return;
         }
         if (typeof e === "string") {
-            var r = p[e];
+            var r = h.instances[e];
             if (r) {
                 n(r);
             } else {
-                b("Instance not found: " + e);
+                v("Instance not found: " + e);
             }
         } else if (typeof e === "object") {
             n(e);
@@ -10093,121 +10315,89 @@ var FlowPlater = function() {
             });
         }
     }
-    function _(e, t) {
+    function R(e, t) {
         Handlebars.registerHelper(e, t);
     }
-    function I(e) {
+    function H(e) {
         Handlebars.unregisterHelper(e);
     }
-    function O(e) {
+    function L(e) {
         return new Handlebars.SafeString(e);
     }
-    function T(e) {
+    function V(e) {
         return new Handlebars.escapeExpression(e);
     }
-    I("each");
-    I("if");
-    _({
-        if: function(e, i) {
-            const a = e.trim();
-            y("comparing expression: " + a);
-            const s = {
-                "||": 1,
-                "&&": 2,
-                "==": 3,
-                "!=": 3,
-                "<": 4,
-                ">": 4,
-                "<=": 4,
-                ">=": 4,
-                regex: 5
-            };
-            const t = /"([^"]*)"|'([^']*)'|\b(?:&&|\|\||==|!=|<=|>=|<|>|regex)\b|\(|\)|\S+/g;
-            const r = a.match(t);
-            const n = r;
-            const o = [];
-            const l = [];
-            n.forEach(e => {
-                if (s.hasOwnProperty(e)) {
-                    while (l.length > 0 && s[l[l.length - 1]] >= s[e]) {
-                        o.push(l.pop());
-                    }
-                    l.push(e);
-                } else if (e === "(") {
-                    l.push(e);
-                } else if (e === ")") {
-                    while (l.length > 0 && l[l.length - 1] !== "(") {
-                        o.push(l.pop());
-                    }
-                    if (l.length === 0 || l.pop() !== "(") {
-                        throw new h("Mismatched parentheses in <if> helper while comparing " + a);
-                    }
-                } else {
-                    o.push(e);
+    H("each");
+    H("if");
+    R({
+        if: function(e, t) {
+            function r(t, e, r) {
+                if (t.startsWith('"') && t.endsWith('"') || t.startsWith("'") && t.endsWith("'")) {
+                    return t.slice(1, -1);
                 }
-            });
-            while (l.length > 0) {
-                const f = l.pop();
-                if (f === "(" || f === ")") {
-                    throw new h("Mismatched parentheses in <if> helper while comparing " + a);
+                if (!isNaN(t)) {
+                    return parseFloat(t);
                 }
-                o.push(f);
-            }
-            const u = [];
-            o.forEach(e => {
-                if (s.hasOwnProperty(e)) {
-                    if (u.length < 2) {
-                        throw new h("Missing operand in <if> helper while comparing " + a);
-                    }
-                    const t = u.pop();
-                    const r = u.pop();
-                    u.push(L(r, e, t));
-                } else {
-                    const n = c(e, i.data.root, this);
-                    u.push(n);
-                }
-            });
-            if (u.length !== 1) {
-                throw new h("Invalid expression in <if> helper while comparing " + a);
-            }
-            return u.pop() ? i.fn(this) : i.inverse(this);
-            function c(e, t, r) {
-                if (e.startsWith('"') && e.endsWith('"') || e.startsWith("'") && e.endsWith("'")) {
-                    return e.slice(1, -1);
-                }
-                if (e === "this") {
+                if (t === "this") {
                     return r;
-                } else if (e.startsWith("this.")) {
-                    const n = e.split(".").slice(1);
-                    let t = r;
-                    for (let e = 0; e < n.length; e++) {
-                        if (t && t.hasOwnProperty(n[e])) {
-                            t = t[n[e]];
+                }
+                if (t.startsWith("this.")) {
+                    const n = t.split(".").slice(1);
+                    let e = r;
+                    for (const i of n) {
+                        if (e && typeof e === "object" && i in e) {
+                            e = e[i];
                         } else {
-                            t = undefined;
-                            break;
+                            return undefined;
                         }
                     }
-                    return t;
+                    return e;
                 }
-                const n = e.split(".");
-                let i = t;
-                for (let e = 0; e < n.length; e++) {
-                    if (i && i.hasOwnProperty(n[e])) {
-                        i = i[n[e]];
+                const n = t.split(".");
+                let a = e;
+                for (const i of n) {
+                    if (a && typeof a === "object" && i in a) {
+                        a = a[i];
                     } else {
-                        i = undefined;
-                        break;
+                        return undefined;
                     }
                 }
-                return i;
+                return a;
+            }
+            try {
+                const n = e.trim();
+                const [ a, i, s ] = n.split(/\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/);
+                if (!a || !i || !s) {
+                    throw new c(`Invalid expression format: ${n}`);
+                }
+                const o = r(a, t.data.root, this);
+                const l = r(s, t.data.root, this);
+                m.log(m.levels.INFO, "Evaluating expression:", {
+                    raw: n,
+                    leftValue: o,
+                    operator: i,
+                    rightValue: l
+                });
+                const u = U(o, i, l);
+                if (u) {
+                    return t.fn(this);
+                } else {
+                    return t.inverse(this);
+                }
+            } catch (e) {
+                if (e instanceof c) {
+                    m.log(m.levels.ERROR, "Error evaluating if condition:", e);
+                    throw e;
+                }
+                m.log(m.levels.ERROR, "Error in if helper:", e);
+                throw e;
             }
         },
         each: function(e, t) {
             var r = "";
             var n = t.hash.limit;
-            var i = t.hash.startAt || 0;
-            var a = t.hash.sortBy;
+            var a = t.hash.startAt || 0;
+            var i = t.hash.sortBy;
             var s = t.hash.descending;
             var o = t.hash.sortBeforeLimit;
             var l = t.inverse;
@@ -10232,11 +10422,11 @@ var FlowPlater = function() {
                 n = h.length;
             }
             if (o) {
-                h.sort(H(a, s));
-                h = h.slice(i, n + i);
+                h.sort(N(i, s));
+                h = h.slice(a, n + a);
             } else {
-                h = h.slice(i, n + i);
-                h.sort(H(a, s));
+                h = h.slice(a, n + a);
+                h.sort(N(i, s));
             }
             for (var p = 0; p < h.length; p++) {
                 var d = Array.isArray(e) ? h[p] : h[p][1];
@@ -10264,7 +10454,7 @@ var FlowPlater = function() {
             if (typeof n === "function") {
                 return n(...t);
             } else {
-                b("Function not found or is not a function: " + e);
+                v("Function not found or is not a function: " + e);
             }
         },
         sum: function() {
@@ -10299,96 +10489,103 @@ var FlowPlater = function() {
                 }
                 return e;
             });
-            const i = [];
             const a = [];
+            const i = [];
             r.forEach(e => {
                 if (e in n) {
-                    while (a.length > 0 && n[a[a.length - 1]] <= n[e]) {
-                        i.push(a.pop());
+                    while (i.length > 0 && n[i[i.length - 1]] <= n[e]) {
+                        a.push(i.pop());
                     }
-                    a.push(e);
+                    i.push(e);
                 } else if (e === "(") {
-                    a.push(e);
+                    i.push(e);
                 } else if (e === ")") {
-                    while (a.length > 0 && a[a.length - 1] !== "(") {
-                        i.push(a.pop());
+                    while (i.length > 0 && i[i.length - 1] !== "(") {
+                        a.push(i.pop());
                     }
-                    if (a.pop() !== "(") {
-                        throw new h("Mismatched parentheses");
+                    if (i.pop() !== "(") {
+                        throw new c("Mismatched parentheses");
                     }
                 } else {
-                    i.push(e);
+                    a.push(e);
                 }
             });
-            while (a.length > 0) {
-                if ([ "(", ")" ].includes(a[a.length - 1])) {
-                    throw new h("Mismatched parentheses");
+            while (i.length > 0) {
+                if ([ "(", ")" ].includes(i[i.length - 1])) {
+                    throw new c("Mismatched parentheses");
                 }
-                i.push(a.pop());
+                a.push(i.pop());
             }
             const s = [];
-            i.forEach(e => {
+            a.forEach(e => {
                 if (e in n) {
                     const t = s.pop();
                     const r = s.pop();
                     if (r === undefined || t === undefined) {
-                        throw new h(`Missing operand! Error in expression: ${r} ${e} ${t}`);
+                        throw new c(`Missing operand! Error in expression: ${r} ${e} ${t}`);
                     }
-                    s.push(R(r, e, t));
+                    s.push(j(r, e, t));
                 } else {
                     s.push(parseFloat(e));
                 }
             });
             if (s.length !== 1) {
-                throw new h("Invalid expression");
+                throw new c("Invalid expression");
             }
             return s.pop();
         },
         bunny: function() {
-            var n = O("&nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>ପ(˶•-•˶)ଓ ♡<br>&nbsp;&nbsp;&nbsp;/づ  づ");
-            var i = O("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>&nbsp;&nbsp;ପ(˶•-•˶)ଓ <br>&nbsp;&nbsp;♡ じ  じ\\");
-            var e = document.createElement("span");
-            e.className = "fp-bunny";
-            e.innerHTML = n.toString();
+            var r = `
+        &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
+        ପ(˶•-•˶)ଓ ♡<br>
+        &nbsp;&nbsp;&nbsp;/づ  づ
+      `;
+            var n = `
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
+        &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
+        &nbsp;&nbsp;♡じ  じ\\
+      `;
+            var e = `<span class="fp-bunny" data-bunny-state="normal">${r}</span>`;
             if (!window.bunnyAnimation) {
                 window.bunnyAnimation = function() {
                     if (window.bunnyAnimationIntervalId) {
                         clearInterval(window.bunnyAnimationIntervalId);
                     }
                     window.bunnyAnimationIntervalId = setInterval(function() {
-                        var e = document.getElementsByClassName("fp-bunny");
-                        for (var t = 0; t < e.length; t++) {
-                            var r = e[t];
-                            if (r.innerHTML === n.toString()) {
-                                r.innerHTML = i.toString();
+                        document.querySelectorAll(".fp-bunny").forEach(function(e) {
+                            const t = e.getAttribute("data-bunny-state");
+                            if (t === "normal") {
+                                e.innerHTML = n;
+                                e.setAttribute("data-bunny-state", "flipped");
                             } else {
-                                r.innerHTML = n.toString();
+                                e.innerHTML = r;
+                                e.setAttribute("data-bunny-state", "normal");
                             }
-                        }
+                        });
                     }, 1e3);
                 };
                 window.bunnyAnimation();
             }
-            return O(e.outerHTML);
+            return new L(e);
         }
     });
-    function H(i, a) {
+    function N(a, i) {
         return function(e, t) {
-            var r = i && e[i] ? e[i] : e;
-            var n = i && t[i] ? t[i] : t;
+            var r = a && e[a] ? e[a] : e;
+            var n = a && t[a] ? t[a] : t;
             if (typeof r === "string" && typeof n === "string") {
-                return a ? n.localeCompare(r) : r.localeCompare(n);
+                return i ? n.localeCompare(r) : r.localeCompare(n);
             }
             if (r < n) {
-                return a ? 1 : -1;
+                return i ? 1 : -1;
             }
             if (r > n) {
-                return a ? -1 : 1;
+                return i ? -1 : 1;
             }
             return 0;
         };
     }
-    function R(e, t, r) {
+    function j(e, t, r) {
         function n(e) {
             if (typeof e != "string") return false;
             return !isNaN(e) && !isNaN(parseFloat(e));
@@ -10396,10 +10593,10 @@ var FlowPlater = function() {
         if (n(e)) e = parseFloat(e);
         if (n(r)) r = parseFloat(r);
         if (typeof e !== "number" || typeof r !== "number") {
-            throw new h("Invalid operands");
+            throw new c("Invalid operands");
         }
         if (r === 0 && t === "/") {
-            throw new h("Division by zero. Please do not attempt to create a black hole.");
+            throw new c("Division by zero. Please do not attempt to create a black hole.");
         }
         switch (t) {
           case "+":
@@ -10430,10 +10627,12 @@ var FlowPlater = function() {
             return Math.abs(e);
 
           default:
-            throw new h("Invalid operator");
+            throw new c("Invalid operator");
         }
     }
-    function L(e, t, r) {
+    function U(e, t, r) {
+        if (!isNaN(e)) e = Number(e);
+        if (!isNaN(r)) r = Number(r);
         function n(e) {
             return e === null || e === undefined;
         }
@@ -10476,7 +10675,7 @@ var FlowPlater = function() {
                 return e.localeCompare(r) >= 0;
 
               default:
-                throw new h("Unsupported operator for strings: " + t);
+                throw new c("Unsupported operator for strings: " + t);
             }
         } else {
             switch (t) {
@@ -10508,93 +10707,335 @@ var FlowPlater = function() {
                 return new RegExp(r).test(e);
 
               default:
-                throw new h("Unsupported operator: " + t);
+                throw new c("Unsupported operator: " + t);
             }
         }
     }
-    var N = function(e) {
+    var W = function(n) {
+        function a(e) {
+            const t = e.split(/[\.\[\]'"]/);
+            let r = this.data;
+            for (let e = 0; e < t.length; e++) {
+                const n = t[e];
+                if (n === "") continue;
+                if (r === undefined || r === null || !r.hasOwnProperty(n)) {
+                    return undefined;
+                }
+                r = r[n];
+            }
+            return r;
+        }
         return {
             refresh: function() {
-                P(e);
+                T(n);
             },
             render: function({
                 template: e = this.template,
                 data: t = this.data,
                 target: r = this.elements,
                 returnHtml: n = false,
-                onRender: i = g.onRender,
-                onRendered: a = g.onRendered,
-                animate: s = g.animate
+                onRender: a = h.defaults.onRender,
+                onRendered: i = h.defaults.onRendered,
+                animate: s = h.defaults.animation
             }) {
                 s(r, function() {
-                    k({
+                    _({
                         template: e,
                         data: t,
                         target: r,
                         returnHtml: n,
-                        onRender: i,
-                        onRendered: a,
+                        onRender: a,
+                        onRendered: i,
                         animate: s
                     });
                 });
+            },
+            set: function(e, r) {
+                let t = r !== undefined ? r : e;
+                if (e && r !== undefined) {
+                    let t = this.data;
+                    const n = e.split(/[\.\[\]'"]/);
+                    for (let e = 0; e < n.length - 1; e++) {
+                        const i = n[e];
+                        if (i === "") continue;
+                        if (!t[i]) t[i] = {};
+                        t = t[i];
+                    }
+                    const a = n[n.length - 1];
+                    if (a !== "") {
+                        t[a] = r;
+                    }
+                } else {
+                    this.data = t;
+                }
+                this.elements.forEach(e => {
+                    e.innerHTML = this.template(this.data);
+                });
+            },
+            merge: function(e, r) {
+                let t = r !== undefined ? r : e;
+                function i(r, e) {
+                    for (const n in e) {
+                        if (e.hasOwnProperty(n)) {
+                            if (Array.isArray(e[n]) && Array.isArray(r[n])) {
+                                const a = new Map(r[n].map(e => [ e.id, e ]));
+                                e[n].forEach(e => {
+                                    if (e.id && a.has(e.id)) {
+                                        const t = a.get(e.id);
+                                        i(t, e);
+                                    } else {
+                                        r[n].push(e);
+                                    }
+                                });
+                            } else if (e[n] && typeof e[n] === "object" && !Array.isArray(e[n])) {
+                                r[n] = r[n] || {};
+                                i(r[n], e[n]);
+                            } else {
+                                r[n] = e[n];
+                            }
+                        }
+                    }
+                    return r;
+                }
+                if (e && r !== undefined) {
+                    let t = this.data;
+                    const n = e.split(/[\.\[\]'"]/);
+                    for (let e = 0; e < n.length - 1; e++) {
+                        const s = n[e];
+                        if (s === "") continue;
+                        if (!t[s]) t[s] = {};
+                        t = t[s];
+                    }
+                    const a = n[n.length - 1];
+                    if (a !== "") {
+                        if (!t[a]) {
+                            t[a] = Array.isArray(r) ? [] : {};
+                        }
+                        if (Array.isArray(r)) {
+                            if (!Array.isArray(t[a])) {
+                                t[a] = [];
+                            }
+                            const o = t[a];
+                            r.forEach(t => {
+                                if (t.id) {
+                                    const e = o.findIndex(e => e.id === t.id);
+                                    if (e >= 0) {
+                                        i(o[e], t);
+                                    } else {
+                                        o.push(t);
+                                    }
+                                } else {
+                                    o.push(t);
+                                }
+                            });
+                        } else if (typeof r === "object") {
+                            i(t[a], r);
+                        } else {
+                            t[a] = r;
+                        }
+                    }
+                } else {
+                    i(this.data, t);
+                }
+                this.elements.forEach(e => {
+                    e.innerHTML = this.template(this.data);
+                });
+            },
+            updateWhere: function(e, t, n) {
+                let r = this.get(e);
+                if (!Array.isArray(r)) {
+                    console.error("Target at path is not an array:", r);
+                    return;
+                }
+                r.forEach(r => {
+                    const e = Object.entries(t).every(([ e, t ]) => r[e] === t);
+                    if (e) {
+                        Object.assign(r, n);
+                    }
+                });
+                this.elements.forEach(e => {
+                    e.innerHTML = this.template(this.data);
+                });
+            },
+            push: function(e, t) {
+                let r;
+                if (e) {
+                    r = a.call({
+                        data: this.data
+                    }, e);
+                    if (!r) {
+                        console.warn(`Array path "${e}" not found.`);
+                        return;
+                    }
+                } else {
+                    r = this.data;
+                }
+                if (Array.isArray(r)) {
+                    r.push(t);
+                    this.elements.forEach(e => {
+                        e.innerHTML = this.template(this.data);
+                    });
+                } else {
+                    console.error("Target at path is not an array:", r);
+                }
+            },
+            remove: function(e, t) {
+                let r;
+                if (e) {
+                    r = a.call({
+                        data: this.data
+                    }, e);
+                    if (!r) {
+                        console.warn(`Array path "${e}" not found.`);
+                        return;
+                    }
+                } else {
+                    r = this.data;
+                }
+                if (Array.isArray(r)) {
+                    r.splice(t, 1);
+                    this.elements.forEach(e => {
+                        e.innerHTML = this.template(this.data);
+                    });
+                } else {
+                    console.error("Target at path is not an array:", r);
+                }
+            },
+            get: function(e) {
+                if (!e) return this.data;
+                return a.call({
+                    data: this.data
+                }, e);
+            },
+            on: function(e, t) {
+                const r = `${n}:${e}`;
+                p.subscribe(r, t);
+                return this;
+            },
+            off: function(e, t) {
+                const r = `${n}:${e}`;
+                p.unsubscribe(r, t);
+                return this;
+            },
+            emit: function(e, t) {
+                const r = `${n}:${e}`;
+                p.publish(r, t);
+                return this;
             }
         };
     };
-    const $ = {
-        compileTemplate: w,
-        render: function(e) {
-            k(e);
+    const X = {
+        options: function(e) {
             return this;
         },
-        refresh: function(e) {
-            P(e);
-            return this;
-        },
+        compileTemplate: P,
+        render: _,
+        refresh: T,
         getInstance: function(e) {
-            return p[e];
+            return h.instances[e];
         },
         getInstances: function() {
-            return p;
-        },
-        options: function(e) {
-            for (var t in e) {
-                g[t] = e[t];
-            }
-            return this;
+            return h.instances;
         },
         on: function(...e) {
-            m.on.apply(this, e);
+            p.subscribe(...e);
             return this;
         },
         off: function(...e) {
-            m.off.apply(this, e);
+            p.unsubscribe(...e);
             return this;
         },
         emit: function(...e) {
-            m.emit.apply(this, e);
+            p.publish(...e);
             return this;
         },
         debug: function(e) {
-            a.level = e;
+            m.level = e;
             return this;
         },
-        templateCache: f,
-        process: S,
-        registerHelper: _,
-        unregisterHelper: I,
-        SafeString: O,
-        escapeExpression: T,
+        templateCache: h.templateCache,
+        process: C,
+        registerHelper: R,
+        unregisterHelper: H,
+        SafeString: L,
+        escapeExpression: V,
         init: function() {
-            v.start("init");
-            a.log(a.levels.INFO, "Initializing FlowPlater...");
-            S();
-            a.log(a.levels.INFO, "FlowPlater initialized successfully");
-            v.end("init");
+            d.start("init");
+            m.log(m.levels.INFO, "Initializing FlowPlater...");
+            const e = document.querySelectorAll("[fp-template]");
+            e.forEach(e => {
+                const t = e.getAttribute("fp-template");
+                if (t) {
+                    P("#" + e.id);
+                    _({
+                        template: "#" + e.id,
+                        data: {},
+                        target: e
+                    });
+                }
+            });
+            const t = document.querySelector('meta[name="fp-config"]');
+            if (t) {
+                try {
+                    const r = JSON.parse(t.content);
+                    if (r.debugLevel !== undefined) {
+                        m.level = r.debugLevel;
+                    }
+                    if (r.debug !== undefined) {
+                        m.debugMode = r.debug;
+                    }
+                    if (r.fpSelector !== undefined) {
+                        A.FP_SELECTOR = r.fpSelector;
+                    }
+                } catch (e) {
+                    console.error("Error parsing fp-config meta tag: " + e);
+                }
+            }
+            C();
+            m.log(m.levels.INFO, "FlowPlater initialized successfully");
+            d.end("init");
             return this;
         },
-        _events: {}
+        clearTemplateCache: function(e) {
+            if (e) {
+                if (h.templateCache[e]) {
+                    delete h.templateCache[e];
+                    g(`Cleared template cache for: ${e}`);
+                }
+            } else {
+                h.templateCache = {};
+                g("Cleared entire template cache");
+            }
+            return this;
+        },
+        isTemplateCached: function(e) {
+            return !!h.templateCache[e];
+        },
+        getTemplateCacheSize: function() {
+            return Object.keys(h.templateCache).length;
+        },
+        cleanup: function(e) {
+            if (e) {
+                const t = h.instances[e];
+                if (t) {
+                    t.elements.forEach(e => {
+                        if (e._preloadCleanup) {
+                            e._preloadCleanup();
+                        }
+                    });
+                    delete h.instances[e];
+                    g(`Cleaned up instance: ${e}`);
+                }
+            } else {
+                Object.keys(h.instances).forEach(e => {
+                    this.cleanup(e);
+                });
+                g("Cleaned up all instances");
+            }
+            return this;
+        }
     };
-    return $;
+    return X;
 }();
 
 if (document.readyState === "complete" || document.readyState !== "loading") {

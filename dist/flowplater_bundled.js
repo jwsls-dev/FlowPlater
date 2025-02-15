@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.5 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.19 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -9994,7 +9994,7 @@ return (function () {
 var FlowPlater = (function () {
   "use strict";
 
-  const VERSION = "1.4.5";
+  const VERSION = "1.4.19";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
@@ -10045,64 +10045,311 @@ var FlowPlater = (function () {
       "application/x-www-form-urlencoded; charset=UTF-8";
   });
 
-  // Add htmx:afterSwap event listener to process new content
-  document.body.addEventListener("htmx:afterSwap", function (event) {
-    const swappedElement = event.detail.target;
-    // Ensure swappedElement is not null before processing
-    if (swappedElement) {
-      process(swappedElement);
-    } else {
-      errorLog("Swapped element is null, cannot process.");
+  /* -------------------------------------------------------------------------- */
+  /* ANCHOR                     Event Listeners                                 */
+  /* -------------------------------------------------------------------------- */
+
+  // Track processing state with request IDs
+  const processingElements = new Map();
+  let currentRequestId = 0;
+
+  function generateRequestId() {
+    return `fp-${Date.now()}-${currentRequestId++}`;
+  }
+
+  // Single source of truth for event handling
+  function handleFlowPlaterRequest(target, requestId, action) {
+    if (!target || !target.hasAttribute("fp-template")) return;
+
+    const currentInfo = processingElements.get(target);
+    requestId = requestId || generateRequestId();
+
+    switch (action) {
+      case "start":
+        if (!currentInfo || currentInfo.requestId !== requestId) {
+          processingElements.set(target, {
+            requestId: requestId,
+            timestamp: Date.now(),
+            processed: false,
+          });
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Added element to processing set",
+            target,
+            requestId,
+          );
+        }
+        break;
+
+      case "process":
+        if (
+          currentInfo &&
+          currentInfo.requestId === requestId &&
+          !currentInfo.processed
+        ) {
+          currentInfo.processed = true;
+          processingElements.set(target, currentInfo);
+          return true;
+        }
+        return false;
+
+      case "cleanup":
+        if (currentInfo && currentInfo.requestId === requestId) {
+          processingElements.delete(target);
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Cleaned up after request",
+            target,
+            requestId,
+          );
+        }
+        break;
     }
+  }
+
+  // Remove existing listeners
+  document.body.removeEventListener("htmx:afterSwap", null);
+  document.body.removeEventListener("htmx:beforeSwap", null);
+  document.body.removeEventListener("htmx:beforeRequest", null);
+
+  // Add consolidated event listeners
+  document.body.addEventListener("htmx:beforeRequest", function (event) {
+    const target = event.detail.elt;
+    const requestId = event.detail.requestId || generateRequestId();
+    event.detail.requestId = requestId; // Ensure requestId is set
+    handleFlowPlaterRequest(target, requestId, "start");
+  });
+
+  document.body.addEventListener("htmx:beforeSwap", function (event) {
+    const target = event.detail.elt;
+    const requestId = event.detail.requestId;
+    const info = processingElements.get(target);
+
+    if (!info || info.requestId !== requestId) {
+      event.preventDefault();
+      Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
+    }
+  });
+
+  htmx.defineExtension("flowplater", {
+    transformResponse: function (text, xhr, elt) {
+      // Get request ID from either xhr or processing elements
+      const requestId = xhr.requestId || processingElements.get(elt)?.requestId;
+      const currentInfo = processingElements.get(elt);
+
+      Debug.log(
+        Debug.levels.DEBUG,
+        "Transform response for request",
+        requestId,
+        "current info:",
+        currentInfo,
+      );
+
+      // Skip if element is not in processing set
+      if (!currentInfo || currentInfo.requestId !== requestId) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Skipping transformation - request ID mismatch",
+          { current: currentInfo?.requestId, received: requestId },
+        );
+        return text;
+      }
+
+      // Only process if fp-template is present
+      if (!elt.hasAttribute("fp-template")) {
+        return text;
+      }
+
+      // Parse response data
+      let data;
+      try {
+        if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
+          var parser = new DOMParser();
+          var doc = parser.parseFromString(text, "text/xml");
+          data = parseXmlToJson(doc);
+        } else {
+          data = JSON.parse(text);
+        }
+      } catch (e) {
+        errorLog("Failed to parse response:", e);
+        return text;
+      }
+
+      var templateId = elt.getAttribute("fp-template");
+      log("Response received for request " + requestId + ": " + text);
+
+      // Render template
+      try {
+        let rendered;
+        if (templateId) {
+          log("Rendering html to " + templateId + " based on htmx response");
+          rendered = render({
+            template: templateId,
+            data: data,
+            target: elt,
+            returnHtml: true,
+          });
+        } else {
+          if (!elt.id) {
+            errorLog(
+              "No template found. If the current element is a template, it must have an id.",
+            );
+            return text;
+          }
+          log("Rendering html to current element based on htmx response");
+          var elementTemplateId = "#" + elt.id;
+          translateCustomHTMXAttributes(elt);
+          rendered = render({
+            template: elementTemplateId,
+            data: data,
+            target: elt,
+            returnHtml: true,
+          });
+        }
+
+        if (rendered) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Template rendered successfully for request",
+            requestId,
+          );
+          return rendered;
+        }
+        return text;
+      } catch (error) {
+        errorLog("Error rendering template:", error);
+        return text;
+      }
+    },
+
+    onEvent: function (name, evt) {
+      if (evt.detail.handled) return;
+
+      const target = evt.detail.elt;
+      const requestId = evt.detail.requestId || generateRequestId();
+
+      switch (name) {
+        case "htmx:beforeRequest":
+          evt.detail.requestId = requestId;
+          evt.detail.xhr.requestId = requestId;
+          handleFlowPlaterRequest(target, requestId, "start");
+          break;
+
+        case "htmx:beforeSwap":
+          const info = processingElements.get(target);
+          if (!info || info.requestId !== requestId) {
+            evt.preventDefault();
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Prevented swap - request ID mismatch",
+            );
+            return;
+          }
+          break;
+
+        case "htmx:afterSwap":
+          handleFlowPlaterRequest(target, requestId, "cleanup");
+          break;
+      }
+    },
+  });
+
+  // Cleanup handlers
+  document.body.addEventListener("htmx:responseError", function (event) {
+    handleFlowPlaterRequest(
+      event.detail.elt,
+      event.detail.requestId,
+      "cleanup",
+    );
+  });
+
+  function cleanupStaleProcessing() {
+    const now = Date.now();
+    const staleTimeout = 10000; // 10 seconds
+
+    for (const [target, info] of processingElements.entries()) {
+      if (now - info.timestamp > staleTimeout) {
+        processingElements.delete(target);
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Cleaned up stale processing entry",
+          target,
+          info.requestId,
+        );
+      }
+    }
+  }
+
+  setInterval(cleanupStaleProcessing, 10000);
+
+  window.addEventListener("unload", function () {
+    processingElements.clear();
   });
 
   /* -------------------------------------------------------------------------- */
   /* ANCHOR               Initialize defaults and variables                     */
   /* -------------------------------------------------------------------------- */
 
-  var templateCache = {};
-  var instances = {};
-  var length = 0;
-  var defaults = {
-    onRender: function () {},
-    onRendered: function () {},
-    onRemove: function () {},
-    onRemoved: function () {},
-    animation: false,
-    debug: true,
+  // Private state
+  const _state = {
+    templateCache: {},
+    instances: {},
+    length: 0,
+    defaults: {
+      onRender: function () {},
+      onRendered: function () {},
+      onRemove: function () {},
+      onRemoved: function () {},
+      animation: false,
+      debug: true,
+    },
   };
 
   /* -------------------------------------------------------------------------- */
   /* SECTION                        Event System                                */
   /* -------------------------------------------------------------------------- */
 
-  const EventEmitter = {
-    _events: {},
+  const EventSystem = (function () {
+    const subscribers = new Map();
 
-    on: function (event, callback) {
-      if (!this._events[event]) this._events[event] = [];
-      this._events[event].push(callback);
-      return this;
-    },
+    return {
+      subscribe(event, callback, context = null) {
+        if (!subscribers.has(event)) {
+          subscribers.set(event, []);
+        }
+        subscribers.get(event).push({ callback, context });
+        return () => this.unsubscribe(event, callback);
+      },
 
-    off: function (event, callback) {
-      if (!this._events[event]) return this;
-      if (!callback) {
-        delete this._events[event];
-      } else {
-        this._events[event] = this._events[event].filter(
-          (cb) => cb !== callback,
+      unsubscribe(event, callback) {
+        if (!subscribers.has(event)) return;
+        const subs = subscribers.get(event);
+        subscribers.set(
+          event,
+          subs.filter((sub) => sub.callback !== callback),
         );
-      }
-      return this;
-    },
+      },
 
-    emit: function (event, data) {
-      if (!this._events[event]) return;
-      this._events[event].forEach((callback) => callback(data));
-      return this;
-    },
-  };
+      publish(event, data) {
+        if (!subscribers.has(event)) return;
+
+        // Call subscribers for this specific event
+        subscribers.get(event).forEach(({ callback, context }) => {
+          callback.call(context, data);
+        });
+
+        // If data contains instanceName, also trigger instance-specific event
+        if (data && data.instanceName) {
+          const instanceEvent = `${data.instanceName}:${event}`;
+          if (subscribers.has(instanceEvent)) {
+            subscribers.get(instanceEvent).forEach(({ callback, context }) => {
+              callback.call(context, data);
+            });
+          }
+        }
+      },
+    };
+  })();
 
   /* -------------------------------------------------------------------------- */
   /* SECTION                      Performance Tools                             */
@@ -10119,7 +10366,8 @@ var FlowPlater = (function () {
       if (!this.marks[label]) return;
       const duration = performance.now() - this.marks[label];
       delete this.marks[label];
-      if (defaults.debug) {
+      // Use Debug.debugMode directly - Debug module manages its own setting
+      if (Debug.debugMode) {
         Debug.log(Debug.levels.INFO, `${label} took ${duration.toFixed(2)}ms`);
       }
       return duration;
@@ -10154,9 +10402,11 @@ var FlowPlater = (function () {
     },
 
     level: 3,
+    debugMode: true,
 
     log: function (level, ...args) {
-      if (!defaults.debug) return;
+      // console.log("Debug.log function called!");
+      if (!this.debugMode) return;
       if (level <= this.level) {
         const prefix = ["ERROR", "WARN", "INFO", "DEBUG"][level];
         console.log(`FlowPlater [${prefix}]:`, ...args);
@@ -10179,7 +10429,7 @@ var FlowPlater = (function () {
     var element = event.detail.elt;
     if (element.hasAttribute("fp-instance")) {
       var instanceName = element.getAttribute("fp-instance");
-      EventEmitter.emit("request-start", { instanceName, ...event.detail });
+      EventSystem.publish("request-start", { instanceName, ...event.detail });
     }
   });
   // * Listen for htmx request end
@@ -10188,7 +10438,7 @@ var FlowPlater = (function () {
     var element = event.detail.elt;
     if (element.hasAttribute("fp-instance")) {
       var instanceName = element.getAttribute("fp-instance");
-      EventEmitter.emit("request-end", { instanceName, ...event.detail });
+      EventSystem.publish("request-end", { instanceName, ...event.detail });
     }
   });
 
@@ -10202,15 +10452,24 @@ var FlowPlater = (function () {
   // if the value is set to false, do nothing
 
   function setupAnimation(element) {
-    var shouldAnimate =
-      element.getAttribute("fp-animation") || defaults.animation;
-    if (shouldAnimate === "true") {
-      var swap = element.getAttribute("hx-swap");
-      if (!swap) {
-        element.setAttribute("hx-swap", "innerHTML transition:true");
-      } else {
-        element.setAttribute("hx-swap", swap + " transition:true");
+    try {
+      var shouldAnimate =
+        element.getAttribute("fp-animation") || _state.defaults.animation;
+      if (shouldAnimate === "true") {
+        var swap = element.getAttribute("hx-swap");
+        if (!swap) {
+          element.setAttribute("hx-swap", "innerHTML transition:true");
+        } else {
+          element.setAttribute("hx-swap", swap + " transition:true");
+        }
       }
+      return element;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error in setupAnimation: ${error.message}`,
+      );
+      return element;
     }
   }
 
@@ -10219,55 +10478,64 @@ var FlowPlater = (function () {
   /* -------------------------------------------------------------------------- */
 
   function processUrlAffixes(element) {
-    var methods = ["get", "post", "put", "patch", "delete"];
+    try {
+      const methods = ["get", "post", "put", "patch", "delete"];
 
-    function findAttributeInParents(el, attributeName) {
-      while (el) {
-        if (el.hasAttribute(attributeName)) {
-          return el.getAttribute(attributeName);
+      function findAttributeInParents(el, attributeName) {
+        while (el) {
+          if (el.hasAttribute(attributeName)) {
+            return el.getAttribute(attributeName);
+          }
+          el = el.parentElement;
         }
-        el = el.parentElement;
+        return null;
       }
-      return null;
-    }
 
-    function processElement(el) {
-      methods.forEach(function (method) {
-        var attr = "hx-" + method;
-        if (el.hasAttribute(attr)) {
-          var originalUrl = el.getAttribute(attr);
-          log("Original URL: " + originalUrl); // log
+      function processElement(el) {
+        methods.forEach(function (method) {
+          var attr = "hx-" + method;
+          if (el.hasAttribute(attr)) {
+            var originalUrl = el.getAttribute(attr);
+            log("Original URL: " + originalUrl);
 
-          var prepend = findAttributeInParents(el, "fp-prepend");
-          var append = findAttributeInParents(el, "fp-append");
+            var prepend = findAttributeInParents(el, "fp-prepend");
+            var append = findAttributeInParents(el, "fp-append");
 
-          var modifiedUrl = originalUrl;
-          if (prepend) {
-            modifiedUrl = prepend + modifiedUrl;
+            var modifiedUrl = originalUrl;
+            if (prepend) {
+              modifiedUrl = prepend + modifiedUrl;
+            }
+            if (append) {
+              modifiedUrl += append;
+            }
+
+            el.setAttribute(attr, modifiedUrl);
+            log("Modified URL: " + modifiedUrl);
+
+            if (modifiedUrl !== originalUrl) {
+              log("Modification successful for", method, "on element", el);
+            } else {
+              errorLog("Modification failed for", method, "on element", el);
+            }
           }
-          if (append) {
-            modifiedUrl += append;
-          }
+        });
+      }
 
-          el.setAttribute(attr, modifiedUrl);
-          log("Modified URL: " + modifiedUrl); // log
-
-          if (modifiedUrl !== originalUrl) {
-            log("Modification successful for", method, "on element", el); // log
-          } else {
-            errorLog("Modification failed for", method, "on element", el); // error
-          }
-        }
-      });
-    }
-
-    // Process the passed element
-    if (
-      element.hasAttribute("fp-prepend") ||
-      element.hasAttribute("fp-append") ||
-      methods.some((method) => element.hasAttribute("hx-" + method))
-    ) {
-      processElement(element);
+      // Process the passed element
+      if (
+        element.hasAttribute("fp-prepend") ||
+        element.hasAttribute("fp-append") ||
+        methods.some((method) => element.hasAttribute("hx-" + method))
+      ) {
+        processElement(element);
+      }
+      return element;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error in processUrlAffixes: ${error.message}`,
+      );
+      return element;
     }
   }
 
@@ -10278,30 +10546,40 @@ var FlowPlater = (function () {
   // * For each element with an fp-proxy attribute, use a proxy for the url
   //use const url = 'https://corsproxy.io/?' + encodeURIComponent([hx-get/post/put/patch/delete] attribute value)]);
   function setupProxy(element) {
-    // return if value is false
-    if (
-      element.hasAttribute("fp-proxy") === false ||
-      element.getAttribute("fp-proxy") === "false"
-    ) {
-      return;
-    }
-    // if the value is an url, use it as the proxy url
-    if (element.getAttribute("fp-proxy").startsWith("http")) {
-      var proxyUrl = element.getAttribute("fp-proxy");
-    } else {
-      // else use corsproxy.io
-      var proxyUrl = "https://corsproxy.io/?";
-    }
-    var methods = ["get", "post", "put", "patch", "delete"];
-    methods.forEach(function (method) {
-      if (element.hasAttribute("hx-" + method)) {
-        var url = element.getAttribute("hx-" + method);
-        element.setAttribute(
-          "hx-" + method,
-          proxyUrl + encodeURIComponent(url),
-        );
+    try {
+      // Skip if already processed or if fp-proxy is false/not present
+      if (
+        element.hasAttribute("data-fp-proxy-processed") ||
+        !element.hasAttribute("fp-proxy") ||
+        element.getAttribute("fp-proxy") === "false"
+      ) {
+        return element;
       }
-    });
+
+      // Get proxy URL
+      const proxyUrl = element.getAttribute("fp-proxy").startsWith("http")
+        ? element.getAttribute("fp-proxy")
+        : "https://corsproxy.io/?";
+
+      // Process htmx methods
+      const methods = ["get", "post", "put", "patch", "delete"];
+      methods.forEach(function (method) {
+        if (element.hasAttribute("hx-" + method)) {
+          const url = element.getAttribute("hx-" + method);
+          element.setAttribute(
+            "hx-" + method,
+            proxyUrl + encodeURIComponent(url),
+          );
+        }
+      });
+
+      // Mark as processed
+      element.setAttribute("data-fp-proxy-processed", "true");
+      return element;
+    } catch (error) {
+      Debug.log(Debug.levels.ERROR, `Error in setupProxy: ${error.message}`);
+      return element;
+    }
   }
 
   /* -------------------------------------------------------------------------- */
@@ -10318,29 +10596,39 @@ var FlowPlater = (function () {
 
   // * For every element with an fp-[htmxAttribute] attribute, translate to hx-[htmxAttribute]
   function translateCustomHTMXAttributes(element) {
-    const customPrefix = "fp-";
-    const htmxPrefix = "hx-";
+    try {
+      const customPrefix = "fp-";
+      const htmxPrefix = "hx-";
 
-    htmxAttributes.forEach((attr) => {
-      const customAttr = customPrefix + attr;
-      if (element.hasAttribute(customAttr)) {
-        const attrValue = element.getAttribute(customAttr);
-        element.setAttribute(htmxPrefix + attr, attrValue);
-        element.removeAttribute(customAttr);
-      }
-    });
+      htmxAttributes.forEach((attr) => {
+        const customAttr = customPrefix + attr;
+        if (element.hasAttribute(customAttr)) {
+          const attrValue = element.getAttribute(customAttr);
+          element.setAttribute(htmxPrefix + attr, attrValue);
+          element.removeAttribute(customAttr);
+        }
+      });
+      return element;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error in translateCustomHTMXAttributes: ${error.message}`,
+      );
+      return element;
+    }
   }
 
   /* -------------------------------------------------------------------------- */
   /* ANCHOR                       customTags(element)                           */
   /* -------------------------------------------------------------------------- */
 
-  // Replace all html tags with custom tags
-  const customTags = [{ tag: "fpselect", replaceWith: "select" }];
+  // *** Default customTags - can be overridden via meta config in init() ***
+  let customTagList = [{ tag: "fpselect", replaceWith: "select" }];
+  let currentCustomTags = customTagList; // Use default list initially - override in init()
 
   function replaceCustomTags(element) {
     // Replace all custom tags
-    customTags.forEach((tag) => {
+    currentCustomTags.forEach((tag) => {
       const elements = Array.from(element.getElementsByTagName(tag.tag));
       for (let i = 0; i < elements.length; i++) {
         const customElement = elements[i];
@@ -10356,6 +10644,7 @@ var FlowPlater = (function () {
         customElement.parentNode.replaceChild(newElement, customElement);
       }
     });
+    return element;
   }
 
   /* -------------------------------------------------------------------------- */
@@ -10363,6 +10652,11 @@ var FlowPlater = (function () {
   /* -------------------------------------------------------------------------- */
 
   function preloadUrl(url) {
+    if (!url) {
+      errorLog("No URL provided for preloading");
+      return;
+    }
+
     const link = document.createElement("link");
     link.rel = "preload";
     link.href = url;
@@ -10375,60 +10669,93 @@ var FlowPlater = (function () {
       }
     };
 
-    link.onerror = cleanup;
-    setTimeout(cleanup, 3000);
+    link.onerror = (e) => {
+      errorLog(`Failed to preload URL: ${url}`, e);
+      cleanup();
+    };
 
+    const timeoutId = setTimeout(cleanup, 3000);
     document.head.appendChild(link);
+
+    return { cleanup, timeoutId };
   }
 
   function addPreloadListener(element) {
     const preloadEvent = element.getAttribute("fp-preload") || "mouseover";
-    // if preloadEvent is mouseover, add a timeout to prevent preloading when the user is scrolling
+
     if (preloadEvent === "mouseover") {
-      var mouseOver = true;
-      setTimeout(() => {
-        if (mouseOver) {
-          preloadUrl(
-            element.getAttribute("href") ||
+      let mouseOver = true;
+      let timeoutId;
+      let preloadInstance;
+
+      const handleMouseOver = () => {
+        mouseOver = true;
+        timeoutId = setTimeout(() => {
+          if (mouseOver) {
+            const url =
+              element.getAttribute("href") ||
               element.getAttribute("hx-get") ||
-              element.getAttribute("fp-get"),
-          );
+              element.getAttribute("fp-get");
+            preloadInstance = preloadUrl(url);
+          }
+        }, 100);
+      };
+
+      const handleMouseOut = () => {
+        mouseOver = false;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
         }
-      }, 100);
-      element.addEventListener(
-        "mouseout",
-        () => {
-          mouseOver = false;
-        },
-        { once: true },
-      );
+        if (preloadInstance) {
+          clearTimeout(preloadInstance.timeoutId);
+          preloadInstance.cleanup();
+        }
+      };
+
+      element.addEventListener("mouseover", handleMouseOver);
+      element.addEventListener("mouseout", handleMouseOut);
+
+      // Store cleanup function on element for potential removal
+      element._preloadCleanup = () => {
+        element.removeEventListener("mouseover", handleMouseOver);
+        element.removeEventListener("mouseout", handleMouseOut);
+        handleMouseOut();
+      };
     } else {
-      element.addEventListener(preloadEvent, () => {
-        preloadUrl(
+      const handler = () => {
+        const url =
           element.getAttribute("href") ||
-            element.getAttribute("hx-get") ||
-            element.getAttribute("fp-get"),
-        );
-      });
+          element.getAttribute("hx-get") ||
+          element.getAttribute("fp-get");
+        preloadUrl(url);
+      };
+      element.addEventListener(preloadEvent, handler);
+
+      // Store cleanup function
+      element._preloadCleanup = () => {
+        element.removeEventListener(preloadEvent, handler);
+      };
     }
   }
 
   function processPreload(element) {
-    // run processPreloadForElement on the passed element and all of its children
-    if (element.hasAttribute("fp-preload")) {
-      processPreloadForElement(element);
-    }
-
-    function processPreloadForElement(element) {
-      if (element.hasAttribute("fp-preload")) {
-        element.getAttribute("fp-preload") === "pageload"
-          ? preloadUrl(
-              element.getAttribute("href") ||
-                element.getAttribute("hx-get") ||
-                element.getAttribute("fp-get"),
-            )
-          : addPreloadListener(element);
+    try {
+      if (element.hasAttribute("data-fp-preload-processed")) {
+        return element;
       }
+
+      if (element.hasAttribute("fp-preload")) {
+        addPreloadListener(element);
+        element.setAttribute("data-fp-preload-processed", "true");
+      }
+
+      return element;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error in processPreload: ${error.message}`,
+      );
+      return element;
     }
   }
 
@@ -10436,26 +10763,99 @@ var FlowPlater = (function () {
   /* ANCHOR                 process(element = document)                         */
   /* -------------------------------------------------------------------------- */
 
-  function process(element = document) {
-    // Create a selector for all FlowPlater attributes
-    const fpSelector =
-      "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]";
+  const ProcessingChain = {
+    processors: [
+      {
+        name: "customTags",
+        process: replaceCustomTags,
+      },
+      {
+        name: "htmxAttributes",
+        process: translateCustomHTMXAttributes,
+      },
+      {
+        name: "extension",
+        process: defineExtension,
+      },
+      {
+        name: "urlAffixes",
+        process: processUrlAffixes,
+      },
+      {
+        name: "animation",
+        process: setupAnimation,
+      },
+      {
+        name: "proxy",
+        process: setupProxy,
+      },
+      {
+        name: "preload",
+        process: processPreload,
+      },
+      {
+        name: "htmxProcess",
+        process: (element) => {
+          htmx.process(element);
+          return element;
+        },
+      },
+    ],
 
-    if (element === document || !element.matches(fpSelector)) {
-      const fpElements = element.querySelectorAll(fpSelector);
-      fpElements.forEach((element) => {
-        processForElement(element);
-      });
+    FP_SELECTOR:
+      "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]",
+
+    process: function (element = document) {
+      // Process the element itself if it matches
+      if (element.matches && element.matches(this.FP_SELECTOR)) {
+        this.run(element);
+      }
+
+      // Process all FlowPlater children
+      const fpElements = element.querySelectorAll
+        ? element.querySelectorAll(this.FP_SELECTOR)
+        : [];
+      fpElements.forEach((el) => this.run(el));
+    },
+
+    run: function (element) {
+      this.processors.reduce((currentElement, processor, index) => {
+        if (!currentElement) {
+          Debug.log(
+            Debug.levels.ERROR,
+            `Element became undefined in ProcessingChain at processor index ${index}. Previous processor:`,
+            this.processors[index - 1],
+          );
+          return; // Stop processing if element is undefined
+        }
+        try {
+          return processor.process(currentElement);
+        } catch (error) {
+          Debug.log(
+            Debug.levels.ERROR,
+            `Error in processor ${processor.name}: ${error.message}`,
+          );
+          return currentElement; // Return the element even on error
+        }
+      }, element);
+    },
+  };
+
+  function process(element = document) {
+    if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
+      const fpElements = element.querySelectorAll(ProcessingChain.FP_SELECTOR);
+      fpElements.forEach(processForElement);
     } else {
       processForElement(element);
     }
 
     function processForElement(element) {
-      translateCustomHTMXAttributes(element);
-      defineExtension(element);
-      processUrlAffixes(element);
-      setupProxy(element);
-      setupAnimation(element);
+      // Clean up any existing preload listeners
+      if (element._preloadCleanup) {
+        element._preloadCleanup();
+      }
+
+      ProcessingChain.process(element);
       processPreload(element);
       htmx.process(element);
     }
@@ -10469,13 +10869,12 @@ var FlowPlater = (function () {
   // Takes an element and a callback function
   function animate(element, callback) {
     var shouldAnimate =
-      element.getAttribute("fp-animation") || defaults.animation;
+      element.getAttribute("fp-animation") || _state.defaults.animation;
     if (!shouldAnimate) {
       callback();
       return;
     } else {
-      var transition = document.startViewTransition(element);
-      callback();
+      var transition = document.startViewTransition(callback);
     }
   }
 
@@ -10506,7 +10905,7 @@ var FlowPlater = (function () {
     }
 
     if (
-      !templateCache[templateId] ||
+      !_state.templateCache[templateId] ||
       (templateElement.hasAttribute("fp-dynamic") &&
         templateElement.getAttribute("fp-dynamic") !== "false")
     ) {
@@ -10514,9 +10913,8 @@ var FlowPlater = (function () {
       // Function to construct tag with attributes
       function constructTagWithAttributes(element) {
         let tagName = element.tagName.toLowerCase();
-        const customTags = [{ tag: "fpselect", replaceWith: "select" }];
         // Replace all custom tags
-        customTags.forEach((tag) => {
+        currentCustomTags.forEach((tag) => {
           if (tagName === tag.tag) {
             tagName = tag.replaceWith;
           }
@@ -10526,14 +10924,6 @@ var FlowPlater = (function () {
           attributes += ` ${attr.name}="${attr.value}"`;
         }
         return `<${tagName}${attributes}>`;
-      }
-
-      function preProcessArgs(args) {
-        // Regular expression to match operators
-        const operatorRegex = /(>=|<=|==|!=|&&|\|\||>|<|regex)/g;
-
-        // Replace operators with their quoted versions
-        return args.replace(operatorRegex, ' "$1" ');
       }
 
       function processNode(node) {
@@ -10605,9 +10995,8 @@ var FlowPlater = (function () {
               // Construct the tag with attributes and include the child's content
               const startTag = constructTagWithAttributes(child);
               let endTagName = child.tagName.toLowerCase();
-              const customTags = [{ tag: "fpselect", replaceWith: "select" }];
               // Replace all custom tags
-              customTags.forEach((tag) => {
+              currentCustomTags.forEach((tag) => {
                 if (endTagName === tag.tag) {
                   endTagName = tag.replaceWith;
                 }
@@ -10624,9 +11013,10 @@ var FlowPlater = (function () {
       log("Compiling Handlebars template: " + handlebarsTemplate); //!log
 
       try {
-        templateCache[templateId] = Handlebars.compile(handlebarsTemplate);
+        _state.templateCache[templateId] =
+          Handlebars.compile(handlebarsTemplate);
         Performance.end("compile:" + templateId);
-        return templateCache[templateId];
+        return _state.templateCache[templateId];
       } catch (e) {
         errorLog(
           "Template not valid: " +
@@ -10637,12 +11027,12 @@ var FlowPlater = (function () {
         Performance.end("compile:" + templateId);
         return null;
       } finally {
-        // remove the template element
-        templateElement.remove();
+        // Remove this line - we don't want to remove the template element
+        // templateElement.remove();
       }
     }
     Performance.end("compile:" + templateId);
-    return templateCache[templateId];
+    return _state.templateCache[templateId];
   });
 
   /* -------------------------------------------------------------------------- */
@@ -10657,23 +11047,24 @@ var FlowPlater = (function () {
     data,
     target,
     returnHtml,
-    onRender = defaults.onRender,
-    onRendered = defaults.onRendered,
+    onRender = _state.defaults.onRender,
+    onRendered = _state.defaults.onRendered,
     instanceName,
+    animate = _state.defaults.animation,
   }) {
     Performance.start("render:" + (instanceName || "anonymous"));
 
-    /* -------------------------------------------------------------------------- */
-    /*                                initial setup                               */
-    /* -------------------------------------------------------------------------- */
-
-    EventEmitter.emit("beforeRender", {
+    EventSystem.publish("beforeRender", {
       instanceName,
       template,
       data,
       target,
       returnHtml,
     });
+
+    /* -------------------------------------------------------------------------- */
+    /*                                initial setup                               */
+    /* -------------------------------------------------------------------------- */
 
     var elements;
 
@@ -10703,7 +11094,7 @@ var FlowPlater = (function () {
     } else if (elements[0].id) {
       instanceName = elements[0].id;
     } else {
-      instanceName = length;
+      instanceName = _state.length;
     }
 
     log("Rendering instance: " + instanceName, template, data, target); //!log
@@ -10718,11 +11109,11 @@ var FlowPlater = (function () {
 
     // Compile the template if it's not already cached
     // If the template is not cached, it will be compiled and cached, and length will be incremented
-    if (!templateCache[template]) {
+    if (!_state.templateCache[template]) {
       compileTemplate(template);
-      length++;
+      _state.length++;
     }
-    var template = templateCache[template];
+    var template = _state.templateCache[template];
     if (!template) {
       errorLog("Template not found: " + template); //!error
       return;
@@ -10738,7 +11129,10 @@ var FlowPlater = (function () {
     /* -------------------------------------------------------------------------- */
 
     // Create a reactive data proxy if it doesn't exist or if data has changed
-    if (!instances[instanceName] || instances[instanceName].data !== data) {
+    if (
+      !_state.instances[instanceName] ||
+      _state.instances[instanceName].data !== data
+    ) {
       var proxy = new Proxy(data, {
         set: function (target, prop, value) {
           target[prop] = value;
@@ -10750,7 +11144,7 @@ var FlowPlater = (function () {
         },
       });
       // Store the proxy and elements in instances for future reference
-      instances[instanceName] = {
+      _state.instances[instanceName] = {
         elements: elements,
         template: template,
         proxy: proxy,
@@ -10759,7 +11153,7 @@ var FlowPlater = (function () {
       };
     }
 
-    log("Proxy created: ", instances[instanceName].proxy); //!log
+    log("Proxy created: ", _state.instances[instanceName].proxy); //!log
 
     /* -------------------------------------------------------------------------- */
     /*                               Render template                              */
@@ -10768,47 +11162,67 @@ var FlowPlater = (function () {
     // Render the template with the current data
     if (returnHtml) {
       try {
-        var html = template(instances[instanceName].proxy);
+        var html = template(_state.instances[instanceName].proxy);
         return html;
       } catch (error) {
-        throw new RenderError(`Failed to render template: ${error.message}`); //!error
+        const errorMessage = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
+        Debug.log(
+          Debug.levels.ERROR,
+          `Failed to render template: ${error.message}`,
+        );
+        return errorMessage;
       } finally {
         elements.forEach(function (element) {
           onRendered.call(element);
         });
-        EventEmitter.emit("rendered", {
-          instance: instanceName,
+
+        EventSystem.publish("afterRender", {
+          instanceName,
           template,
           data,
           target,
           elements,
           returnHtml,
-          html,
         });
-        log("Rendered HTML: " + html); //!log
+
+        log("Rendered instance: " + instanceName, template, data, target);
         Performance.end("render:" + (instanceName || "anonymous"));
       }
     } else {
       try {
         elements.forEach(function (element) {
-          element.innerHTML = template(instances[instanceName].proxy);
+          try {
+            element.innerHTML = template(_state.instances[instanceName].proxy);
+          } catch (error) {
+            element.innerHTML = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
+            Debug.log(
+              Debug.levels.ERROR,
+              `Failed to render template: ${error.message}`,
+            );
+          }
         });
-        return instances[instanceName];
+        return _state.instances[instanceName];
       } catch (error) {
-        throw new RenderError(`Failed to render template: ${error.message}`); //!error
+        Debug.log(
+          Debug.levels.ERROR,
+          `Failed to render template: ${error.message}`,
+        );
+        throw error;
       } finally {
         elements.forEach(function (element) {
           onRendered.call(element);
         });
-        EventEmitter.emit("afterRender", {
-          instance: instanceName,
+
+        EventSystem.publish("afterRender", {
+          instanceName,
           template,
           data,
           target,
           elements,
           returnHtml,
         });
-        log("Rendered instance: " + instanceName, template, data, target); //!log
+
+        log("Rendered instance: " + instanceName, template, data, target);
         Performance.end("render:" + (instanceName || "anonymous"));
       }
     }
@@ -10869,102 +11283,25 @@ var FlowPlater = (function () {
   /* ANCHOR                        htmx extension                               */
   /* -------------------------------------------------------------------------- */
 
-  // Intercepts htmx requests and renders the response with FlowPlater
-  // Takes an element and returns the rendered HTML
-  htmx.defineExtension("flowplater", {
-    transformResponse: function (text, xhr, elt) {
-      // return text if the response is txt or html
-      if (
-        xhr.getResponseHeader("Content-Type") === "text/plain" ||
-        xhr.getResponseHeader("Content-Type") === "text/html" ||
-        !elt.hasAttribute("fp-template")
-      ) {
-        return text;
-      }
-      var templateId = elt.getAttribute("fp-template");
-      log("Response received: " + text, xhr, elt, templateId); //!log
-      // if text is XML, convert to JSON
-      if (xhr.getResponseHeader("Content-Type") === "text/xml") {
-        var parser = new DOMParser();
-        var doc = parser.parseFromString(text, "text/xml");
-        text = JSON.stringify(parseXmlToJson(doc));
-      }
-      if (templateId) {
-        log("Rendering html to " + templateId + " based on htmx response"); //!log
-        var data = JSON.parse(text);
-        var renderedHtml = render({
-          template: templateId,
-          data: data,
-          target: elt,
-          returnHtml: true,
-        });
-        return renderedHtml;
-      } else {
-        // assume current element is a template
-        log("Rendering html to current element based on htmx response"); //!log
-        var data = JSON.parse(text);
-        if (elt.id === "" || elt.id === undefined) {
-          errorLog(
-            "No template found. If the current element is a template, it must have an id.",
-          ); //!error
-          return null;
-        }
-        var templateId = "#" + elt.id;
-        // Translate custom attributes before rendering
-        translateCustomHTMXAttributes(elt);
-        var renderedHtml = render({
-          template: templateId,
-          data: data,
-          target: elt,
-          returnHtml: true,
-        });
-        return renderedHtml;
-      }
-      return text;
-    },
-    // * Listen for htmx request start and compile template if it's not already cached
-    onEvent: function (name, evt) {
-      if (name === "htmx:afterRequest") {
-        var templateId = evt.detail.elt.getAttribute("fp-template");
-        if (!templateId) {
-          return;
-        }
-        if (
-          templateCache[templateId] ||
-          templateCache["#" + evt.detail.elt.id]
-        ) {
-          log("Template found in cache: " + templateId); //!log
-          //check if template is dynamic
-          if (
-            evt.detail.elt.hasAttribute("fp-dynamic") &&
-            evt.detail.elt.getAttribute("fp-dynamic") != "false"
-          ) {
-            log("Template is dynamic: " + templateId); //!log
-            //if dynamic, re-compile template
-            compileTemplate(templateId);
-          }
-        } else if (templateId) {
-          log("Request started: " + templateId); //!log
-          compileTemplate(templateId);
-        } else {
-          log("Request started: current element"); //!log
-          compileTemplate("#" + evt.detail.elt.id);
-        }
-      }
-    },
-  });
-
   // * Add hx-ext attribute
   function defineExtension(element) {
-    if (element.hasAttribute("hx-ext")) {
-      element.setAttribute(
-        "hx-ext",
-        element.getAttribute("hx-ext") + ", flowplater",
+    try {
+      // Check if the element already has the flowplater extension
+      var currentExt = element.getAttribute("hx-ext") || "";
+      if (!currentExt.includes("flowplater")) {
+        // Add flowplater to hx-ext
+        var newExt = currentExt ? currentExt + ", flowplater" : "flowplater";
+        element.setAttribute("hx-ext", newExt);
+        Debug.log(Debug.levels.INFO, "Added hx-ext attribute to " + element.id);
+      }
+      return element;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error in defineExtension: ${error.message}`,
       );
-    } else {
-      element.setAttribute("hx-ext", "flowplater");
+      return element;
     }
-    log("Added hx-ext attribute to " + element.id); //!log
   }
 
   /* -------------------------------------------------------------------------- */
@@ -10976,7 +11313,7 @@ var FlowPlater = (function () {
   // Function to replace data of instance
   // Takes an instance key (e.g. "my-instance") and data
   function replaceData(instanceKey, data) {
-    var instance = instances[instanceKey];
+    var instance = _state.instances[instanceKey];
     if (instance) {
       instance.data = data;
       instance.proxy = new Proxy(data, {
@@ -11004,15 +11341,15 @@ var FlowPlater = (function () {
   function refresh(instanceKeyOrInstance) {
     if (!instanceKeyOrInstance) {
       // Refresh all instances
-      for (var key in instances) {
-        refreshInstance(instances[key]);
+      for (var key in _state.instances) {
+        refreshInstance(_state.instances[key]);
       }
       return;
     }
 
     if (typeof instanceKeyOrInstance === "string") {
       // Refresh specific instance by key
-      var instance = instances[instanceKeyOrInstance];
+      var instance = _state.instances[instanceKeyOrInstance];
       if (instance) {
         refreshInstance(instance);
       } else {
@@ -11080,110 +11417,8 @@ var FlowPlater = (function () {
     /* -------------------------------------------------------------------------- */
 
     if: function (expressionString, options) {
-      //log("Root data: ", options.data.root); //!log
-
-      const expression = expressionString.trim();
-
-      log("comparing expression: " + expression); //!log
-
-      // Define operator precedence
-      const precedence = {
-        "||": 1,
-        "&&": 2,
-        "==": 3,
-        "!=": 3,
-        "<": 4,
-        ">": 4,
-        "<=": 4,
-        ">=": 4,
-        regex: 5,
-      };
-
-      // Updated regular expression to include parentheses
-      const tokenRegex =
-        /"([^"]*)"|'([^']*)'|\b(?:&&|\|\||==|!=|<=|>=|<|>|regex)\b|\(|\)|\S+/g;
-
-      // Tokenize the expression
-      const rawTokens = expression.match(tokenRegex);
-
-      // Process each token
-      const tokens = rawTokens;
-
-      // Uses a queue to evaluate the expression in order of operations
-      const outputQueue = [];
-      const operatorStack = [];
-      tokens.forEach((token) => {
-        if (precedence.hasOwnProperty(token)) {
-          while (
-            operatorStack.length > 0 &&
-            precedence[operatorStack[operatorStack.length - 1]] >=
-              precedence[token]
-          ) {
-            outputQueue.push(operatorStack.pop());
-          }
-          operatorStack.push(token);
-        } else if (token === "(") {
-          operatorStack.push(token);
-        } else if (token === ")") {
-          while (
-            operatorStack.length > 0 &&
-            operatorStack[operatorStack.length - 1] !== "("
-          ) {
-            outputQueue.push(operatorStack.pop());
-          }
-          if (operatorStack.length === 0 || operatorStack.pop() !== "(") {
-            throw new TemplateError(
-              "Mismatched parentheses in <if> helper while comparing " +
-                expression,
-            ); //!error
-          }
-        } else {
-          outputQueue.push(token);
-        }
-      });
-
-      while (operatorStack.length > 0) {
-        const operator = operatorStack.pop();
-        if (operator === "(" || operator === ")") {
-          throw new TemplateError(
-            "Mismatched parentheses in <if> helper while comparing " +
-              expression,
-          ); //!error
-        }
-        outputQueue.push(operator);
-      }
-
-      // Evaluate the expression
-      const stack = [];
-      outputQueue.forEach((token) => {
-        if (precedence.hasOwnProperty(token)) {
-          if (stack.length < 2) {
-            throw new TemplateError(
-              "Missing operand in <if> helper while comparing " + expression,
-            ); //!error
-          }
-          const rightOperand = stack.pop();
-          const leftOperand = stack.pop();
-          stack.push(compare(leftOperand, token, rightOperand));
-        } else {
-          // Resolve variables and literals
-          const value = resolveValue(token, options.data.root, this);
-          stack.push(value);
-        }
-      });
-
-      if (stack.length !== 1) {
-        throw new TemplateError(
-          "Invalid expression in <if> helper while comparing " + expression,
-        ); //!error
-      }
-
-      return stack.pop() ? options.fn(this) : options.inverse(this);
-
-      // -------------------------------------------------------------------------- */
-
       function resolveValue(token, dataContext, currentContext) {
-        // Check if token is a string literal
+        // Handle string literals
         if (
           (token.startsWith('"') && token.endsWith('"')) ||
           (token.startsWith("'") && token.endsWith("'"))
@@ -11191,39 +11426,88 @@ var FlowPlater = (function () {
           return token.slice(1, -1);
         }
 
-        // Handle 'this' and 'this.property' references
+        // Handle numeric literals
+        if (!isNaN(token)) {
+          return parseFloat(token);
+        }
+
+        // Handle 'this' references
         if (token === "this") {
           return currentContext;
-        } else if (token.startsWith("this.")) {
-          const path = token.split(".").slice(1); // Remove 'this' from path
-          let value = currentContext;
+        }
 
-          for (let i = 0; i < path.length; i++) {
-            if (value && value.hasOwnProperty(path[i])) {
-              value = value[path[i]];
+        if (token.startsWith("this.")) {
+          const path = token.split(".").slice(1);
+          let value = currentContext;
+          for (const part of path) {
+            if (value && typeof value === "object" && part in value) {
+              value = value[part];
             } else {
-              value = undefined;
-              break;
+              return undefined;
             }
           }
-
           return value;
         }
 
-        // Resolve variable from data context
+        // Handle nested object paths
         const path = token.split(".");
         let value = dataContext;
 
-        for (let i = 0; i < path.length; i++) {
-          if (value && value.hasOwnProperty(path[i])) {
-            value = value[path[i]];
+        for (const part of path) {
+          if (value && typeof value === "object" && part in value) {
+            value = value[part];
           } else {
-            value = undefined;
-            break;
+            return undefined;
           }
         }
 
         return value;
+      }
+
+      try {
+        // Parse expression
+        const expression = expressionString.trim();
+        const [leftToken, operator, rightToken] = expression.split(
+          /\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/,
+        );
+
+        if (!leftToken || !operator || !rightToken) {
+          throw new TemplateError(`Invalid expression format: ${expression}`);
+        }
+
+        // Resolve values
+        const leftValue = resolveValue(leftToken, options.data.root, this);
+        const rightValue = resolveValue(rightToken, options.data.root, this);
+
+        // Log resolved values for debugging
+        Debug.log(Debug.levels.INFO, "Evaluating expression:", {
+          raw: expression,
+          leftValue,
+          operator,
+          rightValue,
+        });
+
+        // Evaluate the condition first
+        const result = compare(leftValue, operator, rightValue);
+
+        // Now execute the appropriate branch, letting any errors propagate up
+        if (result) {
+          return options.fn(this);
+        } else {
+          return options.inverse(this);
+        }
+      } catch (error) {
+        // Only catch and handle errors related to the condition evaluation itself
+        if (error instanceof TemplateError) {
+          Debug.log(
+            Debug.levels.ERROR,
+            "Error evaluating if condition:",
+            error,
+          );
+          throw error; // Re-throw to maintain error state
+        }
+        Debug.log(Debug.levels.ERROR, "Error in if helper:", error);
+        throw error; // Re-throw other errors to maintain error state
       }
     },
 
@@ -11476,41 +11760,46 @@ var FlowPlater = (function () {
       // It gives out hearts! <3
       // Example: {{bunny}}
 
-      var bunny = SafeString(
-        "&nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>ପ(˶•-•˶)ଓ ♡<br>&nbsp;&nbsp;&nbsp;/づ  づ",
-      );
-      var bunnyFlipped = SafeString(
-        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>&nbsp;&nbsp;ପ(˶•-•˶)ଓ <br>&nbsp;&nbsp;♡ じ  じ\\",
-      );
-      // wrap the bunny in a div with a unique id
-      var parent = document.createElement("span");
-      parent.className = "fp-bunny";
-      parent.innerHTML = bunny.toString();
+      var bunny = `
+        &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
+        ପ(˶•-•˶)ଓ ♡<br>
+        &nbsp;&nbsp;&nbsp;/づ  づ
+      `;
 
-      // attach a script to the window object that will add the flipping animation
+      var bunnyFlipped = `
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
+        &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
+        &nbsp;&nbsp;♡じ  じ\\
+      `;
+
+      // Create wrapper with unique class for animation targeting
+      var wrapper = `<span class="fp-bunny" data-bunny-state="normal">${bunny}</span>`;
+
+      // Add animation script if not already present
       if (!window.bunnyAnimation) {
         window.bunnyAnimation = function () {
-          // clear the previous interval
           if (window.bunnyAnimationIntervalId) {
             clearInterval(window.bunnyAnimationIntervalId);
           }
-          // start a new interval
           window.bunnyAnimationIntervalId = setInterval(function () {
-            var parents = document.getElementsByClassName("fp-bunny");
-            for (var i = 0; i < parents.length; i++) {
-              var parent = parents[i];
-              if (parent.innerHTML === bunny.toString()) {
-                parent.innerHTML = bunnyFlipped.toString();
+            document.querySelectorAll(".fp-bunny").forEach(function (element) {
+              const currentState = element.getAttribute("data-bunny-state");
+              if (currentState === "normal") {
+                element.innerHTML = bunnyFlipped;
+                element.setAttribute("data-bunny-state", "flipped");
               } else {
-                parent.innerHTML = bunny.toString();
+                element.innerHTML = bunny;
+                element.setAttribute("data-bunny-state", "normal");
               }
-            }
+            });
           }, 1000);
         };
+
+        // Start animation immediately
         window.bunnyAnimation();
       }
 
-      return SafeString(parent.outerHTML);
+      return new SafeString(wrapper);
     },
   });
 
@@ -11593,6 +11882,10 @@ var FlowPlater = (function () {
   /* -------------------------------------------------------------------------- */
 
   function compare(left, operator, right) {
+    // Convert string numbers to actual numbers for comparison
+    if (!isNaN(left)) left = Number(left);
+    if (!isNaN(right)) right = Number(right);
+
     // Function to check if a value is undefined or null
     function isNullOrUndefined(value) {
       return value === null || value === undefined;
@@ -11677,6 +11970,25 @@ var FlowPlater = (function () {
   /* -------------------------------------------------------------------------- */
 
   var instanceMethods = function (instanceName) {
+    // Helper function to resolve a path within the data
+    function _resolvePath(path) {
+      const pathParts = path.split(/[\.\[\]'"]/);
+      let current = this.data;
+      for (let i = 0; i < pathParts.length; i++) {
+        const part = pathParts[i];
+        if (part === "") continue;
+        if (
+          current === undefined ||
+          current === null ||
+          !current.hasOwnProperty(part)
+        ) {
+          return undefined;
+        }
+        current = current[part];
+      }
+      return current;
+    }
+
     return {
       refresh: function () {
         refresh(instanceName);
@@ -11686,9 +11998,9 @@ var FlowPlater = (function () {
         data = this.data,
         target = this.elements,
         returnHtml = false,
-        onRender = defaults.onRender,
-        onRendered = defaults.onRendered,
-        animate = defaults.animate,
+        onRender = _state.defaults.onRender,
+        onRendered = _state.defaults.onRendered,
+        animate = _state.defaults.animation,
       }) {
         animate(target, function () {
           render({
@@ -11702,6 +12014,210 @@ var FlowPlater = (function () {
           });
         });
       },
+      set: function (path, value) {
+        let newData = value !== undefined ? value : path;
+
+        // If path is provided, set at path location
+        if (path && value !== undefined) {
+          let target = this.data;
+          const pathParts = path.split(/[\.\[\]'"]/);
+          for (let i = 0; i < pathParts.length - 1; i++) {
+            const part = pathParts[i];
+            if (part === "") continue;
+            if (!target[part]) target[part] = {};
+            target = target[part];
+          }
+          const lastPart = pathParts[pathParts.length - 1];
+          if (lastPart !== "") {
+            target[lastPart] = value;
+          }
+        } else {
+          // If no path or null/undefined path, replace root data
+          this.data = newData;
+        }
+
+        // Trigger re-render after update
+        this.elements.forEach((element) => {
+          element.innerHTML = this.template(this.data);
+        });
+      },
+      merge: function (path, value) {
+        let newData = value !== undefined ? value : path;
+
+        // Deep merge function
+        function deepMerge(target, source) {
+          for (const key in source) {
+            if (source.hasOwnProperty(key)) {
+              if (Array.isArray(source[key]) && Array.isArray(target[key])) {
+                // Merge arrays by matching 'id' field if present
+                const targetMap = new Map(
+                  target[key].map((item) => [item.id, item]),
+                );
+                source[key].forEach((sourceItem) => {
+                  if (sourceItem.id && targetMap.has(sourceItem.id)) {
+                    // Update existing item
+                    const targetItem = targetMap.get(sourceItem.id);
+                    deepMerge(targetItem, sourceItem);
+                  } else {
+                    // Add new item
+                    target[key].push(sourceItem);
+                  }
+                });
+              } else if (
+                source[key] &&
+                typeof source[key] === "object" &&
+                !Array.isArray(source[key])
+              ) {
+                target[key] = target[key] || {};
+                deepMerge(target[key], source[key]);
+              } else {
+                target[key] = source[key];
+              }
+            }
+          }
+          return target;
+        }
+
+        // If path is provided, merge at path location
+        if (path && value !== undefined) {
+          let target = this.data;
+          const pathParts = path.split(/[\.\[\]'"]/);
+          for (let i = 0; i < pathParts.length - 1; i++) {
+            const part = pathParts[i];
+            if (part === "") continue;
+            if (!target[part]) target[part] = {};
+            target = target[part];
+          }
+          const lastPart = pathParts[pathParts.length - 1];
+          if (lastPart !== "") {
+            if (!target[lastPart]) {
+              target[lastPart] = Array.isArray(value) ? [] : {};
+            }
+            if (Array.isArray(value)) {
+              // Ensure target is an array
+              if (!Array.isArray(target[lastPart])) {
+                target[lastPart] = [];
+              }
+              // Merge arrays
+              const targetArray = target[lastPart];
+              value.forEach((item) => {
+                if (item.id) {
+                  const existingIndex = targetArray.findIndex(
+                    (existing) => existing.id === item.id,
+                  );
+                  if (existingIndex >= 0) {
+                    deepMerge(targetArray[existingIndex], item);
+                  } else {
+                    targetArray.push(item);
+                  }
+                } else {
+                  targetArray.push(item);
+                }
+              });
+            } else if (typeof value === "object") {
+              deepMerge(target[lastPart], value);
+            } else {
+              target[lastPart] = value;
+            }
+          }
+        } else {
+          // If no path or null/undefined path, merge with root data
+          deepMerge(this.data, newData);
+        }
+
+        // Trigger re-render after update
+        this.elements.forEach((element) => {
+          element.innerHTML = this.template(this.data);
+        });
+      },
+      updateWhere: function (arrayPath, criteria, updates) {
+        let array = this.get(arrayPath);
+        if (!Array.isArray(array)) {
+          console.error("Target at path is not an array:", array);
+          return;
+        }
+
+        array.forEach((item) => {
+          // Check if item matches all criteria
+          const matches = Object.entries(criteria).every(
+            ([key, value]) => item[key] === value,
+          );
+
+          if (matches) {
+            // Update the matching item
+            Object.assign(item, updates);
+          }
+        });
+
+        // Trigger re-render after update
+        this.elements.forEach((element) => {
+          element.innerHTML = this.template(this.data);
+        });
+      },
+      push: function (arrayPath, value) {
+        let array;
+        if (arrayPath) {
+          array = _resolvePath.call({ data: this.data }, arrayPath);
+          if (!array) {
+            console.warn(`Array path "${arrayPath}" not found.`);
+            return;
+          }
+        } else {
+          array = this.data;
+        }
+
+        if (Array.isArray(array)) {
+          array.push(value);
+          // Trigger re-render after update
+          this.elements.forEach((element) => {
+            element.innerHTML = this.template(this.data);
+          });
+        } else {
+          console.error("Target at path is not an array:", array);
+        }
+      },
+      remove: function (arrayPath, index) {
+        let array;
+        if (arrayPath) {
+          array = _resolvePath.call({ data: this.data }, arrayPath);
+          if (!array) {
+            console.warn(`Array path "${arrayPath}" not found.`);
+            return;
+          }
+        } else {
+          array = this.data;
+        }
+
+        if (Array.isArray(array)) {
+          array.splice(index, 1);
+          // Trigger re-render after update
+          this.elements.forEach((element) => {
+            element.innerHTML = this.template(this.data);
+          });
+        } else {
+          console.error("Target at path is not an array:", array);
+        }
+      },
+      get: function (path) {
+        if (!path) return this.data; // Handle empty path, return root data
+        return _resolvePath.call({ data: this.data }, path); // Use helper, call with context
+      },
+      on: function (eventName, callback) {
+        // Create unique event name for this instance
+        const instanceEvent = `${instanceName}:${eventName}`;
+        EventSystem.subscribe(instanceEvent, callback);
+        return this; // Enable chaining
+      },
+      off: function (eventName, callback) {
+        const instanceEvent = `${instanceName}:${eventName}`;
+        EventSystem.unsubscribe(instanceEvent, callback);
+        return this; // Enable chaining
+      },
+      emit: function (eventName, data) {
+        const instanceEvent = `${instanceName}:${eventName}`;
+        EventSystem.publish(instanceEvent, data);
+        return this; // Enable chaining
+      },
     };
   };
 
@@ -11711,79 +12227,142 @@ var FlowPlater = (function () {
 
   // Create the base FlowPlater object
   const FlowPlaterObj = {
-    compileTemplate: compileTemplate,
-
-    render: function (options) {
-      render(options);
-      return this;
-    },
-
-    refresh: function (instanceKey) {
-      refresh(instanceKey);
-      return this;
-    },
-
-    getInstance: function (instanceName) {
-      return instances[instanceName];
-    },
-
-    getInstances: function () {
-      return instances;
-    },
-
     options: function (options) {
-      for (var key in options) {
-        defaults[key] = options[key];
-      }
+      // Merge provided options -  ADJUST THIS LATER
+      // for (var key in options) {
+      //   _fpConfig[key] = options[key]; // Use _fpConfig here - REMOVE THIS
+      // }
       return this;
     },
 
-    // Bind EventEmitter methods to FlowPlater
+    compileTemplate: compileTemplate,
+    render: render,
+    refresh: refresh,
+    getInstance: function (instanceName) {
+      return _state.instances[instanceName];
+    },
+    getInstances: function () {
+      return _state.instances;
+    },
     on: function (...args) {
-      EventEmitter.on.apply(this, args);
+      EventSystem.subscribe(...args);
       return this;
     },
-
     off: function (...args) {
-      EventEmitter.off.apply(this, args);
+      EventSystem.unsubscribe(...args);
       return this;
     },
-
     emit: function (...args) {
-      EventEmitter.emit.apply(this, args);
+      EventSystem.publish(...args);
       return this;
     },
-
     debug: function (level) {
       Debug.level = level;
+      // console.log("Debug level set via debug() function:", Debug.level);
       return this;
     },
-
-    templateCache,
-    process,
-    registerHelper,
-    unregisterHelper,
-    SafeString,
-    escapeExpression,
+    templateCache: _state.templateCache,
+    process: process,
+    registerHelper: registerHelper,
+    unregisterHelper: unregisterHelper,
+    SafeString: SafeString,
+    escapeExpression: escapeExpression,
 
     init: function () {
       Performance.start("init");
       Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
+
+      // Process any templates on the page
+      const templates = document.querySelectorAll("[fp-template]");
+      templates.forEach((template) => {
+        const templateId = template.getAttribute("fp-template");
+        if (templateId) {
+          // Compile the template
+          compileTemplate("#" + template.id);
+          // Render with empty data if no data is provided
+          render({
+            template: "#" + template.id,
+            data: {},
+            target: template,
+          });
+        }
+      });
+
+      // Load configuration from meta tag if present
+      const metaConfig = document.querySelector('meta[name="fp-config"]');
+      if (metaConfig) {
+        try {
+          const config = JSON.parse(metaConfig.content);
+          // *** Apply meta config overrides to modules ***
+          if (config.debugLevel !== undefined) {
+            Debug.level = config.debugLevel;
+          }
+          if (config.debug !== undefined) {
+            Debug.debugMode = config.debug;
+          }
+          if (config.fpSelector !== undefined) {
+            ProcessingChain.FP_SELECTOR = config.fpSelector; // Override FP_SELECTOR
+          }
+        } catch (e) {
+          console.error("Error parsing fp-config meta tag: " + e); //error
+        }
+      }
+
+      // Re-run process to apply potentially updated FP_SELECTOR
       process();
       Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
       Performance.end("init");
       return this;
     },
 
-    // Add EventEmitter's internal properties
-    _events: {},
+    clearTemplateCache: function (templateId) {
+      if (templateId) {
+        if (_state.templateCache[templateId]) {
+          delete _state.templateCache[templateId];
+          log(`Cleared template cache for: ${templateId}`);
+        }
+      } else {
+        _state.templateCache = {};
+        log("Cleared entire template cache");
+      }
+      return this;
+    },
+
+    isTemplateCached: function (templateId) {
+      return !!_state.templateCache[templateId];
+    },
+
+    getTemplateCacheSize: function () {
+      return Object.keys(_state.templateCache).length;
+    },
+
+    cleanup: function (instanceName) {
+      if (instanceName) {
+        const instance = _state.instances[instanceName];
+        if (instance) {
+          // Clean up preload listeners
+          instance.elements.forEach((element) => {
+            if (element._preloadCleanup) {
+              element._preloadCleanup();
+            }
+          });
+
+          // Remove instance
+          delete _state.instances[instanceName];
+          log(`Cleaned up instance: ${instanceName}`);
+        }
+      } else {
+        // Clean up all instances
+        Object.keys(_state.instances).forEach((name) => {
+          this.cleanup(name);
+        });
+        log("Cleaned up all instances");
+      }
+      return this;
+    },
   };
 
   return FlowPlaterObj;
-
-  /* -------------------------------------------------------------------------- */
-  /* !SECTION                                                                   */
-  /* -------------------------------------------------------------------------- */
 })();
 if (document.readyState === "complete" || document.readyState !== "loading") {
   try {
