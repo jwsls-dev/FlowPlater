@@ -20,7 +20,7 @@ licenseContent = licenseContent.replace(
 fs.writeFileSync("src/licence.js", licenseContent);
 
 // Update flowplater.js
-let flowplaterContent = fs.readFileSync("src/flowplater.js", "utf8");
+let flowplaterContent = fs.readFileSync("src/core/flowplater.js", "utf8");
 flowplaterContent = flowplaterContent.replace(
   /const VERSION = "[\d\.]+"/,
   `const VERSION = "${version}"`,
@@ -29,6 +29,6 @@ flowplaterContent = flowplaterContent.replace(
   /const LICENSE = "[^"]+"/,
   `const LICENSE = "${license}"`,
 );
-fs.writeFileSync("src/flowplater.js", flowplaterContent);
+fs.writeFileSync("src/core/flowplater.js", flowplaterContent);
 
 console.log("License information updated successfully");

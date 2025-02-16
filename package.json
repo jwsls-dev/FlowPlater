@@ -4,13 +4,17 @@
   "homepage": "https://flowplater.io",
   "main": "dist/flowplater.min.js",
   "scripts": {
+    "rollup": "rollup -c",
     "update-license": "node update-license.js",
     "concat": "node concatenate.js",
     "minify": "uglifyjs dist/flowplater_bundled.js -o dist/flowplater.min.js -m --comments",
     "prod": "uglifyjs dist/flowplater_bundled.js -o dist/flowplater.js -b -m --comments",
-    "build": "npm run update-license && npm run concat && npm run minify && npm run prod"
+    "build": "npm run update-license && npm run rollup && npm run concat && npm run minify && npm run prod"
   },
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.3.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^3.29.5",
     "uglify-js": "^3.17.4"
   },
   "maintainers": [

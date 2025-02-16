@@ -1,0 +1,95 @@
+import { compare } from "./compare";
+import { Debug } from "../../core/Debug";
+
+export function ifHelper() {
+  Handlebars.registerHelper("if", function (expressionString, options) {
+    function resolveValue(token, dataContext, currentContext) {
+      // Handle string literals
+      if (
+        (token.startsWith('"') && token.endsWith('"')) ||
+        (token.startsWith("'") && token.endsWith("'"))
+      ) {
+        return token.slice(1, -1);
+      }
+
+      // Handle numeric literals
+      if (!isNaN(token)) {
+        return parseFloat(token);
+      }
+
+      // Handle 'this' references
+      if (token === "this") {
+        return currentContext;
+      }
+
+      if (token.startsWith("this.")) {
+        const path = token.split(".").slice(1);
+        let value = currentContext;
+        for (const part of path) {
+          if (value && typeof value === "object" && part in value) {
+            value = value[part];
+          } else {
+            return undefined;
+          }
+        }
+        return value;
+      }
+
+      // Handle nested object paths
+      const path = token.split(".");
+      let value = dataContext;
+
+      for (const part of path) {
+        if (value && typeof value === "object" && part in value) {
+          value = value[part];
+        } else {
+          return undefined;
+        }
+      }
+
+      return value;
+    }
+
+    try {
+      // Parse expression
+      const expression = expressionString.trim();
+      const [leftToken, operator, rightToken] = expression.split(
+        /\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/,
+      );
+
+      if (!leftToken || !operator || !rightToken) {
+        throw new TemplateError(`Invalid expression format: ${expression}`);
+      }
+
+      // Resolve values
+      const leftValue = resolveValue(leftToken, options.data.root, this);
+      const rightValue = resolveValue(rightToken, options.data.root, this);
+
+      // Log resolved values for debugging
+      Debug.log(Debug.levels.INFO, "Evaluating expression:", {
+        raw: expression,
+        leftValue,
+        operator,
+        rightValue,
+      });
+
+      // Evaluate the condition first
+      const result = compare(leftValue, operator, rightValue);
+
+      // Now execute the appropriate branch, letting any errors propagate up
+      if (result) {
+        return options.fn(this);
+      } else {
+        return options.inverse(this);
+      }
+    } catch (error) {
+      // Only catch and handle errors related to the condition evaluation itself
+      if (error instanceof TemplateError) {
+        Debug.log(Debug.levels.ERROR, "Error evaluating if condition:", error);
+        throw error; // Re-throw to maintain error state
+      }
+      Debug.log(Debug.levels.ERROR, "Error in if helper:", error);
+      throw error; // Re-throw other errors to maintain error state
+    }
+  });
+}
