@@ -46,18 +46,15 @@ export function processUrlAffixes(element) {
 
     // Process the passed element
     if (
-      element.hasAttribute("fp-prepend") ||
-      element.hasAttribute("fp-append") ||
+      (element.hasAttribute("fp-prepend") ||
+        element.hasAttribute("fp-append")) &&
       methods.some((method) => element.hasAttribute("hx-" + method))
     ) {
       processElement(element);
     }
     return element;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error in processUrlAffixes: ${error.message}`,
-    );
+    errorLog(`Error in processUrlAffixes: ${error.message}`);
     return element;
   }
 }

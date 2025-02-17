@@ -38,10 +38,7 @@ export function instanceMethods(instanceName) {
           updateDOM(element, instance.template(instance.proxy));
         } catch (error) {
           element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-          Debug.log(
-            Debug.levels.ERROR,
-            `Failed to refresh template: ${error.message}`,
-          );
+          errorLog(`Failed to refresh template: ${error.message}`);
         }
       });
 
@@ -161,10 +158,7 @@ export function instanceMethods(instanceName) {
           }
         } catch (error) {
           element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-          Debug.log(
-            Debug.levels.ERROR,
-            `Failed to refresh template: ${error.message}`,
-          );
+          errorLog(`Failed to refresh template: ${error.message}`);
           promises.push(Promise.reject(error));
         }
       });
