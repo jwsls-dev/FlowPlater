@@ -9990,53 +9990,6 @@ return (function () {
 /**!
 @preserve FlowPlater starts here 
 */
-// Export the EventSystem module
-const EventSystem = (function () {
-  const subscribers = new Map();
-
-  return {
-    subscribe(event, callback, context = null) {
-      if (!subscribers.has(event)) {
-        subscribers.set(event, []);
-      }
-      subscribers.get(event).push({ callback, context });
-      return () => this.unsubscribe(event, callback);
-    },
-
-    unsubscribe(event, callback) {
-      if (!subscribers.has(event)) return;
-      const subs = subscribers.get(event);
-      subscribers.set(
-        event,
-        subs.filter((sub) => sub.callback !== callback),
-      );
-    },
-
-    unsubscribeAll() {
-      subscribers.clear();
-    },
-
-    publish(event, data) {
-      if (!subscribers.has(event)) return;
-
-      // Call subscribers for this specific event
-      subscribers.get(event).forEach(({ callback, context }) => {
-        callback.call(context, data);
-      });
-
-      // If data contains instanceName, also trigger instance-specific event
-      if (data && data.instanceName) {
-        const instanceEvent = `${data.instanceName}:${event}`;
-        if (subscribers.has(instanceEvent)) {
-          subscribers.get(instanceEvent).forEach(({ callback, context }) => {
-            callback.call(context, data);
-          });
-        }
-      }
-    },
-  };
-})();
-
 const Debug = (function () {
   return {
     level: 3,
@@ -10080,6 +10033,113 @@ let TemplateError$1 = class TemplateError extends FlowPlaterError {
     this.name = "TemplateError";
   }
 };
+
+/**
+ * @module EventSystem
+ * @description A pub/sub event system that supports both global and instance-specific events
+ */
+const EventSystem = (function () {
+  /** @type {Map<string, Array<{callback: Function, context: any}>>} */
+  const subscribers = new Map();
+
+  return {
+    /**
+     * Subscribe to an event
+     * @param {string} event - The event name to subscribe to
+     * @param {Function} callback - The callback function to execute when the event is published
+     * @param {any} [context=null] - The context (this) to use when executing the callback
+     * @returns {Function} Unsubscribe function
+     * @throws {Error} If event name is empty or callback is not a function
+     */
+    subscribe(event, callback, context = null) {
+      // Validate event name
+      if (!event || typeof event !== "string") {
+        FlowPlaterError(
+          "Invalid event name. Event name must be a non-empty string.",
+        );
+      }
+
+      // Validate callback
+      if (!callback || typeof callback !== "function") {
+        FlowPlaterError(
+          `Invalid callback for event "${event}". Callback must be a function.`,
+        );
+      }
+
+      if (!subscribers.has(event)) {
+        subscribers.set(event, []);
+      }
+      subscribers.get(event).push({ callback, context });
+      Debug.log(Debug.levels.DEBUG, `Subscribed to event: ${event}`);
+      return () => this.unsubscribe(event, callback);
+    },
+
+    /**
+     * Unsubscribe from an event
+     * @param {string} event - The event name to unsubscribe from
+     * @param {Function} callback - The callback function to remove
+     */
+    unsubscribe(event, callback) {
+      if (!event || typeof event !== "string") {
+        FlowPlaterError(
+          "Invalid event name. Event name must be a non-empty string. If you are trying to unsubscribe from all events, use unsubscribeAll() instead.",
+        );
+      }
+
+      if (!subscribers.has(event)) return;
+
+      const subs = subscribers.get(event);
+      subscribers.set(
+        event,
+        subs.filter((sub) => sub.callback !== callback),
+      );
+    },
+
+    /**
+     * Remove all event subscribers
+     */
+    unsubscribeAll() {
+      subscribers.clear();
+
+      Debug.log(Debug.levels.INFO, "Cleared all event subscribers");
+    },
+
+    /**
+     * Publish an event with data
+     * @param {string} event - The event name to publish
+     * @param {Object} [data] - Data to pass to subscribers
+     */
+    publish(event, data) {
+      if (!subscribers.has(event)) return;
+
+      // Call subscribers for this specific event
+      subscribers.get(event).forEach(({ callback, context }) => {
+        try {
+          callback.call(context, data);
+        } catch (error) {
+          errorLog$1(`Error in event subscriber for ${event}:`, error);
+        }
+      });
+
+      // If data contains instanceName, also trigger instance-specific event
+      if (data && data.instanceName) {
+        const instanceEvent = `${data.instanceName}:${event}`;
+        if (subscribers.has(instanceEvent)) {
+          subscribers.get(instanceEvent).forEach(({ callback, context }) => {
+            try {
+              callback.call(context, data);
+            } catch (error) {
+              errorLog$1(
+                `Error in instance event subscriber for ${instanceEvent}:`,
+                error,
+              );
+            }
+          });
+        }
+      }
+    },
+  };
+})();
 
 const _state = {
   templateCache: {},
@@ -10144,47 +10204,227 @@ function memoize(fn) {
 }
 
 /**
- * Creates a virtual DOM node from an HTML string
- * @param {string} html
- * @returns {DocumentFragment}
+ * Optimized children morphing with keyed element handling
  */
-function createVirtualNode(html) {
-  const template = document.createElement("template");
-  template.innerHTML = html.trim();
+function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
+  console.log("Morphing children from:", fromEl.innerHTML);
+  console.log("Morphing children to:", toEl.innerHTML);
 
-  // Handle SVG elements
-  const svgElements = template.content.querySelectorAll("svg");
-  svgElements.forEach((svg) => {
-    Array.from(svg.attributes).forEach((attr) => {
-      // Ensure correct namespace for SVG attributes
-      if (attr.name.startsWith("xlink:")) {
-        svg.setAttributeNS(
-          "http://www.w3.org/1999/xlink",
-          attr.name,
-          attr.value,
-        );
+  // Special handling for SVG elements
+  const isSVG = fromEl instanceof SVGElement;
+
+  // Handle special elements (form inputs, iframes, scripts)
+  if (isSpecialElement(fromEl)) {
+    handleSpecialElement(fromEl, toEl);
+    return;
+  }
+
+  // Check for keyed elements first
+  const fromKey = fromEl.getAttribute("data-key");
+  const toKey = toEl.getAttribute("data-key");
+
+  if (toKey && fromKey !== toKey) {
+    const keyedEl = oldKeyedElements.get(toKey);
+    if (keyedEl) {
+      // Move the keyed element instead of creating a new one
+      if (keyedEl !== fromEl) {
+        fromEl.parentNode.replaceChild(keyedEl, fromEl);
+        fromEl = keyedEl;
       }
-    });
+    }
+  }
+
+  // If either element has no children but has content, handle as mixed content
+  if (
+    (!fromEl.children.length && fromEl.childNodes.length) ||
+    (!toEl.children.length && toEl.childNodes.length)
+  ) {
+    handleMixedContent(fromEl, toEl);
+    return;
+  }
+
+  const oldNodes = Array.from(fromEl.childNodes);
+  const newNodes = Array.from(toEl.childNodes);
+
+  // If we have exactly one child on both sides, recurse into it
+  if (
+    oldNodes.length === 1 &&
+    newNodes.length === 1 &&
+    oldNodes[0].nodeType === newNodes[0].nodeType &&
+    oldNodes[0].nodeName === newNodes[0].nodeName
+  ) {
+    morphChildren(oldNodes[0], newNodes[0], oldKeyedElements);
+    return;
+  }
+
+  let insertPosition = 0;
+  const processedPositions = new Set();
+
+  // First pass: handle keyed elements
+  newNodes.forEach((newNode, newIndex) => {
+    if (newNode.nodeType === Node.ELEMENT_NODE) {
+      const key = newNode.getAttribute("data-key");
+      if (key) {
+        const existingNode = oldKeyedElements.get(key);
+        if (existingNode) {
+          // Move keyed element to correct position
+          fromEl.insertBefore(existingNode, oldNodes[insertPosition] || null);
+          processedPositions.add(insertPosition);
+          insertPosition++;
+          return;
+        }
+      }
+    }
   });
 
-  return template.content;
+  // Second pass: handle remaining elements
+  newNodes.forEach((newNode) => {
+    if (processedPositions.has(insertPosition)) {
+      insertPosition++;
+      return;
+    }
+
+    // Find matching node in old nodes (after current position)
+    const matchIndex = oldNodes.findIndex(
+      (oldNode, oldIndex) =>
+        oldIndex >= insertPosition && nodesAreEqual(oldNode, newNode),
+    );
+
+    if (matchIndex === -1) {
+      // No match found, this is a new node to insert
+      const referenceNode = oldNodes[insertPosition];
+      const clonedNode = isSVG
+        ? cloneWithNamespace(newNode)
+        : newNode.cloneNode(true);
+      fromEl.insertBefore(clonedNode, referenceNode || null);
+      processedPositions.add(insertPosition);
+    } else {
+      // Found a match, move pointer past it
+      insertPosition = matchIndex + 1;
+      processedPositions.add(matchIndex);
+    }
+  });
+
+  // Remove any nodes that weren't processed
+  oldNodes.forEach((node, index) => {
+    if (!processedPositions.has(index)) {
+      fromEl.removeChild(node);
+    }
+  });
+}
+
+function isSpecialElement(el) {
+  const specialTags = ["INPUT", "SELECT", "TEXTAREA", "IFRAME", "SCRIPT"];
+  return specialTags.includes(el.tagName);
+}
+
+function handleSpecialElement(fromEl, toEl) {
+  // Preserve form element state
+  if (
+    fromEl instanceof HTMLInputElement ||
+    fromEl instanceof HTMLSelectElement ||
+    fromEl instanceof HTMLTextAreaElement
+  ) {
+    const oldValue = fromEl.value;
+    const oldChecked = fromEl.checked;
+    const oldSelected =
+      fromEl instanceof HTMLSelectElement
+        ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
+        : null;
+
+    // Update attributes from new element
+    Array.from(toEl.attributes).forEach((attr) => {
+      if (attr.name !== "value") {
+        // Don't overwrite value from attributes
+        fromEl.setAttribute(attr.name, attr.value);
+      }
+    });
+
+    // Restore state
+    fromEl.value = oldValue;
+    if (oldChecked !== undefined) fromEl.checked = oldChecked;
+    if (oldSelected) {
+      oldSelected.forEach((value) => {
+        const option = fromEl.querySelector(`option[value="${value}"]`);
+        if (option) option.selected = true;
+      });
+    }
+  }
+
+  // Handle iframes and scripts
+  if (
+    fromEl instanceof HTMLIFrameElement ||
+    fromEl instanceof HTMLScriptElement
+  ) {
+    // Only update attributes, don't touch content
+    Array.from(toEl.attributes).forEach((attr) => {
+      fromEl.setAttribute(attr.name, attr.value);
+    });
+  }
+}
+
+function handleMixedContent(fromEl, toEl) {
+  const oldNodes = Array.from(fromEl.childNodes);
+  const newNodes = Array.from(toEl.childNodes);
+
+  // Compare each node type appropriately
+  if (oldNodes.length === newNodes.length) {
+    oldNodes.forEach((oldNode, i) => {
+      const newNode = newNodes[i];
+      if (!nodesAreEqual(oldNode, newNode)) {
+        fromEl.replaceChild(newNode.cloneNode(true), oldNode);
+      }
+    });
+  } else {
+    fromEl.innerHTML = toEl.innerHTML;
+  }
+}
+
+function nodesAreEqual(node1, node2) {
+  if (node1.nodeType !== node2.nodeType) return false;
+
+  if (node1.nodeType === Node.TEXT_NODE) {
+    return node1.textContent.trim() === node2.textContent.trim();
+  }
+
+  if (node1.nodeType === Node.COMMENT_NODE) {
+    return node1.textContent === node2.textContent;
+  }
+
+  return node1.isEqualNode(node2);
+}
+
+function cloneWithNamespace(node) {
+  if (!(node instanceof Element)) return node.cloneNode(true);
+
+  const ns = node.namespaceURI;
+  const clone = ns
+    ? document.createElementNS(ns, node.tagName)
+    : document.createElement(node.tagName);
+
+  // Copy attributes
+  Array.from(node.attributes).forEach((attr) => {
+    const nsURI = attr.namespaceURI;
+    if (nsURI) {
+      clone.setAttributeNS(nsURI, attr.name, attr.value);
+    } else {
+      clone.setAttribute(attr.name, attr.value);
+    }
+  });
+
+  // Clone children
+  Array.from(node.childNodes).forEach((child) => {
+    clone.appendChild(cloneWithNamespace(child));
+  });
+
+  return clone;
 }
 
 /**
- * Updates only the necessary parts of the DOM by comparing the new HTML with the existing content
- * @param {HTMLElement} element - The target DOM element to update
- * @param {string} newHTML - The new HTML content
+ * Main update function with performance tracking and error handling
  */
 function updateDOM(element, newHTML) {
   Performance.start("updateDOM");
-
-  const trimmedNewHTML = newHTML.trim();
-
-  // Quick equality check to avoid unnecessary updates
-  if (element.innerHTML.trim() === trimmedNewHTML) {
-    Performance.end("updateDOM");
-    return;
-  }
 
   try {
     if (!element || !(element instanceof HTMLElement)) {
@@ -10195,320 +10435,48 @@ function updateDOM(element, newHTML) {
       throw new Error("newHTML must be a string");
     }
 
-    Debug.log(
-      Debug.levels.INFO,
-      `Updating DOM for element:`,
-      element,
-      `with new HTML length: ${trimmedNewHTML.length}`,
-    );
+    // Create virtual node as a temporary container
+    const virtualContainer = document.createElement("div");
+    virtualContainer.innerHTML = newHTML.trim();
 
-    const virtualFragment = createVirtualNode(trimmedNewHTML);
-    diffNodes(element, virtualFragment);
+    // Create indices of keyed elements for both containers
+    const oldKeyedElements = new Map();
+    const newKeyedElements = new Map();
+    indexTree(element, oldKeyedElements);
+    indexTree(virtualContainer, newKeyedElements);
+
+    // Now morph the contents with keyed elements
+    morphChildren(
+      element,
+      virtualContainer,
+      oldKeyedElements,
+      newKeyedElements,
+    );
   } catch (error) {
     Debug.log(Debug.levels.ERROR, "Error in updateDOM:", error);
+    console.error("UpdateDOM error:", error);
     throw error;
   } finally {
     Performance.end("updateDOM");
   }
 }
 
-function diffNodes(currentNode, newNode) {
-  if (!currentNode || !newNode) return;
-  if (currentNode.isEqualNode(newNode)) return;
-
-  const currentChildren = Array.from(currentNode.childNodes);
-  const newChildren = Array.from(newNode.childNodes);
-
-  // Create similarity matrix between current and new children
-  const similarityMatrix = currentChildren.map((current) =>
-    newChildren.map((next) => calculateNodeSimilarity(current, next)),
+/**
+ * Enhanced tree indexing with optimized traversal
+ */
+function indexTree(node, keyedElements) {
+  const walker = document.createTreeWalker(
+    node,
+    NodeFilter.SHOW_ELEMENT,
+    null,
+    false,
   );
 
-  // Track which nodes have been processed
-  const processedCurrent = new Set();
-  const processedNew = new Set();
-
-  // First pass: handle highly similar nodes (likely the same element with minor changes)
-  similarityMatrix.forEach((similarities, currentIndex) => {
-    const maxSimilarity = Math.max(...similarities);
-    if (maxSimilarity > 0.8) {
-      // Threshold for considering nodes "same but modified"
-      const newIndex = similarities.indexOf(maxSimilarity);
-      if (!processedNew.has(newIndex)) {
-        updateNode(currentChildren[currentIndex], newChildren[newIndex]);
-        processedCurrent.add(currentIndex);
-        processedNew.add(newIndex);
-      }
-    }
-  });
-
-  // Second pass: handle new insertions efficiently
-  newChildren.forEach((newChild, newIndex) => {
-    if (processedNew.has(newIndex)) return;
-
-    // Find the best position to insert the new node
-    const bestPosition = findBestInsertionPosition(
-      newChild,
-      currentChildren,
-      newChildren,
-      newIndex);
-
-    const clone = newChild.cloneNode(true);
-    if (bestPosition < currentChildren.length) {
-      currentNode.insertBefore(clone, currentChildren[bestPosition]);
-    } else {
-      currentNode.appendChild(clone);
-    }
-    processedNew.add(newIndex);
-  });
-
-  // Final pass: remove unmatched current nodes
-  currentChildren.forEach((child, index) => {
-    if (!processedCurrent.has(index)) {
-      child.remove();
-    }
-  });
-}
-
-/**
- * Calculates similarity score between two nodes (0 to 1)
- * @param {Node} node1
- * @param {Node} node2
- * @returns {number}
- */
-function calculateNodeSimilarity(node1, node2) {
-  if (!node1 || !node2) return 0;
-  if (node1.nodeType !== node2.nodeType) return 0;
-
-  if (node1.nodeType === Node.TEXT_NODE) {
-    const text1 = node1.textContent.trim();
-    const text2 = node2.textContent.trim();
-    return text1 === text2 ? 1 : 0;
-  }
-
-  if (node1.nodeType === Node.ELEMENT_NODE) {
-    if (node1.tagName !== node2.tagName) return 0;
-
-    // Compare structure
-    const structureSimilarity =
-      node1.children.length === node2.children.length ? 0.3 : 0;
-
-    // Compare attributes
-    const attrs1 = Array.from(node1.attributes || []);
-    const attrs2 = Array.from(node2.attributes || []);
-    const attrSimilarity = attrs1.length === attrs2.length ? 0.3 : 0;
-
-    // Compare content
-    const contentSimilarity = node1.textContent === node2.textContent ? 0.4 : 0;
-
-    return structureSimilarity + attrSimilarity + contentSimilarity;
-  }
-
-  return 0;
-}
-
-/**
- * Finds the optimal position to insert a new node
- * @param {Node} newNode
- * @param {Node[]} currentChildren
- * @param {Node[]} newChildren
- * @param {number} newIndex
- * @param {number[][]} similarityMatrix
- * @returns {number}
- */
-function findBestInsertionPosition(
-  newNode,
-  currentChildren,
-  newChildren,
-  newIndex,
-  similarityMatrix,
-) {
-  // Look at surrounding nodes in the new children
-  const prevNew = newChildren[newIndex - 1];
-  const nextNew = newChildren[newIndex + 1];
-
-  // Find where these nodes are in the current children
-  let prevCurrentIndex = -1;
-  let nextCurrentIndex = -1;
-
-  if (prevNew) {
-    prevCurrentIndex = currentChildren.findIndex(
-      (node) => calculateNodeSimilarity(node, prevNew) > 0.8,
-    );
-  }
-
-  if (nextNew) {
-    nextCurrentIndex = currentChildren.findIndex(
-      (node) => calculateNodeSimilarity(node, nextNew) > 0.8,
-    );
-  }
-
-  // Determine best position based on surrounding nodes
-  if (prevCurrentIndex !== -1 && nextCurrentIndex !== -1) {
-    return prevCurrentIndex + 1;
-  } else if (prevCurrentIndex !== -1) {
-    return prevCurrentIndex + 1;
-  } else if (nextCurrentIndex !== -1) {
-    return nextCurrentIndex;
-  }
-
-  // Fallback to proportional position
-  return Math.floor((newIndex * currentChildren.length) / newChildren.length);
-}
-
-function updateNode(currentNode, newNode) {
-  if (!currentNode || !newNode) return;
-
-  // Handle text nodes
-  if (currentNode.nodeType === Node.TEXT_NODE) {
-    if (currentNode.textContent !== newNode.textContent) {
-      currentNode.textContent = newNode.textContent;
-    }
-    return;
-  }
-
-  // Handle element nodes
-  if (currentNode.nodeType === Node.ELEMENT_NODE) {
-    // Update attributes
-    updateAttributes(currentNode, newNode);
-
-    // Special element handling
-    if (
-      currentNode instanceof HTMLInputElement ||
-      currentNode instanceof HTMLTextAreaElement
-    ) {
-      if (currentNode.value !== newNode.value) {
-        currentNode.value = newNode.value;
-      }
-      return;
-    }
-
-    if (currentNode instanceof HTMLSelectElement) {
-      if (currentNode.value !== newNode.value) {
-        currentNode.value = newNode.value;
-        Array.from(currentNode.options).forEach((option, index) => {
-          option.selected = newNode.options[index]?.selected ?? false;
-        });
-      }
-      return;
-    }
-
-    // Handle custom elements
-    if (isCustomElement(currentNode)) {
-      updateCustomElement(currentNode, newNode);
-      return;
-    }
-
-    // Recursively update children
-    diffNodes(currentNode, newNode);
-  }
-}
-
-/**
- * Updates attributes of the current node based on the new node
- * @param {Element} currentNode
- * @param {Element} newNode
- */
-function updateAttributes(currentNode, newNode) {
-  const currentAttrs = new Set(
-    Array.from(currentNode.attributes || []).map((a) => a.name),
-  );
-  const newAttrs = Array.from(newNode.attributes || []);
-
-  // Remove old attributes in one pass
-  currentAttrs.forEach((name) => {
-    if (!newNode.hasAttribute(name)) {
-      if (name === "style") currentNode.style.cssText = "";
-      else if (name.startsWith("on")) {
-        const handler = currentNode[name];
-        typeof handler === "function" &&
-          currentNode.removeEventListener(name.slice(2).toLowerCase(), handler);
-      } else currentNode.removeAttribute(name);
-    }
-  });
-
-  // Update new attributes in one pass
-  newAttrs.forEach((attr) => {
-    const { name, value } = attr;
-    if (name === "style") updateStyles(currentNode, newNode);
-    else if (name.startsWith("--")) currentNode.style.setProperty(name, value);
-    else if (name.startsWith("on")) {
-      const eventName = name.slice(2).toLowerCase();
-      const oldHandler = currentNode[name];
-      const newHandler = newNode[name];
-
-      if (oldHandler !== newHandler) {
-        typeof oldHandler === "function" &&
-          currentNode.removeEventListener(eventName, oldHandler);
-        typeof newHandler === "function" &&
-          currentNode.addEventListener(eventName, newHandler);
-      }
-    } else if (currentNode.getAttribute(name) !== value) {
-      currentNode.setAttribute(name, value);
-    }
-  });
-}
-
-/**
- * Updates inline styles of the current node based on the new node
- * @param {Element} currentNode
- * @param {Element} newNode
- */
-function updateStyles(currentNode, newNode) {
-  const currentStyle = currentNode.style;
-  const newStyles = newNode.getAttribute("style")?.split(";") || [];
-
-  // Clear existing styles
-  currentStyle.cssText = "";
-
-  // Apply new styles in one operation
-  if (newStyles.length) {
-    const styleMap = new Map(
-      newStyles
-        .map((s) => s.split(":").map((x) => x.trim()))
-        .filter(([p, v]) => p && v),
-    );
-    currentStyle.cssText = Array.from(styleMap)
-      .map(([p, v]) => `${p}:${v}`)
-      .join(";");
-  }
-}
-
-/**
- * Checks if a node is a custom element
- * @param {Element} node
- * @returns {boolean}
- */
-function isCustomElement(node) {
-  return node.tagName && node.tagName.includes("-");
-}
-
-/**
- * Updates a custom element's properties and attributes
- * @param {HTMLElement} currentElement
- * @param {HTMLElement} newElement
- */
-function updateCustomElement(currentElement, newElement) {
-  updateAttributes(currentElement, newElement);
-
-  // Update properties in one pass
-  Object.getOwnPropertyNames(newElement)
-    .filter(
-      (prop) =>
-        !["attributes", "children", "innerHTML"].includes(prop) &&
-        typeof newElement[prop] !== "function" &&
-        currentElement[prop] !== newElement[prop],
-    )
-    .forEach((prop) => (currentElement[prop] = newElement[prop]));
-
-  // Update children if no shadowRoot
-  if (!currentElement.shadowRoot) {
-    const currentChildren = Array.from(currentElement.childNodes);
-    const newChildren = Array.from(newElement.childNodes);
-    const maxLength = Math.max(currentChildren.length, newChildren.length);
-
-    for (let i = 0; i < maxLength; i++) {
-      diffNodes(currentChildren[i], newChildren[i]);
+  let currentNode;
+  while ((currentNode = walker.nextNode())) {
+    const key = currentNode.getAttribute("data-key");
+    if (key) {
+      keyedElements.set(key, currentNode);
     }
   }
 }
@@ -10546,10 +10514,7 @@ function instanceMethods(instanceName) {
           updateDOM(element, instance.template(instance.proxy));
         } catch (error) {
           element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-          Debug.log(
-            Debug.levels.ERROR,
-            `Failed to refresh template: ${error.message}`,
-          );
+          errorLog$1(`Failed to refresh template: ${error.message}`);
         }
       });
 
@@ -10669,10 +10634,7 @@ function instanceMethods(instanceName) {
           }
         } catch (error) {
           element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-          Debug.log(
-            Debug.levels.ERROR,
-            `Failed to refresh template: ${error.message}`,
-          );
+          errorLog$1(`Failed to refresh template: ${error.message}`);
           promises.push(Promise.reject(error));
         }
       });
@@ -11160,19 +11122,13 @@ function render({
         updateDOM(element, instance.template(instance.proxy));
       } catch (error) {
         element.innerHTML = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
-        Debug.log(
-          Debug.levels.ERROR,
-          `Failed to render template: ${error.message}`,
-        );
+        errorLog$1(`Failed to render template: ${error.message}`);
       }
     });
 
     return instance;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Failed to render template: ${error.message}`,
-    );
+    errorLog$1(`Failed to render template: ${error.message}`);
     throw error;
   } finally {
     EventSystem.publish("afterRender", {
@@ -11979,24 +11935,18 @@ function defineHtmxExtension() {
           data = JSON.parse(text);
         }
       } catch (e) {
-        Debug.log(Debug.levels.ERROR, "Failed to parse response:", e);
+        errorLog$1("Failed to parse response:", e);
         return text;
       }
 
       var templateId = elt.getAttribute("fp-template");
-      Debug.log(
-        Debug.levels.INFO,
-        "Response received for request " + requestId + ": " + text,
-      );
+      log("Response received for request " + requestId + ": " + text);
 
       // Render template
       try {
         let rendered;
         if (templateId) {
-          Debug.log(
-            Debug.levels.INFO,
-            "Rendering html to " + templateId + " based on htmx response",
-          );
+          log("Rendering html to " + templateId + " based on htmx response");
           rendered = render({
             template: templateId,
             data: data,
@@ -12005,16 +11955,12 @@ function defineHtmxExtension() {
           });
         } else {
           if (!elt.id) {
-            Debug.log(
-              Debug.levels.ERROR,
+            errorLog$1(
               "No template found. If the current element is a template, it must have an id.",
             );
             return text;
           }
-          Debug.log(
-            Debug.levels.INFO,
-            "Rendering html to current element based on htmx response",
-          );
+          log("Rendering html to current element based on htmx response");
           var elementTemplateId = "#" + elt.id;
           rendered = render({
             template: elementTemplateId,
@@ -12030,12 +11976,62 @@ function defineHtmxExtension() {
             "Template rendered successfully for request",
             requestId,
           );
+          // updateDOM(elt, rendered);
           return rendered;
         }
         return text;
       } catch (error) {
-        Debug.log(Debug.levels.ERROR, "Error rendering template:", error);
+        errorLog$1("Error rendering template:", error);
         return text;
+      }
+    },
+
+    handleSwap: function (swapStyle, target, fragment, settleInfo) {
+      // Skip if element doesn't have fp-template
+      if (!target.hasAttribute("fp-template")) {
+        return false; // Let HTMX handle the swap
+      }
+
+      try {
+        // Get instance name from element
+        const instanceName = target.getAttribute("fp-instance") || target.id;
+        if (!instanceName) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "No instance name found for element, falling back to default swap",
+          );
+          return false;
+        }
+
+        // Get the instance from state
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "No instance found for name: " + instanceName,
+          );
+          return false;
+        }
+
+        // Get the actual content element (first child) or create one if it doesn't exist
+        // let contentElement = target.firstElementChild;
+        // if (!contentElement) {
+        //   contentElement = document.createElement("div");
+        //   target.appendChild(contentElement);
+        // }
+
+        // Update the content element instead of the container
+        updateDOM(target, fragment.innerHTML);
+
+        Debug.log(
+          Debug.levels.DEBUG,
+          "HTMX swap completed for instance: " + instanceName,
+        );
+
+        return true;
+      } catch (e) {
+        errorLog$1("Error in handleSwap:", e);
+        return false;
       }
     },
 
@@ -12241,10 +12237,7 @@ function translateCustomHTMXAttributes(element) {
     });
     return element;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error in translateCustomHTMXAttributes: ${error.message}`,
-    );
+    errorLog(`Error in translateCustomHTMXAttributes: ${error.message}`);
     return element;
   }
 }
@@ -12295,18 +12288,15 @@ function processUrlAffixes(element) {
 
     // Process the passed element
     if (
-      element.hasAttribute("fp-prepend") ||
-      element.hasAttribute("fp-append") ||
+      (element.hasAttribute("fp-prepend") ||
+        element.hasAttribute("fp-append")) &&
       methods.some((method) => element.hasAttribute("hx-" + method))
     ) {
       processElement(element);
     }
     return element;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error in processUrlAffixes: ${error.message}`,
-    );
+    errorLog$1(`Error in processUrlAffixes: ${error.message}`);
     return element;
   }
 }
@@ -12376,7 +12366,7 @@ var FlowPlater = (function () {
   /**
    * @typedef {Object} FlowPlaterConfig
    * @property {Object} debug - Debug configuration settings
-   * @property {number} debug.level - Debug level (0-4)
+   * @property {number} debug.level - Debug level (0-3, 0 = error, 1 = warning, 2 = info, 3 = debug)
    * @property {boolean} debug.enabled - Enable/disable debug mode
    * @property {Object} selectors - DOM selector configurations
    * @property {string} selectors.fp - Main FlowPlater element selector
@@ -12393,7 +12383,7 @@ var FlowPlater = (function () {
    */
   const defaultConfig = {
     debug: {
-      level: 3,
+      level: window.location.hostname.endsWith(".webflow.io") ? 3 : 1,
       enabled: true,
     },
     selectors: {
@@ -12435,10 +12425,6 @@ var FlowPlater = (function () {
   // Initialize request handling
   RequestHandler.setupEventListeners();
   defineHtmxExtension();
-
-  /* -------------------------------------------------------------------------- */
-  /* ANCHOR                    setupAnimation(element)                          */
-  /* -------------------------------------------------------------------------- */
 
   /* -------------------------------------------------------------------------- */
   /* ANCHOR                 process(element = document)                         */
@@ -12645,15 +12631,32 @@ var FlowPlater = (function () {
         cache[templateId] = template;
         return template;
       },
+
+      /**
+       * Get a template from the cache
+       * @param {string} templateId - The ID of the template to get
+       * @returns {Object} The template object or all templates if no ID is provided
+       */
       get: function (templateId) {
         if (templateId) {
           return _state.templateCache[templateId];
         }
         return _state.templateCache;
       },
+
+      /**
+       * Check if a template is cached
+       * @param {string} templateId - The ID of the template to check
+       * @returns {boolean} True if the template is cached, false otherwise
+       */
       isCached: function (templateId) {
         return !!_state.templateCache[templateId];
       },
+
+      /**
+       * Clear a template from the cache
+       * @param {string} templateId - The ID of the template to clear
+       */
       clear: function (templateId) {
         if (templateId) {
           delete _state.templateCache[templateId];
@@ -12666,6 +12669,11 @@ var FlowPlater = (function () {
           Debug.log(Debug.levels.INFO, "Cleared entire template cache");
         }
       },
+
+      /**
+       * Get the size of the template cache
+       * @returns {number} The number of templates in the cache
+       */
       size: function () {
         return Object.keys(_state.templateCache).length;
       },
@@ -12686,7 +12694,7 @@ var FlowPlater = (function () {
       // Process any templates on the page
       const templates = document.querySelectorAll("[fp-template]");
       templates.forEach((template) => {
-        const templateId = template.getAttribute("fp-template");
+        let templateId = template.getAttribute("fp-template");
         if (templateId === "self" || templateId === "") {
           templateId = template.id;
         }
@@ -12763,6 +12771,8 @@ var FlowPlater = (function () {
             if (element._preloadCleanup) {
               element._preloadCleanup();
             }
+            // Remove DOM event listeners
+            element.removeEventListeners();
           });
 
           // Remove instance
@@ -12837,10 +12847,19 @@ var FlowPlater = (function () {
       return this;
     },
 
+    /**
+     * Get the current configuration
+     * @returns {Object} The current configuration
+     */
     getConfig: function () {
       return JSON.parse(JSON.stringify(_state.config));
     },
 
+    /**
+     * Destroy the FlowPlater instance
+     * @description Cleans up all instances and their associated resources.
+     * Also clears the template cache and event listeners.
+     */
     destroy: function () {
       // Clean up all instances
       Object.keys(_state.instances).forEach((name) => {
@@ -12920,6 +12939,10 @@ var FlowPlater = (function () {
 
   return FlowPlaterObj;
 })();
+
+/* -------------------------------------------------------------------------- */
+/* ANCHOR                          Auto init                                  */
+/* -------------------------------------------------------------------------- */
 
 /**
  * @description Automatically initializes FlowPlater when the DOM is ready.

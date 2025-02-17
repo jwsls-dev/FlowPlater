@@ -611,7 +611,7 @@ THE SOFTWARE.
         r(15);
         r(42);
         e.exports = r(21).Symbol;
-    }, function(N, M, e) {
+    }, function(R, M, e) {
         "use strict";
         var t = e(9), r = e(16), s = e(17), n = e(18), a = e(20), i = e(24), o = e(19), l = e(27), u = e(28), F = e(30), c = e(29), $ = e(31), f = e(36), B = e(37), q = e(38), V = e(39), h = e(32), p = e(26), d = t.getDesc, g = t.setDesc, m = t.create, v = f.get, b = r.Symbol, y = r.JSON, E = y && y.stringify, x = false, S = c("_hidden"), j = t.isEnum, w = l("symbol-registry"), k = l("symbols"), A = typeof b == "function", C = Object.prototype;
         var _ = n && o(function() {
@@ -643,7 +643,7 @@ THE SOFTWARE.
         var I = function(e) {
             return typeof e == "symbol";
         };
-        var O = function e(t, r, n) {
+        var T = function e(t, r, n) {
             if (n && s(k, r)) {
                 if (!n.enumerable) {
                     if (!s(t, S)) g(t, S, p(1, {}));
@@ -658,25 +658,25 @@ THE SOFTWARE.
             }
             return g(t, r, n);
         };
-        var T = function e(t, r) {
+        var O = function e(t, r) {
             V(t);
             var n = B(r = h(r)), a = 0, i = n.length, s;
-            while (i > a) O(t, s = n[a++], r[s]);
+            while (i > a) T(t, s = n[a++], r[s]);
             return t;
         };
         var D = function e(t, r) {
-            return r === undefined ? m(t) : T(m(t), r);
+            return r === undefined ? m(t) : O(m(t), r);
         };
         var H = function e(t) {
             var r = j.call(this, t);
             return r || !s(this, t) || !s(k, t) || s(this, S) && this[S][t] ? r : true;
         };
-        var R = function e(t, r) {
+        var L = function e(t, r) {
             var n = d(t = h(t), r);
             if (n && s(k, r) && !(s(t, S) && t[S][r])) n.enumerable = true;
             return n;
         };
-        var L = function e(t) {
+        var N = function e(t) {
             var r = v(h(t)), n = [], a = 0, i;
             while (r.length > a) if (!s(k, i = r[a++]) && i != S) n.push(i);
             return n;
@@ -718,10 +718,10 @@ THE SOFTWARE.
             };
             t.create = D;
             t.isEnum = H;
-            t.getDesc = R;
-            t.setDesc = O;
-            t.setDescs = T;
-            t.getNames = f.get = L;
+            t.getDesc = L;
+            t.setDesc = T;
+            t.setDescs = O;
+            t.getNames = f.get = N;
             t.getSymbols = U;
             if (n && !e(41)) {
                 i(C, "propertyIsEnumerable", H, true);
@@ -752,10 +752,10 @@ THE SOFTWARE.
         a(a.S, "Symbol", G);
         a(a.S + a.F * !A, "Object", {
             create: D,
-            defineProperty: O,
-            defineProperties: T,
-            getOwnPropertyDescriptor: R,
-            getOwnPropertyNames: L,
+            defineProperty: T,
+            defineProperties: O,
+            getOwnPropertyDescriptor: L,
+            getOwnPropertyNames: N,
             getOwnPropertySymbols: U
         });
         y && a(a.S + a.F * (!A || X), "JSON", {
@@ -1003,8 +1003,8 @@ THE SOFTWARE.
         };
     }, function(e, t, r) {
         "use strict";
-        var v = r(41), b = r(20), y = r(24), E = r(25), x = r(17), S = r(49), w = r(50), k = r(28), A = r(9).getProto, C = r(29)("iterator"), _ = !([].keys && "next" in [].keys()), P = "@@iterator", I = "keys", O = "values";
-        var T = function() {
+        var v = r(41), b = r(20), y = r(24), E = r(25), x = r(17), S = r(49), w = r(50), k = r(28), A = r(9).getProto, C = r(29)("iterator"), _ = !([].keys && "next" in [].keys()), P = "@@iterator", I = "keys", T = "values";
+        var O = function() {
             return this;
         };
         e.exports = function(e, t, r, n, a, i, s) {
@@ -1017,7 +1017,7 @@ THE SOFTWARE.
                         return new r(this, t);
                     };
 
-                  case O:
+                  case T:
                     return function e() {
                         return new r(this, t);
                     };
@@ -1026,12 +1026,12 @@ THE SOFTWARE.
                     return new r(this, t);
                 };
             };
-            var l = t + " Iterator", u = a == O, c = false, f = e.prototype, h = f[C] || f[P] || a && f[a], p = h || o(a), d, g;
+            var l = t + " Iterator", u = a == T, c = false, f = e.prototype, h = f[C] || f[P] || a && f[a], p = h || o(a), d, g;
             if (h) {
                 var m = A(p.call(new e()));
                 k(m, l, true);
-                if (!v && x(f, P)) E(m, C, T);
-                if (u && h.name !== O) {
+                if (!v && x(f, P)) E(m, C, O);
+                if (u && h.name !== T) {
                     c = true;
                     p = function e() {
                         return h.call(this);
@@ -1042,10 +1042,10 @@ THE SOFTWARE.
                 E(f, C, p);
             }
             S[t] = p;
-            S[l] = T;
+            S[l] = O;
             if (a) {
                 d = {
-                    values: u ? p : o(O),
+                    values: u ? p : o(T),
                     keys: i ? p : o(I),
                     entries: !u ? p : o("entries")
                 };
@@ -8659,7 +8659,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (n == null) {
                 n = getDocument().body;
             }
-            var N = i.handler || handleAjaxResponse;
+            var R = i.handler || handleAjaxResponse;
             var M = i.select || null;
             if (!bodyContains(n)) {
                 maybeCall(s);
@@ -8862,29 +8862,29 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             }
             var z = r.split("#");
             var J = z[0];
-            var O = z[1];
-            var T = r;
+            var T = z[1];
+            var O = r;
             if (P) {
-                T = J;
+                O = J;
                 var K = Object.keys(C).length !== 0;
                 if (K) {
-                    if (T.indexOf("?") < 0) {
-                        T += "?";
+                    if (O.indexOf("?") < 0) {
+                        O += "?";
                     } else {
-                        T += "&";
+                        O += "&";
                     }
-                    T += urlEncode(C);
-                    if (O) {
-                        T += "#" + O;
+                    O += urlEncode(C);
+                    if (T) {
+                        O += "#" + T;
                     }
                 }
             }
-            if (!verifyPath(n, T, I)) {
+            if (!verifyPath(n, O, I)) {
                 triggerErrorEvent(n, "htmx:invalidPath", I);
                 maybeCall(o);
                 return l;
             }
-            E.open(t.toUpperCase(), T, true);
+            E.open(t.toUpperCase(), O, true);
             E.overrideMimeType("text/html");
             E.withCredentials = I.withCredentials;
             E.timeout = I.timeout;
@@ -8905,16 +8905,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 select: M,
                 pathInfo: {
                     requestPath: r,
-                    finalRequestPath: T,
-                    anchor: O
+                    finalRequestPath: O,
+                    anchor: T
                 }
             };
             E.onload = function() {
                 try {
                     var e = hierarchyForElt(n);
                     H.pathInfo.responsePath = getPathFromResponse(E);
-                    N(n, H);
-                    removeRequestIndicators(R, L);
+                    R(n, H);
+                    removeRequestIndicators(L, N);
                     triggerEvent(n, "htmx:afterRequest", H);
                     triggerEvent(n, "htmx:afterOnLoad", H);
                     if (!bodyContains(n)) {
@@ -8940,21 +8940,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             };
             E.onerror = function() {
-                removeRequestIndicators(R, L);
+                removeRequestIndicators(L, N);
                 triggerErrorEvent(n, "htmx:afterRequest", H);
                 triggerErrorEvent(n, "htmx:sendError", H);
                 maybeCall(o);
                 x();
             };
             E.onabort = function() {
-                removeRequestIndicators(R, L);
+                removeRequestIndicators(L, N);
                 triggerErrorEvent(n, "htmx:afterRequest", H);
                 triggerErrorEvent(n, "htmx:sendAbort", H);
                 maybeCall(o);
                 x();
             };
             E.ontimeout = function() {
-                removeRequestIndicators(R, L);
+                removeRequestIndicators(L, N);
                 triggerErrorEvent(n, "htmx:afterRequest", H);
                 triggerErrorEvent(n, "htmx:timeout", H);
                 maybeCall(o);
@@ -8965,8 +8965,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 x();
                 return l;
             }
-            var R = addRequestIndicatorClasses(n);
-            var L = disableElements(n);
+            var L = addRequestIndicatorClasses(n);
+            var N = disableElements(n);
             forEach([ "loadstart", "loadend", "progress", "abort" ], function(t) {
                 forEach([ E, E.upload ], function(e) {
                     e.addEventListener(t, function(e) {
@@ -9395,50 +9395,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 @preserve FlowPlater starts here 
 */
 
-const EventSystem = function() {
-    const n = new Map();
-    return {
-        subscribe(e, t, r = null) {
-            if (!n.has(e)) {
-                n.set(e, []);
-            }
-            n.get(e).push({
-                callback: t,
-                context: r
-            });
-            return () => this.unsubscribe(e, t);
-        },
-        unsubscribe(e, t) {
-            if (!n.has(e)) return;
-            const r = n.get(e);
-            n.set(e, r.filter(e => e.callback !== t));
-        },
-        unsubscribeAll() {
-            n.clear();
-        },
-        publish(e, r) {
-            if (!n.has(e)) return;
-            n.get(e).forEach(({
-                callback: e,
-                context: t
-            }) => {
-                e.call(t, r);
-            });
-            if (r && r.instanceName) {
-                const t = `${r.instanceName}:${e}`;
-                if (n.has(t)) {
-                    n.get(t).forEach(({
-                        callback: e,
-                        context: t
-                    }) => {
-                        e.call(t, r);
-                    });
-                }
-            }
-        }
-    };
-}();
-
 const Debug = function() {
     return {
         level: 3,
@@ -9480,6 +9436,69 @@ let TemplateError$1 = class TemplateError extends FlowPlaterError {
         this.name = "TemplateError";
     }
 };
+
+const EventSystem = function() {
+    const i = new Map();
+    return {
+        subscribe(e, t, r = null) {
+            if (!e || typeof e !== "string") {
+                FlowPlaterError("Invalid event name. Event name must be a non-empty string.");
+            }
+            if (!t || typeof t !== "function") {
+                FlowPlaterError(`Invalid callback for event "${e}". Callback must be a function.`);
+            }
+            if (!i.has(e)) {
+                i.set(e, []);
+            }
+            i.get(e).push({
+                callback: t,
+                context: r
+            });
+            Debug.log(Debug.levels.DEBUG, `Subscribed to event: ${e}`);
+            return () => this.unsubscribe(e, t);
+        },
+        unsubscribe(e, t) {
+            if (!e || typeof e !== "string") {
+                FlowPlaterError("Invalid event name. Event name must be a non-empty string. If you are trying to unsubscribe from all events, use unsubscribeAll() instead.");
+            }
+            if (!i.has(e)) return;
+            const r = i.get(e);
+            i.set(e, r.filter(e => e.callback !== t));
+        },
+        unsubscribeAll() {
+            i.clear();
+            Debug.log(Debug.levels.INFO, "Cleared all event subscribers");
+        },
+        publish(r, n) {
+            if (!i.has(r)) return;
+            i.get(r).forEach(({
+                callback: e,
+                context: t
+            }) => {
+                try {
+                    e.call(t, n);
+                } catch (e) {
+                    errorLog$1(`Error in event subscriber for ${r}:`, e);
+                }
+            });
+            if (n && n.instanceName) {
+                const a = `${n.instanceName}:${r}`;
+                if (i.has(a)) {
+                    i.get(a).forEach(({
+                        callback: e,
+                        context: t
+                    }) => {
+                        try {
+                            e.call(t, n);
+                        } catch (e) {
+                            errorLog$1(`Error in instance event subscriber for ${a}:`, e);
+                        }
+                    });
+                }
+            }
+        }
+    };
+}();
 
 const _state = {
     templateCache: {},
@@ -9539,27 +9558,151 @@ function memoize(e) {
     return r;
 }
 
-function createVirtualNode(e) {
-    const t = document.createElement("template");
-    t.innerHTML = e.trim();
-    const r = t.content.querySelectorAll("svg");
-    r.forEach(t => {
-        Array.from(t.attributes).forEach(e => {
-            if (e.name.startsWith("xlink:")) {
-                t.setAttributeNS("http://www.w3.org/1999/xlink", e.name, e.value);
+function morphChildren(a, e, i, t) {
+    console.log("Morphing children from:", a.innerHTML);
+    console.log("Morphing children to:", e.innerHTML);
+    const s = a instanceof SVGElement;
+    if (isSpecialElement(a)) {
+        handleSpecialElement(a, e);
+        return;
+    }
+    const r = a.getAttribute("data-key");
+    const n = e.getAttribute("data-key");
+    if (n && r !== n) {
+        const f = i.get(n);
+        if (f) {
+            if (f !== a) {
+                a.parentNode.replaceChild(f, a);
+                a = f;
+            }
+        }
+    }
+    if (!a.children.length && a.childNodes.length || !e.children.length && e.childNodes.length) {
+        handleMixedContent(a, e);
+        return;
+    }
+    const o = Array.from(a.childNodes);
+    const l = Array.from(e.childNodes);
+    if (o.length === 1 && l.length === 1 && o[0].nodeType === l[0].nodeType && o[0].nodeName === l[0].nodeName) {
+        morphChildren(o[0], l[0], i);
+        return;
+    }
+    let u = 0;
+    const c = new Set();
+    l.forEach((e, t) => {
+        if (e.nodeType === Node.ELEMENT_NODE) {
+            const r = e.getAttribute("data-key");
+            if (r) {
+                const n = i.get(r);
+                if (n) {
+                    a.insertBefore(n, o[u] || null);
+                    c.add(u);
+                    u++;
+                    return;
+                }
+            }
+        }
+    });
+    l.forEach(r => {
+        if (c.has(u)) {
+            u++;
+            return;
+        }
+        const e = o.findIndex((e, t) => t >= u && nodesAreEqual(e, r));
+        if (e === -1) {
+            const t = o[u];
+            const n = s ? cloneWithNamespace(r) : r.cloneNode(true);
+            a.insertBefore(n, t || null);
+            c.add(u);
+        } else {
+            u = e + 1;
+            c.add(e);
+        }
+    });
+    o.forEach((e, t) => {
+        if (!c.has(t)) {
+            a.removeChild(e);
+        }
+    });
+}
+
+function isSpecialElement(e) {
+    const t = [ "INPUT", "SELECT", "TEXTAREA", "IFRAME", "SCRIPT" ];
+    return t.includes(e.tagName);
+}
+
+function handleSpecialElement(r, e) {
+    if (r instanceof HTMLInputElement || r instanceof HTMLSelectElement || r instanceof HTMLTextAreaElement) {
+        const t = r.value;
+        const n = r.checked;
+        const a = r instanceof HTMLSelectElement ? Array.from(r.selectedOptions).map(e => e.value) : null;
+        Array.from(e.attributes).forEach(e => {
+            if (e.name !== "value") {
+                r.setAttribute(e.name, e.value);
             }
         });
+        r.value = t;
+        if (n !== undefined) r.checked = n;
+        if (a) {
+            a.forEach(e => {
+                const t = r.querySelector(`option[value="${e}"]`);
+                if (t) t.selected = true;
+            });
+        }
+    }
+    if (r instanceof HTMLIFrameElement || r instanceof HTMLScriptElement) {
+        Array.from(e.attributes).forEach(e => {
+            r.setAttribute(e.name, e.value);
+        });
+    }
+}
+
+function handleMixedContent(n, e) {
+    const t = Array.from(n.childNodes);
+    const a = Array.from(e.childNodes);
+    if (t.length === a.length) {
+        t.forEach((e, t) => {
+            const r = a[t];
+            if (!nodesAreEqual(e, r)) {
+                n.replaceChild(r.cloneNode(true), e);
+            }
+        });
+    } else {
+        n.innerHTML = e.innerHTML;
+    }
+}
+
+function nodesAreEqual(e, t) {
+    if (e.nodeType !== t.nodeType) return false;
+    if (e.nodeType === Node.TEXT_NODE) {
+        return e.textContent.trim() === t.textContent.trim();
+    }
+    if (e.nodeType === Node.COMMENT_NODE) {
+        return e.textContent === t.textContent;
+    }
+    return e.isEqualNode(t);
+}
+
+function cloneWithNamespace(e) {
+    if (!(e instanceof Element)) return e.cloneNode(true);
+    const t = e.namespaceURI;
+    const r = t ? document.createElementNS(t, e.tagName) : document.createElement(e.tagName);
+    Array.from(e.attributes).forEach(e => {
+        const t = e.namespaceURI;
+        if (t) {
+            r.setAttributeNS(t, e.name, e.value);
+        } else {
+            r.setAttribute(e.name, e.value);
+        }
     });
-    return t.content;
+    Array.from(e.childNodes).forEach(e => {
+        r.appendChild(cloneWithNamespace(e));
+    });
+    return r;
 }
 
 function updateDOM(e, t) {
     Performance.start("updateDOM");
-    const r = t.trim();
-    if (e.innerHTML.trim() === r) {
-        Performance.end("updateDOM");
-        return;
-    }
     try {
         if (!e || !(e instanceof HTMLElement)) {
             throw new Error("Invalid target element");
@@ -9567,181 +9710,29 @@ function updateDOM(e, t) {
         if (typeof t !== "string") {
             throw new Error("newHTML must be a string");
         }
-        Debug.log(Debug.levels.INFO, `Updating DOM for element:`, e, `with new HTML length: ${r.length}`);
-        const n = createVirtualNode(r);
-        diffNodes(e, n);
+        const r = document.createElement("div");
+        r.innerHTML = t.trim();
+        const n = new Map();
+        const a = new Map();
+        indexTree(e, n);
+        indexTree(r, a);
+        morphChildren(e, r, n, a);
     } catch (e) {
         Debug.log(Debug.levels.ERROR, "Error in updateDOM:", e);
+        console.error("UpdateDOM error:", e);
         throw e;
     } finally {
         Performance.end("updateDOM");
     }
 }
 
-function diffNodes(a, e) {
-    if (!a || !e) return;
-    if (a.isEqualNode(e)) return;
-    const i = Array.from(a.childNodes);
-    const s = Array.from(e.childNodes);
-    const t = i.map(t => s.map(e => calculateNodeSimilarity(t, e)));
-    const o = new Set();
-    const l = new Set();
-    t.forEach((e, t) => {
-        const r = Math.max(...e);
-        if (r > .8) {
-            const n = e.indexOf(r);
-            if (!l.has(n)) {
-                updateNode(i[t], s[n]);
-                o.add(t);
-                l.add(n);
-            }
-        }
-    });
-    s.forEach((e, t) => {
-        if (l.has(t)) return;
-        const r = findBestInsertionPosition(e, i, s, t);
-        const n = e.cloneNode(true);
-        if (r < i.length) {
-            a.insertBefore(n, i[r]);
-        } else {
-            a.appendChild(n);
-        }
-        l.add(t);
-    });
-    i.forEach((e, t) => {
-        if (!o.has(t)) {
-            e.remove();
-        }
-    });
-}
-
-function calculateNodeSimilarity(e, t) {
-    if (!e || !t) return 0;
-    if (e.nodeType !== t.nodeType) return 0;
-    if (e.nodeType === Node.TEXT_NODE) {
-        const r = e.textContent.trim();
-        const n = t.textContent.trim();
-        return r === n ? 1 : 0;
-    }
-    if (e.nodeType === Node.ELEMENT_NODE) {
-        if (e.tagName !== t.tagName) return 0;
-        const a = e.children.length === t.children.length ? .3 : 0;
-        const i = Array.from(e.attributes || []);
-        const s = Array.from(t.attributes || []);
-        const o = i.length === s.length ? .3 : 0;
-        const l = e.textContent === t.textContent ? .4 : 0;
-        return a + o + l;
-    }
-    return 0;
-}
-
-function findBestInsertionPosition(e, t, r, n, a) {
-    const i = r[n - 1];
-    const s = r[n + 1];
-    let o = -1;
-    let l = -1;
-    if (i) {
-        o = t.findIndex(e => calculateNodeSimilarity(e, i) > .8);
-    }
-    if (s) {
-        l = t.findIndex(e => calculateNodeSimilarity(e, s) > .8);
-    }
-    if (o !== -1 && l !== -1) {
-        return o + 1;
-    } else if (o !== -1) {
-        return o + 1;
-    } else if (l !== -1) {
-        return l;
-    }
-    return Math.floor(n * t.length / r.length);
-}
-
-function updateNode(e, r) {
-    if (!e || !r) return;
-    if (e.nodeType === Node.TEXT_NODE) {
-        if (e.textContent !== r.textContent) {
-            e.textContent = r.textContent;
-        }
-        return;
-    }
-    if (e.nodeType === Node.ELEMENT_NODE) {
-        updateAttributes(e, r);
-        if (e instanceof HTMLInputElement || e instanceof HTMLTextAreaElement) {
-            if (e.value !== r.value) {
-                e.value = r.value;
-            }
-            return;
-        }
-        if (e instanceof HTMLSelectElement) {
-            if (e.value !== r.value) {
-                e.value = r.value;
-                Array.from(e.options).forEach((e, t) => {
-                    e.selected = r.options[t]?.selected ?? false;
-                });
-            }
-            return;
-        }
-        if (isCustomElement(e)) {
-            updateCustomElement(e, r);
-            return;
-        }
-        diffNodes(e, r);
-    }
-}
-
-function updateAttributes(s, o) {
-    const e = new Set(Array.from(s.attributes || []).map(e => e.name));
-    const t = Array.from(o.attributes || []);
-    e.forEach(e => {
-        if (!o.hasAttribute(e)) {
-            if (e === "style") s.style.cssText = ""; else if (e.startsWith("on")) {
-                const t = s[e];
-                typeof t === "function" && s.removeEventListener(e.slice(2).toLowerCase(), t);
-            } else s.removeAttribute(e);
-        }
-    });
-    t.forEach(e => {
-        const {
-            name: t,
-            value: r
-        } = e;
-        if (t === "style") updateStyles(s, o); else if (t.startsWith("--")) s.style.setProperty(t, r); else if (t.startsWith("on")) {
-            const n = t.slice(2).toLowerCase();
-            const a = s[t];
-            const i = o[t];
-            if (a !== i) {
-                typeof a === "function" && s.removeEventListener(n, a);
-                typeof i === "function" && s.addEventListener(n, i);
-            }
-        } else if (s.getAttribute(t) !== r) {
-            s.setAttribute(t, r);
-        }
-    });
-}
-
-function updateStyles(e, t) {
-    const r = e.style;
-    const n = t.getAttribute("style")?.split(";") || [];
-    r.cssText = "";
-    if (n.length) {
-        const a = new Map(n.map(e => e.split(":").map(e => e.trim())).filter(([ e, t ]) => e && t));
-        r.cssText = Array.from(a).map(([ e, t ]) => `${e}:${t}`).join(";");
-    }
-}
-
-function isCustomElement(e) {
-    return e.tagName && e.tagName.includes("-");
-}
-
-function updateCustomElement(t, r) {
-    updateAttributes(t, r);
-    Object.getOwnPropertyNames(r).filter(e => ![ "attributes", "children", "innerHTML" ].includes(e) && typeof r[e] !== "function" && t[e] !== r[e]).forEach(e => t[e] = r[e]);
-    if (!t.shadowRoot) {
-        const n = Array.from(t.childNodes);
-        const a = Array.from(r.childNodes);
-        const i = Math.max(n.length, a.length);
-        for (let e = 0; e < i; e++) {
-            diffNodes(n[e], a[e]);
+function indexTree(e, t) {
+    const r = document.createTreeWalker(e, NodeFilter.SHOW_ELEMENT, null, false);
+    let n;
+    while (n = r.nextNode()) {
+        const a = n.getAttribute("data-key");
+        if (a) {
+            t.set(a, n);
         }
     }
 }
@@ -9772,7 +9763,7 @@ function instanceMethods(u) {
                     updateDOM(t, e.template(e.proxy));
                 } catch (e) {
                     t.innerHTML = `<div class="fp-error">Error refreshing template: ${e.message}</div>`;
-                    Debug.log(Debug.levels.ERROR, `Failed to refresh template: ${e.message}`);
+                    errorLog$1(`Failed to refresh template: ${e.message}`);
                 }
             });
             return this;
@@ -9870,7 +9861,7 @@ function instanceMethods(u) {
                     }
                 } catch (e) {
                     r.innerHTML = `<div class="fp-error">Error refreshing template: ${e.message}</div>`;
-                    Debug.log(Debug.levels.ERROR, `Failed to refresh template: ${e.message}`);
+                    errorLog$1(`Failed to refresh template: ${e.message}`);
                     l.push(Promise.reject(e));
                 }
             });
@@ -10242,12 +10233,12 @@ function render({
                 updateDOM(t, c.template(c.proxy));
             } catch (e) {
                 t.innerHTML = `<div class="fp-error">Error rendering template: ${e.message}</div>`;
-                Debug.log(Debug.levels.ERROR, `Failed to render template: ${e.message}`);
+                errorLog$1(`Failed to render template: ${e.message}`);
             }
         });
         return c;
     } catch (e) {
-        Debug.log(Debug.levels.ERROR, `Failed to render template: ${e.message}`);
+        errorLog$1(`Failed to render template: ${e.message}`);
         throw e;
     } finally {
         EventSystem.publish("afterRender", {
@@ -10838,15 +10829,15 @@ function defineHtmxExtension() {
                     i = JSON.parse(t);
                 }
             } catch (e) {
-                Debug.log(Debug.levels.ERROR, "Failed to parse response:", e);
+                errorLog$1("Failed to parse response:", e);
                 return t;
             }
             var l = r.getAttribute("fp-template");
-            Debug.log(Debug.levels.INFO, "Response received for request " + n + ": " + t);
+            log("Response received for request " + n + ": " + t);
             try {
                 let e;
                 if (l) {
-                    Debug.log(Debug.levels.INFO, "Rendering html to " + l + " based on htmx response");
+                    log("Rendering html to " + l + " based on htmx response");
                     e = render({
                         template: l,
                         data: i,
@@ -10855,10 +10846,10 @@ function defineHtmxExtension() {
                     });
                 } else {
                     if (!r.id) {
-                        Debug.log(Debug.levels.ERROR, "No template found. If the current element is a template, it must have an id.");
+                        errorLog$1("No template found. If the current element is a template, it must have an id.");
                         return t;
                     }
-                    Debug.log(Debug.levels.INFO, "Rendering html to current element based on htmx response");
+                    log("Rendering html to current element based on htmx response");
                     var u = "#" + r.id;
                     e = render({
                         template: u,
@@ -10873,8 +10864,31 @@ function defineHtmxExtension() {
                 }
                 return t;
             } catch (e) {
-                Debug.log(Debug.levels.ERROR, "Error rendering template:", e);
+                errorLog$1("Error rendering template:", e);
                 return t;
+            }
+        },
+        handleSwap: function(e, t, r, n) {
+            if (!t.hasAttribute("fp-template")) {
+                return false;
+            }
+            try {
+                const a = t.getAttribute("fp-instance") || t.id;
+                if (!a) {
+                    Debug.log(Debug.levels.DEBUG, "No instance name found for element, falling back to default swap");
+                    return false;
+                }
+                const i = _state.instances[a];
+                if (!i) {
+                    Debug.log(Debug.levels.DEBUG, "No instance found for name: " + a);
+                    return false;
+                }
+                updateDOM(t, r.innerHTML);
+                Debug.log(Debug.levels.DEBUG, "HTMX swap completed for instance: " + a);
+                return true;
+            } catch (e) {
+                errorLog$1("Error in handleSwap:", e);
+                return false;
             }
         },
         onEvent: function(e, t) {
@@ -11029,7 +11043,7 @@ function translateCustomHTMXAttributes(n) {
         });
         return n;
     } catch (e) {
-        Debug.log(Debug.levels.ERROR, `Error in translateCustomHTMXAttributes: ${e.message}`);
+        errorLog(`Error in translateCustomHTMXAttributes: ${e.message}`);
         return n;
     }
 }
@@ -11071,12 +11085,12 @@ function processUrlAffixes(t) {
                 }
             });
         }
-        if (t.hasAttribute("fp-prepend") || t.hasAttribute("fp-append") || r.some(e => t.hasAttribute("hx-" + e))) {
+        if ((t.hasAttribute("fp-prepend") || t.hasAttribute("fp-append")) && r.some(e => t.hasAttribute("hx-" + e))) {
             e(t);
         }
         return t;
     } catch (e) {
-        Debug.log(Debug.levels.ERROR, `Error in processUrlAffixes: ${e.message}`);
+        errorLog$1(`Error in processUrlAffixes: ${e.message}`);
         return t;
     }
 }
@@ -11128,7 +11142,7 @@ var FlowPlater = function() {
     const r = "Flowplater standard licence";
     const n = {
         debug: {
-            level: 3,
+            level: window.location.hostname.endsWith(".webflow.io") ? 3 : 1,
             enabled: true
         },
         selectors: {
@@ -11300,7 +11314,7 @@ var FlowPlater = function() {
             Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
             const t = document.querySelectorAll("[fp-template]");
             t.forEach(t => {
-                const e = t.getAttribute("fp-template");
+                let e = t.getAttribute("fp-template");
                 if (e === "self" || e === "") {
                     e = t.id;
                 }
@@ -11345,6 +11359,7 @@ var FlowPlater = function() {
                         if (e._preloadCleanup) {
                             e._preloadCleanup();
                         }
+                        e.removeEventListeners();
                     });
                     delete _state.instances[e];
                     log(`Cleaned up instance: ${e}`);
