@@ -71,55 +71,149 @@ function updateDOM(element, newHTML) {
 }
 
 function diffNodes(currentNode, newNode) {
-  // Handle null cases first
   if (!currentNode || !newNode) return;
+  if (currentNode.isEqualNode(newNode)) return;
 
-  // Quick equality check for identical nodes
-  if (currentNode.isEqualNode(newNode)) {
-    return;
-  }
-
-  // Compare children
   const currentChildren = Array.from(currentNode.childNodes);
   const newChildren = Array.from(newNode.childNodes);
 
-  // Track processed nodes to handle moves and additions efficiently
-  const processed = new Set();
+  // Create similarity matrix between current and new children
+  const similarityMatrix = currentChildren.map((current) =>
+    newChildren.map((next) => calculateNodeSimilarity(current, next)),
+  );
 
-  // First pass: update existing nodes and mark matches
-  currentChildren.forEach((currentChild, i) => {
-    const newChild = newChildren[i];
+  // Track which nodes have been processed
+  const processedCurrent = new Set();
+  const processedNew = new Set();
 
-    // Skip if nodes are identical
-    if (currentChild && newChild && currentChild.isEqualNode(newChild)) {
-      processed.add(i);
-      return;
+  // First pass: handle highly similar nodes (likely the same element with minor changes)
+  similarityMatrix.forEach((similarities, currentIndex) => {
+    const maxSimilarity = Math.max(...similarities);
+    if (maxSimilarity > 0.8) {
+      // Threshold for considering nodes "same but modified"
+      const newIndex = similarities.indexOf(maxSimilarity);
+      if (!processedNew.has(newIndex)) {
+        updateNode(currentChildren[currentIndex], newChildren[newIndex]);
+        processedCurrent.add(currentIndex);
+        processedNew.add(newIndex);
+      }
     }
+  });
 
-    // Look for matching node in new children
-    const matchIndex = newChildren.findIndex(
-      (node, index) =>
-        !processed.has(index) &&
-        node.nodeType === currentChild.nodeType &&
-        node.nodeName === currentChild.nodeName,
+  // Second pass: handle new insertions efficiently
+  newChildren.forEach((newChild, newIndex) => {
+    if (processedNew.has(newIndex)) return;
+
+    // Find the best position to insert the new node
+    const bestPosition = findBestInsertionPosition(
+      newChild,
+      currentChildren,
+      newChildren,
+      newIndex,
+      similarityMatrix,
     );
 
-    if (matchIndex !== -1) {
-      // Update matching node
-      processed.add(matchIndex);
-      updateNode(currentChild, newChildren[matchIndex]);
-    } else if (!newChildren[i]) {
-      // Remove if no new node exists at this position
-      currentChild.remove();
+    const clone = newChild.cloneNode(true);
+    if (bestPosition < currentChildren.length) {
+      currentNode.insertBefore(clone, currentChildren[bestPosition]);
+    } else {
+      currentNode.appendChild(clone);
     }
+    processedNew.add(newIndex);
   });
 
-  // Second pass: add new nodes that weren't processed
-  newChildren.forEach((newChild, i) => {
-    if (!processed.has(i)) {
-      currentNode.appendChild(newChild.cloneNode(true));
+  // Final pass: remove unmatched current nodes
+  currentChildren.forEach((child, index) => {
+    if (!processedCurrent.has(index)) {
+      child.remove();
     }
   });
+}
+
+/**
+ * Calculates similarity score between two nodes (0 to 1)
+ * @param {Node} node1
+ * @param {Node} node2
+ * @returns {number}
+ */
+function calculateNodeSimilarity(node1, node2) {
+  if (!node1 || !node2) return 0;
+  if (node1.nodeType !== node2.nodeType) return 0;
+
+  if (node1.nodeType === Node.TEXT_NODE) {
+    const text1 = node1.textContent.trim();
+    const text2 = node2.textContent.trim();
+    return text1 === text2 ? 1 : 0;
+  }
+
+  if (node1.nodeType === Node.ELEMENT_NODE) {
+    if (node1.tagName !== node2.tagName) return 0;
+
+    // Compare structure
+    const structureSimilarity =
+      node1.children.length === node2.children.length ? 0.3 : 0;
+
+    // Compare attributes
+    const attrs1 = Array.from(node1.attributes || []);
+    const attrs2 = Array.from(node2.attributes || []);
+    const attrSimilarity = attrs1.length === attrs2.length ? 0.3 : 0;
+
+    // Compare content
+    const contentSimilarity = node1.textContent === node2.textContent ? 0.4 : 0;
+
+    return structureSimilarity + attrSimilarity + contentSimilarity;
+  }
+
+  return 0;
+}
+
+/**
+ * Finds the optimal position to insert a new node
+ * @param {Node} newNode
+ * @param {Node[]} currentChildren
+ * @param {Node[]} newChildren
+ * @param {number} newIndex
+ * @param {number[][]} similarityMatrix
+ * @returns {number}
+ */
+function findBestInsertionPosition(
+  newNode,
+  currentChildren,
+  newChildren,
+  newIndex,
+  similarityMatrix,
+) {
+  // Look at surrounding nodes in the new children
+  const prevNew = newChildren[newIndex - 1];
+  const nextNew = newChildren[newIndex + 1];
+
+  // Find where these nodes are in the current children
+  let prevCurrentIndex = -1;
+  let nextCurrentIndex = -1;
+
+  if (prevNew) {
+    prevCurrentIndex = currentChildren.findIndex(
+      (node) => calculateNodeSimilarity(node, prevNew) > 0.8,
+    );
+  }
+
+  if (nextNew) {
+    nextCurrentIndex = currentChildren.findIndex(
+      (node) => calculateNodeSimilarity(node, nextNew) > 0.8,
+    );
+  }
+
+  // Determine best position based on surrounding nodes
+  if (prevCurrentIndex !== -1 && nextCurrentIndex !== -1) {
+    return prevCurrentIndex + 1;
+  } else if (prevCurrentIndex !== -1) {
+    return prevCurrentIndex + 1;
+  } else if (nextCurrentIndex !== -1) {
+    return nextCurrentIndex;
+  }
+
+  // Fallback to proportional position
+  return Math.floor((newIndex * currentChildren.length) / newChildren.length);
 }
 
 function updateNode(currentNode, newNode) {

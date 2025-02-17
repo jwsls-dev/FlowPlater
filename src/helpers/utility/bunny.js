@@ -1,48 +1,81 @@
+/**
+ * Registers a Handlebars helper that creates an animated bunny ASCII art.
+ * The bunny alternates between two states: normal and flipped.
+ *
+ * Requirements:
+ * - Handlebars must be loaded globally before calling this function
+ * - Runs in browser environment (uses window and document)
+ *
+ * The helper creates:
+ * - Global window.bunnyStates object storing ASCII art variants
+ * - Global window.bunnyAnimation function managing animation
+ * - Global window.bunnyAnimationIntervalId for animation control
+ *
+ * Usage in Handlebars template:
+ * {{bunny}}
+ *
+ * @returns {void}
+ */
 export function bunnyHelper() {
-  Handlebars.registerHelper("bunny", function () {
-    // Returns a cute bunny
-    // It gives out hearts! <3
-    // Example: {{bunny}}
+  if (typeof Handlebars === "undefined") {
+    console.error("Handlebars is not loaded yet!");
+    return;
+  }
 
-    var bunny = `
-        &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
-        ପ(˶•-•˶)ଓ ♡<br>
-        &nbsp;&nbsp;&nbsp;/づ  づ
-      `;
+  // Only register once
+  if (Handlebars.helpers.bunny) {
+    return;
+  }
 
-    var bunnyFlipped = `
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
-        &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
-        &nbsp;&nbsp;♡じ  じ\\
-      `;
+  const bunny = `
+    &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
+    ପ(˶•-•˶)ଓ ♡<br>
+    &nbsp;&nbsp;&nbsp;/づ  づ
+  `;
 
-    // Create wrapper with unique class for animation targeting
-    var wrapper = `<span class="fp-bunny" data-bunny-state="normal">${bunny}</span>`;
+  const bunnyFlipped = `
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
+    &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
+    &nbsp;&nbsp;♡じ  じ\\
+  `;
 
-    // Add animation script if not already present
-    if (!window.bunnyAnimation) {
-      window.bunnyAnimation = function () {
-        if (window.bunnyAnimationIntervalId) {
-          clearInterval(window.bunnyAnimationIntervalId);
-        }
-        window.bunnyAnimationIntervalId = setInterval(function () {
-          document.querySelectorAll(".fp-bunny").forEach(function (element) {
-            const currentState = element.getAttribute("data-bunny-state");
-            if (currentState === "normal") {
-              element.innerHTML = bunnyFlipped;
-              element.setAttribute("data-bunny-state", "flipped");
-            } else {
-              element.innerHTML = bunny;
-              element.setAttribute("data-bunny-state", "normal");
-            }
-          });
-        }, 1000);
-      };
+  // Store bunny states globally
+  window.bunnyStates = {
+    bunny,
+    bunnyFlipped,
+  };
 
-      // Start animation immediately
-      window.bunnyAnimation();
+  // Initialize animation function
+  window.bunnyAnimation = function () {
+    if (window.bunnyAnimationIntervalId) {
+      clearInterval(window.bunnyAnimationIntervalId);
     }
+    window.bunnyAnimationIntervalId = setInterval(function () {
+      document.querySelectorAll(".fp-bunny").forEach(function (element) {
+        const currentState = element.getAttribute("data-bunny-state");
+        if (currentState === "normal") {
+          element.innerHTML = window.bunnyStates.bunnyFlipped;
+          element.setAttribute("data-bunny-state", "flipped");
+        } else {
+          element.innerHTML = window.bunnyStates.bunny;
+          element.setAttribute("data-bunny-state", "normal");
+        }
+      });
+    }, 1000);
+  };
+
+  // Register the helper
+  Handlebars.registerHelper("bunny", function () {
+    const wrapper = `<span class="fp-bunny" data-bunny-state="normal">${window.bunnyStates.bunny}</span>`;
+
+    // Start animation on next tick
+    setTimeout(window.bunnyAnimation, 0);
 
     return new Handlebars.SafeString(wrapper);
   });
+
+  // Start animation if there are already bunnies on the page
+  if (document.querySelectorAll(".fp-bunny").length > 0) {
+    window.bunnyAnimation();
+  }
 }

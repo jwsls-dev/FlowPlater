@@ -10213,55 +10213,147 @@ function updateDOM(element, newHTML) {
 }
 
 function diffNodes(currentNode, newNode) {
-  // Handle null cases first
   if (!currentNode || !newNode) return;
+  if (currentNode.isEqualNode(newNode)) return;
 
-  // Quick equality check for identical nodes
-  if (currentNode.isEqualNode(newNode)) {
-    return;
-  }
-
-  // Compare children
   const currentChildren = Array.from(currentNode.childNodes);
   const newChildren = Array.from(newNode.childNodes);
 
-  // Track processed nodes to handle moves and additions efficiently
-  const processed = new Set();
+  // Create similarity matrix between current and new children
+  const similarityMatrix = currentChildren.map((current) =>
+    newChildren.map((next) => calculateNodeSimilarity(current, next)),
+  );
 
-  // First pass: update existing nodes and mark matches
-  currentChildren.forEach((currentChild, i) => {
-    const newChild = newChildren[i];
+  // Track which nodes have been processed
+  const processedCurrent = new Set();
+  const processedNew = new Set();
 
-    // Skip if nodes are identical
-    if (currentChild && newChild && currentChild.isEqualNode(newChild)) {
-      processed.add(i);
-      return;
+  // First pass: handle highly similar nodes (likely the same element with minor changes)
+  similarityMatrix.forEach((similarities, currentIndex) => {
+    const maxSimilarity = Math.max(...similarities);
+    if (maxSimilarity > 0.8) {
+      // Threshold for considering nodes "same but modified"
+      const newIndex = similarities.indexOf(maxSimilarity);
+      if (!processedNew.has(newIndex)) {
+        updateNode(currentChildren[currentIndex], newChildren[newIndex]);
+        processedCurrent.add(currentIndex);
+        processedNew.add(newIndex);
+      }
     }
+  });
 
-    // Look for matching node in new children
-    const matchIndex = newChildren.findIndex(
-      (node, index) =>
-        !processed.has(index) &&
-        node.nodeType === currentChild.nodeType &&
-        node.nodeName === currentChild.nodeName,
+  // Second pass: handle new insertions efficiently
+  newChildren.forEach((newChild, newIndex) => {
+    if (processedNew.has(newIndex)) return;
+
+    // Find the best position to insert the new node
+    const bestPosition = findBestInsertionPosition(
+      newChild,
+      currentChildren,
+      newChildren,
+      newIndex);
+
+    const clone = newChild.cloneNode(true);
+    if (bestPosition < currentChildren.length) {
+      currentNode.insertBefore(clone, currentChildren[bestPosition]);
+    } else {
+      currentNode.appendChild(clone);
+    }
+    processedNew.add(newIndex);
+  });
+
+  // Final pass: remove unmatched current nodes
+  currentChildren.forEach((child, index) => {
+    if (!processedCurrent.has(index)) {
+      child.remove();
+    }
+  });
+}
+
+/**
+ * Calculates similarity score between two nodes (0 to 1)
+ * @param {Node} node1
+ * @param {Node} node2
+ * @returns {number}
+ */
+function calculateNodeSimilarity(node1, node2) {
+  if (!node1 || !node2) return 0;
+  if (node1.nodeType !== node2.nodeType) return 0;
+
+  if (node1.nodeType === Node.TEXT_NODE) {
+    const text1 = node1.textContent.trim();
+    const text2 = node2.textContent.trim();
+    return text1 === text2 ? 1 : 0;
+  }
+
+  if (node1.nodeType === Node.ELEMENT_NODE) {
+    if (node1.tagName !== node2.tagName) return 0;
+
+    // Compare structure
+    const structureSimilarity =
+      node1.children.length === node2.children.length ? 0.3 : 0;
+
+    // Compare attributes
+    const attrs1 = Array.from(node1.attributes || []);
+    const attrs2 = Array.from(node2.attributes || []);
+    const attrSimilarity = attrs1.length === attrs2.length ? 0.3 : 0;
+
+    // Compare content
+    const contentSimilarity = node1.textContent === node2.textContent ? 0.4 : 0;
+
+    return structureSimilarity + attrSimilarity + contentSimilarity;
+  }
+
+  return 0;
+}
+
+/**
+ * Finds the optimal position to insert a new node
+ * @param {Node} newNode
+ * @param {Node[]} currentChildren
+ * @param {Node[]} newChildren
+ * @param {number} newIndex
+ * @param {number[][]} similarityMatrix
+ * @returns {number}
+ */
+function findBestInsertionPosition(
+  newNode,
+  currentChildren,
+  newChildren,
+  newIndex,
+  similarityMatrix,
+) {
+  // Look at surrounding nodes in the new children
+  const prevNew = newChildren[newIndex - 1];
+  const nextNew = newChildren[newIndex + 1];
+
+  // Find where these nodes are in the current children
+  let prevCurrentIndex = -1;
+  let nextCurrentIndex = -1;
+
+  if (prevNew) {
+    prevCurrentIndex = currentChildren.findIndex(
+      (node) => calculateNodeSimilarity(node, prevNew) > 0.8,
     );
+  }
 
-    if (matchIndex !== -1) {
-      // Update matching node
-      processed.add(matchIndex);
-      updateNode(currentChild, newChildren[matchIndex]);
-    } else if (!newChildren[i]) {
-      // Remove if no new node exists at this position
-      currentChild.remove();
-    }
-  });
+  if (nextNew) {
+    nextCurrentIndex = currentChildren.findIndex(
+      (node) => calculateNodeSimilarity(node, nextNew) > 0.8,
+    );
+  }
 
-  // Second pass: add new nodes that weren't processed
-  newChildren.forEach((newChild, i) => {
-    if (!processed.has(i)) {
-      currentNode.appendChild(newChild.cloneNode(true));
-    }
-  });
+  // Determine best position based on surrounding nodes
+  if (prevCurrentIndex !== -1 && nextCurrentIndex !== -1) {
+    return prevCurrentIndex + 1;
+  } else if (prevCurrentIndex !== -1) {
+    return prevCurrentIndex + 1;
+  } else if (nextCurrentIndex !== -1) {
+    return nextCurrentIndex;
+  }
+
+  // Fallback to proportional position
+  return Math.floor((newIndex * currentChildren.length) / newChildren.length);
 }
 
 function updateNode(currentNode, newNode) {
@@ -10715,6 +10807,22 @@ function instanceMethods(instanceName) {
       }
     },
 
+    push: function (arrayPath, value) {
+      let array = _resolvePath.call(this, arrayPath);
+      if (!Array.isArray(array)) {
+        errorLog$1("Target at path is not an array: " + arrayPath);
+        return this;
+      }
+
+      try {
+        array.push(value);
+        return this._updateDOM();
+      } catch (error) {
+        errorLog$1(error.message);
+        return this;
+      }
+    },
+
     updateWhere: function (arrayPath, criteria, updates) {
       let array = _resolvePath.call(this, arrayPath);
       if (!Array.isArray(array)) {
@@ -10791,8 +10899,12 @@ function compileTemplate(templateId, recompile = false) {
 }
 
 const memoizedCompile = memoize(function (templateId) {
+  // if templateId is empty or "self", use the current element
   Performance.start("compile:" + templateId);
-  var templateElement = document.querySelector(templateId);
+
+  // Add # prefix if templateId doesn't start with it
+  const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
+  var templateElement = document.querySelector(selector);
 
   log("Trying to compile template: " + templateId);
 
@@ -11535,53 +11647,86 @@ function executeHelper() {
   });
 }
 
+/**
+ * Registers a Handlebars helper that creates an animated bunny ASCII art.
+ * The bunny alternates between two states: normal and flipped.
+ *
+ * Requirements:
+ * - Handlebars must be loaded globally before calling this function
+ * - Runs in browser environment (uses window and document)
+ *
+ * The helper creates:
+ * - Global window.bunnyStates object storing ASCII art variants
+ * - Global window.bunnyAnimation function managing animation
+ * - Global window.bunnyAnimationIntervalId for animation control
+ *
+ * Usage in Handlebars template:
+ * {{bunny}}
+ *
+ * @returns {void}
+ */
 function bunnyHelper() {
-  Handlebars.registerHelper("bunny", function () {
-    // Returns a cute bunny
-    // It gives out hearts! <3
-    // Example: {{bunny}}
+  if (typeof Handlebars === "undefined") {
+    console.error("Handlebars is not loaded yet!");
+    return;
+  }
 
-    var bunny = `
-        &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
-        ପ(˶•-•˶)ଓ ♡<br>
-        &nbsp;&nbsp;&nbsp;/づ  づ
-      `;
+  // Only register once
+  if (Handlebars.helpers.bunny) {
+    return;
+  }
 
-    var bunnyFlipped = `
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
-        &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
-        &nbsp;&nbsp;♡じ  じ\\
-      `;
+  const bunny = `
+    &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
+    ପ(˶•-•˶)ଓ ♡<br>
+    &nbsp;&nbsp;&nbsp;/づ  づ
+  `;
 
-    // Create wrapper with unique class for animation targeting
-    var wrapper = `<span class="fp-bunny" data-bunny-state="normal">${bunny}</span>`;
+  const bunnyFlipped = `
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
+    &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
+    &nbsp;&nbsp;♡じ  じ\\
+  `;
 
-    // Add animation script if not already present
-    if (!window.bunnyAnimation) {
-      window.bunnyAnimation = function () {
-        if (window.bunnyAnimationIntervalId) {
-          clearInterval(window.bunnyAnimationIntervalId);
-        }
-        window.bunnyAnimationIntervalId = setInterval(function () {
-          document.querySelectorAll(".fp-bunny").forEach(function (element) {
-            const currentState = element.getAttribute("data-bunny-state");
-            if (currentState === "normal") {
-              element.innerHTML = bunnyFlipped;
-              element.setAttribute("data-bunny-state", "flipped");
-            } else {
-              element.innerHTML = bunny;
-              element.setAttribute("data-bunny-state", "normal");
-            }
-          });
-        }, 1000);
-      };
+  // Store bunny states globally
+  window.bunnyStates = {
+    bunny,
+    bunnyFlipped,
+  };
 
-      // Start animation immediately
-      window.bunnyAnimation();
+  // Initialize animation function
+  window.bunnyAnimation = function () {
+    if (window.bunnyAnimationIntervalId) {
+      clearInterval(window.bunnyAnimationIntervalId);
     }
+    window.bunnyAnimationIntervalId = setInterval(function () {
+      document.querySelectorAll(".fp-bunny").forEach(function (element) {
+        const currentState = element.getAttribute("data-bunny-state");
+        if (currentState === "normal") {
+          element.innerHTML = window.bunnyStates.bunnyFlipped;
+          element.setAttribute("data-bunny-state", "flipped");
+        } else {
+          element.innerHTML = window.bunnyStates.bunny;
+          element.setAttribute("data-bunny-state", "normal");
+        }
+      });
+    }, 1000);
+  };
+
+  // Register the helper
+  Handlebars.registerHelper("bunny", function () {
+    const wrapper = `<span class="fp-bunny" data-bunny-state="normal">${window.bunnyStates.bunny}</span>`;
+
+    // Start animation on next tick
+    setTimeout(window.bunnyAnimation, 0);
 
     return new Handlebars.SafeString(wrapper);
   });
+
+  // Start animation if there are already bunnies on the page
+  if (document.querySelectorAll(".fp-bunny").length > 0) {
+    window.bunnyAnimation();
+  }
 }
 
 function registerHelpers() {
@@ -11593,14 +11738,31 @@ function registerHelpers() {
   bunnyHelper();
 }
 
+/**
+ * @module RequestHandler
+ * @description Manages HTMX request processing and lifecycle events for form processing elements
+ */
 const RequestHandler = {
+  /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
   processingElements: new Map(),
+  /** @type {number} Counter for generating unique request IDs */
   currentRequestId: 0,
 
+  /**
+   * Generates a unique request ID using timestamp and counter
+   * @returns {string} Unique request identifier
+   */
   generateRequestId() {
     return `fp-${Date.now()}-${this.currentRequestId++}`;
   },
 
+  /**
+   * Handles different stages of request processing for a target element
+   * @param {HTMLElement} target - The DOM element being processed
+   * @param {string} requestId - Unique identifier for the request
+   * @param {'start'|'process'|'cleanup'} action - The action to perform
+   * @returns {boolean|void} Returns true if processing succeeded for 'process' action
+   */
   handleRequest(target, requestId, action) {
     if (!target || !target.hasAttribute("fp-template")) return;
 
@@ -11650,6 +11812,9 @@ const RequestHandler = {
     }
   },
 
+  /**
+   * Removes stale processing entries that are older than the timeout threshold
+   */
   cleanupStale() {
     const now = Date.now();
     const staleTimeout = 10000; // 10 seconds
@@ -11667,6 +11832,9 @@ const RequestHandler = {
     }
   },
 
+  /**
+   * Sets up all necessary event listeners for HTMX integration and request handling
+   */
   setupEventListeners() {
     document.body.addEventListener("htmx:configRequest", (event) => {
       // event.detail.headers = "";
@@ -12187,13 +12355,42 @@ function addHtmxExtensionAttribute(element) {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* ANCHOR                      FlowPlater module                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @namespace FlowPlater
+ * @description Core FlowPlater module that provides template processing and dynamic content management.
+ * Integrates with HTMX and Handlebars to provide a seamless templating and interaction experience.
+ * @version 1.4.19
+ * @author JWSLS
+ * @license Flowplater standard licence
+ */
 var FlowPlater = (function () {
 
   const VERSION = "1.4.19";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
-  // Default configuration
+  /**
+   * @typedef {Object} FlowPlaterConfig
+   * @property {Object} debug - Debug configuration settings
+   * @property {number} debug.level - Debug level (0-4)
+   * @property {boolean} debug.enabled - Enable/disable debug mode
+   * @property {Object} selectors - DOM selector configurations
+   * @property {string} selectors.fp - Main FlowPlater element selector
+   * @property {Object} templates - Template handling configuration
+   * @property {number} templates.cacheSize - Maximum number of cached templates
+   * @property {boolean} templates.precompile - Whether to precompile templates
+   * @property {Object} animation - Animation settings
+   * @property {boolean} animation.enabled - Enable/disable animations
+   * @property {number} animation.duration - Animation duration in milliseconds
+   * @property {Object} htmx - HTMX configuration
+   * @property {number} htmx.timeout - Request timeout in milliseconds
+   * @property {string} htmx.swapStyle - Default content swap style
+   * @property {Object} customTags - Custom tag definitions
+   */
   const defaultConfig = {
     debug: {
       level: 3,
@@ -12247,7 +12444,17 @@ var FlowPlater = (function () {
   /* ANCHOR                 process(element = document)                         */
   /* -------------------------------------------------------------------------- */
 
+  /**
+   * @namespace ProcessingChain
+   * @description Handles the sequential processing of FlowPlater elements through various transformation phases.
+   * Each processor in the chain performs a specific modification or setup task on the element.
+   */
   const ProcessingChain = {
+    /**
+     * @type {Array<Object>}
+     * @property {string} name - Name of the processor
+     * @property {Function} process - Processing function
+     */
     processors: [
       {
         name: "customTags",
@@ -12286,9 +12493,19 @@ var FlowPlater = (function () {
       },
     ],
 
-    FP_SELECTOR:
-      "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]",
+    /**
+     * @type {string}
+     * @description Selector used to identify FlowPlater elements in the DOM
+     */
+    FP_SELECTOR: "[fp-template], [fp-get], [fp-post], [fp-delete], [fp-patch]",
 
+    /**
+     * @function processElement
+     * @param {HTMLElement} element - The DOM element to process
+     * @returns {HTMLElement} The processed element
+     * @description Processes a single FlowPlater element through all registered processors.
+     * Handles errors and maintains processing state throughout the chain.
+     */
     processElement: function (element) {
       // Clean up any existing preload listeners
       if (element._preloadCleanup) {
@@ -12360,6 +12577,13 @@ var FlowPlater = (function () {
     },
   };
 
+  /**
+   * @function process
+   * @param {HTMLElement} [element=document] - The root element to process
+   * @description Processes FlowPlater elements within the given element or document.
+   * If the element itself matches FlowPlater selectors, processes just that element.
+   * Otherwise, finds and processes all matching child elements.
+   */
   function process(element = document) {
     // If processing document or non-matching element, find and process all matching children
     if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
@@ -12447,6 +12671,14 @@ var FlowPlater = (function () {
       },
     },
 
+    /**
+     * @function init
+     * @param {HTMLElement} [element=document] - Root element to initialize
+     * @param {Object} [options={ render: true }] - Initialization options
+     * @returns {FlowPlaterObj} The FlowPlater instance
+     * @description Initializes FlowPlater functionality for the given element or entire document.
+     * Processes templates, loads configuration, and sets up event handling.
+     */
     init: function (element = document, options = { render: true }) {
       Performance.start("init");
       Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
@@ -12455,17 +12687,42 @@ var FlowPlater = (function () {
       const templates = document.querySelectorAll("[fp-template]");
       templates.forEach((template) => {
         const templateId = template.getAttribute("fp-template");
+        if (templateId === "self" || templateId === "") {
+          templateId = template.id;
+        }
+
         if (templateId) {
           // Compile the template using the templateId from the attribute
           compileTemplate(templateId, true);
-          // Only render if options.render is true
+
+          // Only render if options.render is true AND element doesn't have HTMX/FP methods
           if (options.render) {
-            render({
-              template: templateId,
-              data: {},
-              target: template,
-            });
+            const methods = ["get", "post", "put", "patch", "delete"];
+            const hasHtmxMethod = methods.some(
+              (method) =>
+                template.hasAttribute(`hx-${method}`) ||
+                template.hasAttribute(`fp-${method}`),
+            );
+
+            if (!hasHtmxMethod) {
+              render({
+                template: templateId,
+                data: {},
+                target: template,
+              });
+            } else {
+              Debug.log(
+                Debug.levels.INFO,
+                `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
+              );
+            }
           }
+        } else {
+          errorLog$1(
+            `No template ID found for element: ${template.id}`,
+            template,
+            "Make sure your template has an ID attribute",
+          );
         }
       });
 
@@ -12474,19 +12731,29 @@ var FlowPlater = (function () {
       if (metaConfig) {
         try {
           const config = JSON.parse(metaConfig.content);
-          FlowPlater.configure(config);
+          FlowPlater.config(config);
         } catch (e) {
-          console.error("Error parsing fp-config meta tag:", e);
+          errorLog$1(
+            "Error parsing fp-config meta tag:",
+            metaConfig,
+            "Make sure your meta tag is valid",
+          );
         }
       }
 
-      // Re-run process to apply potentially updated FP_SELECTOR
       process(element);
       Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
       Performance.end("init");
       return this;
     },
 
+    /**
+     * @function cleanup
+     * @param {string} [instanceName] - Name of instance to clean up
+     * @returns {FlowPlaterObj} The FlowPlater instance
+     * @description Cleans up FlowPlater instances and their associated resources.
+     * If no instanceName is provided, cleans up all instances.
+     */
     cleanup: function (instanceName) {
       if (instanceName) {
         const instance = _state.instances[instanceName];
@@ -12520,6 +12787,12 @@ var FlowPlater = (function () {
     // Add method to modify custom tags
     setCustomTags: setCustomTags,
 
+    /**
+     * @function config
+     * @param {FlowPlaterConfig} [newConfig={}] - Configuration options to apply
+     * @returns {FlowPlaterObj} The FlowPlater instance
+     * @description Configures FlowPlater with new settings. Deep merges with existing configuration.
+     */
     config: function (newConfig = {}) {
       // Deep merge configuration
       function deepMerge(target, source) {
@@ -12584,6 +12857,14 @@ var FlowPlater = (function () {
       log("Cleaned up all instances");
     },
 
+    /**
+     * @function create
+     * @param {string} instanceName - Name or selector for the new instance
+     * @param {Object} [options={ refresh: true }] - Creation options
+     * @returns {Object} The created FlowPlater instance
+     * @throws {FlowPlaterError} If element cannot be found or instance creation fails
+     * @description Creates a new FlowPlater instance for the specified element.
+     */
     create: function (instanceName, options = { refresh: true }) {
       Performance.start(`createInstance:${instanceName}`);
       Debug.log(
@@ -12640,12 +12921,16 @@ var FlowPlater = (function () {
   return FlowPlaterObj;
 })();
 
+/**
+ * @description Automatically initializes FlowPlater when the DOM is ready.
+ * Uses a small timeout to ensure proper initialization after other scripts.
+ */
 if (document.readyState === "complete" || document.readyState !== "loading") {
   setTimeout(() => {
     try {
       FlowPlater.init();
     } catch (error) {
-      console.error("FlowPlater initialization failed:", error);
+      errorLog$1("FlowPlater initialization failed:", error);
     }
   }, 1);
 } else {
@@ -12654,7 +12939,7 @@ if (document.readyState === "complete" || document.readyState !== "loading") {
       try {
         FlowPlater.init();
       } catch (error) {
-        console.error("FlowPlater initialization failed:", error);
+        errorLog$1("FlowPlater initialization failed:", error);
       }
     }, 1);
   });

@@ -1,14 +1,31 @@
 import { Debug } from "./Debug";
 import { EventSystem } from "./EventSystem";
 
+/**
+ * @module RequestHandler
+ * @description Manages HTMX request processing and lifecycle events for form processing elements
+ */
 export const RequestHandler = {
+  /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
   processingElements: new Map(),
+  /** @type {number} Counter for generating unique request IDs */
   currentRequestId: 0,
 
+  /**
+   * Generates a unique request ID using timestamp and counter
+   * @returns {string} Unique request identifier
+   */
   generateRequestId() {
     return `fp-${Date.now()}-${this.currentRequestId++}`;
   },
 
+  /**
+   * Handles different stages of request processing for a target element
+   * @param {HTMLElement} target - The DOM element being processed
+   * @param {string} requestId - Unique identifier for the request
+   * @param {'start'|'process'|'cleanup'} action - The action to perform
+   * @returns {boolean|void} Returns true if processing succeeded for 'process' action
+   */
   handleRequest(target, requestId, action) {
     if (!target || !target.hasAttribute("fp-template")) return;
 
@@ -58,6 +75,9 @@ export const RequestHandler = {
     }
   },
 
+  /**
+   * Removes stale processing entries that are older than the timeout threshold
+   */
   cleanupStale() {
     const now = Date.now();
     const staleTimeout = 10000; // 10 seconds
@@ -75,6 +95,9 @@ export const RequestHandler = {
     }
   },
 
+  /**
+   * Sets up all necessary event listeners for HTMX integration and request handling
+   */
   setupEventListeners() {
     document.body.addEventListener("htmx:configRequest", (event) => {
       // event.detail.headers = "";

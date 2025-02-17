@@ -613,7 +613,7 @@ THE SOFTWARE.
         e.exports = r(21).Symbol;
     }, function(N, M, e) {
         "use strict";
-        var t = e(9), r = e(16), s = e(17), n = e(18), a = e(20), i = e(24), o = e(19), l = e(27), u = e(28), F = e(30), c = e(29), q = e(31), f = e(36), B = e(37), $ = e(38), V = e(39), h = e(32), p = e(26), d = t.getDesc, g = t.setDesc, m = t.create, v = f.get, b = r.Symbol, y = r.JSON, E = y && y.stringify, x = false, S = c("_hidden"), j = t.isEnum, w = l("symbol-registry"), k = l("symbols"), A = typeof b == "function", C = Object.prototype;
+        var t = e(9), r = e(16), s = e(17), n = e(18), a = e(20), i = e(24), o = e(19), l = e(27), u = e(28), F = e(30), c = e(29), $ = e(31), f = e(36), B = e(37), q = e(38), V = e(39), h = e(32), p = e(26), d = t.getDesc, g = t.setDesc, m = t.create, v = f.get, b = r.Symbol, y = r.JSON, E = y && y.stringify, x = false, S = c("_hidden"), j = t.isEnum, w = l("symbol-registry"), k = l("symbols"), A = typeof b == "function", C = Object.prototype;
         var _ = n && o(function() {
             return m(g({}, "a", {
                 get: function() {
@@ -667,11 +667,11 @@ THE SOFTWARE.
         var D = function e(t, r) {
             return r === undefined ? m(t) : T(m(t), r);
         };
-        var R = function e(t) {
+        var H = function e(t) {
             var r = j.call(this, t);
             return r || !s(this, t) || !s(k, t) || s(this, S) && this[S][t] ? r : true;
         };
-        var H = function e(t, r) {
+        var R = function e(t, r) {
             var n = d(t = h(t), r);
             if (n && s(k, r) && !(s(t, S) && t[S][r])) n.enumerable = true;
             return n;
@@ -692,7 +692,7 @@ THE SOFTWARE.
             while (a.length > n) r.push(a[n++]);
             i = r[1];
             if (typeof i == "function") s = i;
-            if (s || !$(i)) i = function(e, t) {
+            if (s || !q(i)) i = function(e, t) {
                 if (s) t = s.call(this, e, t);
                 if (!I(t)) return t;
             };
@@ -717,14 +717,14 @@ THE SOFTWARE.
                 return e instanceof b;
             };
             t.create = D;
-            t.isEnum = R;
-            t.getDesc = H;
+            t.isEnum = H;
+            t.getDesc = R;
             t.setDesc = O;
             t.setDescs = T;
             t.getNames = f.get = L;
             t.getSymbols = U;
             if (n && !e(41)) {
-                i(C, "propertyIsEnumerable", R, true);
+                i(C, "propertyIsEnumerable", H, true);
             }
         }
         var G = {
@@ -732,7 +732,7 @@ THE SOFTWARE.
                 return s(w, e += "") ? w[e] : w[e] = b(e);
             },
             keyFor: function e(t) {
-                return q(w, t);
+                return $(w, t);
             },
             useSetter: function() {
                 x = true;
@@ -754,7 +754,7 @@ THE SOFTWARE.
             create: D,
             defineProperty: O,
             defineProperties: T,
-            getOwnPropertyDescriptor: H,
+            getOwnPropertyDescriptor: R,
             getOwnPropertyNames: L,
             getOwnPropertySymbols: U
         });
@@ -8692,7 +8692,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 var F = function(e) {
                     return issueAjaxRequest(t, r, n, a, i, !!e);
                 };
-                var q = {
+                var $ = {
                     target: u,
                     elt: n,
                     path: r,
@@ -8702,7 +8702,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     issueRequest: F,
                     question: d
                 };
-                if (triggerEvent(n, "htmx:confirm", q) === false) {
+                if (triggerEvent(n, "htmx:confirm", $) === false) {
                     maybeCall(s);
                     return l;
                 }
@@ -8713,11 +8713,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             var b = false;
             if (m) {
                 var B = m.split(":");
-                var $ = B[0].trim();
-                if ($ === "this") {
+                var q = B[0].trim();
+                if (q === "this") {
                     g = findThisElement(n, "hx-sync");
                 } else {
-                    g = querySelectorExt(n, $);
+                    g = querySelectorExt(n, q);
                 }
                 m = (B[1] || "drop").trim();
                 c = getInternalData(g);
@@ -8896,7 +8896,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                 }
             }
-            var R = {
+            var H = {
                 xhr: E,
                 target: u,
                 requestConfig: I,
@@ -8912,11 +8912,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             E.onload = function() {
                 try {
                     var e = hierarchyForElt(n);
-                    R.pathInfo.responsePath = getPathFromResponse(E);
-                    N(n, R);
-                    removeRequestIndicators(H, L);
-                    triggerEvent(n, "htmx:afterRequest", R);
-                    triggerEvent(n, "htmx:afterOnLoad", R);
+                    H.pathInfo.responsePath = getPathFromResponse(E);
+                    N(n, H);
+                    removeRequestIndicators(R, L);
+                    triggerEvent(n, "htmx:afterRequest", H);
+                    triggerEvent(n, "htmx:afterOnLoad", H);
                     if (!bodyContains(n)) {
                         var t = null;
                         while (e.length > 0 && t == null) {
@@ -8926,8 +8926,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             }
                         }
                         if (t) {
-                            triggerEvent(t, "htmx:afterRequest", R);
-                            triggerEvent(t, "htmx:afterOnLoad", R);
+                            triggerEvent(t, "htmx:afterRequest", H);
+                            triggerEvent(t, "htmx:afterOnLoad", H);
                         }
                     }
                     maybeCall(s);
@@ -8935,37 +8935,37 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 } catch (e) {
                     triggerErrorEvent(n, "htmx:onLoadError", mergeObjects({
                         error: e
-                    }, R));
+                    }, H));
                     throw e;
                 }
             };
             E.onerror = function() {
-                removeRequestIndicators(H, L);
-                triggerErrorEvent(n, "htmx:afterRequest", R);
-                triggerErrorEvent(n, "htmx:sendError", R);
+                removeRequestIndicators(R, L);
+                triggerErrorEvent(n, "htmx:afterRequest", H);
+                triggerErrorEvent(n, "htmx:sendError", H);
                 maybeCall(o);
                 x();
             };
             E.onabort = function() {
-                removeRequestIndicators(H, L);
-                triggerErrorEvent(n, "htmx:afterRequest", R);
-                triggerErrorEvent(n, "htmx:sendAbort", R);
+                removeRequestIndicators(R, L);
+                triggerErrorEvent(n, "htmx:afterRequest", H);
+                triggerErrorEvent(n, "htmx:sendAbort", H);
                 maybeCall(o);
                 x();
             };
             E.ontimeout = function() {
-                removeRequestIndicators(H, L);
-                triggerErrorEvent(n, "htmx:afterRequest", R);
-                triggerErrorEvent(n, "htmx:timeout", R);
+                removeRequestIndicators(R, L);
+                triggerErrorEvent(n, "htmx:afterRequest", H);
+                triggerErrorEvent(n, "htmx:timeout", H);
                 maybeCall(o);
                 x();
             };
-            if (!triggerEvent(n, "htmx:beforeRequest", R)) {
+            if (!triggerEvent(n, "htmx:beforeRequest", H)) {
                 maybeCall(s);
                 x();
                 return l;
             }
-            var H = addRequestIndicatorClasses(n);
+            var R = addRequestIndicatorClasses(n);
             var L = disableElements(n);
             forEach([ "loadstart", "loadend", "progress", "abort" ], function(t) {
                 forEach([ E, E.upload ], function(e) {
@@ -8978,7 +8978,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     });
                 });
             });
-            triggerEvent(n, "htmx:beforeSend", R);
+            triggerEvent(n, "htmx:beforeSend", H);
             var Z = P ? null : encodeParamsForBody(E, n, C);
             E.send(Z);
             return l;
@@ -9578,33 +9578,82 @@ function updateDOM(e, t) {
     }
 }
 
-function diffNodes(r, e) {
-    if (!r || !e) return;
-    if (r.isEqualNode(e)) {
-        return;
+function diffNodes(a, e) {
+    if (!a || !e) return;
+    if (a.isEqualNode(e)) return;
+    const i = Array.from(a.childNodes);
+    const s = Array.from(e.childNodes);
+    const t = i.map(t => s.map(e => calculateNodeSimilarity(t, e)));
+    const o = new Set();
+    const l = new Set();
+    t.forEach((e, t) => {
+        const r = Math.max(...e);
+        if (r > .8) {
+            const n = e.indexOf(r);
+            if (!l.has(n)) {
+                updateNode(i[t], s[n]);
+                o.add(t);
+                l.add(n);
+            }
+        }
+    });
+    s.forEach((e, t) => {
+        if (l.has(t)) return;
+        const r = findBestInsertionPosition(e, i, s, t);
+        const n = e.cloneNode(true);
+        if (r < i.length) {
+            a.insertBefore(n, i[r]);
+        } else {
+            a.appendChild(n);
+        }
+        l.add(t);
+    });
+    i.forEach((e, t) => {
+        if (!o.has(t)) {
+            e.remove();
+        }
+    });
+}
+
+function calculateNodeSimilarity(e, t) {
+    if (!e || !t) return 0;
+    if (e.nodeType !== t.nodeType) return 0;
+    if (e.nodeType === Node.TEXT_NODE) {
+        const r = e.textContent.trim();
+        const n = t.textContent.trim();
+        return r === n ? 1 : 0;
     }
-    const t = Array.from(r.childNodes);
-    const a = Array.from(e.childNodes);
-    const i = new Set();
-    t.forEach((r, e) => {
-        const t = a[e];
-        if (r && t && r.isEqualNode(t)) {
-            i.add(e);
-            return;
-        }
-        const n = a.findIndex((e, t) => !i.has(t) && e.nodeType === r.nodeType && e.nodeName === r.nodeName);
-        if (n !== -1) {
-            i.add(n);
-            updateNode(r, a[n]);
-        } else if (!a[e]) {
-            r.remove();
-        }
-    });
-    a.forEach((e, t) => {
-        if (!i.has(t)) {
-            r.appendChild(e.cloneNode(true));
-        }
-    });
+    if (e.nodeType === Node.ELEMENT_NODE) {
+        if (e.tagName !== t.tagName) return 0;
+        const a = e.children.length === t.children.length ? .3 : 0;
+        const i = Array.from(e.attributes || []);
+        const s = Array.from(t.attributes || []);
+        const o = i.length === s.length ? .3 : 0;
+        const l = e.textContent === t.textContent ? .4 : 0;
+        return a + o + l;
+    }
+    return 0;
+}
+
+function findBestInsertionPosition(e, t, r, n, a) {
+    const i = r[n - 1];
+    const s = r[n + 1];
+    let o = -1;
+    let l = -1;
+    if (i) {
+        o = t.findIndex(e => calculateNodeSimilarity(e, i) > .8);
+    }
+    if (s) {
+        l = t.findIndex(e => calculateNodeSimilarity(e, s) > .8);
+    }
+    if (o !== -1 && l !== -1) {
+        return o + 1;
+    } else if (o !== -1) {
+        return o + 1;
+    } else if (l !== -1) {
+        return l;
+    }
+    return Math.floor(n * t.length / r.length);
 }
 
 function updateNode(e, r) {
@@ -9934,6 +9983,20 @@ function instanceMethods(u) {
                 return this;
             }
         },
+        push: function(e, t) {
+            let r = a.call(this, e);
+            if (!Array.isArray(r)) {
+                errorLog$1("Target at path is not an array: " + e);
+                return this;
+            }
+            try {
+                r.push(t);
+                return this._updateDOM();
+            } catch (e) {
+                errorLog$1(e.message);
+                return this;
+            }
+        },
         updateWhere: function(e, t, n) {
             let r = a.call(this, e);
             if (!Array.isArray(r)) {
@@ -9998,14 +10061,15 @@ function compileTemplate(e, t = false) {
 
 const memoizedCompile = memoize(function(t) {
     Performance.start("compile:" + t);
-    var e = document.querySelector(t);
+    const e = t.startsWith("#") ? t : "#" + t;
+    var r = document.querySelector(e);
     log("Trying to compile template: " + t);
-    if (!e) {
+    if (!r) {
         errorLog$1("Template not found: " + t);
         Performance.end("compile:" + t);
         return null;
     }
-    if (!_state.templateCache[t] || e.hasAttribute("fp-dynamic") && e.getAttribute("fp-dynamic") !== "false") {
+    if (!_state.templateCache[t] || r.hasAttribute("fp-dynamic") && r.getAttribute("fp-dynamic") !== "false") {
         log("compiling template: " + t);
         function u(t) {
             let r = t.tagName.toLowerCase();
@@ -10072,21 +10136,21 @@ const memoizedCompile = memoize(function(t) {
             });
             return l;
         }
-        const r = c(e);
-        log("Compiling Handlebars template: " + r);
+        const n = c(r);
+        log("Compiling Handlebars template: " + n);
         try {
-            const n = Handlebars.compile(r);
-            const a = _state.config?.templates?.cacheSize || 100;
-            if (Object.keys(_state.templateCache).length >= a) {
-                const i = Object.keys(_state.templateCache)[0];
-                delete _state.templateCache[i];
-                log(`Cache limit reached. Removed template: ${i}`);
+            const a = Handlebars.compile(n);
+            const i = _state.config?.templates?.cacheSize || 100;
+            if (Object.keys(_state.templateCache).length >= i) {
+                const s = Object.keys(_state.templateCache)[0];
+                delete _state.templateCache[s];
+                log(`Cache limit reached. Removed template: ${s}`);
             }
-            _state.templateCache[t] = n;
+            _state.templateCache[t] = a;
             Performance.end("compile:" + t);
-            return n;
+            return a;
         } catch (e) {
-            errorLog$1("Template not valid: " + r + " | Error: " + e.message);
+            errorLog$1("Template not valid: " + n + " | Error: " + e.message);
             Performance.end("compile:" + t);
             return null;
         }
@@ -10561,40 +10625,52 @@ function executeHelper() {
 }
 
 function bunnyHelper() {
-    Handlebars.registerHelper("bunny", function() {
-        var r = `
-        &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
-        ପ(˶•-•˶)ଓ ♡<br>
-        &nbsp;&nbsp;&nbsp;/づ  づ
-      `;
-        var n = `
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
-        &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
-        &nbsp;&nbsp;♡じ  じ\\
-      `;
-        var e = `<span class="fp-bunny" data-bunny-state="normal">${r}</span>`;
-        if (!window.bunnyAnimation) {
-            window.bunnyAnimation = function() {
-                if (window.bunnyAnimationIntervalId) {
-                    clearInterval(window.bunnyAnimationIntervalId);
-                }
-                window.bunnyAnimationIntervalId = setInterval(function() {
-                    document.querySelectorAll(".fp-bunny").forEach(function(e) {
-                        const t = e.getAttribute("data-bunny-state");
-                        if (t === "normal") {
-                            e.innerHTML = n;
-                            e.setAttribute("data-bunny-state", "flipped");
-                        } else {
-                            e.innerHTML = r;
-                            e.setAttribute("data-bunny-state", "normal");
-                        }
-                    });
-                }, 1e3);
-            };
-            window.bunnyAnimation();
+    if (typeof Handlebars === "undefined") {
+        console.error("Handlebars is not loaded yet!");
+        return;
+    }
+    if (Handlebars.helpers.bunny) {
+        return;
+    }
+    const e = `
+    &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
+    ପ(˶•-•˶)ଓ ♡<br>
+    &nbsp;&nbsp;&nbsp;/づ  づ
+  `;
+    const t = `
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
+    &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
+    &nbsp;&nbsp;♡じ  じ\\
+  `;
+    window.bunnyStates = {
+        bunny: e,
+        bunnyFlipped: t
+    };
+    window.bunnyAnimation = function() {
+        if (window.bunnyAnimationIntervalId) {
+            clearInterval(window.bunnyAnimationIntervalId);
         }
+        window.bunnyAnimationIntervalId = setInterval(function() {
+            document.querySelectorAll(".fp-bunny").forEach(function(e) {
+                const t = e.getAttribute("data-bunny-state");
+                if (t === "normal") {
+                    e.innerHTML = window.bunnyStates.bunnyFlipped;
+                    e.setAttribute("data-bunny-state", "flipped");
+                } else {
+                    e.innerHTML = window.bunnyStates.bunny;
+                    e.setAttribute("data-bunny-state", "normal");
+                }
+            });
+        }, 1e3);
+    };
+    Handlebars.registerHelper("bunny", function() {
+        const e = `<span class="fp-bunny" data-bunny-state="normal">${window.bunnyStates.bunny}</span>`;
+        setTimeout(window.bunnyAnimation, 0);
         return new Handlebars.SafeString(e);
     });
+    if (document.querySelectorAll(".fp-bunny").length > 0) {
+        window.bunnyAnimation();
+    }
 }
 
 function registerHelpers() {
@@ -11037,6 +11113,14 @@ function addHtmxExtensionAttribute(t) {
         return t;
     }
 }
+/**
+ * @namespace FlowPlater
+ * @description Core FlowPlater module that provides template processing and dynamic content management.
+ * Integrates with HTMX and Handlebars to provide a seamless templating and interaction experience.
+ * @version 1.4.19
+ * @author JWSLS
+ * @license Flowplater standard licence
+ */
 
 var FlowPlater = function() {
     const e = "1.4.19";
@@ -11102,7 +11186,7 @@ var FlowPlater = function() {
                 return e;
             }
         } ],
-        FP_SELECTOR: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]",
+        FP_SELECTOR: "[fp-template], [fp-get], [fp-post], [fp-delete], [fp-patch]",
         processElement: function(a) {
             if (a._preloadCleanup) {
                 a._preloadCleanup();
@@ -11209,32 +11293,43 @@ var FlowPlater = function() {
                 return Object.keys(_state.templateCache).length;
             }
         },
-        init: function(e = document, r = {
+        init: function(e = document, a = {
             render: true
         }) {
             Performance.start("init");
             Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
             const t = document.querySelectorAll("[fp-template]");
-            t.forEach(e => {
-                const t = e.getAttribute("fp-template");
-                if (t) {
-                    compileTemplate(t, true);
-                    if (r.render) {
-                        render({
-                            template: t,
-                            data: {},
-                            target: e
-                        });
+            t.forEach(t => {
+                const e = t.getAttribute("fp-template");
+                if (e === "self" || e === "") {
+                    e = t.id;
+                }
+                if (e) {
+                    compileTemplate(e, true);
+                    if (a.render) {
+                        const r = [ "get", "post", "put", "patch", "delete" ];
+                        const n = r.some(e => t.hasAttribute(`hx-${e}`) || t.hasAttribute(`fp-${e}`));
+                        if (!n) {
+                            render({
+                                template: e,
+                                data: {},
+                                target: t
+                            });
+                        } else {
+                            Debug.log(Debug.levels.INFO, `Skipping initial render for template with HTMX/FP methods: ${e}`);
+                        }
                     }
+                } else {
+                    errorLog$1(`No template ID found for element: ${t.id}`, t, "Make sure your template has an ID attribute");
                 }
             });
-            const n = document.querySelector('meta[name="fp-config"]');
-            if (n) {
+            const r = document.querySelector('meta[name="fp-config"]');
+            if (r) {
                 try {
-                    const a = JSON.parse(n.content);
-                    FlowPlater.configure(a);
+                    const n = JSON.parse(r.content);
+                    FlowPlater.config(n);
                 } catch (e) {
-                    console.error("Error parsing fp-config meta tag:", e);
+                    errorLog$1("Error parsing fp-config meta tag:", r, "Make sure your meta tag is valid");
                 }
             }
             i(e);
@@ -11343,7 +11438,7 @@ if (document.readyState === "complete" || document.readyState !== "loading") {
         try {
             FlowPlater.init();
         } catch (e) {
-            console.error("FlowPlater initialization failed:", e);
+            errorLog$1("FlowPlater initialization failed:", e);
         }
     }, 1);
 } else {
@@ -11352,7 +11447,7 @@ if (document.readyState === "complete" || document.readyState !== "loading") {
             try {
                 FlowPlater.init();
             } catch (e) {
-                console.error("FlowPlater initialization failed:", e);
+                errorLog$1("FlowPlater initialization failed:", e);
             }
         }, 1);
     });

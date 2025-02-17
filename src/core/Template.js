@@ -24,8 +24,12 @@ export function compileTemplate(templateId, recompile = false) {
 }
 
 const memoizedCompile = memoize(function (templateId) {
+  // if templateId is empty or "self", use the current element
   Performance.start("compile:" + templateId);
-  var templateElement = document.querySelector(templateId);
+
+  // Add # prefix if templateId doesn't start with it
+  const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
+  var templateElement = document.querySelector(selector);
 
   log("Trying to compile template: " + templateId);
 

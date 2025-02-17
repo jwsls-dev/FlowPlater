@@ -26,6 +26,18 @@ import { animate } from "./Animate";
 import { setupAnimation } from "./SetupAnimation";
 import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
 
+/* -------------------------------------------------------------------------- */
+/* ANCHOR                      FlowPlater module                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @namespace FlowPlater
+ * @description Core FlowPlater module that provides template processing and dynamic content management.
+ * Integrates with HTMX and Handlebars to provide a seamless templating and interaction experience.
+ * @version 1.4.19
+ * @author JWSLS
+ * @license Flowplater standard licence
+ */
 var FlowPlater = (function () {
   "use strict";
 
@@ -33,7 +45,24 @@ var FlowPlater = (function () {
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
-  // Default configuration
+  /**
+   * @typedef {Object} FlowPlaterConfig
+   * @property {Object} debug - Debug configuration settings
+   * @property {number} debug.level - Debug level (0-4)
+   * @property {boolean} debug.enabled - Enable/disable debug mode
+   * @property {Object} selectors - DOM selector configurations
+   * @property {string} selectors.fp - Main FlowPlater element selector
+   * @property {Object} templates - Template handling configuration
+   * @property {number} templates.cacheSize - Maximum number of cached templates
+   * @property {boolean} templates.precompile - Whether to precompile templates
+   * @property {Object} animation - Animation settings
+   * @property {boolean} animation.enabled - Enable/disable animations
+   * @property {number} animation.duration - Animation duration in milliseconds
+   * @property {Object} htmx - HTMX configuration
+   * @property {number} htmx.timeout - Request timeout in milliseconds
+   * @property {string} htmx.swapStyle - Default content swap style
+   * @property {Object} customTags - Custom tag definitions
+   */
   const defaultConfig = {
     debug: {
       level: 3,
@@ -87,7 +116,17 @@ var FlowPlater = (function () {
   /* ANCHOR                 process(element = document)                         */
   /* -------------------------------------------------------------------------- */
 
+  /**
+   * @namespace ProcessingChain
+   * @description Handles the sequential processing of FlowPlater elements through various transformation phases.
+   * Each processor in the chain performs a specific modification or setup task on the element.
+   */
   const ProcessingChain = {
+    /**
+     * @type {Array<Object>}
+     * @property {string} name - Name of the processor
+     * @property {Function} process - Processing function
+     */
     processors: [
       {
         name: "customTags",
@@ -126,9 +165,19 @@ var FlowPlater = (function () {
       },
     ],
 
-    FP_SELECTOR:
-      "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]",
+    /**
+     * @type {string}
+     * @description Selector used to identify FlowPlater elements in the DOM
+     */
+    FP_SELECTOR: "[fp-template], [fp-get], [fp-post], [fp-delete], [fp-patch]",
 
+    /**
+     * @function processElement
+     * @param {HTMLElement} element - The DOM element to process
+     * @returns {HTMLElement} The processed element
+     * @description Processes a single FlowPlater element through all registered processors.
+     * Handles errors and maintains processing state throughout the chain.
+     */
     processElement: function (element) {
       // Clean up any existing preload listeners
       if (element._preloadCleanup) {
@@ -202,6 +251,13 @@ var FlowPlater = (function () {
     },
   };
 
+  /**
+   * @function process
+   * @param {HTMLElement} [element=document] - The root element to process
+   * @description Processes FlowPlater elements within the given element or document.
+   * If the element itself matches FlowPlater selectors, processes just that element.
+   * Otherwise, finds and processes all matching child elements.
+   */
   function process(element = document) {
     // If processing document or non-matching element, find and process all matching children
     if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
@@ -289,6 +345,14 @@ var FlowPlater = (function () {
       },
     },
 
+    /**
+     * @function init
+     * @param {HTMLElement} [element=document] - Root element to initialize
+     * @param {Object} [options={ render: true }] - Initialization options
+     * @returns {FlowPlaterObj} The FlowPlater instance
+     * @description Initializes FlowPlater functionality for the given element or entire document.
+     * Processes templates, loads configuration, and sets up event handling.
+     */
     init: function (element = document, options = { render: true }) {
       Performance.start("init");
       Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
@@ -297,17 +361,42 @@ var FlowPlater = (function () {
       const templates = document.querySelectorAll("[fp-template]");
       templates.forEach((template) => {
         const templateId = template.getAttribute("fp-template");
+        if (templateId === "self" || templateId === "") {
+          templateId = template.id;
+        }
+
         if (templateId) {
           // Compile the template using the templateId from the attribute
           compileTemplate(templateId, true);
-          // Only render if options.render is true
+
+          // Only render if options.render is true AND element doesn't have HTMX/FP methods
           if (options.render) {
-            render({
-              template: templateId,
-              data: {},
-              target: template,
-            });
+            const methods = ["get", "post", "put", "patch", "delete"];
+            const hasHtmxMethod = methods.some(
+              (method) =>
+                template.hasAttribute(`hx-${method}`) ||
+                template.hasAttribute(`fp-${method}`),
+            );
+
+            if (!hasHtmxMethod) {
+              render({
+                template: templateId,
+                data: {},
+                target: template,
+              });
+            } else {
+              Debug.log(
+                Debug.levels.INFO,
+                `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
+              );
+            }
           }
+        } else {
+          errorLog(
+            `No template ID found for element: ${template.id}`,
+            template,
+            "Make sure your template has an ID attribute",
+          );
         }
       });
 
@@ -316,19 +405,29 @@ var FlowPlater = (function () {
       if (metaConfig) {
         try {
           const config = JSON.parse(metaConfig.content);
-          FlowPlater.configure(config);
+          FlowPlater.config(config);
         } catch (e) {
-          console.error("Error parsing fp-config meta tag:", e);
+          errorLog(
+            "Error parsing fp-config meta tag:",
+            metaConfig,
+            "Make sure your meta tag is valid",
+          );
         }
       }
 
-      // Re-run process to apply potentially updated FP_SELECTOR
       process(element);
       Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
       Performance.end("init");
       return this;
     },
 
+    /**
+     * @function cleanup
+     * @param {string} [instanceName] - Name of instance to clean up
+     * @returns {FlowPlaterObj} The FlowPlater instance
+     * @description Cleans up FlowPlater instances and their associated resources.
+     * If no instanceName is provided, cleans up all instances.
+     */
     cleanup: function (instanceName) {
       if (instanceName) {
         const instance = _state.instances[instanceName];
@@ -362,6 +461,12 @@ var FlowPlater = (function () {
     // Add method to modify custom tags
     setCustomTags: setCustomTags,
 
+    /**
+     * @function config
+     * @param {FlowPlaterConfig} [newConfig={}] - Configuration options to apply
+     * @returns {FlowPlaterObj} The FlowPlater instance
+     * @description Configures FlowPlater with new settings. Deep merges with existing configuration.
+     */
     config: function (newConfig = {}) {
       // Deep merge configuration
       function deepMerge(target, source) {
@@ -426,6 +531,14 @@ var FlowPlater = (function () {
       log("Cleaned up all instances");
     },
 
+    /**
+     * @function create
+     * @param {string} instanceName - Name or selector for the new instance
+     * @param {Object} [options={ refresh: true }] - Creation options
+     * @returns {Object} The created FlowPlater instance
+     * @throws {FlowPlaterError} If element cannot be found or instance creation fails
+     * @description Creates a new FlowPlater instance for the specified element.
+     */
     create: function (instanceName, options = { refresh: true }) {
       Performance.start(`createInstance:${instanceName}`);
       Debug.log(
@@ -482,12 +595,16 @@ var FlowPlater = (function () {
   return FlowPlaterObj;
 })();
 
+/**
+ * @description Automatically initializes FlowPlater when the DOM is ready.
+ * Uses a small timeout to ensure proper initialization after other scripts.
+ */
 if (document.readyState === "complete" || document.readyState !== "loading") {
   setTimeout(() => {
     try {
       FlowPlater.init();
     } catch (error) {
-      console.error("FlowPlater initialization failed:", error);
+      errorLog("FlowPlater initialization failed:", error);
     }
   }, 1);
 } else {
@@ -496,7 +613,7 @@ if (document.readyState === "complete" || document.readyState !== "loading") {
       try {
         FlowPlater.init();
       } catch (error) {
-        console.error("FlowPlater initialization failed:", error);
+        errorLog("FlowPlater initialization failed:", error);
       }
     }, 1);
   });
