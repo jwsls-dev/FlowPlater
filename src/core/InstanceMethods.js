@@ -299,6 +299,22 @@ export function instanceMethods(instanceName) {
       }
     },
 
+    push: function (arrayPath, value) {
+      let array = _resolvePath.call(this, arrayPath);
+      if (!Array.isArray(array)) {
+        errorLog("Target at path is not an array: " + arrayPath);
+        return this;
+      }
+
+      try {
+        array.push(value);
+        return this._updateDOM();
+      } catch (error) {
+        errorLog(error.message);
+        return this;
+      }
+    },
+
     updateWhere: function (arrayPath, criteria, updates) {
       let array = _resolvePath.call(this, arrayPath);
       if (!Array.isArray(array)) {
