@@ -48,7 +48,7 @@ var FlowPlater = (function () {
   /**
    * @typedef {Object} FlowPlaterConfig
    * @property {Object} debug - Debug configuration settings
-   * @property {number} debug.level - Debug level (0-4)
+   * @property {number} debug.level - Debug level (0-3, 0 = error, 1 = warning, 2 = info, 3 = debug)
    * @property {boolean} debug.enabled - Enable/disable debug mode
    * @property {Object} selectors - DOM selector configurations
    * @property {string} selectors.fp - Main FlowPlater element selector
@@ -65,7 +65,7 @@ var FlowPlater = (function () {
    */
   const defaultConfig = {
     debug: {
-      level: 3,
+      level: window.location.hostname.endsWith(".webflow.io") ? 3 : 1,
       enabled: true,
     },
     selectors: {
@@ -107,10 +107,6 @@ var FlowPlater = (function () {
   // Initialize request handling
   RequestHandler.setupEventListeners();
   defineHtmxExtension();
-
-  /* -------------------------------------------------------------------------- */
-  /* ANCHOR                    setupAnimation(element)                          */
-  /* -------------------------------------------------------------------------- */
 
   /* -------------------------------------------------------------------------- */
   /* ANCHOR                 process(element = document)                         */
@@ -319,15 +315,32 @@ var FlowPlater = (function () {
         cache[templateId] = template;
         return template;
       },
+
+      /**
+       * Get a template from the cache
+       * @param {string} templateId - The ID of the template to get
+       * @returns {Object} The template object or all templates if no ID is provided
+       */
       get: function (templateId) {
         if (templateId) {
           return _state.templateCache[templateId];
         }
         return _state.templateCache;
       },
+
+      /**
+       * Check if a template is cached
+       * @param {string} templateId - The ID of the template to check
+       * @returns {boolean} True if the template is cached, false otherwise
+       */
       isCached: function (templateId) {
         return !!_state.templateCache[templateId];
       },
+
+      /**
+       * Clear a template from the cache
+       * @param {string} templateId - The ID of the template to clear
+       */
       clear: function (templateId) {
         if (templateId) {
           delete _state.templateCache[templateId];
@@ -340,6 +353,11 @@ var FlowPlater = (function () {
           Debug.log(Debug.levels.INFO, "Cleared entire template cache");
         }
       },
+
+      /**
+       * Get the size of the template cache
+       * @returns {number} The number of templates in the cache
+       */
       size: function () {
         return Object.keys(_state.templateCache).length;
       },
@@ -360,7 +378,7 @@ var FlowPlater = (function () {
       // Process any templates on the page
       const templates = document.querySelectorAll("[fp-template]");
       templates.forEach((template) => {
-        const templateId = template.getAttribute("fp-template");
+        let templateId = template.getAttribute("fp-template");
         if (templateId === "self" || templateId === "") {
           templateId = template.id;
         }
@@ -437,6 +455,8 @@ var FlowPlater = (function () {
             if (element._preloadCleanup) {
               element._preloadCleanup();
             }
+            // Remove DOM event listeners
+            element.removeEventListeners();
           });
 
           // Remove instance
@@ -511,10 +531,19 @@ var FlowPlater = (function () {
       return this;
     },
 
+    /**
+     * Get the current configuration
+     * @returns {Object} The current configuration
+     */
     getConfig: function () {
       return JSON.parse(JSON.stringify(_state.config));
     },
 
+    /**
+     * Destroy the FlowPlater instance
+     * @description Cleans up all instances and their associated resources.
+     * Also clears the template cache and event listeners.
+     */
     destroy: function () {
       // Clean up all instances
       Object.keys(_state.instances).forEach((name) => {
@@ -594,6 +623,10 @@ var FlowPlater = (function () {
 
   return FlowPlaterObj;
 })();
+
+/* -------------------------------------------------------------------------- */
+/* ANCHOR                          Auto init                                  */
+/* -------------------------------------------------------------------------- */
 
 /**
  * @description Automatically initializes FlowPlater when the DOM is ready.
