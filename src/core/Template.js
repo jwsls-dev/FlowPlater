@@ -285,19 +285,13 @@ export function render({
         updateDOM(element, instance.template(instance.proxy));
       } catch (error) {
         element.innerHTML = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
-        Debug.log(
-          Debug.levels.ERROR,
-          `Failed to render template: ${error.message}`,
-        );
+        errorLog(`Failed to render template: ${error.message}`);
       }
     });
 
     return instance;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Failed to render template: ${error.message}`,
-    );
+    errorLog(`Failed to render template: ${error.message}`);
     throw error;
   } finally {
     EventSystem.publish("afterRender", {
