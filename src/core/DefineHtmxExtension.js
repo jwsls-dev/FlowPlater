@@ -1,7 +1,9 @@
 import { RequestHandler } from "./RequestHandler";
-import { Debug } from "./Debug";
+import { Debug, errorLog, log } from "./Debug";
 import { render } from "./Template";
 import { parseXmlToJson } from "../utils/ParseXmlToJson";
+import { updateDOM } from "../utils/UpdateDom";
+import { _state } from "./State";
 
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
@@ -44,24 +46,18 @@ export function defineHtmxExtension() {
           data = JSON.parse(text);
         }
       } catch (e) {
-        Debug.log(Debug.levels.ERROR, "Failed to parse response:", e);
+        errorLog("Failed to parse response:", e);
         return text;
       }
 
       var templateId = elt.getAttribute("fp-template");
-      Debug.log(
-        Debug.levels.INFO,
-        "Response received for request " + requestId + ": " + text,
-      );
+      log("Response received for request " + requestId + ": " + text);
 
       // Render template
       try {
         let rendered;
         if (templateId) {
-          Debug.log(
-            Debug.levels.INFO,
-            "Rendering html to " + templateId + " based on htmx response",
-          );
+          log("Rendering html to " + templateId + " based on htmx response");
           rendered = render({
             template: templateId,
             data: data,
@@ -70,16 +66,12 @@ export function defineHtmxExtension() {
           });
         } else {
           if (!elt.id) {
-            Debug.log(
-              Debug.levels.ERROR,
+            errorLog(
               "No template found. If the current element is a template, it must have an id.",
             );
             return text;
           }
-          Debug.log(
-            Debug.levels.INFO,
-            "Rendering html to current element based on htmx response",
-          );
+          log("Rendering html to current element based on htmx response");
           var elementTemplateId = "#" + elt.id;
           rendered = render({
             template: elementTemplateId,
@@ -95,12 +87,62 @@ export function defineHtmxExtension() {
             "Template rendered successfully for request",
             requestId,
           );
+          // updateDOM(elt, rendered);
           return rendered;
         }
         return text;
       } catch (error) {
-        Debug.log(Debug.levels.ERROR, "Error rendering template:", error);
+        errorLog("Error rendering template:", error);
         return text;
+      }
+    },
+
+    handleSwap: function (swapStyle, target, fragment, settleInfo) {
+      // Skip if element doesn't have fp-template
+      if (!target.hasAttribute("fp-template")) {
+        return false; // Let HTMX handle the swap
+      }
+
+      try {
+        // Get instance name from element
+        const instanceName = target.getAttribute("fp-instance") || target.id;
+        if (!instanceName) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "No instance name found for element, falling back to default swap",
+          );
+          return false;
+        }
+
+        // Get the instance from state
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "No instance found for name: " + instanceName,
+          );
+          return false;
+        }
+
+        // Get the actual content element (first child) or create one if it doesn't exist
+        // let contentElement = target.firstElementChild;
+        // if (!contentElement) {
+        //   contentElement = document.createElement("div");
+        //   target.appendChild(contentElement);
+        // }
+
+        // Update the content element instead of the container
+        updateDOM(target, fragment.innerHTML);
+
+        Debug.log(
+          Debug.levels.DEBUG,
+          "HTMX swap completed for instance: " + instanceName,
+        );
+
+        return true;
+      } catch (e) {
+        errorLog("Error in handleSwap:", e);
+        return false;
       }
     },
 
