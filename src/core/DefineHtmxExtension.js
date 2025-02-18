@@ -124,19 +124,38 @@ export function defineHtmxExtension() {
           return false;
         }
 
-        // Get the actual content element (first child) or create one if it doesn't exist
-        // let contentElement = target.firstElementChild;
-        // if (!contentElement) {
-        //   contentElement = document.createElement("div");
-        //   target.appendChild(contentElement);
-        // }
+        const supportedSwapStyles = ["innerHTML"];
+        if (!supportedSwapStyles.includes(swapStyle)) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Unsupported swap style for smart DOM swap: " +
+              swapStyle +
+              ", falling back to default swap",
+          );
 
-        // Update the content element instead of the container
-        updateDOM(target, fragment.innerHTML);
+          const breakingSwapStyles = [
+            "outerHTML",
+            "beforebegin",
+            "afterbegin",
+            "afterend",
+          ];
+          if (breakingSwapStyles.includes(swapStyle)) {
+            Debug.log(
+              Debug.levels.WARN,
+              "Breaking swap style: " +
+                swapStyle +
+                ", instance methods will not work as expected. Target container was removed from the DOM.",
+            );
+          }
+
+          return false;
+        }
+
+        updateDOM(target, fragment.innerHTML, swapStyle);
 
         Debug.log(
           Debug.levels.DEBUG,
-          "HTMX swap completed for instance: " + instanceName,
+          "HTMX smart innerHTML swap completed for instance: " + instanceName,
         );
 
         return true;

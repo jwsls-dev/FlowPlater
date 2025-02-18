@@ -1,5 +1,5 @@
 import { compare } from "./compare";
-import { Debug } from "../../core/Debug";
+import { Debug, TemplateError } from "../../core/Debug";
 
 export function ifHelper() {
   Handlebars.registerHelper("if", function (expressionString, options) {

@@ -10027,12 +10027,12 @@ class FlowPlaterError extends Error {
   }
 }
 
-let TemplateError$1 = class TemplateError extends FlowPlaterError {
+class TemplateError extends FlowPlaterError {
   constructor(message) {
     super(message);
     this.name = "TemplateError";
   }
-};
+}
 
 /**
  * @module EventSystem
@@ -10210,6 +10210,12 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
   console.log("Morphing children from:", fromEl.innerHTML);
   console.log("Morphing children to:", toEl.innerHTML);
 
+  // Handle empty initial state
+  if (!fromEl.childNodes.length) {
+    fromEl.innerHTML = toEl.innerHTML;
+    return;
+  }
+
   // Special handling for SVG elements
   const isSVG = fromEl instanceof SVGElement;
 
@@ -10217,21 +10223,6 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
   if (isSpecialElement(fromEl)) {
     handleSpecialElement(fromEl, toEl);
     return;
-  }
-
-  // Check for keyed elements first
-  const fromKey = fromEl.getAttribute("data-key");
-  const toKey = toEl.getAttribute("data-key");
-
-  if (toKey && fromKey !== toKey) {
-    const keyedEl = oldKeyedElements.get(toKey);
-    if (keyedEl) {
-      // Move the keyed element instead of creating a new one
-      if (keyedEl !== fromEl) {
-        fromEl.parentNode.replaceChild(keyedEl, fromEl);
-        fromEl = keyedEl;
-      }
-    }
   }
 
   // If either element has no children but has content, handle as mixed content
@@ -10257,8 +10248,8 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
     return;
   }
 
-  let insertPosition = 0;
-  const processedPositions = new Set();
+  // Track which old nodes have been processed
+  const processedNodes = new Set();
 
   // First pass: handle keyed elements
   newNodes.forEach((newNode, newIndex) => {
@@ -10267,47 +10258,54 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
       if (key) {
         const existingNode = oldKeyedElements.get(key);
         if (existingNode) {
-          // Move keyed element to correct position
-          fromEl.insertBefore(existingNode, oldNodes[insertPosition] || null);
-          processedPositions.add(insertPosition);
-          insertPosition++;
-          return;
+          const oldIndex = oldNodes.indexOf(existingNode);
+          if (oldIndex !== -1) {
+            // Move keyed element to correct position
+            fromEl.insertBefore(existingNode, oldNodes[newIndex] || null);
+            processedNodes.add(oldIndex);
+          }
         }
       }
     }
   });
 
   // Second pass: handle remaining elements
-  newNodes.forEach((newNode) => {
-    if (processedPositions.has(insertPosition)) {
-      insertPosition++;
-      return;
-    }
-
-    // Find matching node in old nodes (after current position)
+  newNodes.forEach((newNode, newIndex) => {
+    // Try to find a matching node that hasn't been processed yet
     const matchIndex = oldNodes.findIndex(
-      (oldNode, oldIndex) =>
-        oldIndex >= insertPosition && nodesAreEqual(oldNode, newNode),
+      (oldNode, index) =>
+        !processedNodes.has(index) && nodesAreEqual(oldNode, newNode),
     );
 
-    if (matchIndex === -1) {
-      // No match found, this is a new node to insert
-      const referenceNode = oldNodes[insertPosition];
+    if (matchIndex !== -1) {
+      // Found a match - only move it if absolutely necessary
+      processedNodes.add(matchIndex);
+      const oldNode = oldNodes[matchIndex];
+
+      // Find the actual current index of the node in the DOM
+      const currentIndex = Array.from(fromEl.childNodes).indexOf(oldNode);
+
+      // Only move if the node is not already in the correct position
+      if (currentIndex !== newIndex) {
+        const referenceNode = oldNodes[newIndex];
+        // Only move if the reference node exists and is different
+        if (referenceNode && referenceNode !== oldNode) {
+          fromEl.insertBefore(oldNode, referenceNode);
+        }
+      }
+    } else {
+      // No match found - insert new node
       const clonedNode = isSVG
         ? cloneWithNamespace(newNode)
         : newNode.cloneNode(true);
-      fromEl.insertBefore(clonedNode, referenceNode || null);
-      processedPositions.add(insertPosition);
-    } else {
-      // Found a match, move pointer past it
-      insertPosition = matchIndex + 1;
-      processedPositions.add(matchIndex);
+      const referenceNode = oldNodes[newIndex] || null;
+      fromEl.insertBefore(clonedNode, referenceNode);
     }
   });
 
-  // Remove any nodes that weren't processed
+  // Remove any unprocessed old nodes
   oldNodes.forEach((node, index) => {
-    if (!processedPositions.has(index)) {
+    if (!processedNodes.has(index)) {
       fromEl.removeChild(node);
     }
   });
@@ -11185,7 +11183,7 @@ function compare(left, operator, right) {
       case ">=":
         return left.localeCompare(right) >= 0;
       default:
-        throw new TemplateError$1(
+        throw new TemplateError(
           "Unsupported operator for strings: " + operator,
         );
     }
@@ -11212,7 +11210,7 @@ function compare(left, operator, right) {
     case "regex":
       return new RegExp(right).test(left);
     default:
-      throw new TemplateError$1("Unsupported operator: " + operator);
+      throw new TemplateError("Unsupported operator: " + operator);
   }
 }
 
@@ -11329,142 +11327,344 @@ function sumHelper() {
   });
 }
 
-function evaluate(left, operator, right) {
-  function isNumeric(str) {
-    if (typeof str != "string") return false;
-    return !isNaN(str) && !isNaN(parseFloat(str));
-  }
-
-  // Convert strings to numbers if applicable
-  if (isNumeric(left)) left = parseFloat(left);
-  if (isNumeric(right)) right = parseFloat(right);
-
-  // check if left and right are numbers
-  if (typeof left !== "number" || typeof right !== "number") {
-    throw new Error("Invalid operands");
-  }
-  if (right === 0 && operator === "/") {
-    throw new Error(
-      "Division by zero. Please do not attempt to create a black hole.",
-    );
-  }
-
-  switch (operator) {
-    case "+":
-      return left + right;
-    case "-":
-      return left - right;
-    case "*":
-      return left * right;
-    case "/":
-      return left / right;
-    case "^":
-      return Math.pow(left, right);
-    case "%":
-      return left % right;
-    case "min":
-      return Math.min(left, right);
-    case "max":
-      return Math.max(left, right);
-    case "abs":
-      return Math.abs(left);
-    default:
-      throw new Error("Invalid operator");
+function* Lexer(expr) {
+  var _regex = new RegExp(Lexer.lang, "g");
+  var x;
+  while ((x = _regex.exec(expr)) !== null) {
+    var [token] = x;
+    for (var category in Lexer.categories) {
+      if (new RegExp(Lexer.categories[category]).test(token)) {
+        yield { token, category };
+        break;
+      }
+    }
   }
 }
 
+Lexer.categories = {
+  op: "[+*/^|-]",
+  num: "\\d+(?:\\.\\d+)?%?",
+  group: "[\\[()\\]]",
+  sep: ",",
+  ident: "\\b(ans|pi|e)\\b",
+  func: "\\b(sqrt|abs|log|ln|sin|cos|tan|min|max)\\b",
+};
+
+Lexer.lang = [
+  Lexer.categories.op,
+  Lexer.categories.num,
+  Lexer.categories.group,
+  Lexer.categories.sep,
+  Lexer.categories.ident,
+  Lexer.categories.func,
+].join("|");
+
+Lexer.cat = {
+  INT: "num",
+  IDENT: "ident",
+  PCNT: "num",
+  FUNC: "func",
+  SEP: "sep",
+};
+
+class Calc {
+  constructor() {
+    this.stack = [];
+    this.w = null;
+    this.l = null;
+  }
+
+  _next() {
+    const next = this.l.next();
+    return next.done ? null : next.value;
+  }
+
+  exec(expr) {
+    try {
+      this.l = Lexer(expr);
+      this.w = this._next();
+
+      if (!this.e()) {
+        throw new SyntaxError(
+          this.w ? this.w.token : "Unexpected end of expression",
+        );
+      }
+
+      if (this.w !== null) {
+        throw new SyntaxError(`Unexpected token: ${this.w.token}`);
+      }
+
+      return (Calc.ans = this.stack.pop());
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw error;
+      }
+      throw new SyntaxError(`Error parsing expression: ${error.message}`);
+    }
+  }
+
+  _istok(o) {
+    return this.w && o === this.w.token;
+  }
+
+  z() {
+    if (this._wrapped_expr()) {
+      return true;
+    } else if (
+      this.w &&
+      ["INT", "IDENT", "PCNT"].some((k) => Lexer.cat[k] === this.w.category)
+    ) {
+      this.stack.push(Calc._val(this.w));
+      this.w = this._next();
+      return true;
+    } else if (this.w && this.w.category === Lexer.cat.FUNC) {
+      var fn = this.w.token;
+      this.w = this._next();
+      if (fn === "min" || fn === "max") {
+        return this._wrapped_expr_min_max(this._rep_val, fn);
+      } else {
+        return this._wrapped_expr(this._rep_val, fn);
+      }
+    } else if (this._wrapped_expr(this._rep_val, "abs", "|", "|")) {
+      return true;
+    }
+    return false;
+  }
+
+  _wrapped_expr_min_max(cb, arg, a = "(", b = ")") {
+    if (this.w && this.w.token === a) {
+      this.w = this._next();
+      let args = [];
+      while (this.w !== null) {
+        if (this.e()) {
+          args.push(this.stack.pop());
+          if (this.w && this.w.category === "sep") {
+            this.w = this._next();
+            continue;
+          }
+        }
+        break;
+      }
+      if (this.w && this.w.token === b) {
+        this.w = this._next();
+        if (cb instanceof Function) {
+          cb.call(this, arg, args);
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _lrecmut(nt, pfn) {
+    return nt.call(this) && pfn.call(this);
+  }
+
+  _ophit(ops, nt, pfn, follow) {
+    if (this.w && ops.some((op) => op === this.w.token)) {
+      var op = this.w.token;
+      var a = this.stack.pop();
+      this.w = this._next();
+      if (nt.call(this)) {
+        var b = this.stack.pop();
+        this.stack.push(Calc._chooseOp(op)(a, b));
+        return pfn.call(this);
+      }
+    } else if (!this.w || follow.some((op) => op === this.w.token)) {
+      return true;
+    }
+    return false;
+  }
+
+  e() {
+    return this._lrecmut(this.p, this.ep);
+  }
+
+  ep() {
+    return this._ophit(["+", "-"], this.p, this.ep, [")", "|", ","]);
+  }
+
+  p() {
+    return this._lrecmut(this.x, this.pp);
+  }
+
+  pp() {
+    return this._ophit(["*", "/"], this.x, this.pp, ["+", "-", ")", "|", ","]);
+  }
+
+  x() {
+    return this._lrecmut(this.z, this.xp);
+  }
+
+  xp() {
+    return this._ophit(["^"], this.z, this.xp, [
+      "*",
+      "/",
+      "+",
+      "-",
+      ")",
+      "|",
+      ",",
+    ]);
+  }
+
+  _wrapped_expr(cb, arg, a = "(", b = ")") {
+    if (this.w.token === a) {
+      this.w = this.l.next().value;
+      if (this.e()) {
+        if (this.w.token === b) {
+          this.w = this.l.next().value;
+          if (cb instanceof Function) cb.call(this, arg);
+          return true;
+        }
+      }
+    }
+  }
+
+  _rep_val(fn, args) {
+    if (args) {
+      // For min/max functions with multiple arguments
+      this.stack.push(Calc._chooseFn(fn).apply(null, args));
+    } else {
+      // For single argument functions
+      this.stack.push(Calc._chooseFn(fn)(this.stack.pop()));
+    }
+  }
+
+  static _chooseFn(fn) {
+    switch (fn) {
+      case "sqrt":
+        return Math.sqrt;
+      case "log":
+        return Math.log10;
+      case "ln":
+        return Math.log;
+      case "abs":
+        return Math.abs;
+      case "min":
+        return Math.min;
+      case "max":
+        return Math.max;
+      case "sin":
+        return Math.sin;
+      case "cos":
+        return Math.cos;
+      case "tan":
+        return Math.tan;
+      default:
+        throw new Error(`Unknown function: ${fn}`);
+    }
+  }
+
+  static _val(w) {
+    var n;
+    if (w.category === Lexer.cat.INT || w.category === Lexer.cat.PCNT) {
+      n = parseFloat(w.token);
+      if (w.token.endsWith("%")) n /= 100;
+    } else if (w.category === Lexer.cat.IDENT) {
+      if (w.token === "pi") {
+        n = Math.PI;
+      } else if (w.token === "e") {
+        n = Math.E;
+      } else if (w.token === "ans") {
+        n = this.ans;
+      }
+    }
+    return n;
+  }
+
+  static _chooseOp(op) {
+    switch (op) {
+      case "+":
+        return (a, b) => a + b;
+      case "-":
+        return (a, b) => a - b;
+      case "*":
+        return (a, b) => a * b;
+      case "/":
+        return (a, b) => a / b;
+      case "^":
+        return (a, b) => Math.pow(a, b);
+      default:
+        throw new Error(`Unknown operator: ${op}`);
+    }
+  }
+}
+Calc.ans = 0;
+
 function mathHelper() {
   Handlebars.registerHelper("math", function (expression, options) {
-    // Accepts a math expression and evaluates it
-    // Returns the result
-    // Example: {{math "1 + 2 * 3"}} returns 7
-    // Define operator precedence
-    const precedence = {
-      "^": 1,
-      "*": 2,
-      "/": 2,
-      "%": 2,
-      "+": 3,
-      "-": 3,
-      min: 4,
-      max: 4,
-      abs: 4,
-    };
+    // First, identify and protect function names
+    const functionNames = [
+      "min",
+      "max",
+      "sqrt",
+      "abs",
+      "log",
+      "ln",
+      "sin",
+      "cos",
+      "tan",
+    ];
 
-    // Tokenize the expression
-    const tokens = expression
-      .trim()
-      .match(/(?!.*\.\.\/)(?:\(|\)|\^|\*|\/|\+|-|min|max|abs|%|\b\S+\b)/g)
-      .map((token) => {
-        // Resolve context paths like 'this.data' or 'object.sum'
-        if (/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)+$/.test(token)) {
-          return token
-            .split(".")
-            .reduce((acc, part) => acc[part], options.data.root);
+    // First pass: resolve forced variable references like @{max}
+    const resolvedForced = expression.replace(
+      /@{([^}]+)}/g,
+      (match, varPath) => {
+        try {
+          let value;
+          if (varPath.includes(".")) {
+            value = varPath
+              .split(".")
+              .reduce((acc, part) => acc[part], options.data.root);
+          } else {
+            value = options.data.root[varPath] || options.hash[varPath];
+          }
+          return value;
+        } catch (error) {
+          console.warn(`Could not resolve ${varPath}`);
+          return NaN;
         }
-        return token;
-      });
+      },
+    );
 
-    // Convert infix to postfix and evaluate
-    const outputQueue = [];
-    const operatorStack = [];
+    // Second pass: normal variable resolution with function name protection
+    const resolvedExpression = resolvedForced.replace(
+      /[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)*/g,
+      (match) => {
+        // Skip if it's a standalone function name (not part of a property path)
+        if (functionNames.includes(match) && !match.includes(".")) {
+          return match;
+        }
 
-    tokens.forEach((token) => {
-      if (token in precedence) {
-        while (
-          operatorStack.length > 0 &&
-          precedence[operatorStack[operatorStack.length - 1]] <=
-            precedence[token]
-        ) {
-          outputQueue.push(operatorStack.pop());
+        try {
+          // Resolve context paths like 'this.data' or 'object.sum'
+          let value;
+          if (match.includes(".")) {
+            value = match
+              .split(".")
+              .reduce((acc, part) => acc[part], options.data.root);
+          } else {
+            value = options.data.root[match] || options.hash[match];
+          }
+          return value;
+        } catch (error) {
+          console.warn(`Could not resolve ${match}`);
+          return NaN;
         }
-        operatorStack.push(token);
-      } else if (token === "(") {
-        operatorStack.push(token);
-      } else if (token === ")") {
-        while (
-          operatorStack.length > 0 &&
-          operatorStack[operatorStack.length - 1] !== "("
-        ) {
-          outputQueue.push(operatorStack.pop());
-        }
-        if (operatorStack.pop() !== "(") {
-          throw new TemplateError$1("Mismatched parentheses"); //!error
-        }
-      } else {
-        outputQueue.push(token);
-      }
-    });
+      },
+    );
 
-    while (operatorStack.length > 0) {
-      if (["(", ")"].includes(operatorStack[operatorStack.length - 1])) {
-        throw new TemplateError$1("Mismatched parentheses"); //!error
-      }
-      outputQueue.push(operatorStack.pop());
+    log(resolvedExpression);
+
+    try {
+      // Evaluate the expression using jscalc
+      const c = new Calc();
+      const result = c.exec(resolvedExpression);
+      return result;
+    } catch (error) {
+      throw new TemplateError(`Error evaluating expression: ${error.message}`);
     }
-
-    // Evaluate the postfix expression
-    const stack = [];
-    outputQueue.forEach((token) => {
-      if (token in precedence) {
-        const right = stack.pop();
-        const left = stack.pop();
-        if (left === undefined || right === undefined) {
-          throw new TemplateError$1(
-            `Missing operand! Error in expression: ${left} ${token} ${right}`,
-          ); //!error
-        }
-        stack.push(evaluate(left, token, right));
-      } else {
-        stack.push(parseFloat(token));
-      }
-    });
-
-    if (stack.length !== 1) {
-      throw new TemplateError$1("Invalid expression"); //!error
-    }
-
-    return stack.pop();
   });
 }
 
@@ -12013,19 +12213,38 @@ function defineHtmxExtension() {
           return false;
         }
 
-        // Get the actual content element (first child) or create one if it doesn't exist
-        // let contentElement = target.firstElementChild;
-        // if (!contentElement) {
-        //   contentElement = document.createElement("div");
-        //   target.appendChild(contentElement);
-        // }
+        const supportedSwapStyles = ["innerHTML"];
+        if (!supportedSwapStyles.includes(swapStyle)) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Unsupported swap style for smart DOM swap: " +
+              swapStyle +
+              ", falling back to default swap",
+          );
 
-        // Update the content element instead of the container
-        updateDOM(target, fragment.innerHTML);
+          const breakingSwapStyles = [
+            "outerHTML",
+            "beforebegin",
+            "afterbegin",
+            "afterend",
+          ];
+          if (breakingSwapStyles.includes(swapStyle)) {
+            Debug.log(
+              Debug.levels.WARN,
+              "Breaking swap style: " +
+                swapStyle +
+                ", instance methods will not work as expected. Target container was removed from the DOM.",
+            );
+          }
+
+          return false;
+        }
+
+        updateDOM(target, fragment.innerHTML, swapStyle);
 
         Debug.log(
           Debug.levels.DEBUG,
-          "HTMX swap completed for instance: " + instanceName,
+          "HTMX smart innerHTML swap completed for instance: " + instanceName,
         );
 
         return true;
@@ -12535,7 +12754,7 @@ var FlowPlater = (function () {
             );
 
             // Attempt recovery based on error type
-            if (error instanceof TemplateError$1) {
+            if (error instanceof TemplateError) {
               // Template errors might need special handling
               processingResults.warnings.push({
                 phase: processor.name,

@@ -878,3 +878,200 @@ function compare(left, operator, right) {
     }
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* ANCHOR                         math                                        */
+/* -------------------------------------------------------------------------- */
+
+import { evaluate } from "./evaluate";
+import { TemplateError } from "../../core/Debug";
+
+export function mathHelper() {
+  Handlebars.registerHelper("math", function (expression, options) {
+    // Accepts a math expression and evaluates it
+    // Returns the result
+    // Example: {{math "1 + 2 * 3"}} returns 7
+    // Define operator precedence (higher number means lower precedence)
+    const precedence = {
+      "^": 1,
+      "*": 2,
+      "/": 2,
+      "%": 2,
+      "+": 3,
+      "-": 3,
+      min: 4,
+      max: 4,
+      abs: 0,
+      "(": 5,
+      ")": 5,
+    };
+
+    // Improved tokenization
+    const tokens = expression
+      .trim()
+      .match(
+        /(?!.*\.\.\/)(?:\(|\)|\^|\*|\/|\+|-|min|max|abs|%|\b\S+\b|[0-9]+(?:\.[0-9]+)?)/g,
+      );
+
+    if (!tokens) {
+      return ""; // Or handle the error as you see fit
+    }
+
+    // Resolve context paths and handle unary minus during tokenization
+    const resolvedTokens = tokens.map((token, index, arr) => {
+      if (/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)+$/.test(token)) {
+        try {
+          return token
+            .split(".")
+            .reduce((acc, part) => acc[part], options.data.root);
+        } catch (error) {
+          console.warn(`Could not resolve ${token}`);
+          return NaN;
+        }
+      }
+      // Unary minus handling
+      if (token === "-" && (index === 0 || precedence[arr[index - 1]])) {
+        return "unaryMinus"; // Special token for unary minus
+      }
+      return token;
+    });
+
+    // Convert infix to postfix with improved parentheses and abs handling
+    const outputQueue = [];
+    const operatorStack = [];
+
+    resolvedTokens.forEach((token) => {
+      if (token === "abs") {
+        operatorStack.push(token);
+      } else if (token in precedence && token !== "(" && token !== ")") {
+        while (
+          operatorStack.length > 0 &&
+          operatorStack[operatorStack.length - 1] !== "(" &&
+          precedence[operatorStack[operatorStack.length - 1]] <=
+            precedence[token]
+        ) {
+          outputQueue.push(operatorStack.pop());
+        }
+        operatorStack.push(token);
+      } else if (token === "(") {
+        operatorStack.push(token);
+      } else if (token === ")") {
+        while (
+          operatorStack.length > 0 &&
+          operatorStack[operatorStack.length - 1] !== "("
+        ) {
+          outputQueue.push(operatorStack.pop());
+        }
+        if (operatorStack.length === 0) {
+          throw new TemplateError("Mismatched parentheses");
+        }
+        operatorStack.pop(); // Remove '('
+      } else {
+        outputQueue.push(token);
+      }
+    });
+
+    // Pop remaining operators
+    while (operatorStack.length > 0) {
+      const operator = operatorStack.pop();
+      if (operator === "(" || operator === ")") {
+        throw new TemplateError("Mismatched parentheses");
+      }
+      outputQueue.push(operator);
+    }
+
+    // Evaluate postfix expression with improved error handling
+    const stack = [];
+    outputQueue.forEach((token) => {
+      if (token in precedence || token === "unaryMinus") {
+        if (token === "abs") {
+          if (stack.length < 1) {
+            throw new TemplateError(`Missing operand for abs operator`);
+          }
+          const operand = stack.pop();
+          stack.push(evaluate(operand, token));
+        } else if (token === "unaryMinus") {
+          if (stack.length < 1) {
+            throw new TemplateError(`Missing operand for unary minus operator`);
+          }
+          const operand = stack.pop();
+          stack.push(-operand); // Apply unary minus
+        } else {
+          if (stack.length < 2) {
+            throw new TemplateError(`Missing operand(s) for ${token} operator`);
+          }
+          const right = stack.pop();
+          const left = stack.pop();
+          stack.push(evaluate(left, token, right));
+        }
+      } else {
+        // Convert string numbers to actual numbers
+        stack.push(!isNaN(parseFloat(token)) ? parseFloat(token) : token);
+      }
+    });
+
+    if (stack.length !== 1) {
+      throw new TemplateError("Invalid expression");
+    }
+
+    return stack.pop();
+  });
+}
+
+import { TemplateError } from "../../core/Debug";
+
+export function evaluate(left, operator, right) {
+  function isNumeric(val) {
+    return !isNaN(parseFloat(val)) && isFinite(val);
+  }
+
+  // Log the arguments
+  console.log("evaluate called with:", { left, operator, right });
+
+  // Handle unary abs operation
+  if (operator === "abs") {
+    if (!isNumeric(left)) {
+      throw new TemplateError("Invalid operand for abs: " + left);
+    }
+    return Math.abs(parseFloat(left));
+  }
+
+  // Handle binary operations
+  const binaryOperators = ["+", "-", "*", "/", "^", "%", "min", "max"];
+
+  if (binaryOperators.includes(operator)) {
+    if (!isNumeric(left) || !isNumeric(right)) {
+      throw new TemplateError(
+        `Invalid operands for ${operator}: ${left}, ${right}`,
+      );
+    }
+
+    left = parseFloat(left);
+    right = parseFloat(right);
+  }
+
+  if (operator === "/" && right === 0) {
+    throw new TemplateError("Division by zero");
+  }
+
+  switch (operator) {
+    case "+":
+      return left + right;
+    case "-":
+      return left - right;
+    case "*":
+      return left * right;
+    case "/":
+      return left / right;
+    case "^":
+      return Math.pow(left, right);
+    case "%":
+      return left % right;
+    case "min":
+      return Math.min(left, right);
+    case "max":
+      return Math.max(left, right);
+    default:
+      throw new TemplateError(`Unknown operator: ${operator}`);
+  }
+}

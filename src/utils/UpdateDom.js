@@ -10,271 +10,17 @@ const NS_SVG = "http://www.w3.org/2000/svg";
 const NS_XLINK = "http://www.w3.org/1999/xlink";
 
 /**
- * Creates a virtual DOM node from an HTML string with optimized template support
- * @param {string} html
- * @returns {DocumentFragment}
- */
-function createVirtualNode(html) {
-  const template = document.createElement("template");
-  template.innerHTML = html.trim();
-
-  // Handle SVG elements with proper namespacing
-  const svgElements = template.content.querySelectorAll("svg");
-  svgElements.forEach((svg) => {
-    svg.setAttribute("xmlns", NS_SVG);
-    Array.from(svg.attributes).forEach((attr) => {
-      if (attr.name.startsWith("xlink:")) {
-        svg.setAttributeNS(NS_XLINK, attr.name, attr.value);
-      }
-    });
-  });
-
-  return template.content;
-}
-
-/**
- * Compare node names with case sensitivity handling
- * @param {Element} fromEl
- * @param {Element} toEl
- * @returns {boolean}
- */
-function compareNodeNames(fromEl, toEl) {
-  const fromNodeName = fromEl.nodeName;
-  const toNodeName = toEl.nodeName;
-
-  if (fromNodeName === toNodeName) return true;
-
-  const fromCodeStart = fromNodeName.charCodeAt(0);
-  const toCodeStart = toNodeName.charCodeAt(0);
-
-  // Handle case sensitivity for HTML vs SVG elements
-  if (fromCodeStart <= 90 && toCodeStart >= 97) {
-    return fromNodeName === toNodeName.toUpperCase();
-  } else if (toCodeStart <= 90 && fromCodeStart >= 97) {
-    return toNodeName === fromNodeName.toUpperCase();
-  }
-
-  return false;
-}
-
-const specialElHandlers = {
-  OPTION: function (fromEl, toEl) {
-    syncBooleanAttrProp(fromEl, toEl, "selected");
-  },
-  INPUT: function (fromEl, toEl) {
-    syncBooleanAttrProp(fromEl, toEl, "checked");
-    syncBooleanAttrProp(fromEl, toEl, "disabled");
-
-    if (fromEl.value !== toEl.value) {
-      fromEl.value = toEl.value;
-    }
-    if (!toEl.hasAttribute("value")) {
-      fromEl.removeAttribute("value");
-    }
-  },
-  TEXTAREA: function (fromEl, toEl) {
-    const newValue = toEl.value;
-    if (fromEl.value !== newValue) {
-      fromEl.value = newValue;
-    }
-
-    const firstChild = fromEl.firstChild;
-    if (firstChild) {
-      // Handle IE placeholder edge case
-      const oldValue = firstChild.nodeValue;
-      if (
-        oldValue === newValue ||
-        (!newValue && oldValue === fromEl.placeholder)
-      ) {
-        return;
-      }
-      firstChild.nodeValue = newValue;
-    }
-  },
-  SELECT: function (fromEl, toEl) {
-    if (!toEl.hasAttribute("multiple")) {
-      let selectedIndex = -1;
-      let i = 0;
-      let curChild = fromEl.firstChild;
-      let optgroup;
-
-      while (curChild) {
-        const nodeName = curChild.nodeName && curChild.nodeName.toUpperCase();
-        if (nodeName === "OPTGROUP") {
-          optgroup = curChild;
-          curChild = optgroup.firstChild;
-        } else {
-          if (nodeName === "OPTION") {
-            if (curChild.hasAttribute("selected")) {
-              selectedIndex = i;
-              break;
-            }
-            i++;
-          }
-          curChild = curChild.nextSibling;
-          if (!curChild && optgroup) {
-            curChild = optgroup.nextSibling;
-            optgroup = null;
-          }
-        }
-      }
-      fromEl.selectedIndex = selectedIndex;
-    }
-  },
-};
-
-/**
- * Sync boolean attributes and properties
- */
-function syncBooleanAttrProp(fromEl, toEl, name) {
-  if (fromEl[name] !== toEl[name]) {
-    fromEl[name] = toEl[name];
-    if (fromEl[name]) {
-      fromEl.setAttribute(name, "");
-    } else {
-      fromEl.removeAttribute(name);
-    }
-  }
-}
-
-/**
- * Enhanced attribute updates with namespace support
- */
-function updateAttributes(currentNode, newNode) {
-  const currentAttrs = new Set(
-    Array.from(currentNode.attributes).map((a) => a.name),
-  );
-  const newAttrs = Array.from(newNode.attributes);
-
-  // Remove old attributes
-  currentAttrs.forEach((name) => {
-    if (!newNode.hasAttribute(name)) {
-      if (name === "style") {
-        currentNode.style.cssText = "";
-      } else if (name.startsWith("on")) {
-        const handler = currentNode[name];
-        if (typeof handler === "function") {
-          currentNode.removeEventListener(name.slice(2).toLowerCase(), handler);
-        }
-      } else {
-        currentNode.removeAttribute(name);
-      }
-    }
-  });
-
-  // Update new attributes
-  newAttrs.forEach((attr) => {
-    const { name, value, namespaceURI } = attr;
-
-    if (namespaceURI) {
-      // Handle namespaced attributes (SVG, XLink)
-      const localName = attr.localName || name;
-      if (currentNode.getAttributeNS(namespaceURI, localName) !== value) {
-        currentNode.setAttributeNS(namespaceURI, name, value);
-      }
-    } else if (name === "style") {
-      updateStyles(currentNode, newNode);
-    } else if (name.startsWith("--")) {
-      currentNode.style.setProperty(name, value);
-    } else if (name.startsWith("on")) {
-      const eventName = name.slice(2).toLowerCase();
-      const oldHandler = currentNode[name];
-      const newHandler = newNode[name];
-
-      if (oldHandler !== newHandler) {
-        if (typeof oldHandler === "function") {
-          currentNode.removeEventListener(eventName, oldHandler);
-        }
-        if (typeof newHandler === "function") {
-          currentNode.addEventListener(eventName, newHandler);
-        }
-      }
-    } else if (currentNode.getAttribute(name) !== value) {
-      currentNode.setAttribute(name, value);
-    }
-  });
-}
-
-/**
- * Updates inline styles of the current node based on the new node
- * @param {Element} currentNode
- * @param {Element} newNode
- */
-function updateStyles(currentNode, newNode) {
-  const currentStyle = currentNode.style;
-  const newStyles = newNode.getAttribute("style")?.split(";") || [];
-
-  // Clear existing styles
-  currentStyle.cssText = "";
-
-  // Apply new styles in one operation
-  if (newStyles.length) {
-    const styleMap = new Map(
-      newStyles
-        .map((s) => s.split(":").map((x) => x.trim()))
-        .filter(([p, v]) => p && v),
-    );
-    currentStyle.cssText = Array.from(styleMap)
-      .map(([p, v]) => `${p}:${v}`)
-      .join(";");
-  }
-}
-
-/**
- * Optimized morphing of DOM elements
- */
-function morphElement(fromEl, toEl, keyedElements) {
-  // Early bailout for identical nodes
-  if (fromEl.isEqualNode(toEl)) return;
-
-  // Handle keyed elements
-  const fromKey = fromEl.getAttribute("data-key");
-  const toKey = toEl.getAttribute("data-key");
-
-  if (toKey && fromKey !== toKey) {
-    const keyedEl = keyedElements.get(toKey);
-    if (keyedEl) {
-      // Instead of replacing, move the keyed element
-      if (keyedEl !== fromEl) {
-        fromEl.parentNode.insertBefore(keyedEl, fromEl);
-        fromEl.parentNode.removeChild(fromEl);
-        fromEl = keyedEl;
-      }
-    }
-  }
-
-  // Handle special elements
-  const specialHandler = specialElHandlers[fromEl.nodeName];
-  if (specialHandler) {
-    specialHandler(fromEl, toEl);
-    return;
-  }
-
-  // Update attributes only if needed
-  if (!fromEl.isEqualNode(toEl)) {
-    updateAttributes(fromEl, toEl);
-  }
-
-  // Handle different node types - but never replace the root element
-  if (!compareNodeNames(fromEl, toEl) && fromEl.parentNode) {
-    const newNode = toEl.cloneNode(true);
-    fromEl.parentNode.insertBefore(newNode, fromEl);
-    fromEl.parentNode.removeChild(fromEl);
-    return;
-  }
-
-  // Only morph children if there are actual differences
-  if (fromEl.childNodes.length || toEl.childNodes.length) {
-    morphChildren(fromEl, toEl, keyedElements);
-  }
-}
-
-/**
  * Optimized children morphing with keyed element handling
  */
 function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
   console.log("Morphing children from:", fromEl.innerHTML);
   console.log("Morphing children to:", toEl.innerHTML);
+
+  // Handle empty initial state
+  if (!fromEl.childNodes.length) {
+    fromEl.innerHTML = toEl.innerHTML;
+    return;
+  }
 
   // Special handling for SVG elements
   const isSVG = fromEl instanceof SVGElement;
@@ -283,21 +29,6 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
   if (isSpecialElement(fromEl)) {
     handleSpecialElement(fromEl, toEl);
     return;
-  }
-
-  // Check for keyed elements first
-  const fromKey = fromEl.getAttribute("data-key");
-  const toKey = toEl.getAttribute("data-key");
-
-  if (toKey && fromKey !== toKey) {
-    const keyedEl = oldKeyedElements.get(toKey);
-    if (keyedEl) {
-      // Move the keyed element instead of creating a new one
-      if (keyedEl !== fromEl) {
-        fromEl.parentNode.replaceChild(keyedEl, fromEl);
-        fromEl = keyedEl;
-      }
-    }
   }
 
   // If either element has no children but has content, handle as mixed content
@@ -323,8 +54,8 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
     return;
   }
 
-  let insertPosition = 0;
-  const processedPositions = new Set();
+  // Track which old nodes have been processed
+  const processedNodes = new Set();
 
   // First pass: handle keyed elements
   newNodes.forEach((newNode, newIndex) => {
@@ -333,47 +64,54 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
       if (key) {
         const existingNode = oldKeyedElements.get(key);
         if (existingNode) {
-          // Move keyed element to correct position
-          fromEl.insertBefore(existingNode, oldNodes[insertPosition] || null);
-          processedPositions.add(insertPosition);
-          insertPosition++;
-          return;
+          const oldIndex = oldNodes.indexOf(existingNode);
+          if (oldIndex !== -1) {
+            // Move keyed element to correct position
+            fromEl.insertBefore(existingNode, oldNodes[newIndex] || null);
+            processedNodes.add(oldIndex);
+          }
         }
       }
     }
   });
 
   // Second pass: handle remaining elements
-  newNodes.forEach((newNode) => {
-    if (processedPositions.has(insertPosition)) {
-      insertPosition++;
-      return;
-    }
-
-    // Find matching node in old nodes (after current position)
+  newNodes.forEach((newNode, newIndex) => {
+    // Try to find a matching node that hasn't been processed yet
     const matchIndex = oldNodes.findIndex(
-      (oldNode, oldIndex) =>
-        oldIndex >= insertPosition && nodesAreEqual(oldNode, newNode),
+      (oldNode, index) =>
+        !processedNodes.has(index) && nodesAreEqual(oldNode, newNode),
     );
 
-    if (matchIndex === -1) {
-      // No match found, this is a new node to insert
-      const referenceNode = oldNodes[insertPosition];
+    if (matchIndex !== -1) {
+      // Found a match - only move it if absolutely necessary
+      processedNodes.add(matchIndex);
+      const oldNode = oldNodes[matchIndex];
+
+      // Find the actual current index of the node in the DOM
+      const currentIndex = Array.from(fromEl.childNodes).indexOf(oldNode);
+
+      // Only move if the node is not already in the correct position
+      if (currentIndex !== newIndex) {
+        const referenceNode = oldNodes[newIndex];
+        // Only move if the reference node exists and is different
+        if (referenceNode && referenceNode !== oldNode) {
+          fromEl.insertBefore(oldNode, referenceNode);
+        }
+      }
+    } else {
+      // No match found - insert new node
       const clonedNode = isSVG
         ? cloneWithNamespace(newNode)
         : newNode.cloneNode(true);
-      fromEl.insertBefore(clonedNode, referenceNode || null);
-      processedPositions.add(insertPosition);
-    } else {
-      // Found a match, move pointer past it
-      insertPosition = matchIndex + 1;
-      processedPositions.add(matchIndex);
+      const referenceNode = oldNodes[newIndex] || null;
+      fromEl.insertBefore(clonedNode, referenceNode);
     }
   });
 
-  // Remove any nodes that weren't processed
+  // Remove any unprocessed old nodes
   oldNodes.forEach((node, index) => {
-    if (!processedPositions.has(index)) {
+    if (!processedNodes.has(index)) {
       fromEl.removeChild(node);
     }
   });
@@ -484,40 +222,6 @@ function cloneWithNamespace(node) {
   });
 
   return clone;
-}
-
-/**
- * Creates a signature for a node based on its structure
- * @param {Element} node
- * @returns {string}
- */
-function getNodeSignature(node) {
-  if (node.nodeType !== ELEMENT_NODE) return "";
-
-  const parts = [node.tagName];
-
-  // Add classes in sorted order
-  if (node.classList.length) {
-    parts.push([...node.classList].sort().join("."));
-  }
-
-  // Add key attributes
-  ["id", "type", "role", "name", "data-key"].forEach((attr) => {
-    if (node.hasAttribute(attr)) {
-      parts.push(`${attr}:${node.getAttribute(attr)}`);
-    }
-  });
-
-  // Add text content if it's a direct text node
-  const directText = Array.from(node.childNodes)
-    .filter((child) => child.nodeType === TEXT_NODE)
-    .map((child) => child.nodeValue.trim())
-    .join("");
-  if (directText) {
-    parts.push(`text:${directText}`);
-  }
-
-  return parts.join("|");
 }
 
 /**

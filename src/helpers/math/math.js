@@ -1,97 +1,78 @@
-import { evaluate } from "./evaluate";
-import { TemplateError } from "../../core/Debug.js";
+import { Calc } from "./jscalc";
+import { TemplateError, log } from "../../core/Debug";
 
 export function mathHelper() {
   Handlebars.registerHelper("math", function (expression, options) {
-    // Accepts a math expression and evaluates it
-    // Returns the result
-    // Example: {{math "1 + 2 * 3"}} returns 7
-    // Define operator precedence
-    const precedence = {
-      "^": 1,
-      "*": 2,
-      "/": 2,
-      "%": 2,
-      "+": 3,
-      "-": 3,
-      min: 4,
-      max: 4,
-      abs: 4,
-    };
+    // First, identify and protect function names
+    const functionNames = [
+      "min",
+      "max",
+      "sqrt",
+      "abs",
+      "log",
+      "ln",
+      "sin",
+      "cos",
+      "tan",
+    ];
 
-    // Tokenize the expression
-    const tokens = expression
-      .trim()
-      .match(/(?!.*\.\.\/)(?:\(|\)|\^|\*|\/|\+|-|min|max|abs|%|\b\S+\b)/g)
-      .map((token) => {
-        // Resolve context paths like 'this.data' or 'object.sum'
-        if (/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)+$/.test(token)) {
-          return token
-            .split(".")
-            .reduce((acc, part) => acc[part], options.data.root);
+    // First pass: resolve forced variable references like @{max}
+    const resolvedForced = expression.replace(
+      /@{([^}]+)}/g,
+      (match, varPath) => {
+        try {
+          let value;
+          if (varPath.includes(".")) {
+            value = varPath
+              .split(".")
+              .reduce((acc, part) => acc[part], options.data.root);
+          } else {
+            value = options.data.root[varPath] || options.hash[varPath];
+          }
+          return value;
+        } catch (error) {
+          console.warn(`Could not resolve ${varPath}`);
+          return NaN;
         }
-        return token;
-      });
+      },
+    );
 
-    // Convert infix to postfix and evaluate
-    const outputQueue = [];
-    const operatorStack = [];
+    // Second pass: normal variable resolution with function name protection
+    const resolvedExpression = resolvedForced.replace(
+      /[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)*/g,
+      (match) => {
+        // Skip if it's a standalone function name (not part of a property path)
+        if (functionNames.includes(match) && !match.includes(".")) {
+          return match;
+        }
 
-    tokens.forEach((token) => {
-      if (token in precedence) {
-        while (
-          operatorStack.length > 0 &&
-          precedence[operatorStack[operatorStack.length - 1]] <=
-            precedence[token]
-        ) {
-          outputQueue.push(operatorStack.pop());
+        try {
+          // Resolve context paths like 'this.data' or 'object.sum'
+          let value;
+          if (match.includes(".")) {
+            value = match
+              .split(".")
+              .reduce((acc, part) => acc[part], options.data.root);
+          } else {
+            value = options.data.root[match] || options.hash[match];
+          }
+          return value;
+        } catch (error) {
+          console.warn(`Could not resolve ${match}`);
+          return NaN;
         }
-        operatorStack.push(token);
-      } else if (token === "(") {
-        operatorStack.push(token);
-      } else if (token === ")") {
-        while (
-          operatorStack.length > 0 &&
-          operatorStack[operatorStack.length - 1] !== "("
-        ) {
-          outputQueue.push(operatorStack.pop());
-        }
-        if (operatorStack.pop() !== "(") {
-          throw new TemplateError("Mismatched parentheses"); //!error
-        }
-      } else {
-        outputQueue.push(token);
-      }
-    });
+      },
+    );
 
-    while (operatorStack.length > 0) {
-      if (["(", ")"].includes(operatorStack[operatorStack.length - 1])) {
-        throw new TemplateError("Mismatched parentheses"); //!error
-      }
-      outputQueue.push(operatorStack.pop());
+    log(resolvedExpression);
+
+    try {
+      // Evaluate the expression using jscalc
+      const c = new Calc();
+      const result = c.exec(resolvedExpression);
+      return result;
+    } catch (error) {
+      throw new TemplateError(`Error evaluating expression: ${error.message}`);
     }
-
-    // Evaluate the postfix expression
-    const stack = [];
-    outputQueue.forEach((token) => {
-      if (token in precedence) {
-        const right = stack.pop();
-        const left = stack.pop();
-        if (left === undefined || right === undefined) {
-          throw new TemplateError(
-            `Missing operand! Error in expression: ${left} ${token} ${right}`,
-          ); //!error
-        }
-        stack.push(evaluate(left, token, right));
-      } else {
-        stack.push(parseFloat(token));
-      }
-    });
-
-    if (stack.length !== 1) {
-      throw new TemplateError("Invalid expression"); //!error
-    }
-
-    return stack.pop();
   });
 }
