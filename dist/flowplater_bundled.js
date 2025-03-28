@@ -9990,1254 +9990,1442 @@ return (function () {
 /**!
 @preserve FlowPlater starts here 
 */
-const Debug = (function () {
-  return {
-    level: 3,
-    levels: {
-      ERROR: 0,
-      WARN: 1,
-      INFO: 2,
-      DEBUG: 3,
-    },
-    debugMode: true,
+var FlowPlater = (function () {
+  'use strict';
 
-    log: function (level, ...args) {
-      if (!this.debugMode) return;
-      if (level <= this.level) {
-        const prefix = ["ERROR", "WARN", "INFO", "DEBUG"][level];
-        console.log(`FlowPlater [${prefix}]:`, ...args);
-      }
-    },
-  };
-})();
+  const Debug = (function () {
+    return {
+      level: 3,
+      levels: {
+        ERROR: 0,
+        WARN: 1,
+        INFO: 2,
+        DEBUG: 3,
+      },
+      debugMode: true,
 
-// Helper functions
-function log(...args) {
-  Debug.log(Debug.levels.INFO, ...args);
-}
-
-function errorLog$1(...args) {
-  Debug.log(Debug.levels.ERROR, ...args);
-}
-
-class FlowPlaterError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "FlowPlaterError";
-  }
-}
-
-class TemplateError extends FlowPlaterError {
-  constructor(message) {
-    super(message);
-    this.name = "TemplateError";
-  }
-}
-
-/**
- * @module EventSystem
- * @description A pub/sub event system that supports both global and instance-specific events
- */
-const EventSystem = (function () {
-  /** @type {Map<string, Array<{callback: Function, context: any}>>} */
-  const subscribers = new Map();
-
-  return {
-    /**
-     * Subscribe to an event
-     * @param {string} event - The event name to subscribe to
-     * @param {Function} callback - The callback function to execute when the event is published
-     * @param {any} [context=null] - The context (this) to use when executing the callback
-     * @returns {Function} Unsubscribe function
-     * @throws {Error} If event name is empty or callback is not a function
-     */
-    subscribe(event, callback, context = null) {
-      // Validate event name
-      if (!event || typeof event !== "string") {
-        FlowPlaterError(
-          "Invalid event name. Event name must be a non-empty string.",
-        );
-      }
-
-      // Validate callback
-      if (!callback || typeof callback !== "function") {
-        FlowPlaterError(
-          `Invalid callback for event "${event}". Callback must be a function.`,
-        );
-      }
-
-      if (!subscribers.has(event)) {
-        subscribers.set(event, []);
-      }
-      subscribers.get(event).push({ callback, context });
-      Debug.log(Debug.levels.DEBUG, `Subscribed to event: ${event}`);
-      return () => this.unsubscribe(event, callback);
-    },
-
-    /**
-     * Unsubscribe from an event
-     * @param {string} event - The event name to unsubscribe from
-     * @param {Function} callback - The callback function to remove
-     */
-    unsubscribe(event, callback) {
-      if (!event || typeof event !== "string") {
-        FlowPlaterError(
-          "Invalid event name. Event name must be a non-empty string. If you are trying to unsubscribe from all events, use unsubscribeAll() instead.",
-        );
-      }
-
-      if (!subscribers.has(event)) return;
-
-      const subs = subscribers.get(event);
-      subscribers.set(
-        event,
-        subs.filter((sub) => sub.callback !== callback),
-      );
-    },
-
-    /**
-     * Remove all event subscribers
-     */
-    unsubscribeAll() {
-      subscribers.clear();
-
-      Debug.log(Debug.levels.INFO, "Cleared all event subscribers");
-    },
-
-    /**
-     * Publish an event with data
-     * @param {string} event - The event name to publish
-     * @param {Object} [data] - Data to pass to subscribers
-     */
-    publish(event, data) {
-      if (!subscribers.has(event)) return;
-
-      // Call subscribers for this specific event
-      subscribers.get(event).forEach(({ callback, context }) => {
-        try {
-          callback.call(context, data);
-        } catch (error) {
-          errorLog$1(`Error in event subscriber for ${event}:`, error);
-        }
-      });
-
-      // If data contains instanceName, also trigger instance-specific event
-      if (data && data.instanceName) {
-        const instanceEvent = `${data.instanceName}:${event}`;
-        if (subscribers.has(instanceEvent)) {
-          subscribers.get(instanceEvent).forEach(({ callback, context }) => {
-            try {
-              callback.call(context, data);
-            } catch (error) {
-              errorLog$1(
-                `Error in instance event subscriber for ${instanceEvent}:`,
-                error,
-              );
-            }
-          });
-        }
-      }
-    },
-  };
-})();
-
-const _state = {
-  templateCache: {},
-  instances: {},
-  length: 0,
-  defaults: {
-    animation: false,
-    debug: false,
-  },
-};
-
-// Helper functions for state management
-function getInstance(instanceName) {
-  return _state.instances[instanceName];
-}
-
-function getInstances() {
-  return _state.instances;
-}
-
-const Performance = {
-  marks: {},
-
-  start: function (label) {
-    this.marks[label] = performance.now();
-  },
-
-  end: function (label) {
-    if (!this.marks[label]) return;
-    const duration = performance.now() - this.marks[label];
-    delete this.marks[label];
-    Debug.log(Debug.levels.DEBUG, `${label} took ${duration.toFixed(2)}ms`);
-    return duration;
-  },
-};
-
-class Memoized {
-  constructor(fn) {
-    this.cache = new Map();
-    this.original = fn;
-  }
-
-  apply(...args) {
-    const key = JSON.stringify(args);
-    if (this.cache.has(key)) {
-      Debug.log(Debug.levels.DEBUG, "Cache hit:", key);
-      return this.cache.get(key);
-    }
-    Debug.log(Debug.levels.DEBUG, "Cache miss:", key);
-    const result = this.original.apply(this, args);
-    this.cache.set(key, result);
-    return result;
-  }
-}
-
-function memoize(fn) {
-  const memoized = new Memoized(fn);
-  const wrapper = (...args) => memoized.apply(...args);
-  wrapper.original = memoized.original;
-  wrapper.cache = memoized.cache;
-  return wrapper;
-}
-
-/**
- * Optimized children morphing with keyed element handling
- */
-function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
-  console.log("Morphing children from:", fromEl.innerHTML);
-  console.log("Morphing children to:", toEl.innerHTML);
-
-  // Handle empty initial state
-  if (!fromEl.childNodes.length) {
-    fromEl.innerHTML = toEl.innerHTML;
-    return;
-  }
-
-  // Special handling for SVG elements
-  const isSVG = fromEl instanceof SVGElement;
-
-  // Handle special elements (form inputs, iframes, scripts)
-  if (isSpecialElement(fromEl)) {
-    handleSpecialElement(fromEl, toEl);
-    return;
-  }
-
-  // If either element has no children but has content, handle as mixed content
-  if (
-    (!fromEl.children.length && fromEl.childNodes.length) ||
-    (!toEl.children.length && toEl.childNodes.length)
-  ) {
-    handleMixedContent(fromEl, toEl);
-    return;
-  }
-
-  const oldNodes = Array.from(fromEl.childNodes);
-  const newNodes = Array.from(toEl.childNodes);
-
-  // If we have exactly one child on both sides, recurse into it
-  if (
-    oldNodes.length === 1 &&
-    newNodes.length === 1 &&
-    oldNodes[0].nodeType === newNodes[0].nodeType &&
-    oldNodes[0].nodeName === newNodes[0].nodeName
-  ) {
-    morphChildren(oldNodes[0], newNodes[0], oldKeyedElements);
-    return;
-  }
-
-  // Track which old nodes have been processed
-  const processedNodes = new Set();
-
-  // First pass: handle keyed elements
-  newNodes.forEach((newNode, newIndex) => {
-    if (newNode.nodeType === Node.ELEMENT_NODE) {
-      const key = newNode.getAttribute("data-key");
-      if (key) {
-        const existingNode = oldKeyedElements.get(key);
-        if (existingNode) {
-          const oldIndex = oldNodes.indexOf(existingNode);
-          if (oldIndex !== -1) {
-            // Move keyed element to correct position
-            fromEl.insertBefore(existingNode, oldNodes[newIndex] || null);
-            processedNodes.add(oldIndex);
+      log: function (level, ...args) {
+        if (!this.debugMode) return;
+        if (level <= this.level) {
+          const prefix = ["ERROR", "WARN", "INFO", "DEBUG"][level];
+          switch (prefix) {
+            case "ERROR":
+              console.error(`FlowPlater [${prefix}]:`, ...args);
+              break;
+            case "WARN":
+              console.warn(`FlowPlater [${prefix}]:`, ...args);
+              break;
+            case "DEBUG":
+              console.debug(`FlowPlater [${prefix}]:`, ...args);
+              break;
+            default:
+              console.log(`FlowPlater [${prefix}]:`, ...args);
           }
         }
-      }
-    }
-  });
+      },
+    };
+  })();
 
-  // Second pass: handle remaining elements
-  newNodes.forEach((newNode, newIndex) => {
-    // Try to find a matching node that hasn't been processed yet
-    const matchIndex = oldNodes.findIndex(
-      (oldNode, index) =>
-        !processedNodes.has(index) && nodesAreEqual(oldNode, newNode),
-    );
+  // Helper functions
+  function log(...args) {
+    Debug.log(Debug.levels.INFO, ...args);
+  }
 
-    if (matchIndex !== -1) {
-      // Found a match - only move it if absolutely necessary
-      processedNodes.add(matchIndex);
-      const oldNode = oldNodes[matchIndex];
+  function errorLog$1(...args) {
+    Debug.log(Debug.levels.ERROR, ...args);
+  }
 
-      // Find the actual current index of the node in the DOM
-      const currentIndex = Array.from(fromEl.childNodes).indexOf(oldNode);
-
-      // Only move if the node is not already in the correct position
-      if (currentIndex !== newIndex) {
-        const referenceNode = oldNodes[newIndex];
-        // Only move if the reference node exists and is different
-        if (referenceNode && referenceNode !== oldNode) {
-          fromEl.insertBefore(oldNode, referenceNode);
-        }
-      }
-    } else {
-      // No match found - insert new node
-      const clonedNode = isSVG
-        ? cloneWithNamespace(newNode)
-        : newNode.cloneNode(true);
-      const referenceNode = oldNodes[newIndex] || null;
-      fromEl.insertBefore(clonedNode, referenceNode);
-    }
-  });
-
-  // Remove any unprocessed old nodes
-  oldNodes.forEach((node, index) => {
-    if (!processedNodes.has(index)) {
-      fromEl.removeChild(node);
-    }
-  });
-}
-
-function isSpecialElement(el) {
-  const specialTags = ["INPUT", "SELECT", "TEXTAREA", "IFRAME", "SCRIPT"];
-  return specialTags.includes(el.tagName);
-}
-
-function handleSpecialElement(fromEl, toEl) {
-  // Preserve form element state
-  if (
-    fromEl instanceof HTMLInputElement ||
-    fromEl instanceof HTMLSelectElement ||
-    fromEl instanceof HTMLTextAreaElement
-  ) {
-    const oldValue = fromEl.value;
-    const oldChecked = fromEl.checked;
-    const oldSelected =
-      fromEl instanceof HTMLSelectElement
-        ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
-        : null;
-
-    // Update attributes from new element
-    Array.from(toEl.attributes).forEach((attr) => {
-      if (attr.name !== "value") {
-        // Don't overwrite value from attributes
-        fromEl.setAttribute(attr.name, attr.value);
-      }
-    });
-
-    // Restore state
-    fromEl.value = oldValue;
-    if (oldChecked !== undefined) fromEl.checked = oldChecked;
-    if (oldSelected) {
-      oldSelected.forEach((value) => {
-        const option = fromEl.querySelector(`option[value="${value}"]`);
-        if (option) option.selected = true;
-      });
+  class FlowPlaterError extends Error {
+    constructor(message, stack) {
+      super(message);
+      this.name = "FlowPlaterError";
+      this.stack = stack;
     }
   }
 
-  // Handle iframes and scripts
-  if (
-    fromEl instanceof HTMLIFrameElement ||
-    fromEl instanceof HTMLScriptElement
-  ) {
-    // Only update attributes, don't touch content
-    Array.from(toEl.attributes).forEach((attr) => {
-      fromEl.setAttribute(attr.name, attr.value);
-    });
-  }
-}
-
-function handleMixedContent(fromEl, toEl) {
-  const oldNodes = Array.from(fromEl.childNodes);
-  const newNodes = Array.from(toEl.childNodes);
-
-  // Compare each node type appropriately
-  if (oldNodes.length === newNodes.length) {
-    oldNodes.forEach((oldNode, i) => {
-      const newNode = newNodes[i];
-      if (!nodesAreEqual(oldNode, newNode)) {
-        fromEl.replaceChild(newNode.cloneNode(true), oldNode);
-      }
-    });
-  } else {
-    fromEl.innerHTML = toEl.innerHTML;
-  }
-}
-
-function nodesAreEqual(node1, node2) {
-  if (node1.nodeType !== node2.nodeType) return false;
-
-  if (node1.nodeType === Node.TEXT_NODE) {
-    return node1.textContent.trim() === node2.textContent.trim();
-  }
-
-  if (node1.nodeType === Node.COMMENT_NODE) {
-    return node1.textContent === node2.textContent;
-  }
-
-  return node1.isEqualNode(node2);
-}
-
-function cloneWithNamespace(node) {
-  if (!(node instanceof Element)) return node.cloneNode(true);
-
-  const ns = node.namespaceURI;
-  const clone = ns
-    ? document.createElementNS(ns, node.tagName)
-    : document.createElement(node.tagName);
-
-  // Copy attributes
-  Array.from(node.attributes).forEach((attr) => {
-    const nsURI = attr.namespaceURI;
-    if (nsURI) {
-      clone.setAttributeNS(nsURI, attr.name, attr.value);
-    } else {
-      clone.setAttribute(attr.name, attr.value);
-    }
-  });
-
-  // Clone children
-  Array.from(node.childNodes).forEach((child) => {
-    clone.appendChild(cloneWithNamespace(child));
-  });
-
-  return clone;
-}
-
-/**
- * Main update function with performance tracking and error handling
- */
-function updateDOM(element, newHTML) {
-  Performance.start("updateDOM");
-
-  try {
-    if (!element || !(element instanceof HTMLElement)) {
-      throw new Error("Invalid target element");
-    }
-
-    if (typeof newHTML !== "string") {
-      throw new Error("newHTML must be a string");
-    }
-
-    // Create virtual node as a temporary container
-    const virtualContainer = document.createElement("div");
-    virtualContainer.innerHTML = newHTML.trim();
-
-    // Create indices of keyed elements for both containers
-    const oldKeyedElements = new Map();
-    const newKeyedElements = new Map();
-    indexTree(element, oldKeyedElements);
-    indexTree(virtualContainer, newKeyedElements);
-
-    // Now morph the contents with keyed elements
-    morphChildren(
-      element,
-      virtualContainer,
-      oldKeyedElements,
-      newKeyedElements,
-    );
-  } catch (error) {
-    Debug.log(Debug.levels.ERROR, "Error in updateDOM:", error);
-    console.error("UpdateDOM error:", error);
-    throw error;
-  } finally {
-    Performance.end("updateDOM");
-  }
-}
-
-/**
- * Enhanced tree indexing with optimized traversal
- */
-function indexTree(node, keyedElements) {
-  const walker = document.createTreeWalker(
-    node,
-    NodeFilter.SHOW_ELEMENT,
-    null,
-    false,
-  );
-
-  let currentNode;
-  while ((currentNode = walker.nextNode())) {
-    const key = currentNode.getAttribute("data-key");
-    if (key) {
-      keyedElements.set(key, currentNode);
+  class TemplateError extends FlowPlaterError {
+    constructor(message, stack) {
+      super(message);
+      this.name = "TemplateError";
+      this.stack = stack;
     }
   }
-}
 
-function instanceMethods(instanceName) {
-  // Helper function to resolve a path within the data
-  function _resolvePath(path) {
-    const pathParts = path.split(/[\.\[\]'"]/);
-    let current = this.data;
-    for (let i = 0; i < pathParts.length; i++) {
-      const part = pathParts[i];
-      if (part === "") continue;
-      if (
-        current === undefined ||
-        current === null ||
-        !current.hasOwnProperty(part)
-      ) {
-        return undefined;
-      }
-      current = current[part];
-    }
-    return current;
-  }
+  /**
+   * @module EventSystem
+   * @description A pub/sub event system that supports both global and instance-specific events
+   */
+  const EventSystem = (function () {
+    /** @type {Map<string, Array<{callback: Function, context: any}>>} */
+    const subscribers = new Map();
 
-  return {
-    _updateDOM: function () {
-      const instance = _state.instances[instanceName];
-      if (!instance) {
-        errorLog$1("Instance not found: " + instanceName);
-        return this;
-      }
-
-      instance.elements.forEach(function (element) {
-        try {
-          updateDOM(element, instance.template(instance.proxy));
-        } catch (error) {
-          element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-          errorLog$1(`Failed to refresh template: ${error.message}`);
-        }
-      });
-
-      return this;
-    },
-
-    update: function (newData) {
-      const instance = _state.instances[instanceName];
-      if (!instance) {
-        errorLog$1("Instance not found: " + instanceName);
-        return this;
-      }
-      Object.assign(instance.data, newData);
-      Object.assign(instance.proxy, newData);
-      return this._updateDOM();
-    },
-
-    remove: function () {
-      const instance = _state.instances[instanceName];
-      if (!instance) {
-        throw new Error("Instance not found: " + instanceName);
-      }
-
-      EventSystem.publish("beforeRemove", {
-        instanceName,
-        elements: instance.elements,
-      });
-
-      try {
-        // Clear elements and remove from DOM
-        instance.elements.forEach(function (element) {
-          try {
-            element.innerHTML = "";
-          } catch (error) {
-            errorLog$1("Error removing instance: " + error.message);
-          }
-        });
-
-        // Clear the elements array
-        instance.elements = [];
-
-        // Remove from state
-        delete _state.instances[instanceName];
-        delete _state.templateCache[instance.templateId];
-
-        EventSystem.publish("afterRemove", {
-          instanceName,
-          elements: [],
-        });
-
-        log("Removed instance: " + instanceName);
-        return true;
-      } catch (error) {
-        throw error;
-      }
-    },
-
-    refresh: async function (options = { remote: true, recompile: false }) {
-      const instance = _state.instances[instanceName];
-      if (!instance) {
-        errorLog$1("Instance not found: " + instanceName);
-        return Promise.reject(new Error("Instance not found: " + instanceName));
-      }
-
-      // If recompile is true, recompile the template
-      const compiledTemplate = instance.template(instance.data);
-      const shouldRecompile =
-        options.recompile || (!compiledTemplate && instance.data);
-
-      if (shouldRecompile) {
-        instance.template = compileTemplate(instance.templateId, true);
-      }
-
-      Debug.log(Debug.levels.DEBUG, "Refresh - Template check:", {
-        templateId: instance.templateId,
-        templateElement: document.querySelector(instance.templateId),
-        compiledTemplate: instance.template(instance.data),
-      });
-
-      const promises = [];
-
-      instance.elements.forEach(function (element) {
-        try {
-          if (options.remote) {
-            const htmxMethods = ["get", "post", "put", "patch", "delete"];
-            const hasHtmxMethod = htmxMethods.some((method) =>
-              element.getAttribute(`hx-${method}`),
-            );
-
-            if (hasHtmxMethod) {
-              const method = htmxMethods.find((method) =>
-                element.getAttribute(`hx-${method}`),
-              );
-              const url = element.getAttribute(`hx-${method}`);
-              const promise = fetch(url, { method: method.toUpperCase() })
-                .then((response) => {
-                  if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                  }
-                  return response.json();
-                })
-                .then((data) => {
-                  Object.assign(instance.data, data);
-                  Object.assign(instance.proxy, data);
-                  const rendered = instance.template(instance.proxy);
-                  Debug.log(Debug.levels.DEBUG, "Refresh - Template render:", {
-                    data: instance.data,
-                    rendered,
-                  });
-                  updateDOM(element, rendered);
-                  return data;
-                });
-              promises.push(promise);
-            }
-          } else {
-            updateDOM(element, instance.template(instance.proxy));
-          }
-        } catch (error) {
-          element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-          errorLog$1(`Failed to refresh template: ${error.message}`);
-          promises.push(Promise.reject(error));
-        }
-      });
-
-      await Promise.all(promises);
-      return this;
-    },
-
-    getData: function () {
-      return _state.instances[instanceName].data;
-    },
-
-    getProxy: function () {
-      return _state.instances[instanceName].proxy;
-    },
-
-    getElements: function () {
-      return _state.instances[instanceName].elements;
-    },
-
-    merge: function (path, value) {
-      const instance = _state.instances[instanceName];
-      if (!instance) {
-        errorLog$1("Instance not found: " + instanceName);
-        return this;
-      }
-
-      let newData = value !== undefined ? value : path;
-
-      try {
-        // Deep merge function
-        function deepMerge(target, source) {
-          for (const key in source) {
-            if (source.hasOwnProperty(key)) {
-              if (Array.isArray(source[key]) && Array.isArray(target[key])) {
-                const targetMap = new Map(
-                  target[key].map((item) => [item.id, item]),
-                );
-                source[key].forEach((sourceItem) => {
-                  if (sourceItem.id && targetMap.has(sourceItem.id)) {
-                    deepMerge(targetMap.get(sourceItem.id), sourceItem);
-                  } else {
-                    target[key].push(sourceItem);
-                  }
-                });
-              } else if (
-                source[key] &&
-                typeof source[key] === "object" &&
-                !Array.isArray(source[key])
-              ) {
-                target[key] = target[key] || {};
-                deepMerge(target[key], source[key]);
-              } else {
-                target[key] = source[key];
-              }
-            }
-          }
-          return target;
-        }
-
-        if (path && value !== undefined) {
-          let target = this.getData();
-          const pathParts = path.split(/[\.\[\]'"]/);
-          for (let i = 0; i < pathParts.length - 1; i++) {
-            const part = pathParts[i];
-            if (part === "") continue;
-            if (!target[part]) target[part] = {};
-            target = target[part];
-          }
-          const lastPart = pathParts[pathParts.length - 1];
-          if (lastPart !== "") {
-            if (!target[lastPart]) {
-              target[lastPart] = Array.isArray(value) ? [] : {};
-            }
-            if (Array.isArray(value)) {
-              if (!Array.isArray(target[lastPart])) {
-                target[lastPart] = [];
-              }
-              const targetArray = target[lastPart];
-              value.forEach((item) => {
-                if (item.id) {
-                  const existingIndex = targetArray.findIndex(
-                    (existing) => existing.id === item.id,
-                  );
-                  if (existingIndex >= 0) {
-                    deepMerge(targetArray[existingIndex], item);
-                  } else {
-                    targetArray.push(item);
-                  }
-                } else {
-                  targetArray.push(item);
-                }
-              });
-            } else if (typeof value === "object") {
-              deepMerge(target[lastPart], value);
-            } else {
-              target[lastPart] = value;
-            }
-          }
-        } else {
-          deepMerge(this.getData(), newData);
-        }
-
-        return this._updateDOM();
-      } catch (error) {
-        errorLog$1(error.message);
-        return this;
-      }
-    },
-
-    set: function (path, value) {
-      const instance = _state.instances[instanceName];
-      if (!instance) {
-        errorLog$1("Instance not found: " + instanceName);
-        return this;
-      }
-
-      try {
-        const parts = path.split(/[\.\[\]'"]/g).filter(Boolean);
-        const last = parts.pop();
-        const target = parts.reduce((acc, part) => {
-          if (!acc[part]) acc[part] = {};
-          return acc[part];
-        }, instance.data);
-
-        target[last] = value;
-        Object.assign(instance.proxy, instance.data);
-        return this._updateDOM();
-      } catch (error) {
-        errorLog$1(error.message);
-        return this;
-      }
-    },
-
-    push: function (arrayPath, value) {
-      let array = _resolvePath.call(this, arrayPath);
-      if (!Array.isArray(array)) {
-        errorLog$1("Target at path is not an array: " + arrayPath);
-        return this;
-      }
-
-      try {
-        array.push(value);
-        return this._updateDOM();
-      } catch (error) {
-        errorLog$1(error.message);
-        return this;
-      }
-    },
-
-    updateWhere: function (arrayPath, criteria, updates) {
-      let array = _resolvePath.call(this, arrayPath);
-      if (!Array.isArray(array)) {
-        errorLog$1("Target at path is not an array: " + arrayPath);
-        return this;
-      }
-
-      try {
-        array.forEach((item) => {
-          const matches = Object.entries(criteria).every(
-            ([key, value]) => item[key] === value,
+    return {
+      /**
+       * Subscribe to an event
+       * @param {string} event - The event name to subscribe to
+       * @param {Function} callback - The callback function to execute when the event is published
+       * @param {any} [context=null] - The context (this) to use when executing the callback
+       * @returns {Function} Unsubscribe function
+       * @throws {Error} If event name is empty or callback is not a function
+       */
+      subscribe(event, callback, context = null) {
+        // Validate event name
+        if (!event || typeof event !== "string") {
+          FlowPlaterError(
+            "Invalid event name. Event name must be a non-empty string.",
           );
-          if (matches) {
-            Object.assign(item, updates);
+        }
+
+        // Validate callback
+        if (!callback || typeof callback !== "function") {
+          FlowPlaterError(
+            `Invalid callback for event "${event}". Callback must be a function.`,
+          );
+        }
+
+        if (!subscribers.has(event)) {
+          subscribers.set(event, []);
+        }
+        subscribers.get(event).push({ callback, context });
+        Debug.log(Debug.levels.DEBUG, `Subscribed to event: ${event}`);
+        return () => this.unsubscribe(event, callback);
+      },
+
+      /**
+       * Unsubscribe from an event
+       * @param {string} event - The event name to unsubscribe from
+       * @param {Function} callback - The callback function to remove
+       */
+      unsubscribe(event, callback) {
+        if (!event || typeof event !== "string") {
+          FlowPlaterError(
+            "Invalid event name. Event name must be a non-empty string. If you are trying to unsubscribe from all events, use unsubscribeAll() instead.",
+          );
+        }
+
+        if (!subscribers.has(event)) return;
+
+        const subs = subscribers.get(event);
+        subscribers.set(
+          event,
+          subs.filter((sub) => sub.callback !== callback),
+        );
+      },
+
+      /**
+       * Remove all event subscribers
+       */
+      unsubscribeAll() {
+        subscribers.clear();
+
+        Debug.log(Debug.levels.INFO, "Cleared all event subscribers");
+      },
+
+      /**
+       * Publish an event with data
+       * @param {string} event - The event name to publish
+       * @param {Object} [data] - Data to pass to subscribers
+       */
+      publish(event, data) {
+        if (!subscribers.has(event)) return;
+
+        // Call subscribers for this specific event
+        subscribers.get(event).forEach(({ callback, context }) => {
+          try {
+            callback.call(context, data);
+          } catch (error) {
+            errorLog$1(`Error in event subscriber for ${event}:`, error);
           }
         });
 
-        return this._updateDOM();
-      } catch (error) {
-        errorLog$1(error.message);
-        return this;
-      }
-    },
+        // If data contains instanceName, also trigger instance-specific event
+        if (data && data.instanceName) {
+          const instanceEvent = `${data.instanceName}:${event}`;
+          if (subscribers.has(instanceEvent)) {
+            subscribers.get(instanceEvent).forEach(({ callback, context }) => {
+              try {
+                callback.call(context, data);
+              } catch (error) {
+                errorLog$1(
+                  `Error in instance event subscriber for ${instanceEvent}:`,
+                  error,
+                );
+              }
+            });
+          }
+        }
+      },
+    };
+  })();
 
-    get: function (path) {
-      return !path ? this.getData() : _resolvePath.call(this, path);
+  const _state = {
+    templateCache: {},
+    instances: {},
+    length: 0,
+    defaults: {
+      animation: false,
+      debug: false,
     },
   };
-}
 
-// Default customTags - can be overridden via meta config in init()
-const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
-let currentCustomTags = customTagList; // Use default list initially - override in init()
-
-function setCustomTags(tags) {
-  currentCustomTags = tags;
-}
-
-function replaceCustomTags(element) {
-  // Replace all custom tags
-  currentCustomTags.forEach((tag) => {
-    const elements = Array.from(element.getElementsByTagName(tag.tag));
-    for (let i = 0; i < elements.length; i++) {
-      const customElement = elements[i];
-      const newElement = document.createElement(tag.replaceWith);
-      newElement.innerHTML = customElement.innerHTML;
-
-      // Copy all attributes from the custom element to the new element
-      for (let attr of customElement.attributes) {
-        newElement.setAttribute(attr.name, attr.value);
-      }
-
-      // Replace the custom element with the new element
-      customElement.parentNode.replaceChild(newElement, customElement);
-    }
-  });
-  return element;
-}
-
-function compileTemplate(templateId, recompile = false) {
-  if (!recompile) {
-    return memoizedCompile(templateId);
+  // Helper functions for state management
+  function getInstance(instanceName) {
+    return _state.instances[instanceName];
   }
 
-  // For recompile=true:
-  // 1. Clear template cache
-  delete _state.templateCache[templateId];
-  // 2. Compile without memoization
-  const compiledTemplate = memoizedCompile.original(templateId);
-  // 3. Update the memoized cache with the new template
-  memoizedCompile.cache.set(JSON.stringify([templateId]), compiledTemplate);
+  function getInstances() {
+    return _state.instances;
+  }
 
-  return compiledTemplate;
-}
+  const Performance = {
+    marks: {},
 
-const memoizedCompile = memoize(function (templateId) {
-  // if templateId is empty or "self", use the current element
-  Performance.start("compile:" + templateId);
+    start: function (label) {
+      this.marks[label] = performance.now();
+    },
 
-  // Add # prefix if templateId doesn't start with it
-  const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
-  var templateElement = document.querySelector(selector);
+    end: function (label) {
+      if (!this.marks[label]) return;
+      const duration = performance.now() - this.marks[label];
+      delete this.marks[label];
+      Debug.log(Debug.levels.DEBUG, `${label} took ${duration.toFixed(2)}ms`);
+      return duration;
+    },
+  };
 
-  log("Trying to compile template: " + templateId);
+  class Memoized {
+    constructor(fn) {
+      this.cache = new Map();
+      this.original = fn;
+    }
 
-  if (!templateElement) {
-    errorLog$1("Template not found: " + templateId);
-    Performance.end("compile:" + templateId);
+    apply(...args) {
+      const key = JSON.stringify(args);
+      if (this.cache.has(key)) {
+        Debug.log(Debug.levels.DEBUG, "Cache hit:", key);
+        return this.cache.get(key);
+      }
+      Debug.log(Debug.levels.DEBUG, "Cache miss:", key);
+      const result = this.original.apply(this, args);
+      this.cache.set(key, result);
+      return result;
+    }
+  }
+
+  function memoize(fn) {
+    const memoized = new Memoized(fn);
+    const wrapper = (...args) => memoized.apply(...args);
+    wrapper.original = memoized.original;
+    wrapper.cache = memoized.cache;
+    return wrapper;
+  }
+
+  /**
+   * Optimized children morphing with keyed element handling
+   */
+  function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
+    // Handle empty initial state
+    if (!fromEl.childNodes.length) {
+      fromEl.innerHTML = toEl.innerHTML;
+      return;
+    }
+
+    // Special handling for form inputs - preserve their state completely
+    if (fromEl instanceof HTMLInputElement) {
+      fromEl.value;
+      fromEl.checked;
+      fromEl instanceof HTMLSelectElement
+          ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
+          : null;
+
+      // Update non-state attributes from new element
+      Array.from(toEl.attributes).forEach((attr) => {
+        if (attr.name !== "value" && attr.name !== "checked") {
+          fromEl.setAttribute(attr.name, attr.value);
+        }
+      });
+
+      return;
+    }
+
+    // Special handling for SVG elements
+    const isSVG = fromEl instanceof SVGElement;
+
+    // Handle special elements (form inputs, iframes, scripts)
+    if (isSpecialElement(fromEl)) {
+      handleSpecialElement(fromEl, toEl);
+      return;
+    }
+
+    // If either element has no children but has content, handle as mixed content
+    if (
+      (!fromEl.children.length && fromEl.childNodes.length) ||
+      (!toEl.children.length && toEl.childNodes.length)
+    ) {
+      handleMixedContent(fromEl, toEl);
+      return;
+    }
+
+    const oldNodes = Array.from(fromEl.childNodes);
+    const newNodes = Array.from(toEl.childNodes);
+
+    // If we have exactly one child on both sides, recurse into it
+    if (
+      oldNodes.length === 1 &&
+      newNodes.length === 1 &&
+      oldNodes[0].nodeType === newNodes[0].nodeType &&
+      oldNodes[0].nodeName === newNodes[0].nodeName
+    ) {
+      morphChildren(oldNodes[0], newNodes[0], oldKeyedElements);
+      return;
+    }
+
+    // Track which old nodes have been processed
+    const processedNodes = new Set();
+
+    // First pass: handle keyed elements
+    newNodes.forEach((newNode, newIndex) => {
+      if (newNode.nodeType === Node.ELEMENT_NODE) {
+        const key = newNode.getAttribute("data-key");
+        if (key) {
+          const existingNode = oldKeyedElements.get(key);
+          if (existingNode) {
+            const oldIndex = oldNodes.indexOf(existingNode);
+            if (oldIndex !== -1) {
+              // Move keyed element to correct position
+              fromEl.insertBefore(existingNode, oldNodes[newIndex] || null);
+              processedNodes.add(oldIndex);
+            }
+          }
+        }
+      }
+    });
+
+    // Second pass: handle remaining elements
+    newNodes.forEach((newNode, newIndex) => {
+      // Try to find a matching node that hasn't been processed yet
+      const matchIndex = oldNodes.findIndex(
+        (oldNode, index) =>
+          !processedNodes.has(index) && nodesAreEqual(oldNode, newNode),
+      );
+
+      if (matchIndex !== -1) {
+        // Found a match - only move it if absolutely necessary
+        processedNodes.add(matchIndex);
+        const oldNode = oldNodes[matchIndex];
+
+        // Find the actual current index of the node in the DOM
+        const currentIndex = Array.from(fromEl.childNodes).indexOf(oldNode);
+
+        // Only move if the node is not already in the correct position
+        if (currentIndex !== newIndex) {
+          const referenceNode = oldNodes[newIndex];
+          // Only move if the reference node exists and is different
+          if (referenceNode && referenceNode !== oldNode) {
+            fromEl.insertBefore(oldNode, referenceNode);
+          }
+        }
+      } else {
+        // No match found - insert new node
+        const clonedNode = isSVG
+          ? cloneWithNamespace(newNode)
+          : newNode.cloneNode(true);
+        const referenceNode = oldNodes[newIndex] || null;
+        fromEl.insertBefore(clonedNode, referenceNode);
+      }
+    });
+
+    // Remove any unprocessed old nodes
+    oldNodes.forEach((node, index) => {
+      if (!processedNodes.has(index)) {
+        fromEl.removeChild(node);
+      }
+    });
+  }
+
+  function isSpecialElement(el) {
+    const specialTags = ["INPUT", "SELECT", "TEXTAREA", "IFRAME", "SCRIPT"];
+    return specialTags.includes(el.tagName);
+  }
+
+  function handleSpecialElement(fromEl, toEl) {
+    // Preserve form element state
+    if (
+      fromEl instanceof HTMLInputElement ||
+      fromEl instanceof HTMLSelectElement ||
+      fromEl instanceof HTMLTextAreaElement
+    ) {
+      const oldValue = fromEl.value;
+      const oldChecked = fromEl.checked;
+      const oldSelected =
+        fromEl instanceof HTMLSelectElement
+          ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
+          : null;
+
+      // Update non-state attributes from new element
+      Array.from(toEl.attributes).forEach((attr) => {
+        // Skip value, checked, and Webflow-specific attributes
+        if (
+          attr.name !== "value" &&
+          attr.name !== "checked" &&
+          !attr.name.startsWith("w-")
+        ) {
+          fromEl.setAttribute(attr.name, attr.value);
+        }
+      });
+
+      // Restore state
+      fromEl.value = oldValue;
+      fromEl.checked = oldChecked;
+
+      if (oldSelected) {
+        oldSelected.forEach((value) => {
+          const option = fromEl.querySelector(`option[value="${value}"]`);
+          if (option) option.selected = true;
+        });
+      }
+    }
+
+    // Handle iframes and scripts
+    if (
+      fromEl instanceof HTMLIFrameElement ||
+      fromEl instanceof HTMLScriptElement
+    ) {
+      // Only update non-Webflow attributes
+      Array.from(toEl.attributes).forEach((attr) => {
+        if (!attr.name.startsWith("w-")) {
+          fromEl.setAttribute(attr.name, attr.value);
+        }
+      });
+    }
+  }
+
+  function handleMixedContent(fromEl, toEl) {
+    const oldNodes = Array.from(fromEl.childNodes);
+    const newNodes = Array.from(toEl.childNodes);
+
+    // Compare each node type appropriately
+    if (oldNodes.length === newNodes.length) {
+      oldNodes.forEach((oldNode, i) => {
+        const newNode = newNodes[i];
+        if (!nodesAreEqual(oldNode, newNode)) {
+          fromEl.replaceChild(newNode.cloneNode(true), oldNode);
+        }
+      });
+    } else {
+      fromEl.innerHTML = toEl.innerHTML;
+    }
+  }
+
+  function nodesAreEqual(node1, node2) {
+    if (node1.nodeType !== node2.nodeType) return false;
+
+    if (node1.nodeType === Node.TEXT_NODE) {
+      return node1.textContent.trim() === node2.textContent.trim();
+    }
+
+    if (node1.nodeType === Node.COMMENT_NODE) {
+      return node1.textContent === node2.textContent;
+    }
+
+    // Skip comparison for Webflow-specific elements
+    if (
+      node1 instanceof Element &&
+      (node1.className.includes("w-") || node2.className.includes("w-"))
+    ) {
+      return true;
+    }
+
+    return node1.isEqualNode(node2);
+  }
+
+  function cloneWithNamespace(node) {
+    if (!(node instanceof Element)) return node.cloneNode(true);
+
+    const ns = node.namespaceURI;
+    const clone = ns
+      ? document.createElementNS(ns, node.tagName)
+      : document.createElement(node.tagName);
+
+    // Copy attributes
+    Array.from(node.attributes).forEach((attr) => {
+      const nsURI = attr.namespaceURI;
+      if (nsURI) {
+        clone.setAttributeNS(nsURI, attr.name, attr.value);
+      } else {
+        clone.setAttribute(attr.name, attr.value);
+      }
+    });
+
+    // Clone children
+    Array.from(node.childNodes).forEach((child) => {
+      clone.appendChild(cloneWithNamespace(child));
+    });
+
+    return clone;
+  }
+
+  /**
+   * Main update function with performance tracking and error handling
+   */
+  async function updateDOM(element, newHTML, animate = false) {
+    Performance.start("updateDOM");
+
+    try {
+      if (!element || !(element instanceof HTMLElement)) {
+        throw new Error("Invalid target element");
+      }
+
+      if (typeof newHTML !== "string") {
+        throw new Error("newHTML must be a string");
+      }
+
+      // Check if View Transitions API is supported and if animate is true
+      if (document.startViewTransition && animate) {
+        await document.startViewTransition(() => {
+          return new Promise((resolve) => {
+            // Create virtual node as a temporary container
+            const virtualContainer = document.createElement("div");
+            virtualContainer.innerHTML = newHTML.trim();
+
+            // Create indices of keyed elements for both containers
+            const oldKeyedElements = new Map();
+            const newKeyedElements = new Map();
+            indexTree(element, oldKeyedElements);
+            indexTree(virtualContainer, newKeyedElements);
+
+            // Morph the contents with keyed elements
+            morphChildren(
+              element,
+              virtualContainer,
+              oldKeyedElements,
+              newKeyedElements,
+            );
+            resolve();
+
+            Performance.end("updateDOM");
+          });
+        }).finished;
+      } else {
+        // Fallback for browsers that don't support View Transitions
+        const virtualContainer = document.createElement("div");
+        virtualContainer.innerHTML = newHTML.trim();
+
+        const oldKeyedElements = new Map();
+        const newKeyedElements = new Map();
+        indexTree(element, oldKeyedElements);
+        indexTree(virtualContainer, newKeyedElements);
+
+        morphChildren(
+          element,
+          virtualContainer,
+          oldKeyedElements,
+          newKeyedElements,
+        );
+
+        Performance.end("updateDOM");
+      }
+    } catch (error) {
+      Debug.log(Debug.levels.ERROR, "Error in updateDOM:", error);
+      console.error("UpdateDOM error:", error);
+      throw error;
+    } finally {
+      Performance.end("updateDOM");
+    }
+  }
+
+  /**
+   * Enhanced tree indexing with optimized traversal
+   */
+  function indexTree(node, keyedElements) {
+    const walker = document.createTreeWalker(
+      node,
+      NodeFilter.SHOW_ELEMENT,
+      null,
+      false,
+    );
+
+    let currentNode;
+    while ((currentNode = walker.nextNode())) {
+      const key = currentNode.getAttribute("data-key");
+      if (key) {
+        keyedElements.set(key, currentNode);
+      }
+    }
+  }
+
+  function saveToLocalStorage(instanceName, data) {
+    if (_state.config?.storage?.enabled) {
+      try {
+        const ttl = _state.config.storage.ttl || 30 * 24 * 60 * 60; // default 30 days in seconds
+        const expiryTime = Date.now() + ttl * 1000; // Convert seconds to milliseconds
+
+        const storageData = {
+          data,
+          expiry: expiryTime,
+        };
+
+        localStorage.setItem(`fp_${instanceName}`, JSON.stringify(storageData));
+      } catch (error) {
+        errorLog$1(`Failed to save to localStorage: ${error.message}`);
+      }
+    }
+  }
+
+  function loadFromLocalStorage(instanceName) {
+    if (_state.config?.storage?.enabled) {
+      try {
+        const storedItem = localStorage.getItem(`fp_${instanceName}`);
+        if (!storedItem) return null;
+
+        const storageData = JSON.parse(storedItem);
+        const now = Date.now();
+
+        // Check if data has expired
+        if (storageData.expiry && now > storageData.expiry) {
+          localStorage.removeItem(`fp_${instanceName}`);
+          return null;
+        }
+
+        return storageData.data;
+      } catch (error) {
+        errorLog$1(`Failed to load from localStorage: ${error.message}`);
+        return null;
+      }
+    }
     return null;
   }
 
-  // Check if template needs compilation
-  if (
-    !_state.templateCache[templateId] ||
-    (templateElement.hasAttribute("fp-dynamic") &&
-      templateElement.getAttribute("fp-dynamic") !== "false")
-  ) {
-    log("compiling template: " + templateId);
-
-    // Function to construct tag with attributes
-    function constructTagWithAttributes(element) {
-      let tagName = element.tagName.toLowerCase();
-      // Replace all custom tags
-      currentCustomTags.forEach((tag) => {
-        if (tagName === tag.tag) {
-          tagName = tag.replaceWith;
+  function instanceMethods(instanceName) {
+    // Helper function to resolve a path within the data
+    function _resolvePath(path) {
+      const pathParts = path.split(/[\.\[\]'"]/);
+      let current = this.data;
+      for (let i = 0; i < pathParts.length; i++) {
+        const part = pathParts[i];
+        if (part === "") continue;
+        if (
+          current === undefined ||
+          current === null ||
+          !current.hasOwnProperty(part)
+        ) {
+          return undefined;
         }
-      });
-      let attributes = "";
-      for (let attr of element.attributes) {
-        attributes += ` ${attr.name}="${attr.value}"`;
+        current = current[part];
       }
-      return `<${tagName}${attributes}>`;
+      return current;
     }
 
-    function processNode(node) {
-      let result = "";
+    return {
+      _updateDOM: function () {
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          errorLog$1("Instance not found: " + instanceName);
+          return this;
+        }
 
-      // Loop through each child node
-      node.childNodes.forEach((child) => {
-        if (child.nodeType === Node.TEXT_NODE) {
-          result += child.textContent;
-        } else if (child.nodeType === Node.ELEMENT_NODE) {
-          if (child.hasAttribute("fp")) {
-            // Process as a Handlebars helper
-            const helperName = child.tagName.toLowerCase();
-            const args = child
-              .getAttribute("fp")
-              .split(" ")
-              .map((arg) => arg.replace(/&quot;/g, '"'))
-              .join(" ");
-
-            const innerContent = processNode(child);
-
-            if (
-              helperName === "log" ||
-              helperName === "lookup" ||
-              helperName === "execute"
-            ) {
-              if (innerContent) {
-                result += `{{${helperName} ${innerContent} ${args}}}`;
-              } else {
-                result += `{{${helperName} ${args}}}`;
-              }
-            } else if (helperName === "comment") {
-              result += `{{!-- ${args} --}}`;
-            } else if (helperName === "if") {
-              const escapedArgs = args.replace(/"/g, '\\"');
-              result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
-            } else if (helperName === "else") {
-              result += `{{${helperName}}}${innerContent}`;
-            } else if (helperName === "math") {
-              if (innerContent) {
-                console.warn(
-                  `FlowPlater: The <${helperName}> helper does not accept inner content.`,
-                );
-              }
-              result += `{{#${helperName} "${args}"}}`;
-            } else {
-              result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
-            }
-          } else if (child.tagName === "else") {
-            const innerContent = processNode(child);
-            result += `{{${child.tagName.toLowerCase()}}}${innerContent}`;
-          } else if (
-            child.tagName === "template" ||
-            child.tagName === "fptemplate" ||
-            child.hasAttribute("fp-template")
-          ) {
-            result += child.outerHTML;
-          } else {
-            const childContent = processNode(child);
-            const startTag = constructTagWithAttributes(child);
-            let endTagName = child.tagName.toLowerCase();
-            currentCustomTags.forEach((tag) => {
-              if (endTagName === tag.tag) {
-                endTagName = tag.replaceWith;
-              }
-            });
-            const endTag = `</${endTagName}>`;
-            result += `${startTag}${childContent}${endTag}`;
+        instance.elements.forEach(function (element) {
+          try {
+            updateDOM(
+              element,
+              instance.template(instance.proxy),
+              instance.animate,
+            );
+          } catch (error) {
+            element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
+            errorLog$1(`Failed to refresh template: ${error.message}`);
           }
-        }
-      });
-      return result;
-    }
-
-    const handlebarsTemplate = processNode(templateElement);
-    log("Compiling Handlebars template: " + handlebarsTemplate);
-
-    try {
-      const compiledTemplate = Handlebars.compile(handlebarsTemplate);
-
-      // Check cache size limit before adding new template
-      const cacheSize = _state.config?.templates?.cacheSize || 100; // Default to 100 if not configured
-      if (Object.keys(_state.templateCache).length >= cacheSize) {
-        // Remove oldest template
-        const oldestKey = Object.keys(_state.templateCache)[0];
-        delete _state.templateCache[oldestKey];
-        log(`Cache limit reached. Removed template: ${oldestKey}`);
-      }
-
-      // Add new template to cache
-      _state.templateCache[templateId] = compiledTemplate;
-      Performance.end("compile:" + templateId);
-      return compiledTemplate;
-    } catch (e) {
-      errorLog$1(
-        "Template not valid: " + handlebarsTemplate + " | Error: " + e.message,
-      );
-      Performance.end("compile:" + templateId);
-      return null;
-    }
-  }
-  Performance.end("compile:" + templateId);
-  return _state.templateCache[templateId];
-});
-
-function render({
-  template,
-  data,
-  target,
-  returnHtml = false,
-  instanceName,
-  animate = _state.defaults.animation,
-  recompile = false,
-}) {
-  Performance.start("render:" + (instanceName || "anonymous"));
-
-  EventSystem.publish("beforeRender", {
-    instanceName,
-    template,
-    data,
-    target,
-    returnHtml,
-    recompile,
-  });
-
-  /* -------------------------------------------------------------------------- */
-  /*                                initial setup                               */
-  /* -------------------------------------------------------------------------- */
-
-  var elements;
-
-  // Get the target elements
-  if (typeof target === "string") {
-    elements = document.querySelectorAll(target);
-  } else if (typeof target === "object" && target.jquery) {
-    elements = target.toArray();
-  } else if (typeof target === "object") {
-    elements = target;
-  } else {
-    errorLog$1("Invalid target type: " + typeof target);
-    return;
-  }
-
-  if (elements.length === undefined) {
-    elements = [elements];
-  }
-
-  // Get the instance name
-  if (instanceName) {
-    instanceName = instanceName;
-  } else if (elements[0].hasAttribute("fp-instance")) {
-    instanceName = elements[0].getAttribute("fp-instance");
-  } else if (elements[0].id) {
-    instanceName = elements[0].id;
-  } else {
-    instanceName = _state.length;
-  }
-
-  log("Rendering instance: " + instanceName, template, data, target);
-
-  /* -------------------------------------------------------------------------- */
-  /*                              Compile template                              */
-  /* -------------------------------------------------------------------------- */
-
-  var compiledTemplate = compileTemplate(template, recompile);
-  _state.length++;
-
-  if (!compiledTemplate) {
-    errorLog$1("Template not found: " + template);
-    return;
-  }
-
-  if (elements.length === 0) {
-    errorLog$1("Target not found: " + target);
-    return;
-  }
-
-  /* -------------------------------------------------------------------------- */
-  /*                               Proxy creation                               */
-  /* -------------------------------------------------------------------------- */
-
-  if (
-    !_state.instances[instanceName] ||
-    _state.instances[instanceName].data !== data
-  ) {
-    var proxy = new Proxy(data, {
-      set: function (target, prop, value) {
-        target[prop] = value;
-        elements.forEach(function (element) {
-          updateDOM(element, compiledTemplate(target));
         });
-        return true;
-      },
-    });
 
-    // Store the proxy and elements in instances for future reference
-    _state.instances[instanceName] = {
-      elements: elements,
-      template: compiledTemplate,
-      templateId: elements[0].getAttribute("fp-template") || template, // Use first element's fp-template attribute
-      proxy: proxy,
-      data: data,
-      ...instanceMethods(instanceName),
+        return this;
+      },
+
+      update: function (newData) {
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          errorLog$1("Instance not found: " + instanceName);
+          return this;
+        }
+        Object.assign(instance.data, newData);
+        Object.assign(instance.proxy, newData);
+        saveToLocalStorage(instanceName, instance.data);
+        return this._updateDOM();
+      },
+
+      remove: function () {
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          throw new Error("Instance not found: " + instanceName);
+        }
+
+        EventSystem.publish("beforeRemove", {
+          instanceName,
+          elements: instance.elements,
+        });
+
+        try {
+          // Remove from localStorage if storage is enabled
+          if (_state.config?.storage?.enabled) {
+            localStorage.removeItem(`fp_${instanceName}`);
+          }
+
+          // Clear elements and remove from DOM
+          instance.elements.forEach(function (element) {
+            try {
+              element.innerHTML = "";
+            } catch (error) {
+              errorLog$1("Error removing instance: " + error.message);
+            }
+          });
+
+          // Clear the elements array
+          instance.elements = [];
+
+          // Remove from state
+          delete _state.instances[instanceName];
+          delete _state.templateCache[instance.templateId];
+
+          EventSystem.publish("afterRemove", {
+            instanceName,
+            elements: [],
+          });
+
+          log("Removed instance: " + instanceName);
+          return true;
+        } catch (error) {
+          throw error;
+        }
+      },
+
+      refresh: async function (options = { remote: true, recompile: false }) {
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          errorLog$1("Instance not found: " + instanceName);
+          return Promise.reject(new Error("Instance not found: " + instanceName));
+        }
+
+        // If recompile is true, recompile the template
+        const compiledTemplate = instance.template(instance.data);
+        const shouldRecompile =
+          options.recompile || (!compiledTemplate && instance.data);
+
+        if (shouldRecompile) {
+          instance.template = compileTemplate(instance.templateId, true);
+        }
+
+        Debug.log(Debug.levels.DEBUG, "Refresh - Template check:", {
+          templateId: instance.templateId,
+          templateElement: document.querySelector(instance.templateId),
+          compiledTemplate: instance.template(instance.data),
+        });
+
+        const promises = [];
+
+        instance.elements.forEach(function (element) {
+          try {
+            if (options.remote) {
+              const htmxMethods = ["get", "post", "put", "patch", "delete"];
+              const hasHtmxMethod = htmxMethods.some((method) =>
+                element.getAttribute(`hx-${method}`),
+              );
+
+              if (hasHtmxMethod) {
+                const method = htmxMethods.find((method) =>
+                  element.getAttribute(`hx-${method}`),
+                );
+                const url = element.getAttribute(`hx-${method}`);
+                const promise = fetch(url, { method: method.toUpperCase() })
+                  .then((response) => {
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                  })
+                  .then((data) => {
+                    Object.assign(instance.data, data);
+                    Object.assign(instance.proxy, data);
+                    const rendered = instance.template(instance.proxy);
+                    Debug.log(Debug.levels.DEBUG, "Refresh - Template render:", {
+                      data: instance.data,
+                      rendered,
+                    });
+                    updateDOM(element, rendered, instance.animate);
+                    return data;
+                  });
+                promises.push(promise);
+              }
+            } else {
+              updateDOM(
+                element,
+                instance.template(instance.proxy),
+                instance.animate,
+              );
+            }
+          } catch (error) {
+            element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
+            errorLog$1(`Failed to refresh template: ${error.message}`);
+            promises.push(Promise.reject(error));
+          }
+        });
+
+        await Promise.all(promises);
+        return this;
+      },
+
+      getData: function () {
+        return _state.instances[instanceName].data;
+      },
+
+      getProxy: function () {
+        return _state.instances[instanceName].proxy;
+      },
+
+      getElements: function () {
+        return _state.instances[instanceName].elements;
+      },
+
+      merge: function (path, value) {
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          errorLog$1("Instance not found: " + instanceName);
+          return this;
+        }
+
+        let newData = value !== undefined ? value : path;
+
+        try {
+          // Deep merge function
+          function deepMerge(target, source) {
+            for (const key in source) {
+              if (source.hasOwnProperty(key)) {
+                if (Array.isArray(source[key]) && Array.isArray(target[key])) {
+                  const targetMap = new Map(
+                    target[key].map((item) => [item.id, item]),
+                  );
+                  source[key].forEach((sourceItem) => {
+                    if (sourceItem.id && targetMap.has(sourceItem.id)) {
+                      deepMerge(targetMap.get(sourceItem.id), sourceItem);
+                    } else {
+                      target[key].push(sourceItem);
+                    }
+                  });
+                } else if (
+                  source[key] &&
+                  typeof source[key] === "object" &&
+                  !Array.isArray(source[key])
+                ) {
+                  target[key] = target[key] || {};
+                  deepMerge(target[key], source[key]);
+                } else {
+                  target[key] = source[key];
+                }
+              }
+            }
+            return target;
+          }
+
+          if (path && value !== undefined) {
+            let target = this.getData();
+            const pathParts = path.split(/[\.\[\]'"]/);
+            for (let i = 0; i < pathParts.length - 1; i++) {
+              const part = pathParts[i];
+              if (part === "") continue;
+              if (!target[part]) target[part] = {};
+              target = target[part];
+            }
+            const lastPart = pathParts[pathParts.length - 1];
+            if (lastPart !== "") {
+              if (!target[lastPart]) {
+                target[lastPart] = Array.isArray(value) ? [] : {};
+              }
+              if (Array.isArray(value)) {
+                if (!Array.isArray(target[lastPart])) {
+                  target[lastPart] = [];
+                }
+                const targetArray = target[lastPart];
+                value.forEach((item) => {
+                  if (item.id) {
+                    const existingIndex = targetArray.findIndex(
+                      (existing) => existing.id === item.id,
+                    );
+                    if (existingIndex >= 0) {
+                      deepMerge(targetArray[existingIndex], item);
+                    } else {
+                      targetArray.push(item);
+                    }
+                  } else {
+                    targetArray.push(item);
+                  }
+                });
+              } else if (typeof value === "object") {
+                deepMerge(target[lastPart], value);
+              } else {
+                target[lastPart] = value;
+              }
+            }
+          } else {
+            deepMerge(this.getData(), newData);
+          }
+
+          return this._updateDOM();
+        } catch (error) {
+          errorLog$1(error.message);
+          return this;
+        }
+      },
+
+      set: function (path, value) {
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          errorLog$1("Instance not found: " + instanceName);
+          return this;
+        }
+
+        try {
+          const parts = path.split(/[\.\[\]'"]/g).filter(Boolean);
+          const last = parts.pop();
+          const target = parts.reduce((acc, part) => {
+            if (!acc[part]) acc[part] = {};
+            return acc[part];
+          }, instance.data);
+
+          target[last] = value;
+          Object.assign(instance.proxy, instance.data);
+          saveToLocalStorage(instanceName, instance.data);
+          return this._updateDOM();
+        } catch (error) {
+          errorLog$1(error.message);
+          return this;
+        }
+      },
+
+      push: function (arrayPath, value) {
+        let array = _resolvePath.call(this, arrayPath);
+        if (!Array.isArray(array)) {
+          errorLog$1("Target at path is not an array: " + arrayPath);
+          return this;
+        }
+
+        try {
+          array.push(value);
+          return this._updateDOM();
+        } catch (error) {
+          errorLog$1(error.message);
+          return this;
+        }
+      },
+
+      updateWhere: function (arrayPath, criteria, updates) {
+        let array = _resolvePath.call(this, arrayPath);
+        if (!Array.isArray(array)) {
+          errorLog$1("Target at path is not an array: " + arrayPath);
+          return this;
+        }
+
+        try {
+          array.forEach((item) => {
+            const matches = Object.entries(criteria).every(
+              ([key, value]) => item[key] === value,
+            );
+            if (matches) {
+              Object.assign(item, updates);
+            }
+          });
+
+          return this._updateDOM();
+        } catch (error) {
+          errorLog$1(error.message);
+          return this;
+        }
+      },
+
+      get: function (path) {
+        return !path ? this.getData() : _resolvePath.call(this, path);
+      },
     };
   }
 
-  const instance = _state.instances[instanceName];
-  log("Proxy created: ", instance.proxy);
+  // Default customTags - can be overridden via meta config in init()
+  const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
+  let currentCustomTags = customTagList; // Use default list initially - override in init()
 
-  /* -------------------------------------------------------------------------- */
-  /*                               Render template                              */
-  /* -------------------------------------------------------------------------- */
+  function setCustomTags(tags) {
+    currentCustomTags = tags;
+  }
 
-  try {
-    if (returnHtml) {
-      var html = instance.template(instance.proxy);
-      return html;
-    }
+  function replaceCustomTags(element) {
+    console.log("replaceCustomTags", element);
+    // Replace [[*]] with {{*}} in the template content
+    // element.innerHTML = element.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
+    // Replace all custom tags
+    currentCustomTags.forEach((tag) => {
+      const elements = Array.from(element.getElementsByTagName(tag.tag));
+      for (let i = 0; i < elements.length; i++) {
+        const customElement = elements[i];
+        const newElement = document.createElement(tag.replaceWith);
+        newElement.innerHTML = customElement.innerHTML;
 
-    elements.forEach(function (element) {
-      try {
-        updateDOM(element, instance.template(instance.proxy));
-      } catch (error) {
-        element.innerHTML = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
-        errorLog$1(`Failed to render template: ${error.message}`);
+        // Copy all attributes from the custom element to the new element
+        for (let attr of customElement.attributes) {
+          newElement.setAttribute(attr.name, attr.value);
+        }
+
+        // Replace the custom element with the new element
+        customElement.parentNode.replaceChild(newElement, customElement);
       }
     });
+    return element;
+  }
 
-    return instance;
-  } catch (error) {
-    errorLog$1(`Failed to render template: ${error.message}`);
-    throw error;
-  } finally {
-    EventSystem.publish("afterRender", {
+  function compileTemplate(templateId, recompile = false) {
+    if (!recompile) {
+      return memoizedCompile(templateId);
+    }
+
+    // For recompile=true:
+    // 1. Clear template cache
+    delete _state.templateCache[templateId];
+    // 2. Compile without memoization
+    const compiledTemplate = memoizedCompile.original(templateId);
+    // 3. Update the memoized cache with the new template
+    memoizedCompile.cache.set(JSON.stringify([templateId]), compiledTemplate);
+
+    return compiledTemplate;
+  }
+
+  const memoizedCompile = memoize(function (templateId) {
+    // if templateId is empty or "self", use the current element
+    Performance.start("compile:" + templateId);
+
+    // Add # prefix if templateId doesn't start with it
+    const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
+    var templateElement = document.querySelector(selector);
+
+    log("Trying to compile template: " + templateId);
+
+    if (!templateElement) {
+      errorLog$1("Template not found: " + templateId);
+      Performance.end("compile:" + templateId);
+      return null;
+    }
+
+    // Check if template needs compilation
+    if (
+      !_state.templateCache[templateId] ||
+      (templateElement.hasAttribute("fp-dynamic") &&
+        templateElement.getAttribute("fp-dynamic") !== "false")
+    ) {
+      log("compiling template: " + templateId);
+
+      // Function to construct tag with attributes
+      function constructTagWithAttributes(element) {
+        let tagName = element.tagName.toLowerCase();
+        // Replace all custom tags
+        currentCustomTags.forEach((tag) => {
+          if (tagName === tag.tag) {
+            tagName = tag.replaceWith;
+          }
+        });
+        let attributes = "";
+        for (let attr of element.attributes) {
+          attributes += ` ${attr.name}="${attr.value}"`;
+        }
+        return `<${tagName}${attributes}>`;
+      }
+
+      function processNode(node) {
+        let result = "";
+
+        // Loop through each child node
+        node.childNodes.forEach((child) => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            result += child.textContent;
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            if (child.hasAttribute("fp")) {
+              // Process as a Handlebars helper
+              const helperName = child.tagName.toLowerCase();
+              const args = child
+                .getAttribute("fp")
+                .split(" ")
+                .map((arg) => arg.replace(/&quot;/g, '"'))
+                .join(" ");
+
+              const innerContent = processNode(child);
+
+              if (
+                helperName === "log" ||
+                helperName === "lookup" ||
+                helperName === "execute"
+              ) {
+                if (innerContent) {
+                  result += `{{${helperName} ${innerContent} ${args}}}`;
+                } else {
+                  result += `{{${helperName} ${args}}}`;
+                }
+              } else if (helperName === "comment") {
+                result += `{{!-- ${args} --}}`;
+              } else if (helperName === "if") {
+                const escapedArgs = args.replace(/"/g, '\\"');
+                result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
+              } else if (helperName === "else") {
+                result += `{{${helperName}}}${innerContent}`;
+              } else if (helperName === "math") {
+                if (innerContent) {
+                  console.warn(
+                    `FlowPlater: The <${helperName}> helper does not accept inner content.`,
+                  );
+                }
+                result += `{{#${helperName} "${args}"}}`;
+              } else {
+                result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
+              }
+            } else if (child.tagName === "else") {
+              const innerContent = processNode(child);
+              result += `{{${child.tagName.toLowerCase()}}}${innerContent}`;
+            } else if (
+              child.tagName === "template" ||
+              child.tagName === "fptemplate" ||
+              child.hasAttribute("fp-template")
+            ) {
+              result += child.outerHTML;
+            } else {
+              const childContent = processNode(child);
+              const startTag = constructTagWithAttributes(child);
+              let endTagName = child.tagName.toLowerCase();
+              currentCustomTags.forEach((tag) => {
+                if (endTagName === tag.tag) {
+                  endTagName = tag.replaceWith;
+                }
+              });
+              const endTag = `</${endTagName}>`;
+              result += `${startTag}${childContent}${endTag}`;
+            }
+          }
+        });
+        return result;
+      }
+
+      const handlebarsTemplate = processNode(templateElement);
+      log("Compiling Handlebars template: " + handlebarsTemplate);
+
+      try {
+        const compiledTemplate = Handlebars.compile(handlebarsTemplate);
+
+        // Check cache size limit before adding new template
+        const cacheSize = _state.config?.templates?.cacheSize || 100; // Default to 100 if not configured
+        if (Object.keys(_state.templateCache).length >= cacheSize) {
+          // Remove oldest template
+          const oldestKey = Object.keys(_state.templateCache)[0];
+          delete _state.templateCache[oldestKey];
+          log(`Cache limit reached. Removed template: ${oldestKey}`);
+        }
+
+        // Add new template to cache
+        _state.templateCache[templateId] = compiledTemplate;
+        Performance.end("compile:" + templateId);
+        return compiledTemplate;
+      } catch (e) {
+        errorLog$1(
+          "Template not valid: " + handlebarsTemplate + " | Error: " + e.message,
+        );
+        Performance.end("compile:" + templateId);
+        return null;
+      }
+    }
+    Performance.end("compile:" + templateId);
+    return _state.templateCache[templateId];
+  });
+
+  function render({
+    template,
+    data,
+    target,
+    returnHtml = false,
+    instanceName,
+    animate = _state.defaults.animation,
+    recompile = false,
+  }) {
+    Performance.start("render:" + (instanceName || "anonymous"));
+
+    EventSystem.publish("beforeRender", {
       instanceName,
       template,
       data,
       target,
-      elements,
       returnHtml,
+      recompile,
     });
-    log("Rendered instance: " + instanceName, template, data, target);
-    Performance.end("render:" + (instanceName || "anonymous"));
+
+    /* -------------------------------------------------------------------------- */
+    /*                                initial setup                               */
+    /* -------------------------------------------------------------------------- */
+
+    var elements;
+
+    // Get the target elements
+    if (typeof target === "string") {
+      elements = document.querySelectorAll(target);
+    } else if (typeof target === "object" && target.jquery) {
+      elements = target.toArray();
+    } else if (typeof target === "object") {
+      elements = target;
+    } else {
+      errorLog$1("Invalid target type: " + typeof target);
+      return;
+    }
+
+    if (elements.length === undefined) {
+      elements = [elements];
+    }
+
+    // Get the instance name
+    if (instanceName) {
+      instanceName = instanceName;
+    } else if (elements[0].hasAttribute("fp-instance")) {
+      instanceName = elements[0].getAttribute("fp-instance");
+    } else if (elements[0].id) {
+      instanceName = elements[0].id;
+    } else {
+      instanceName = _state.length;
+    }
+
+    log("Rendering instance: " + instanceName, template, data, target);
+
+    /* -------------------------------------------------------------------------- */
+    /*                              Compile template                              */
+    /* -------------------------------------------------------------------------- */
+
+    var compiledTemplate = compileTemplate(template, recompile);
+    _state.length++;
+
+    if (!compiledTemplate) {
+      errorLog$1("Template not found: " + template);
+      return;
+    }
+
+    if (elements.length === 0) {
+      errorLog$1("Target not found: " + target);
+      return;
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                               Proxy creation                               */
+    /* -------------------------------------------------------------------------- */
+
+    if (
+      !_state.instances[instanceName] ||
+      _state.instances[instanceName].data !== data
+    ) {
+      // Load persisted data if available
+      const persistedData = loadFromLocalStorage(instanceName);
+      if (persistedData) {
+        data = { ...data, ...persistedData };
+      }
+
+      var proxy = createDeepProxy(data, (target) => {
+        // Use WeakRef or maintain a Set of weak references to elements
+        const activeElements = elements.filter((el) =>
+          document.body.contains(el),
+        );
+        activeElements.forEach((element) => {
+          updateDOM(element, compiledTemplate(target));
+        });
+      });
+
+      // Store the proxy and elements in instances for future reference
+      _state.instances[instanceName] = {
+        // Use Set instead of WeakSet to allow iteration
+        elements: new Set(elements),
+        template: compiledTemplate,
+        templateId: elements[0].getAttribute("fp-template") || template,
+        proxy: proxy,
+        data: data,
+        cleanup: () => {
+          this.elements.clear();
+        },
+        ...instanceMethods(instanceName),
+      };
+    }
+
+    const instance = _state.instances[instanceName];
+    log("Proxy created: ", instance.proxy);
+
+    /* -------------------------------------------------------------------------- */
+    /*                               Render template                              */
+    /* -------------------------------------------------------------------------- */
+
+    try {
+      if (returnHtml) {
+        var html = instance.template(instance.proxy);
+        return html;
+      }
+
+      elements.forEach(function (element) {
+        try {
+          updateDOM(element, instance.template(instance.proxy), instance.animate);
+        } catch (error) {
+          element.innerHTML = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
+          errorLog$1(`Failed to render template: ${error.message}`);
+        }
+      });
+
+      return instance;
+    } catch (error) {
+      if (!(error instanceof TemplateError)) {
+        errorLog$1(`Failed to render template: ${error.message}`);
+      }
+      throw error;
+    } finally {
+      EventSystem.publish("afterRender", {
+        instanceName,
+        template,
+        data,
+        target,
+        elements,
+        returnHtml,
+      });
+      log("Rendered instance: " + instanceName, template, data, target);
+      Performance.end("render:" + (instanceName || "anonymous"));
+    }
   }
-}
 
-function compare(left, operator, right) {
-  // Convert string numbers to actual numbers for comparison
-  if (!isNaN(left)) left = Number(left);
-  if (!isNaN(right)) right = Number(right);
+  function createDeepProxy(target, handler) {
+    if (typeof target !== "object" || target === null) {
+      return target;
+    }
 
-  function isNullOrUndefined(value) {
-    return value === null || value === undefined;
+    const proxyHandler = {
+      get(target, property) {
+        const value = target[property];
+        return value && typeof value === "object"
+          ? createDeepProxy(value, handler)
+          : value;
+      },
+      set(target, property, value) {
+        target[property] = value;
+        handler(target);
+        return true;
+      },
+      deleteProperty(target, property) {
+        delete target[property];
+        handler(target);
+        return true;
+      },
+    };
+
+    return new Proxy(target, proxyHandler);
   }
 
-  // Handle null/undefined comparisons
-  if (isNullOrUndefined(left) || isNullOrUndefined(right)) {
+  function compare(left, operator, right) {
+    // Convert string numbers to actual numbers for comparison
+    if (!isNaN(left)) left = Number(left);
+    if (!isNaN(right)) right = Number(right);
+
+    function isNullOrUndefined(value) {
+      return value === null || value === undefined;
+    }
+
+    // Handle null/undefined comparisons
+    if (isNullOrUndefined(left) || isNullOrUndefined(right)) {
+      switch (operator) {
+        case "==":
+          return left == right;
+        case "!=":
+          return left != right;
+        case "&&":
+          return Boolean(left) && Boolean(right);
+        case "||":
+          return Boolean(left) || Boolean(right);
+        default:
+          return false;
+      }
+    }
+
+    // String comparisons
+    if (typeof left === "string" && typeof right === "string") {
+      switch (operator) {
+        case "==":
+          return left.localeCompare(right) === 0;
+        case "!=":
+          return left.localeCompare(right) !== 0;
+        case "<":
+          return left.localeCompare(right) < 0;
+        case ">":
+          return left.localeCompare(right) > 0;
+        case "<=":
+          return left.localeCompare(right) <= 0;
+        case ">=":
+          return left.localeCompare(right) >= 0;
+        default:
+          throw new TemplateError(
+            "Unsupported operator for strings: " + operator,
+          );
+      }
+    }
+
+    // Numeric and boolean comparisons
     switch (operator) {
       case "==":
         return left == right;
       case "!=":
         return left != right;
+      case "<":
+        return left < right;
+      case ">":
+        return left > right;
+      case "<=":
+        return left <= right;
+      case ">=":
+        return left >= right;
       case "&&":
         return Boolean(left) && Boolean(right);
       case "||":
         return Boolean(left) || Boolean(right);
+      case "regex":
+        return new RegExp(right).test(left);
       default:
-        return false;
+        throw new TemplateError("Unsupported operator: " + operator);
     }
   }
 
-  // String comparisons
-  if (typeof left === "string" && typeof right === "string") {
-    switch (operator) {
-      case "==":
-        return left.localeCompare(right) === 0;
-      case "!=":
-        return left.localeCompare(right) !== 0;
-      case "<":
-        return left.localeCompare(right) < 0;
-      case ">":
-        return left.localeCompare(right) > 0;
-      case "<=":
-        return left.localeCompare(right) <= 0;
-      case ">=":
-        return left.localeCompare(right) >= 0;
-      default:
-        throw new TemplateError(
-          "Unsupported operator for strings: " + operator,
-        );
-    }
-  }
+  function ifHelper() {
+    Handlebars.registerHelper("if", function (expressionString, options) {
+      function resolveValue(token, dataContext, currentContext) {
+        // Handle string literals
+        if (
+          (token.startsWith('"') && token.endsWith('"')) ||
+          (token.startsWith("'") && token.endsWith("'"))
+        ) {
+          return token.slice(1, -1);
+        }
 
-  // Numeric and boolean comparisons
-  switch (operator) {
-    case "==":
-      return left == right;
-    case "!=":
-      return left != right;
-    case "<":
-      return left < right;
-    case ">":
-      return left > right;
-    case "<=":
-      return left <= right;
-    case ">=":
-      return left >= right;
-    case "&&":
-      return Boolean(left) && Boolean(right);
-    case "||":
-      return Boolean(left) || Boolean(right);
-    case "regex":
-      return new RegExp(right).test(left);
-    default:
-      throw new TemplateError("Unsupported operator: " + operator);
-  }
-}
+        // Handle numeric literals
+        if (!isNaN(token)) {
+          return parseFloat(token);
+        }
 
-function ifHelper() {
-  Handlebars.registerHelper("if", function (expressionString, options) {
-    function resolveValue(token, dataContext, currentContext) {
-      // Handle string literals
-      if (
-        (token.startsWith('"') && token.endsWith('"')) ||
-        (token.startsWith("'") && token.endsWith("'"))
-      ) {
-        return token.slice(1, -1);
-      }
+        // Handle 'this' references
+        if (token === "this") {
+          return currentContext;
+        }
 
-      // Handle numeric literals
-      if (!isNaN(token)) {
-        return parseFloat(token);
-      }
+        if (token.startsWith("this.")) {
+          const path = token.split(".").slice(1);
+          let value = currentContext;
+          for (const part of path) {
+            if (value && typeof value === "object" && part in value) {
+              value = value[part];
+            } else {
+              return undefined;
+            }
+          }
+          return value;
+        }
 
-      // Handle 'this' references
-      if (token === "this") {
-        return currentContext;
-      }
+        // Handle nested object paths
+        const path = token.split(".");
+        let value = dataContext;
 
-      if (token.startsWith("this.")) {
-        const path = token.split(".").slice(1);
-        let value = currentContext;
         for (const part of path) {
           if (value && typeof value === "object" && part in value) {
             value = value[part];
@@ -11245,1338 +11433,1396 @@ function ifHelper() {
             return undefined;
           }
         }
+
         return value;
       }
 
-      // Handle nested object paths
-      const path = token.split(".");
-      let value = dataContext;
+      try {
+        // Parse expression
+        const expression = expressionString.trim();
+        const [leftToken, operator, rightToken] = expression.split(
+          /\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/,
+        );
 
-      for (const part of path) {
-        if (value && typeof value === "object" && part in value) {
-          value = value[part];
-        } else {
-          return undefined;
+        if (!leftToken || !operator || !rightToken) {
+          throw new TemplateError(`Invalid expression format: ${expression}`);
         }
-      }
 
-      return value;
-    }
+        // Resolve values
+        const leftValue = resolveValue(leftToken, options.data.root, this);
+        const rightValue = resolveValue(rightToken, options.data.root, this);
 
-    try {
-      // Parse expression
-      const expression = expressionString.trim();
-      const [leftToken, operator, rightToken] = expression.split(
-        /\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/,
-      );
+        // Log resolved values for debugging
+        Debug.log(Debug.levels.INFO, "Evaluating expression:", {
+          raw: expression,
+          leftValue,
+          operator,
+          rightValue,
+        });
 
-      if (!leftToken || !operator || !rightToken) {
-        throw new TemplateError(`Invalid expression format: ${expression}`);
-      }
+        // Evaluate the condition
+        const result = compare(leftValue, operator, rightValue);
 
-      // Resolve values
-      const leftValue = resolveValue(leftToken, options.data.root, this);
-      const rightValue = resolveValue(rightToken, options.data.root, this);
-
-      // Log resolved values for debugging
-      Debug.log(Debug.levels.INFO, "Evaluating expression:", {
-        raw: expression,
-        leftValue,
-        operator,
-        rightValue,
-      });
-
-      // Evaluate the condition first
-      const result = compare(leftValue, operator, rightValue);
-
-      // Now execute the appropriate branch, letting any errors propagate up
-      if (result) {
-        return options.fn(this);
-      } else {
-        return options.inverse(this);
-      }
-    } catch (error) {
-      // Only catch and handle errors related to the condition evaluation itself
-      if (error instanceof TemplateError) {
-        Debug.log(Debug.levels.ERROR, "Error evaluating if condition:", error);
+        // Execute the appropriate branch
+        if (result) {
+          return options.fn(this);
+        } else {
+          return options.inverse(this);
+        }
+      } catch (error) {
+        // Log the error stack for better debugging
+        if (!(error instanceof TemplateError)) {
+          Debug.log(
+            Debug.levels.ERROR,
+            "Error evaluating if condition:",
+            error.stack,
+          );
+        }
         throw error; // Re-throw to maintain error state
       }
-      Debug.log(Debug.levels.ERROR, "Error in if helper:", error);
-      throw error; // Re-throw other errors to maintain error state
-    }
-  });
-}
+    });
+  }
 
-function sumHelper() {
-  Handlebars.registerHelper("sum", function () {
-    // Accepts multiple arguments, can be either numbers or arrays of numbers
-    // Returns the sum of all arguments
-    // Example: {{sum 1 2 3 4 5 (array 6 7 8 9 10)}} returns 55
-    var sum = 0;
-    for (var i = 0; i < arguments.length - 1; i++) {
-      var arg = arguments[i];
-      if (Array.isArray(arg)) {
-        arg.forEach(function (item) {
-          sum += item;
-        });
-      } else {
-        sum += arg;
+  function sumHelper() {
+    Handlebars.registerHelper("sum", function () {
+      // Accepts multiple arguments, can be either numbers or arrays of numbers
+      // Returns the sum of all arguments
+      // Example: {{sum 1 2 3 4 5 (array 6 7 8 9 10)}} returns 55
+      var sum = 0;
+      for (var i = 0; i < arguments.length - 1; i++) {
+        var arg = arguments[i];
+        if (Array.isArray(arg)) {
+          arg.forEach(function (item) {
+            sum += item;
+          });
+        } else {
+          sum += arg;
+        }
       }
-    }
-    return sum;
-  });
-}
+      return sum;
+    });
+  }
 
-function* Lexer(expr) {
-  var _regex = new RegExp(Lexer.lang, "g");
-  var x;
-  while ((x = _regex.exec(expr)) !== null) {
-    var [token] = x;
-    for (var category in Lexer.categories) {
-      if (new RegExp(Lexer.categories[category]).test(token)) {
-        yield { token, category };
-        break;
+  function* Lexer(expr) {
+    var _regex = new RegExp(Lexer.lang, "g");
+    var x;
+    while ((x = _regex.exec(expr)) !== null) {
+      var [token] = x;
+      for (var category in Lexer.categories) {
+        if (new RegExp(Lexer.categories[category]).test(token)) {
+          yield { token, category };
+          break;
+        }
       }
     }
   }
-}
 
-Lexer.categories = {
-  op: "[+*/^|-]",
-  num: "\\d+(?:\\.\\d+)?%?",
-  group: "[\\[()\\]]",
-  sep: ",",
-  ident: "\\b(ans|pi|e)\\b",
-  func: "\\b(sqrt|abs|log|ln|sin|cos|tan|min|max)\\b",
-};
+  Lexer.categories = {
+    op: "[+*/^]|-(?!\\d)",
+    num: "-?\\d+(?:\\.\\d+)?%?",
+    group: "[\\[()\\]]",
+    sep: ",",
+    ident: "\\b(ans|pi|e)\\b",
+    func: "\\b(sqrt|abs|log|ln|sin|cos|tan|min|max)\\b",
+  };
 
-Lexer.lang = [
-  Lexer.categories.op,
-  Lexer.categories.num,
-  Lexer.categories.group,
-  Lexer.categories.sep,
-  Lexer.categories.ident,
-  Lexer.categories.func,
-].join("|");
+  Lexer.lang = [
+    Lexer.categories.op,
+    Lexer.categories.num,
+    Lexer.categories.group,
+    Lexer.categories.sep,
+    Lexer.categories.ident,
+    Lexer.categories.func,
+  ].join("|");
 
-Lexer.cat = {
-  INT: "num",
-  IDENT: "ident",
-  PCNT: "num",
-  FUNC: "func",
-  SEP: "sep",
-};
+  Lexer.cat = {
+    INT: "num",
+    IDENT: "ident",
+    PCNT: "num",
+    FUNC: "func",
+    SEP: "sep",
+  };
 
-class Calc {
-  constructor() {
-    this.stack = [];
-    this.w = null;
-    this.l = null;
-  }
+  class Calc {
+    constructor() {
+      this.stack = [];
+      this.w = null;
+      this.l = null;
+    }
 
-  _next() {
-    const next = this.l.next();
-    return next.done ? null : next.value;
-  }
-
-  exec(expr) {
-    try {
-      this.l = Lexer(expr);
-      this.w = this._next();
-
-      if (!this.e()) {
-        throw new SyntaxError(
-          this.w ? this.w.token : "Unexpected end of expression",
-        );
+    _next() {
+      const next = this.l.next();
+      if (next.done) {
+        //   console.debug("End of expression reached");
+        return null;
       }
+      // console.debug("Next token:", next.value);
+      return next.value;
+    }
 
-      if (this.w !== null) {
-        throw new SyntaxError(`Unexpected token: ${this.w.token}`);
-      }
+    exec(expr) {
+      try {
+        this.l = Lexer(expr);
+        this.w = this._next();
 
-      return (Calc.ans = this.stack.pop());
-    } catch (error) {
-      if (error instanceof SyntaxError) {
+        if (!this.e()) {
+          throw new SyntaxError(
+            this.w ? this.w.token : "Unexpected end of expression",
+          );
+        }
+
+        if (this.w !== null) {
+          throw new SyntaxError(`Unexpected token: ${this.w.token}`);
+        }
+
+        return (Calc.ans = this.stack.pop());
+      } catch (error) {
+        console.error("Error in expression evaluation:", error);
         throw error;
       }
-      throw new SyntaxError(`Error parsing expression: ${error.message}`);
     }
-  }
 
-  _istok(o) {
-    return this.w && o === this.w.token;
-  }
-
-  z() {
-    if (this._wrapped_expr()) {
-      return true;
-    } else if (
-      this.w &&
-      ["INT", "IDENT", "PCNT"].some((k) => Lexer.cat[k] === this.w.category)
-    ) {
-      this.stack.push(Calc._val(this.w));
-      this.w = this._next();
-      return true;
-    } else if (this.w && this.w.category === Lexer.cat.FUNC) {
-      var fn = this.w.token;
-      this.w = this._next();
-      if (fn === "min" || fn === "max") {
-        return this._wrapped_expr_min_max(this._rep_val, fn);
-      } else {
-        return this._wrapped_expr(this._rep_val, fn);
-      }
-    } else if (this._wrapped_expr(this._rep_val, "abs", "|", "|")) {
-      return true;
+    _istok(o) {
+      return this.w && o === this.w.token;
     }
-    return false;
-  }
 
-  _wrapped_expr_min_max(cb, arg, a = "(", b = ")") {
-    if (this.w && this.w.token === a) {
-      this.w = this._next();
-      let args = [];
-      while (this.w !== null) {
-        if (this.e()) {
-          args.push(this.stack.pop());
-          if (this.w && this.w.category === "sep") {
-            this.w = this._next();
-            continue;
-          }
-        }
-        break;
-      }
-      if (this.w && this.w.token === b) {
+    z() {
+      if (this._wrapped_expr()) {
+        return true;
+      } else if (
+        this.w &&
+        ["INT", "IDENT", "PCNT"].some((k) => Lexer.cat[k] === this.w.category)
+      ) {
+        this.stack.push(Calc._val(this.w));
         this.w = this._next();
-        if (cb instanceof Function) {
-          cb.call(this, arg, args);
+        return true;
+      } else if (this.w && this.w.category === Lexer.cat.FUNC) {
+        var fn = this.w.token;
+        this.w = this._next();
+        if (fn === "min" || fn === "max") {
+          return this._wrapped_expr_min_max(this._rep_val, fn);
+        } else {
+          return this._wrapped_expr(this._rep_val, fn);
         }
+      } else if (this._wrapped_expr(this._rep_val, "abs", "|", "|")) {
         return true;
       }
+      return false;
     }
-    return false;
-  }
 
-  _lrecmut(nt, pfn) {
-    return nt.call(this) && pfn.call(this);
-  }
-
-  _ophit(ops, nt, pfn, follow) {
-    if (this.w && ops.some((op) => op === this.w.token)) {
-      var op = this.w.token;
-      var a = this.stack.pop();
-      this.w = this._next();
-      if (nt.call(this)) {
-        var b = this.stack.pop();
-        this.stack.push(Calc._chooseOp(op)(a, b));
-        return pfn.call(this);
-      }
-    } else if (!this.w || follow.some((op) => op === this.w.token)) {
-      return true;
-    }
-    return false;
-  }
-
-  e() {
-    return this._lrecmut(this.p, this.ep);
-  }
-
-  ep() {
-    return this._ophit(["+", "-"], this.p, this.ep, [")", "|", ","]);
-  }
-
-  p() {
-    return this._lrecmut(this.x, this.pp);
-  }
-
-  pp() {
-    return this._ophit(["*", "/"], this.x, this.pp, ["+", "-", ")", "|", ","]);
-  }
-
-  x() {
-    return this._lrecmut(this.z, this.xp);
-  }
-
-  xp() {
-    return this._ophit(["^"], this.z, this.xp, [
-      "*",
-      "/",
-      "+",
-      "-",
-      ")",
-      "|",
-      ",",
-    ]);
-  }
-
-  _wrapped_expr(cb, arg, a = "(", b = ")") {
-    if (this.w.token === a) {
-      this.w = this.l.next().value;
-      if (this.e()) {
-        if (this.w.token === b) {
-          this.w = this.l.next().value;
-          if (cb instanceof Function) cb.call(this, arg);
+    _wrapped_expr_min_max(cb, arg, a = "(", b = ")") {
+      if (this.w && this.w.token === a) {
+        this.w = this._next();
+        let args = [];
+        while (this.w !== null) {
+          if (this.e()) {
+            args.push(this.stack.pop());
+            if (this.w && this.w.category === "sep") {
+              this.w = this._next();
+              continue;
+            }
+          }
+          break;
+        }
+        if (this.w && this.w.token === b) {
+          this.w = this._next();
+          if (cb instanceof Function) {
+            cb.call(this, arg, args);
+          }
           return true;
         }
       }
+      return false;
     }
-  }
 
-  _rep_val(fn, args) {
-    if (args) {
-      // For min/max functions with multiple arguments
-      this.stack.push(Calc._chooseFn(fn).apply(null, args));
-    } else {
-      // For single argument functions
-      this.stack.push(Calc._chooseFn(fn)(this.stack.pop()));
+    _lrecmut(nt, pfn) {
+      return nt.call(this) && pfn.call(this);
     }
-  }
 
-  static _chooseFn(fn) {
-    switch (fn) {
-      case "sqrt":
-        return Math.sqrt;
-      case "log":
-        return Math.log10;
-      case "ln":
-        return Math.log;
-      case "abs":
-        return Math.abs;
-      case "min":
-        return Math.min;
-      case "max":
-        return Math.max;
-      case "sin":
-        return Math.sin;
-      case "cos":
-        return Math.cos;
-      case "tan":
-        return Math.tan;
-      default:
-        throw new Error(`Unknown function: ${fn}`);
-    }
-  }
-
-  static _val(w) {
-    var n;
-    if (w.category === Lexer.cat.INT || w.category === Lexer.cat.PCNT) {
-      n = parseFloat(w.token);
-      if (w.token.endsWith("%")) n /= 100;
-    } else if (w.category === Lexer.cat.IDENT) {
-      if (w.token === "pi") {
-        n = Math.PI;
-      } else if (w.token === "e") {
-        n = Math.E;
-      } else if (w.token === "ans") {
-        n = this.ans;
+    _ophit(ops, nt, pfn, follow) {
+      if (this.w && ops.some((op) => op === this.w.token)) {
+        var op = this.w.token;
+        var a = this.stack.pop();
+        this.w = this._next();
+        if (nt.call(this)) {
+          var b = this.stack.pop();
+          this.stack.push(Calc._chooseOp(op)(a, b));
+          return pfn.call(this);
+        }
+      } else if (!this.w || follow.some((op) => op === this.w.token)) {
+        return true;
       }
+      return false;
     }
-    return n;
-  }
 
-  static _chooseOp(op) {
-    switch (op) {
-      case "+":
-        return (a, b) => a + b;
-      case "-":
-        return (a, b) => a - b;
-      case "*":
-        return (a, b) => a * b;
-      case "/":
-        return (a, b) => a / b;
-      case "^":
-        return (a, b) => Math.pow(a, b);
-      default:
-        throw new Error(`Unknown operator: ${op}`);
+    e() {
+      this.t();
+      while (this.w && (this.w.token === "+" || this.w.token === "-")) {
+        const op = this.w.token;
+        this.w = this._next();
+        if (!this.t()) return false;
+        const right = this.stack.pop();
+        const left = this.stack.pop();
+        this.stack.push(Calc._chooseOp(op)(left, right));
+      }
+      return true;
     }
-  }
-}
-Calc.ans = 0;
 
-function mathHelper() {
-  Handlebars.registerHelper("math", function (expression, options) {
-    // First, identify and protect function names
-    const functionNames = [
-      "min",
-      "max",
-      "sqrt",
-      "abs",
-      "log",
-      "ln",
-      "sin",
-      "cos",
-      "tan",
-    ];
-
-    // First pass: resolve forced variable references like @{max}
-    const resolvedForced = expression.replace(
-      /@{([^}]+)}/g,
-      (match, varPath) => {
-        try {
-          let value;
-          if (varPath.includes(".")) {
-            value = varPath
-              .split(".")
-              .reduce((acc, part) => acc[part], options.data.root);
-          } else {
-            value = options.data.root[varPath] || options.hash[varPath];
-          }
-          return value;
-        } catch (error) {
-          console.warn(`Could not resolve ${varPath}`);
-          return NaN;
-        }
-      },
-    );
-
-    // Second pass: normal variable resolution with function name protection
-    const resolvedExpression = resolvedForced.replace(
-      /[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)*/g,
-      (match) => {
-        // Skip if it's a standalone function name (not part of a property path)
-        if (functionNames.includes(match) && !match.includes(".")) {
-          return match;
-        }
-
-        try {
-          // Resolve context paths like 'this.data' or 'object.sum'
-          let value;
-          if (match.includes(".")) {
-            value = match
-              .split(".")
-              .reduce((acc, part) => acc[part], options.data.root);
-          } else {
-            value = options.data.root[match] || options.hash[match];
-          }
-          return value;
-        } catch (error) {
-          console.warn(`Could not resolve ${match}`);
-          return NaN;
-        }
-      },
-    );
-
-    log(resolvedExpression);
-
-    try {
-      // Evaluate the expression using jscalc
-      const c = new Calc();
-      const result = c.exec(resolvedExpression);
+    t() {
+      let result = this.f();
+      while (this.w && (this.w.token === "*" || this.w.token === "/")) {
+        const op = this.w.token;
+        this.w = this._next();
+        if (!this.f()) return false;
+        const right = this.stack.pop();
+        const left = this.stack.pop();
+        this.stack.push(Calc._chooseOp(op)(left, right));
+      }
       return result;
-    } catch (error) {
-      throw new TemplateError(`Error evaluating expression: ${error.message}`);
-    }
-  });
-}
-
-function sortFunction(key, descending) {
-  return function (a, b) {
-    let left = key ? a[key] : a;
-    let right = key ? b[key] : b;
-
-    // Handle null/undefined values
-    if (left === null || left === undefined) return descending ? -1 : 1;
-    if (right === null || right === undefined) return descending ? 1 : -1;
-
-    // String comparison
-    if (typeof left === "string" && typeof right === "string") {
-      return descending ? right.localeCompare(left) : left.localeCompare(right);
     }
 
-    // Numeric comparison
-    if (left < right) return descending ? 1 : -1;
-    if (left > right) return descending ? -1 : 1;
-    return 0;
-  };
-}
-
-function eachHelper() {
-  Handlebars.registerHelper("each", function (context, options) {
-    // Accepts an array or object and iterates through it
-    // Returns the value of the current iteration
-    // Example: {{#each myArray}} returns the current item in the array
-
-    // Allows for optional arguments, e.g. {{#each myArray limit=10 startAt=5}}
-    // limit: limit the number of iterations. Leave blank for no limit
-    // startAt: start at a specific index
-    // sortBy: sort by a key
-    // descending: sort descending
-    // sortBeforeLimit: sort before limiting (default: true)
-
-    var result = "";
-    var limit = options.hash.limit;
-    var startAt = options.hash.startAt || 0;
-    var key = options.hash.sortBy;
-    var descending = options.hash.descending;
-    var sortBeforeLimit = options.hash.sortBeforeLimit;
-    var inverse = options.inverse;
-    var fn = options.fn;
-    var data;
-    var contextPath;
-
-    sortBeforeLimit =
-      typeof sortBeforeLimit === "boolean" ? sortBeforeLimit : true;
-
-    if (options.data && options.ids) {
-      contextPath =
-        Handlebars.Utils.appendContextPath(
-          options.data.contextPath,
-          options.ids[0],
-        ) + ".";
+    f() {
+      if (this.w && this.w.token === "-") {
+        this.w = this._next();
+        if (!this.z()) return false;
+        const val = this.stack.pop();
+        this.stack.push(-val);
+        return true;
+      }
+      return this.z();
     }
 
-    if (Handlebars.Utils.isFunction(context)) {
-      context = context.call(this);
+    ep() {
+      return this._ophit(["+", "-"], this.p, this.ep, [")", "|", ","]);
     }
 
-    if (options.data) {
-      data = Handlebars.createFrame(options.data);
+    p() {
+      return this._lrecmut(this.x, this.pp);
     }
 
-    if (!Array.isArray(context) && typeof context !== "object") {
-      return inverse(this);
+    pp() {
+      return this._ophit(["*", "/"], this.x, this.pp, ["+", "-", ")", "|", ","]);
     }
 
-    var processedArray = Array.isArray(context)
-      ? context.slice()
-      : Object.entries(context);
-
-    if (limit === undefined) {
-      limit = processedArray.length;
+    x() {
+      return this._lrecmut(this.z, this.xp);
     }
 
-    // Apply sorting and limiting logic
-    if (sortBeforeLimit) {
-      processedArray.sort(sortFunction(key, descending));
-      processedArray = processedArray.slice(startAt, limit + startAt);
-    } else {
-      processedArray = processedArray.slice(startAt, limit + startAt);
-      processedArray.sort(sortFunction(key, descending));
+    xp() {
+      return this._ophit(["^"], this.z, this.xp, [
+        "*",
+        "/",
+        "+",
+        "-",
+        ")",
+        "|",
+        ",",
+      ]);
     }
 
-    for (var i = 0; i < processedArray.length; i++) {
-      var value = Array.isArray(context)
-        ? processedArray[i]
-        : processedArray[i][1];
-      data.key = Array.isArray(context) ? i : processedArray[i][0];
-      data.index = i;
-      data.first = i === 0;
-      data.last = i === processedArray.length - 1;
-
-      if (contextPath) {
-        data.contextPath = contextPath + data.key;
+    _wrapped_expr(cb, arg, a = "(", b = ")") {
+      if (!this.w) {
+        return false;
       }
 
-      result += fn(value, {
-        data: data,
-        blockParams: Handlebars.Utils.blockParams(
-          [value, data.key],
-          [contextPath + data.key, null],
-        ),
-      });
+      if (this.w.token === a) {
+        this.w = this._next();
+        if (this.e()) {
+          if (this.w && this.w.token === b) {
+            this.w = this._next();
+            if (cb instanceof Function) cb.call(this, arg);
+            return true;
+          }
+        }
+      }
+      return false;
     }
 
-    if (i === 0) {
-      result = inverse(this);
+    _rep_val(fn, args) {
+      if (args) {
+        // For min/max functions with multiple arguments
+        this.stack.push(Calc._chooseFn(fn).apply(null, args));
+      } else {
+        // For single argument functions
+        const value = this.stack.pop();
+        if (value === undefined) {
+          throw new Error(`Function ${fn} requires an argument`);
+        }
+        this.stack.push(Calc._chooseFn(fn)(value));
+      }
     }
 
-    return result;
-  });
-}
-
-function executeHelper() {
-  Handlebars.registerHelper("execute", function (fn, ...args) {
-    // Accepts a function name and arguments
-    // Executes the function with the arguments
-    // Example: {{execute myFunction arg1 arg2 arg3}} returns myFunction(arg1, arg2, arg3)
-    args.pop();
-
-    const fnName = String(fn);
-    const functionToExecute = this[fnName] || window[fnName];
-
-    // Execute the function if it exists
-    if (typeof functionToExecute === "function") {
-      return functionToExecute(...args);
-    } else {
-      // Log an error if the function is not found
-      errorLog$1("Function not found or is not a function: " + fn);
+    static _chooseFn(fn) {
+      switch (fn) {
+        case "sqrt":
+          return Math.sqrt;
+        case "log":
+          return Math.log10;
+        case "ln":
+          return Math.log;
+        case "abs":
+          return Math.abs;
+        case "min":
+          return Math.min;
+        case "max":
+          return Math.max;
+        case "sin":
+          return Math.sin;
+        case "cos":
+          return Math.cos;
+        case "tan":
+          return Math.tan;
+        default:
+          throw new Error(`Unknown function: ${fn}`);
+      }
     }
-  });
-}
 
-/**
- * Registers a Handlebars helper that creates an animated bunny ASCII art.
- * The bunny alternates between two states: normal and flipped.
- *
- * Requirements:
- * - Handlebars must be loaded globally before calling this function
- * - Runs in browser environment (uses window and document)
- *
- * The helper creates:
- * - Global window.bunnyStates object storing ASCII art variants
- * - Global window.bunnyAnimation function managing animation
- * - Global window.bunnyAnimationIntervalId for animation control
- *
- * Usage in Handlebars template:
- * {{bunny}}
- *
- * @returns {void}
- */
-function bunnyHelper() {
-  if (typeof Handlebars === "undefined") {
-    console.error("Handlebars is not loaded yet!");
-    return;
+    static _val(w) {
+      var n;
+      if (w.category === Lexer.cat.INT || w.category === Lexer.cat.PCNT) {
+        n = parseFloat(w.token);
+        if (w.token.endsWith("%")) n /= 100;
+      } else if (w.category === Lexer.cat.IDENT) {
+        if (w.token === "pi") {
+          n = Math.PI;
+        } else if (w.token === "e") {
+          n = Math.E;
+        } else if (w.token === "ans") {
+          n = this.ans;
+        }
+      }
+      return n;
+    }
+
+    static _chooseOp(op) {
+      switch (op) {
+        case "+":
+          return (a, b) => a + b;
+        case "-":
+          return (a, b) => a - b;
+        case "*":
+          return (a, b) => a * b;
+        case "/":
+          return (a, b) => a / b;
+        case "^":
+          return (a, b) => Math.pow(a, b);
+        default:
+          throw new Error(`Unknown operator: ${op}`);
+      }
+    }
+  }
+  Calc.ans = 0;
+
+  function mathHelper() {
+    Handlebars.registerHelper("math", function (expression, options) {
+      // First, identify and protect function names
+      const functionNames = [
+        "min",
+        "max",
+        "sqrt",
+        "abs",
+        "log",
+        "ln",
+        "sin",
+        "cos",
+        "tan",
+      ];
+
+      // First pass: resolve forced variable references like @{max}
+      const resolvedForced = expression.replace(
+        /@{([^}]+)}/g,
+        (match, varPath) => {
+          try {
+            let value;
+            if (varPath.includes(".")) {
+              value = varPath
+                .split(".")
+                .reduce((acc, part) => acc[part], options.data.root);
+            } else {
+              value = options.data.root[varPath] || options.hash[varPath];
+            }
+            return value;
+          } catch (error) {
+            console.warn(`Could not resolve ${varPath}`);
+            return NaN;
+          }
+        },
+      );
+
+      // Second pass: normal variable resolution with function name protection
+      const resolvedExpression = resolvedForced.replace(
+        /[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)*/g,
+        (match) => {
+          // Skip if it's a standalone function name (not part of a property path)
+          if (functionNames.includes(match) && !match.includes(".")) {
+            return match;
+          }
+
+          try {
+            // Resolve context paths like 'this.data' or 'object.sum'
+            let value;
+            if (match.includes(".")) {
+              value = match
+                .split(".")
+                .reduce((acc, part) => acc[part], options.data.root);
+            } else {
+              value = options.data.root[match] || options.hash[match];
+            }
+            return value;
+          } catch (error) {
+            console.warn(`Could not resolve ${match}`);
+            return NaN;
+          }
+        },
+      );
+
+      Debug.log(Debug.levels.DEBUG, "Evaluating expression:", resolvedExpression);
+
+      try {
+        // Evaluate the expression using jscalc
+        const c = new Calc();
+        const result = c.exec(resolvedExpression);
+        return result;
+      } catch (error) {
+        // Only log and throw once
+        if (!(error instanceof TemplateError)) {
+          throw new TemplateError(
+            `Error evaluating expression: ${error.message}`,
+            error.stack,
+          );
+        }
+        throw error; // Re-throw TemplateErrors without wrapping
+      }
+    });
   }
 
-  // Only register once
-  if (Handlebars.helpers.bunny) {
-    return;
+  function sortFunction(key, descending) {
+    return function (a, b) {
+      let left = key ? a[key] : a;
+      let right = key ? b[key] : b;
+
+      // Handle null/undefined values
+      if (left === null || left === undefined) return descending ? -1 : 1;
+      if (right === null || right === undefined) return descending ? 1 : -1;
+
+      // String comparison
+      if (typeof left === "string" && typeof right === "string") {
+        return descending ? right.localeCompare(left) : left.localeCompare(right);
+      }
+
+      // Numeric comparison
+      if (left < right) return descending ? 1 : -1;
+      if (left > right) return descending ? -1 : 1;
+      return 0;
+    };
   }
 
-  const bunny = `
+  function eachHelper() {
+    Handlebars.registerHelper("each", function (context, options) {
+      // Accepts an array or object and iterates through it
+      // Returns the value of the current iteration
+      // Example: {{#each myArray}} returns the current item in the array
+
+      // Allows for optional arguments, e.g. {{#each myArray limit=10 startAt=5}}
+      // limit: limit the number of iterations. Leave blank for no limit
+      // startAt: start at a specific index
+      // sortBy: sort by a key
+      // descending: sort descending
+      // sortBeforeLimit: sort before limiting (default: true)
+
+      var result = "";
+      var limit = options.hash.limit;
+      var startAt = options.hash.startAt || 0;
+      var key = options.hash.sortBy;
+      var descending = options.hash.descending;
+      var sortBeforeLimit = options.hash.sortBeforeLimit;
+      var inverse = options.inverse;
+      var fn = options.fn;
+      var data;
+      var contextPath;
+
+      sortBeforeLimit =
+        typeof sortBeforeLimit === "boolean" ? sortBeforeLimit : true;
+
+      if (options.data && options.ids) {
+        contextPath =
+          Handlebars.Utils.appendContextPath(
+            options.data.contextPath,
+            options.ids[0],
+          ) + ".";
+      }
+
+      if (Handlebars.Utils.isFunction(context)) {
+        context = context.call(this);
+      }
+
+      if (options.data) {
+        data = Handlebars.createFrame(options.data);
+      }
+
+      if (!Array.isArray(context) && typeof context !== "object") {
+        return inverse(this);
+      }
+
+      var processedArray = Array.isArray(context)
+        ? context.slice()
+        : Object.entries(context);
+
+      if (limit === undefined) {
+        limit = processedArray.length;
+      }
+
+      // Apply sorting and limiting logic
+      if (sortBeforeLimit) {
+        processedArray.sort(sortFunction(key, descending));
+        processedArray = processedArray.slice(startAt, limit + startAt);
+      } else {
+        processedArray = processedArray.slice(startAt, limit + startAt);
+        processedArray.sort(sortFunction(key, descending));
+      }
+
+      for (var i = 0; i < processedArray.length; i++) {
+        var value = Array.isArray(context)
+          ? processedArray[i]
+          : processedArray[i][1];
+        data.key = Array.isArray(context) ? i : processedArray[i][0];
+        data.index = i;
+        data.first = i === 0;
+        data.last = i === processedArray.length - 1;
+
+        if (contextPath) {
+          data.contextPath = contextPath + data.key;
+        }
+
+        result += fn(value, {
+          data: data,
+          blockParams: Handlebars.Utils.blockParams(
+            [value, data.key],
+            [contextPath + data.key, null],
+          ),
+        });
+      }
+
+      if (i === 0) {
+        result = inverse(this);
+      }
+
+      return result;
+    });
+  }
+
+  function executeHelper() {
+    Handlebars.registerHelper("execute", function (fn, ...args) {
+      // Accepts a function name and arguments
+      // Executes the function with the arguments
+      // Example: {{execute myFunction arg1 arg2 arg3}} returns myFunction(arg1, arg2, arg3)
+      args.pop();
+
+      const fnName = String(fn);
+      const functionToExecute = this[fnName] || window[fnName];
+
+      // Execute the function if it exists
+      if (typeof functionToExecute === "function") {
+        return functionToExecute(...args);
+      } else {
+        // Log an error if the function is not found
+        errorLog$1("Function not found or is not a function: " + fn);
+      }
+    });
+  }
+
+  function setHelper() {
+    Handlebars.registerHelper("set", function (varName, varValue, options) {
+      if (!varName || !varValue) {
+        errorLog$1("setHelper: varName and varValue are required");
+        return "";
+      }
+      //check if varName is a valid variable name
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
+        errorLog$1(`setHelper: varName ${varName} is not a valid variable name`);
+        return "";
+      }
+
+      options.data.root[varName] = varValue;
+    });
+  }
+
+  /**
+   * Registers a Handlebars helper that creates an animated bunny ASCII art.
+   * The bunny alternates between two states: normal and flipped.
+   *
+   * Requirements:
+   * - Handlebars must be loaded globally before calling this function
+   * - Runs in browser environment (uses window and document)
+   *
+   * The helper creates:
+   * - Global window.bunnyStates object storing ASCII art variants
+   * - Global window.bunnyAnimation function managing animation
+   * - Global window.bunnyAnimationIntervalId for animation control
+   *
+   * Usage in Handlebars template:
+   * {{bunny}}
+   *
+   * @returns {void}
+   */
+  function bunnyHelper() {
+    if (typeof Handlebars === "undefined") {
+      console.error("Handlebars is not loaded yet!");
+      return;
+    }
+
+    // Only register once
+    if (Handlebars.helpers.bunny) {
+      return;
+    }
+
+    const bunny = `
     &nbsp;&nbsp;&nbsp;&nbsp;/)  /)<br>
     ପ(˶•-•˶)ଓ ♡<br>
     &nbsp;&nbsp;&nbsp;/づ  づ
   `;
 
-  const bunnyFlipped = `
+    const bunnyFlipped = `
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(\\  (\\<br>
     &nbsp;&nbsp;ପ(˶•-•˶)ଓ<br>
     &nbsp;&nbsp;♡じ  じ\\
   `;
 
-  // Store bunny states globally
-  window.bunnyStates = {
-    bunny,
-    bunnyFlipped,
-  };
+    // Store bunny states globally
+    window.bunnyStates = {
+      bunny,
+      bunnyFlipped,
+    };
 
-  // Initialize animation function
-  window.bunnyAnimation = function () {
-    if (window.bunnyAnimationIntervalId) {
-      clearInterval(window.bunnyAnimationIntervalId);
+    // Initialize animation function
+    window.bunnyAnimation = function () {
+      if (window.bunnyAnimationIntervalId) {
+        clearInterval(window.bunnyAnimationIntervalId);
+      }
+      window.bunnyAnimationIntervalId = setInterval(function () {
+        document.querySelectorAll(".fp-bunny").forEach(function (element) {
+          const currentState = element.getAttribute("data-bunny-state");
+          if (currentState === "normal") {
+            element.innerHTML = window.bunnyStates.bunnyFlipped;
+            element.setAttribute("data-bunny-state", "flipped");
+          } else {
+            element.innerHTML = window.bunnyStates.bunny;
+            element.setAttribute("data-bunny-state", "normal");
+          }
+        });
+      }, 1000);
+    };
+
+    // Register the helper
+    Handlebars.registerHelper("bunny", function () {
+      const wrapper = `<span class="fp-bunny" data-bunny-state="normal">${window.bunnyStates.bunny}</span>`;
+
+      // Start animation on next tick
+      setTimeout(window.bunnyAnimation, 0);
+
+      return new Handlebars.SafeString(wrapper);
+    });
+
+    // Start animation if there are already bunnies on the page
+    if (document.querySelectorAll(".fp-bunny").length > 0) {
+      window.bunnyAnimation();
     }
-    window.bunnyAnimationIntervalId = setInterval(function () {
-      document.querySelectorAll(".fp-bunny").forEach(function (element) {
-        const currentState = element.getAttribute("data-bunny-state");
-        if (currentState === "normal") {
-          element.innerHTML = window.bunnyStates.bunnyFlipped;
-          element.setAttribute("data-bunny-state", "flipped");
-        } else {
-          element.innerHTML = window.bunnyStates.bunny;
-          element.setAttribute("data-bunny-state", "normal");
-        }
-      });
-    }, 1000);
-  };
-
-  // Register the helper
-  Handlebars.registerHelper("bunny", function () {
-    const wrapper = `<span class="fp-bunny" data-bunny-state="normal">${window.bunnyStates.bunny}</span>`;
-
-    // Start animation on next tick
-    setTimeout(window.bunnyAnimation, 0);
-
-    return new Handlebars.SafeString(wrapper);
-  });
-
-  // Start animation if there are already bunnies on the page
-  if (document.querySelectorAll(".fp-bunny").length > 0) {
-    window.bunnyAnimation();
   }
-}
 
-function registerHelpers() {
-  ifHelper();
-  sumHelper();
-  mathHelper();
-  eachHelper();
-  executeHelper();
-  bunnyHelper();
-}
-
-/**
- * @module RequestHandler
- * @description Manages HTMX request processing and lifecycle events for form processing elements
- */
-const RequestHandler = {
-  /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
-  processingElements: new Map(),
-  /** @type {number} Counter for generating unique request IDs */
-  currentRequestId: 0,
+  function registerHelpers() {
+    ifHelper();
+    sumHelper();
+    mathHelper();
+    eachHelper();
+    executeHelper();
+    setHelper();
+    bunnyHelper();
+  }
 
   /**
-   * Generates a unique request ID using timestamp and counter
-   * @returns {string} Unique request identifier
+   * @module RequestHandler
+   * @description Manages HTMX request processing and lifecycle events for form processing elements
    */
-  generateRequestId() {
-    return `fp-${Date.now()}-${this.currentRequestId++}`;
-  },
+  const RequestHandler = {
+    /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
+    processingElements: new Map(),
+    /** @type {number} Counter for generating unique request IDs */
+    currentRequestId: 0,
 
-  /**
-   * Handles different stages of request processing for a target element
-   * @param {HTMLElement} target - The DOM element being processed
-   * @param {string} requestId - Unique identifier for the request
-   * @param {'start'|'process'|'cleanup'} action - The action to perform
-   * @returns {boolean|void} Returns true if processing succeeded for 'process' action
-   */
-  handleRequest(target, requestId, action) {
-    if (!target || !target.hasAttribute("fp-template")) return;
+    /**
+     * Generates a unique request ID using timestamp and counter
+     * @returns {string} Unique request identifier
+     */
+    generateRequestId() {
+      return `fp-${Date.now()}-${this.currentRequestId++}`;
+    },
 
-    const currentInfo = this.processingElements.get(target);
-    requestId = requestId || this.generateRequestId();
+    /**
+     * Handles different stages of request processing for a target element
+     * @param {HTMLElement} target - The DOM element being processed
+     * @param {string} requestId - Unique identifier for the request
+     * @param {'start'|'process'|'cleanup'} action - The action to perform
+     * @returns {boolean|void} Returns true if processing succeeded for 'process' action
+     */
+    handleRequest(target, requestId, action) {
+      if (!target || !target.hasAttribute("fp-template")) return;
 
-    switch (action) {
-      case "start":
-        if (!currentInfo || currentInfo.requestId !== requestId) {
-          this.processingElements.set(target, {
-            requestId: requestId,
-            timestamp: Date.now(),
-            processed: false,
-          });
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Added element to processing set",
-            target,
-            requestId,
-          );
-        }
-        break;
+      const currentInfo = this.processingElements.get(target);
+      requestId = requestId || this.generateRequestId();
 
-      case "process":
-        if (
-          currentInfo &&
-          currentInfo.requestId === requestId &&
-          !currentInfo.processed
-        ) {
-          currentInfo.processed = true;
-          this.processingElements.set(target, currentInfo);
-          return true;
-        }
-        return false;
+      switch (action) {
+        case "start":
+          if (!currentInfo || currentInfo.requestId !== requestId) {
+            this.processingElements.set(target, {
+              requestId: requestId,
+              timestamp: Date.now(),
+              processed: false,
+            });
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Added element to processing set",
+              target,
+              requestId,
+            );
+          }
+          break;
 
-      case "cleanup":
-        if (currentInfo && currentInfo.requestId === requestId) {
+        case "process":
+          if (
+            currentInfo &&
+            currentInfo.requestId === requestId &&
+            !currentInfo.processed
+          ) {
+            currentInfo.processed = true;
+            this.processingElements.set(target, currentInfo);
+            return true;
+          }
+          return false;
+
+        case "cleanup":
+          if (currentInfo && currentInfo.requestId === requestId) {
+            this.processingElements.delete(target);
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Cleaned up after request",
+              target,
+              requestId,
+            );
+          }
+          break;
+      }
+    },
+
+    /**
+     * Removes stale processing entries that are older than the timeout threshold
+     */
+    cleanupStale() {
+      const now = Date.now();
+      const staleTimeout = 10000; // 10 seconds
+
+      for (const [target, info] of this.processingElements.entries()) {
+        if (now - info.timestamp > staleTimeout) {
           this.processingElements.delete(target);
           Debug.log(
             Debug.levels.DEBUG,
-            "Cleaned up after request",
+            "Cleaned up stale processing entry",
             target,
-            requestId,
+            info.requestId,
           );
         }
-        break;
-    }
-  },
-
-  /**
-   * Removes stale processing entries that are older than the timeout threshold
-   */
-  cleanupStale() {
-    const now = Date.now();
-    const staleTimeout = 10000; // 10 seconds
-
-    for (const [target, info] of this.processingElements.entries()) {
-      if (now - info.timestamp > staleTimeout) {
-        this.processingElements.delete(target);
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Cleaned up stale processing entry",
-          target,
-          info.requestId,
-        );
       }
-    }
-  },
+    },
 
-  /**
-   * Sets up all necessary event listeners for HTMX integration and request handling
-   */
-  setupEventListeners() {
-    document.body.addEventListener("htmx:configRequest", (event) => {
-      // event.detail.headers = "";
-      event.detail.headers["Content-Type"] =
-        "application/x-www-form-urlencoded; charset=UTF-8";
-    });
+    /**
+     * Sets up all necessary event listeners for HTMX integration and request handling
+     */
+    setupEventListeners() {
+      document.body.addEventListener("htmx:configRequest", (event) => {
+        // event.detail.headers = "";
+        event.detail.headers["Content-Type"] =
+          "application/x-www-form-urlencoded; charset=UTF-8";
+      });
 
-    // Add consolidated event listeners
-    document.body.addEventListener("htmx:beforeRequest", (event) => {
-      const target = event.detail.elt;
-      const requestId = event.detail.requestId || this.generateRequestId();
-      event.detail.requestId = requestId; // Ensure requestId is set
-      this.handleRequest(target, requestId, "start");
+      // Add consolidated event listeners
+      document.body.addEventListener("htmx:beforeRequest", (event) => {
+        const target = event.detail.elt;
+        const requestId = event.detail.requestId || this.generateRequestId();
+        event.detail.requestId = requestId; // Ensure requestId is set
+        this.handleRequest(target, requestId, "start");
 
-      var element = event.detail.elt;
-      if (element.hasAttribute("fp-instance")) {
-        var instanceName = element.getAttribute("fp-instance");
-        EventSystem.publish("request-start", {
-          instanceName,
-          ...event.detail,
-        });
-      }
-    });
-
-    document.body.addEventListener("htmx:afterRequest", (event) => {
-      var element = event.detail.elt;
-      if (element.hasAttribute("fp-instance")) {
-        var instanceName = element.getAttribute("fp-instance");
-        EventSystem.publish("request-end", { instanceName, ...event.detail });
-      }
-    });
-
-    document.body.addEventListener("htmx:beforeSwap", (event) => {
-      const target = event.detail.elt;
-      const requestId = event.detail.requestId;
-      const info = this.processingElements.get(target);
-
-      if (!info || info.requestId !== requestId) {
-        event.preventDefault();
-        Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
-      }
-    });
-
-    // Cleanup handlers
-    document.body.addEventListener("htmx:responseError", (event) => {
-      this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
-    });
-
-    // Set up stale cleanup interval
-    setInterval(() => this.cleanupStale(), 10000);
-
-    // Clear all on unload
-    window.addEventListener("unload", () => {
-      this.processingElements.clear();
-    });
-  },
-};
-
-function parseXmlToJson(xmlString) {
-  function xmlToJson(node) {
-    var obj = {};
-
-    // Include attributes with prefix '_'
-    if (node.attributes) {
-      for (var j = 0; j < node.attributes.length; j++) {
-        var attribute = node.attributes.item(j);
-        obj["_" + attribute.nodeName] = attribute.nodeValue;
-      }
-    }
-
-    // Process child elements
-    var children = node.childNodes;
-    if (children.length === 1 && children[0].nodeType === 3) {
-      // Single text node
-      return children[0].nodeValue.trim();
-    } else {
-      for (var i = 0; i < children.length; i++) {
-        var child = children[i];
-
-        // Element nodes
-        if (child.nodeType === 1) {
-          var json = xmlToJson(child);
-          if (obj[child.nodeName]) {
-            // For multiple children with the same tag, create an array
-            if (!Array.isArray(obj[child.nodeName])) {
-              obj[child.nodeName] = [obj[child.nodeName]];
-            }
-            obj[child.nodeName].push(json);
-          } else {
-            obj[child.nodeName] = json;
-          }
-        }
-      }
-    }
-
-    return obj;
-  }
-
-  var parser = new DOMParser();
-  var xml = parser.parseFromString(xmlString, "text/xml"); // Parse the XML string to a DOM
-  return xmlToJson(xml.documentElement);
-}
-
-function defineHtmxExtension() {
-  htmx.defineExtension("flowplater", {
-    transformResponse: function (text, xhr, elt) {
-      // Get request ID from either xhr or processing elements
-      const requestId = xhr.requestId;
-      const currentInfo = RequestHandler.processingElements.get(elt);
-
-      Debug.log(
-        Debug.levels.DEBUG,
-        "Transform response for request",
-        requestId,
-        "current info:",
-        currentInfo,
-      );
-
-      // Skip if element is not in processing set
-      if (!currentInfo || currentInfo.requestId !== requestId) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Skipping transformation - request ID mismatch",
-          { current: currentInfo?.requestId, received: requestId },
-        );
-        return text;
-      }
-
-      // Only process if fp-template is present
-      if (!elt.hasAttribute("fp-template")) {
-        return text;
-      }
-
-      // Parse response data
-      let data;
-      try {
-        if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
-          var parser = new DOMParser();
-          var doc = parser.parseFromString(text, "text/xml");
-          data = parseXmlToJson(doc);
-        } else {
-          data = JSON.parse(text);
-        }
-      } catch (e) {
-        errorLog$1("Failed to parse response:", e);
-        return text;
-      }
-
-      var templateId = elt.getAttribute("fp-template");
-      log("Response received for request " + requestId + ": " + text);
-
-      // Render template
-      try {
-        let rendered;
-        if (templateId) {
-          log("Rendering html to " + templateId + " based on htmx response");
-          rendered = render({
-            template: templateId,
-            data: data,
-            target: elt,
-            returnHtml: true,
+        var element = event.detail.elt;
+        if (element.hasAttribute("fp-instance")) {
+          var instanceName = element.getAttribute("fp-instance");
+          EventSystem.publish("request-start", {
+            instanceName,
+            ...event.detail,
           });
-        } else {
-          if (!elt.id) {
-            errorLog$1(
-              "No template found. If the current element is a template, it must have an id.",
-            );
-            return text;
-          }
-          log("Rendering html to current element based on htmx response");
-          var elementTemplateId = "#" + elt.id;
-          rendered = render({
-            template: elementTemplateId,
-            data: data,
-            target: elt,
-            returnHtml: true,
-          });
-        }
-
-        if (rendered) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Template rendered successfully for request",
-            requestId,
-          );
-          // updateDOM(elt, rendered);
-          return rendered;
-        }
-        return text;
-      } catch (error) {
-        errorLog$1("Error rendering template:", error);
-        return text;
-      }
-    },
-
-    handleSwap: function (swapStyle, target, fragment, settleInfo) {
-      // Skip if element doesn't have fp-template
-      if (!target.hasAttribute("fp-template")) {
-        return false; // Let HTMX handle the swap
-      }
-
-      try {
-        // Get instance name from element
-        const instanceName = target.getAttribute("fp-instance") || target.id;
-        if (!instanceName) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "No instance name found for element, falling back to default swap",
-          );
-          return false;
-        }
-
-        // Get the instance from state
-        const instance = _state.instances[instanceName];
-        if (!instance) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "No instance found for name: " + instanceName,
-          );
-          return false;
-        }
-
-        const supportedSwapStyles = ["innerHTML"];
-        if (!supportedSwapStyles.includes(swapStyle)) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Unsupported swap style for smart DOM swap: " +
-              swapStyle +
-              ", falling back to default swap",
-          );
-
-          const breakingSwapStyles = [
-            "outerHTML",
-            "beforebegin",
-            "afterbegin",
-            "afterend",
-          ];
-          if (breakingSwapStyles.includes(swapStyle)) {
-            Debug.log(
-              Debug.levels.WARN,
-              "Breaking swap style: " +
-                swapStyle +
-                ", instance methods will not work as expected. Target container was removed from the DOM.",
-            );
-          }
-
-          return false;
-        }
-
-        updateDOM(target, fragment.innerHTML, swapStyle);
-
-        Debug.log(
-          Debug.levels.DEBUG,
-          "HTMX smart innerHTML swap completed for instance: " + instanceName,
-        );
-
-        return true;
-      } catch (e) {
-        errorLog$1("Error in handleSwap:", e);
-        return false;
-      }
-    },
-
-    onEvent: function (name, evt) {
-      if (evt.detail.handled) return;
-
-      const target = evt.detail.elt;
-      const requestId =
-        evt.detail.requestId || RequestHandler.generateRequestId();
-
-      switch (name) {
-        case "htmx:beforeRequest":
-          evt.detail.requestId = requestId;
-          evt.detail.xhr.requestId = requestId;
-          RequestHandler.handleRequest(target, requestId, "start");
-          break;
-
-        case "htmx:beforeSwap":
-          const info = RequestHandler.processingElements.get(target);
-          if (!info || info.requestId !== requestId) {
-            evt.preventDefault();
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Prevented swap - request ID mismatch",
-            );
-            return;
-          }
-          break;
-
-        case "htmx:afterSwap":
-          RequestHandler.handleRequest(target, requestId, "cleanup");
-          break;
-      }
-    },
-  });
-}
-
-// * For each element with an fp-proxy attribute, use a proxy for the url
-//use const url = 'https://corsproxy.io/?' + encodeURIComponent([hx-get/post/put/patch/delete] attribute value)]);
-function setupProxy(element) {
-  try {
-    // Skip if already processed or if fp-proxy is false/not present
-    if (
-      element.hasAttribute("data-fp-proxy-processed") ||
-      !element.hasAttribute("fp-proxy") ||
-      element.getAttribute("fp-proxy") === "false"
-    ) {
-      return element;
-    }
-
-    // Get proxy URL
-    const proxyUrl = element.getAttribute("fp-proxy").startsWith("http")
-      ? element.getAttribute("fp-proxy")
-      : "https://corsproxy.io/?";
-
-    // Process htmx methods
-    const methods = ["get", "post", "put", "patch", "delete"];
-    methods.forEach(function (method) {
-      if (element.hasAttribute("hx-" + method)) {
-        const url = element.getAttribute("hx-" + method);
-        element.setAttribute(
-          "hx-" + method,
-          proxyUrl + encodeURIComponent(url),
-        );
-      }
-    });
-
-    // Mark as processed
-    element.setAttribute("data-fp-proxy-processed", "true");
-    return element;
-  } catch (error) {
-    Debug.log(Debug.levels.ERROR, `Error in setupProxy: ${error.message}`);
-    return element;
-  }
-}
-
-function preloadUrl(url) {
-  if (!url) {
-    errorLog("No URL provided for preloading");
-    return;
-  }
-
-  const link = document.createElement("link");
-  link.rel = "preload";
-  link.href = url;
-  link.as = "fetch";
-  link.crossOrigin = "anonymous";
-
-  const cleanup = () => {
-    if (link.parentNode) {
-      link.remove();
-    }
-  };
-
-  link.onerror = (e) => {
-    errorLog(`Failed to preload URL: ${url}`, e);
-    cleanup();
-  };
-
-  const timeoutId = setTimeout(cleanup, 3000);
-  document.head.appendChild(link);
-
-  return { cleanup, timeoutId };
-}
-
-function addPreloadListener(element) {
-  const preloadEvent = element.getAttribute("fp-preload") || "mouseover";
-
-  if (preloadEvent === "mouseover") {
-    let mouseOver = true;
-    let timeoutId;
-    let preloadInstance;
-
-    const handleMouseOver = () => {
-      mouseOver = true;
-      timeoutId = setTimeout(() => {
-        if (mouseOver) {
-          const url =
-            element.getAttribute("href") ||
-            element.getAttribute("hx-get") ||
-            element.getAttribute("fp-get");
-          preloadInstance = preloadUrl(url);
-        }
-      }, 100);
-    };
-
-    const handleMouseOut = () => {
-      mouseOver = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (preloadInstance) {
-        clearTimeout(preloadInstance.timeoutId);
-        preloadInstance.cleanup();
-      }
-    };
-
-    element.addEventListener("mouseover", handleMouseOver);
-    element.addEventListener("mouseout", handleMouseOut);
-
-    // Store cleanup function on element for potential removal
-    element._preloadCleanup = () => {
-      element.removeEventListener("mouseover", handleMouseOver);
-      element.removeEventListener("mouseout", handleMouseOut);
-      handleMouseOut();
-    };
-  } else {
-    const handler = () => {
-      const url =
-        element.getAttribute("href") ||
-        element.getAttribute("hx-get") ||
-        element.getAttribute("fp-get");
-      preloadUrl(url);
-    };
-    element.addEventListener(preloadEvent, handler);
-
-    // Store cleanup function
-    element._preloadCleanup = () => {
-      element.removeEventListener(preloadEvent, handler);
-    };
-  }
-}
-
-function processPreload(element) {
-  try {
-    if (element.hasAttribute("data-fp-preload-processed")) {
-      return element;
-    }
-
-    if (element.hasAttribute("fp-preload")) {
-      addPreloadListener(element);
-      element.setAttribute("data-fp-preload-processed", "true");
-    }
-
-    return element;
-  } catch (error) {
-    Debug.log(Debug.levels.ERROR, `Error in processPreload: ${error.message}`);
-    return element;
-  }
-}
-
-// prettier-ignore
-const htmxAttributes = ["boost", "get", "post", "on", "push-url", "select", "select-oob",
-        "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable", 
-        "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt", 
-        "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url", 
-        "request", "sync", "validate", "vars",
-    ];
-
-// * For every element with an fp-[htmxAttribute] attribute, translate to hx-[htmxAttribute]
-function translateCustomHTMXAttributes(element) {
-  try {
-    const customPrefix = "fp-";
-    const htmxPrefix = "hx-";
-
-    htmxAttributes.forEach((attr) => {
-      const customAttr = customPrefix + attr;
-      if (element.hasAttribute(customAttr)) {
-        const attrValue = element.getAttribute(customAttr);
-        element.setAttribute(htmxPrefix + attr, attrValue);
-        element.removeAttribute(customAttr);
-      }
-    });
-    return element;
-  } catch (error) {
-    errorLog(`Error in translateCustomHTMXAttributes: ${error.message}`);
-    return element;
-  }
-}
-
-function processUrlAffixes(element) {
-  try {
-    const methods = ["get", "post", "put", "patch", "delete"];
-
-    function findAttributeInParents(el, attributeName) {
-      while (el) {
-        if (el.hasAttribute(attributeName)) {
-          return el.getAttribute(attributeName);
-        }
-        el = el.parentElement;
-      }
-      return null;
-    }
-
-    function processElement(el) {
-      methods.forEach(function (method) {
-        var attr = "hx-" + method;
-        if (el.hasAttribute(attr)) {
-          var originalUrl = el.getAttribute(attr);
-          log("Original URL: " + originalUrl);
-
-          var prepend = findAttributeInParents(el, "fp-prepend");
-          var append = findAttributeInParents(el, "fp-append");
-
-          var modifiedUrl = originalUrl;
-          if (prepend) {
-            modifiedUrl = prepend + modifiedUrl;
-          }
-          if (append) {
-            modifiedUrl += append;
-          }
-
-          el.setAttribute(attr, modifiedUrl);
-          log("Modified URL: " + modifiedUrl);
-
-          if (modifiedUrl !== originalUrl) {
-            log("Modification successful for", method, "on element", el);
-          } else {
-            errorLog$1("Modification failed for", method, "on element", el);
-          }
         }
       });
-    }
 
-    // Process the passed element
-    if (
-      (element.hasAttribute("fp-prepend") ||
-        element.hasAttribute("fp-append")) &&
-      methods.some((method) => element.hasAttribute("hx-" + method))
-    ) {
-      processElement(element);
-    }
-    return element;
-  } catch (error) {
-    errorLog$1(`Error in processUrlAffixes: ${error.message}`);
-    return element;
-  }
-}
+      document.body.addEventListener("htmx:afterRequest", (event) => {
+        var element = event.detail.elt;
+        if (element.hasAttribute("fp-instance")) {
+          var instanceName = element.getAttribute("fp-instance");
+          EventSystem.publish("request-end", { instanceName, ...event.detail });
+        }
+      });
 
-// * For each element with an fp-animation attribute set to true, or if defaults.animation is true, get the hx-swap attribute.
-// if the value is empty, set it to innerHTML transition:true
-// if the value is not empty, append transition:true
-// if the value is set to false, do nothing
-function setupAnimation(element) {
-  try {
-    var shouldAnimate =
-      element.getAttribute("fp-animation") || _state.defaults.animation;
-    if (shouldAnimate === "true") {
-      var swap = element.getAttribute("hx-swap");
-      if (!swap) {
-        element.setAttribute("hx-swap", "innerHTML transition:true");
-      } else {
-        element.setAttribute("hx-swap", swap + " transition:true");
+      document.body.addEventListener("htmx:beforeSwap", (event) => {
+        const target = event.detail.elt;
+        const requestId = event.detail.requestId;
+        const info = this.processingElements.get(target);
+
+        if (!info || info.requestId !== requestId) {
+          event.preventDefault();
+          Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
+        }
+      });
+
+      // Cleanup handlers
+      document.body.addEventListener("htmx:responseError", (event) => {
+        this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
+      });
+
+      // Set up stale cleanup interval
+      setInterval(() => this.cleanupStale(), 10000);
+
+      // Clear all on unload
+      window.addEventListener("unload", () => {
+        this.processingElements.clear();
+      });
+    },
+  };
+
+  function parseXmlToJson(xmlString) {
+    function xmlToJson(node) {
+      var obj = {};
+
+      // Include attributes with prefix '_'
+      if (node.attributes) {
+        for (var j = 0; j < node.attributes.length; j++) {
+          var attribute = node.attributes.item(j);
+          obj["_" + attribute.nodeName] = attribute.nodeValue;
+        }
       }
+
+      // Process child elements
+      var children = node.childNodes;
+      if (children.length === 1 && children[0].nodeType === 3) {
+        // Single text node
+        return children[0].nodeValue.trim();
+      } else {
+        for (var i = 0; i < children.length; i++) {
+          var child = children[i];
+
+          // Element nodes
+          if (child.nodeType === 1) {
+            var json = xmlToJson(child);
+            if (obj[child.nodeName]) {
+              // For multiple children with the same tag, create an array
+              if (!Array.isArray(obj[child.nodeName])) {
+                obj[child.nodeName] = [obj[child.nodeName]];
+              }
+              obj[child.nodeName].push(json);
+            } else {
+              obj[child.nodeName] = json;
+            }
+          }
+        }
+      }
+
+      return obj;
     }
-    return element;
-  } catch (error) {
-    Debug.log(Debug.levels.ERROR, `Error in setupAnimation: ${error.message}`);
-    return element;
-  }
-}
 
-// Add hx-ext="flowplater" attribute to elements that need the extension
-function addHtmxExtensionAttribute(element) {
-  try {
-    // Check if the element already has the flowplater extension
-    var currentExt = element.getAttribute("hx-ext") || "";
-    if (!currentExt.includes("flowplater")) {
-      // Add flowplater to hx-ext
-      var newExt = currentExt ? currentExt + ", flowplater" : "flowplater";
-      element.setAttribute("hx-ext", newExt);
-      Debug.log(Debug.levels.INFO, "Added hx-ext attribute to " + element.id);
+    var parser = new DOMParser();
+    var xml = parser.parseFromString(xmlString, "text/xml"); // Parse the XML string to a DOM
+    return xmlToJson(xml.documentElement);
+  }
+
+  function defineHtmxExtension() {
+    htmx.defineExtension("flowplater", {
+      transformResponse: function (text, xhr, elt) {
+        // Get request ID from either xhr or processing elements
+        const requestId = xhr.requestId;
+        const currentInfo = RequestHandler.processingElements.get(elt);
+
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Transform response for request",
+          requestId,
+          "current info:",
+          currentInfo,
+        );
+
+        // Skip if element is not in processing set
+        if (!currentInfo || currentInfo.requestId !== requestId) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Skipping transformation - request ID mismatch",
+            { current: currentInfo?.requestId, received: requestId },
+          );
+          return text;
+        }
+
+        // Only process if fp-template is present
+        if (!elt.hasAttribute("fp-template")) {
+          return text;
+        }
+
+        // Parse response data
+        let data;
+        try {
+          if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(text, "text/xml");
+            data = parseXmlToJson(doc);
+          } else {
+            data = JSON.parse(text);
+          }
+        } catch (e) {
+          errorLog$1("Failed to parse response:", e);
+          return text;
+        }
+
+        var templateId = elt.getAttribute("fp-template");
+        log("Response received for request " + requestId + ": ", data);
+
+        // Render template
+        try {
+          let rendered;
+          if (templateId) {
+            log("Rendering html to " + templateId + " based on htmx response");
+            rendered = render({
+              template: templateId,
+              data: data,
+              target: elt,
+              returnHtml: true,
+            });
+          } else {
+            if (!elt.id) {
+              errorLog$1(
+                "No template found. If the current element is a template, it must have an id.",
+              );
+              return text;
+            }
+            log("Rendering html to current element based on htmx response");
+            var elementTemplateId = "#" + elt.id;
+            rendered = render({
+              template: elementTemplateId,
+              data: data,
+              target: elt,
+              returnHtml: true,
+            });
+          }
+
+          if (rendered) {
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Template rendered successfully for request",
+              requestId,
+            );
+            // updateDOM(elt, rendered);
+            return rendered;
+          }
+          return text;
+        } catch (error) {
+          errorLog$1("Error rendering template:", error);
+          return (
+            "<div class='fp-error'>Error rendering template: " + error + "</div>"
+          );
+        }
+      },
+
+      handleSwap: function (swapStyle, target, fragment, settleInfo) {
+        // Skip if element doesn't have fp-template
+        if (!target.hasAttribute("fp-template")) {
+          return false; // Let HTMX handle the swap
+        }
+
+        try {
+          // Get instance name from element
+          const instanceName = target.getAttribute("fp-instance") || target.id;
+          if (!instanceName) {
+            Debug.log(
+              Debug.levels.DEBUG,
+              "No instance name found for element, falling back to default swap",
+            );
+            return false;
+          }
+
+          // Get the instance from state
+          const instance = _state.instances[instanceName];
+          if (!instance) {
+            Debug.log(
+              Debug.levels.DEBUG,
+              "No instance found for name: " + instanceName,
+            );
+            return false;
+          }
+
+          const supportedSwapStyles = ["innerHTML"];
+          if (!supportedSwapStyles.includes(swapStyle)) {
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Unsupported swap style for smart DOM swap: " +
+                swapStyle +
+                ", falling back to default swap",
+            );
+
+            const breakingSwapStyles = [
+              "outerHTML",
+              "beforebegin",
+              "afterbegin",
+              "afterend",
+            ];
+            if (breakingSwapStyles.includes(swapStyle)) {
+              Debug.log(
+                Debug.levels.WARN,
+                "Breaking swap style: " +
+                  swapStyle +
+                  ", instance methods will not work as expected. Target container was removed from the DOM.",
+              );
+            }
+
+            return false;
+          }
+
+          updateDOM(target, fragment.innerHTML, instance.animate);
+
+          Debug.log(
+            Debug.levels.DEBUG,
+            "HTMX smart innerHTML swap completed for instance: " + instanceName,
+          );
+
+          return true;
+        } catch (e) {
+          errorLog$1("Error in handleSwap:", e);
+          return false;
+        }
+      },
+
+      onEvent: function (name, evt) {
+        if (evt.detail.handled) return;
+
+        const target = evt.detail.elt;
+        const requestId =
+          evt.detail.requestId || RequestHandler.generateRequestId();
+
+        switch (name) {
+          case "htmx:beforeRequest":
+            evt.detail.requestId = requestId;
+            evt.detail.xhr.requestId = requestId;
+            RequestHandler.handleRequest(target, requestId, "start");
+            break;
+
+          case "htmx:beforeSwap":
+            const info = RequestHandler.processingElements.get(target);
+            if (!info || info.requestId !== requestId) {
+              evt.preventDefault();
+              Debug.log(
+                Debug.levels.DEBUG,
+                "Prevented swap - request ID mismatch",
+              );
+              return;
+            }
+            break;
+
+          case "htmx:afterSwap":
+            RequestHandler.handleRequest(target, requestId, "cleanup");
+            break;
+        }
+      },
+    });
+  }
+
+  // * For each element with an fp-proxy attribute, use a proxy for the url
+  //use const url = 'https://corsproxy.io/?' + encodeURIComponent([hx-get/post/put/patch/delete] attribute value)]);
+  function setupProxy(element) {
+    try {
+      // Skip if already processed or if fp-proxy is false/not present
+      if (
+        element.hasAttribute("data-fp-proxy-processed") ||
+        !element.hasAttribute("fp-proxy") ||
+        element.getAttribute("fp-proxy") === "false"
+      ) {
+        return element;
+      }
+
+      // Get proxy URL
+      const proxyUrl = element.getAttribute("fp-proxy").startsWith("http")
+        ? element.getAttribute("fp-proxy")
+        : "https://corsproxy.io/?";
+
+      // Process htmx methods
+      const methods = ["get", "post", "put", "patch", "delete"];
+      methods.forEach(function (method) {
+        if (element.hasAttribute("hx-" + method)) {
+          const url = element.getAttribute("hx-" + method);
+          element.setAttribute(
+            "hx-" + method,
+            proxyUrl + encodeURIComponent(url),
+          );
+        }
+      });
+
+      // Mark as processed
+      element.setAttribute("data-fp-proxy-processed", "true");
+      return element;
+    } catch (error) {
+      Debug.log(Debug.levels.ERROR, `Error in setupProxy: ${error.message}`);
+      return element;
     }
-    return element;
-  } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error in addHtmxExtensionAttribute: ${error.message}`,
-    );
-    return element;
   }
-}
 
-/* -------------------------------------------------------------------------- */
-/* ANCHOR                      FlowPlater module                              */
-/* -------------------------------------------------------------------------- */
+  function preloadUrl(url) {
+    if (!url) {
+      errorLog("No URL provided for preloading");
+      return;
+    }
 
-/**
- * @namespace FlowPlater
- * @description Core FlowPlater module that provides template processing and dynamic content management.
- * Integrates with HTMX and Handlebars to provide a seamless templating and interaction experience.
- * @version 1.4.19
- * @author JWSLS
- * @license Flowplater standard licence
- */
-var FlowPlater = (function () {
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.href = url;
+    link.as = "fetch";
+    link.crossOrigin = "anonymous";
+
+    const cleanup = () => {
+      if (link.parentNode) {
+        link.remove();
+      }
+    };
+
+    link.onerror = (e) => {
+      errorLog(`Failed to preload URL: ${url}`, e);
+      cleanup();
+    };
+
+    const timeoutId = setTimeout(cleanup, 3000);
+    document.head.appendChild(link);
+
+    return { cleanup, timeoutId };
+  }
+
+  function addPreloadListener(element) {
+    const preloadEvent = element.getAttribute("fp-preload") || "mouseover";
+
+    if (preloadEvent === "mouseover") {
+      let mouseOver = true;
+      let timeoutId;
+      let preloadInstance;
+
+      const handleMouseOver = () => {
+        mouseOver = true;
+        timeoutId = setTimeout(() => {
+          if (mouseOver) {
+            const url =
+              element.getAttribute("href") ||
+              element.getAttribute("hx-get") ||
+              element.getAttribute("fp-get");
+            preloadInstance = preloadUrl(url);
+          }
+        }, 100);
+      };
+
+      const handleMouseOut = () => {
+        mouseOver = false;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        if (preloadInstance) {
+          clearTimeout(preloadInstance.timeoutId);
+          preloadInstance.cleanup();
+        }
+      };
+
+      element.addEventListener("mouseover", handleMouseOver);
+      element.addEventListener("mouseout", handleMouseOut);
+
+      // Store cleanup function on element for potential removal
+      element._preloadCleanup = () => {
+        element.removeEventListener("mouseover", handleMouseOver);
+        element.removeEventListener("mouseout", handleMouseOut);
+        handleMouseOut();
+      };
+    } else {
+      const handler = () => {
+        const url =
+          element.getAttribute("href") ||
+          element.getAttribute("hx-get") ||
+          element.getAttribute("fp-get");
+        preloadUrl(url);
+      };
+      element.addEventListener(preloadEvent, handler);
+
+      // Store cleanup function
+      element._preloadCleanup = () => {
+        element.removeEventListener(preloadEvent, handler);
+      };
+    }
+  }
+
+  function processPreload(element) {
+    try {
+      if (element.hasAttribute("data-fp-preload-processed")) {
+        return element;
+      }
+
+      if (element.hasAttribute("fp-preload")) {
+        addPreloadListener(element);
+        element.setAttribute("data-fp-preload-processed", "true");
+      }
+
+      return element;
+    } catch (error) {
+      Debug.log(Debug.levels.ERROR, `Error in processPreload: ${error.message}`);
+      return element;
+    }
+  }
+
+  // prettier-ignore
+  const htmxAttributes = ["boost", "get", "post", "on", "push-url", "select", "select-oob",
+          "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable", 
+          "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt", 
+          "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url", 
+          "request", "sync", "validate", "vars",
+      ];
+
+  // * For every element with an fp-[htmxAttribute] attribute, translate to hx-[htmxAttribute]
+  function translateCustomHTMXAttributes(element) {
+    try {
+      const customPrefix = "fp-";
+      const htmxPrefix = "hx-";
+
+      htmxAttributes.forEach((attr) => {
+        const customAttr = customPrefix + attr;
+        if (element.hasAttribute(customAttr)) {
+          const attrValue = element.getAttribute(customAttr);
+          element.setAttribute(htmxPrefix + attr, attrValue);
+          element.removeAttribute(customAttr);
+        }
+      });
+      return element;
+    } catch (error) {
+      errorLog(`Error in translateCustomHTMXAttributes: ${error.message}`);
+      return element;
+    }
+  }
+
+  function processUrlAffixes(element) {
+    try {
+      const methods = ["get", "post", "put", "patch", "delete"];
+
+      function findAttributeInParents(el, attributeName) {
+        while (el) {
+          if (el.hasAttribute(attributeName)) {
+            return el.getAttribute(attributeName);
+          }
+          el = el.parentElement;
+        }
+        return null;
+      }
+
+      function processElement(el) {
+        methods.forEach(function (method) {
+          var attr = "hx-" + method;
+          if (el.hasAttribute(attr)) {
+            var originalUrl = el.getAttribute(attr);
+            log("Original URL: " + originalUrl);
+
+            var prepend = findAttributeInParents(el, "fp-prepend");
+            var append = findAttributeInParents(el, "fp-append");
+
+            var modifiedUrl = originalUrl;
+            if (prepend) {
+              modifiedUrl = prepend + modifiedUrl;
+            }
+            if (append) {
+              modifiedUrl += append;
+            }
+
+            el.setAttribute(attr, modifiedUrl);
+            log("Modified URL: " + modifiedUrl);
+
+            if (modifiedUrl !== originalUrl) {
+              log("Modification successful for", method, "on element", el);
+            } else {
+              errorLog$1("Modification failed for", method, "on element", el);
+            }
+          }
+        });
+      }
+
+      // Process the passed element
+      if (
+        (element.hasAttribute("fp-prepend") ||
+          element.hasAttribute("fp-append")) &&
+        methods.some((method) => element.hasAttribute("hx-" + method))
+      ) {
+        processElement(element);
+      }
+      return element;
+    } catch (error) {
+      errorLog$1(`Error in processUrlAffixes: ${error.message}`);
+      return element;
+    }
+  }
+
+  // * For each element with an fp-animation attribute set to true, or if defaults.animation is true, get the hx-swap attribute.
+  // if the value is empty, set it to innerHTML transition:true
+  // if the value is not empty, append transition:true
+  // if the value is set to false, do nothing
+  function setupAnimation(element) {
+    try {
+      var shouldAnimate =
+        element.getAttribute("fp-animation") || _state.defaults.animation;
+      if (shouldAnimate === "true") {
+        var swap = element.getAttribute("hx-swap");
+        if (!swap) {
+          element.setAttribute("hx-swap", "innerHTML transition:true");
+        } else {
+          element.setAttribute("hx-swap", swap + " transition:true");
+        }
+      }
+      return element;
+    } catch (error) {
+      Debug.log(Debug.levels.ERROR, `Error in setupAnimation: ${error.message}`);
+      return element;
+    }
+  }
+
+  // Add hx-ext="flowplater" attribute to elements that need the extension
+  function addHtmxExtensionAttribute(element) {
+    try {
+      // Check if the element already has the flowplater extension
+      var currentExt = element.getAttribute("hx-ext") || "";
+      if (!currentExt.includes("flowplater")) {
+        // Add flowplater to hx-ext
+        var newExt = currentExt ? currentExt + ", flowplater" : "flowplater";
+        element.setAttribute("hx-ext", newExt);
+        Debug.log(Debug.levels.INFO, "Added hx-ext attribute to " + element.id);
+      }
+      return element;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error in addHtmxExtensionAttribute: ${error.message}`,
+      );
+      return element;
+    }
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /* ANCHOR                      FlowPlater module                              */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * @namespace FlowPlater
+   * @description Core FlowPlater module that provides template processing and dynamic content management.
+   * Integrates with HTMX and Handlebars to provide a seamless templating and interaction experience.
+   * @version 1.4.19
+   * @author JWSLS
+   * @license Flowplater standard licence
+   */
 
   const VERSION = "1.4.19";
   const AUTHOR = "JWSLS";
@@ -12599,6 +12845,9 @@ var FlowPlater = (function () {
    * @property {number} htmx.timeout - Request timeout in milliseconds
    * @property {string} htmx.swapStyle - Default content swap style
    * @property {Object} customTags - Custom tag definitions
+   * @property {Object} storage - Storage configuration
+   * @property {boolean} storage.enabled - Whether to persist instance data
+   * @property {number} storage.ttl - Time to live in seconds (default: 30 days in seconds)
    */
   const defaultConfig = {
     debug: {
@@ -12621,6 +12870,11 @@ var FlowPlater = (function () {
       swapStyle: "innerHTML",
     },
     customTags: customTagList,
+    storage: {
+      enabled: false,
+      ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+    },
+    persistData: false,
   };
 
   /* -------------------------------------------------------------------------- */
@@ -12793,7 +13047,18 @@ var FlowPlater = (function () {
     // If processing document or non-matching element, find and process all matching children
     if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
       const fpElements = element.querySelectorAll(ProcessingChain.FP_SELECTOR);
-      fpElements.forEach((el) => ProcessingChain.processElement(el));
+      fpElements.forEach((el) => {
+        ProcessingChain.processElement(el);
+        const templateId = el.getAttribute("fp-template");
+        if (templateId && templateId !== "self" && templateId !== "") {
+          const templateElement = document.querySelector(
+            templateId.startsWith("#") ? templateId : `#${templateId}`,
+          );
+          if (templateElement) {
+            ProcessingChain.processElement(templateElement);
+          }
+        }
+      });
       return;
     }
 
@@ -12919,6 +13184,35 @@ var FlowPlater = (function () {
         }
 
         if (templateId) {
+          // Transform template content before compiling
+          // template.innerHTML = template.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
+          const templateElement = document.querySelector(templateId);
+          if (templateElement) {
+            console.log("replacing template content", templateElement);
+            const scriptTags = templateElement.getElementsByTagName("script");
+            const scriptContents = Array.from(scriptTags).map(
+              (script) => script.innerHTML,
+            );
+
+            // Temporarily replace script contents with placeholders
+            Array.from(scriptTags).forEach((script, i) => {
+              script.innerHTML = `##SCRIPT_${i}##`;
+            });
+
+            // Do the replacement on the template
+            templateElement.innerHTML = templateElement.innerHTML.replace(
+              /\[\[(.*?)\]\]/g,
+              "{{$1}}",
+            );
+
+            // Restore script contents
+            Array.from(templateElement.getElementsByTagName("script")).forEach(
+              (script, i) => {
+                script.innerHTML = scriptContents[i];
+              },
+            );
+          }
+
           // Compile the template using the templateId from the attribute
           compileTemplate(templateId, true);
 
@@ -12952,21 +13246,6 @@ var FlowPlater = (function () {
           );
         }
       });
-
-      // Load configuration from meta tag if present
-      const metaConfig = document.querySelector('meta[name="fp-config"]');
-      if (metaConfig) {
-        try {
-          const config = JSON.parse(metaConfig.content);
-          FlowPlater.config(config);
-        } catch (e) {
-          errorLog$1(
-            "Error parsing fp-config meta tag:",
-            metaConfig,
-            "Make sure your meta tag is valid",
-          );
-        }
-      }
 
       process(element);
       Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
@@ -13023,6 +13302,14 @@ var FlowPlater = (function () {
      * @description Configures FlowPlater with new settings. Deep merges with existing configuration.
      */
     config: function (newConfig = {}) {
+      // Handle storage shorthand configuration
+      if ("storage" in newConfig) {
+        newConfig.storage = normalizeStorageConfig(
+          newConfig.storage,
+          defaultConfig.storage,
+        );
+      }
+
       // Deep merge configuration
       function deepMerge(target, source) {
         for (const key in source) {
@@ -13057,11 +13344,7 @@ var FlowPlater = (function () {
         setCustomTags(newConfig.customTags);
       }
 
-      Debug.log(
-        Debug.levels.INFO,
-        "FlowPlater configured with:",
-        _state.config,
-      );
+      Debug.log(Debug.levels.INFO, "FlowPlater configured with:", _state.config);
 
       return this;
     },
@@ -13153,30 +13436,66 @@ var FlowPlater = (function () {
     },
   };
 
-  // Initialize with default configuration
-  FlowPlaterObj.config();
-
-  return FlowPlaterObj;
-})();
-
-/* -------------------------------------------------------------------------- */
-/* ANCHOR                          Auto init                                  */
-/* -------------------------------------------------------------------------- */
-
-/**
- * @description Automatically initializes FlowPlater when the DOM is ready.
- * Uses a small timeout to ensure proper initialization after other scripts.
- */
-if (document.readyState === "complete" || document.readyState !== "loading") {
-  setTimeout(() => {
-    try {
-      FlowPlater.init();
-    } catch (error) {
-      errorLog$1("FlowPlater initialization failed:", error);
+  /**
+   * Normalizes storage configuration to a standard format
+   * @param {boolean|number|Object} storageConfig - The storage configuration value
+   * @param {Object} defaultStorageConfig - The default storage configuration
+   * @returns {Object} Normalized storage configuration
+   */
+  function normalizeStorageConfig(storageConfig, defaultStorageConfig) {
+    if (typeof storageConfig === "boolean") {
+      return {
+        enabled: storageConfig,
+        ttl: defaultStorageConfig.ttl,
+      };
     }
-  }, 1);
-} else {
-  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof storageConfig === "number") {
+      return {
+        enabled: storageConfig > 0,
+        ttl: storageConfig > 0 ? storageConfig : defaultStorageConfig.ttl,
+      };
+    }
+    return storageConfig; // Already an object or undefined
+  }
+
+  // Initialize configuration once, combining default and meta tag configs
+  let finalConfig = JSON.parse(JSON.stringify(defaultConfig));
+  const metaElement = document.querySelector('meta[name="fp-config"]');
+  if (metaElement) {
+    try {
+      const metaConfig = JSON.parse(metaElement.content);
+
+      // Handle storage shorthand configuration
+      if ("storage" in metaConfig) {
+        metaConfig.storage = normalizeStorageConfig(
+          metaConfig.storage,
+          defaultConfig.storage,
+        );
+      }
+
+      finalConfig = {
+        ...finalConfig,
+        ...metaConfig,
+      };
+    } catch (e) {
+      errorLog$1(
+        "Error parsing fp-config meta tag:",
+        metaElement,
+        "Make sure your meta tag is valid",
+      );
+    }
+  }
+  FlowPlaterObj.config(finalConfig);
+
+  /* -------------------------------------------------------------------------- */
+  /* ANCHOR                          Auto init                                  */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * @description Automatically initializes FlowPlater when the DOM is ready.
+   * Uses a small timeout to ensure proper initialization after other scripts.
+   */
+  if (document.readyState === "complete" || document.readyState !== "loading") {
     setTimeout(() => {
       try {
         FlowPlater.init();
@@ -13184,5 +13503,18 @@ if (document.readyState === "complete" || document.readyState !== "loading") {
         errorLog$1("FlowPlater initialization failed:", error);
       }
     }, 1);
-  });
-}
+  } else {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(() => {
+        try {
+          FlowPlater.init();
+        } catch (error) {
+          errorLog$1("FlowPlater initialization failed:", error);
+        }
+      }, 1);
+    });
+  }
+
+  return FlowPlaterObj;
+
+})();
