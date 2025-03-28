@@ -6,6 +6,7 @@ import { memoize } from "../utils/Memoize";
 import { instanceMethods } from "./InstanceMethods";
 import { currentCustomTags } from "./ReplaceCustomTags";
 import { updateDOM } from "../utils/UpdateDom";
+import { loadFromLocalStorage } from "../utils/LocalStorage";
 
 export function compileTemplate(templateId, recompile = false) {
   if (!recompile) {
@@ -23,7 +24,7 @@ export function compileTemplate(templateId, recompile = false) {
   return compiledTemplate;
 }
 
-const memoizedCompile = memoize(function (templateId) {
+export const memoizedCompile = memoize(function (templateId) {
   // if templateId is empty or "self", use the current element
   Performance.start("compile:" + templateId);
 
@@ -246,25 +247,41 @@ export function render({
     !_state.instances[instanceName] ||
     _state.instances[instanceName].data !== data
   ) {
-    var proxy = new Proxy(data, {
-      set: function (target, prop, value) {
-        target[prop] = value;
-        elements.forEach(function (element) {
-          updateDOM(element, compiledTemplate(target));
-        });
-        return true;
-      },
+    // Load persisted data if available
+    const persistedData = loadFromLocalStorage(instanceName);
+    if (persistedData) {
+      data = { ...data, ...persistedData };
+    }
+
+    var proxy = createDeepProxy(data, (target) => {
+      // Use WeakRef or maintain a Set of weak references to elements
+      const activeElements = elements.filter((el) =>
+        document.body.contains(el),
+      );
+      activeElements.forEach((element) => {
+        updateDOM(element, compiledTemplate(target));
+      });
     });
 
     // Store the proxy and elements in instances for future reference
     _state.instances[instanceName] = {
-      elements: elements,
+      // Use Set instead of WeakSet to allow iteration
+      elements: new Set(elements),
       template: compiledTemplate,
-      templateId: elements[0].getAttribute("fp-template") || template, // Use first element's fp-template attribute
+      templateId: elements[0].getAttribute("fp-template") || template,
       proxy: proxy,
       data: data,
+      cleanup: () => {
+        this.elements.clear();
+      },
       ...instanceMethods(instanceName),
     };
+  }
+
+  function resolveAttributeBoolean(attribute) {
+    if (attribute === "") return true;
+    if (attribute === "false") return false;
+    return true;
   }
 
   const instance = _state.instances[instanceName];
@@ -282,7 +299,7 @@ export function render({
 
     elements.forEach(function (element) {
       try {
-        updateDOM(element, instance.template(instance.proxy));
+        updateDOM(element, instance.template(instance.proxy), instance.animate);
       } catch (error) {
         element.innerHTML = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
         errorLog(`Failed to render template: ${error.message}`);
@@ -291,7 +308,9 @@ export function render({
 
     return instance;
   } catch (error) {
-    errorLog(`Failed to render template: ${error.message}`);
+    if (!(error instanceof TemplateError)) {
+      errorLog(`Failed to render template: ${error.message}`);
+    }
     throw error;
   } finally {
     EventSystem.publish("afterRender", {
@@ -305,4 +324,31 @@ export function render({
     log("Rendered instance: " + instanceName, template, data, target);
     Performance.end("render:" + (instanceName || "anonymous"));
   }
+}
+
+function createDeepProxy(target, handler) {
+  if (typeof target !== "object" || target === null) {
+    return target;
+  }
+
+  const proxyHandler = {
+    get(target, property) {
+      const value = target[property];
+      return value && typeof value === "object"
+        ? createDeepProxy(value, handler)
+        : value;
+    },
+    set(target, property, value) {
+      target[property] = value;
+      handler(target);
+      return true;
+    },
+    deleteProperty(target, property) {
+      delete target[property];
+      handler(target);
+      return true;
+    },
+  };
+
+  return new Proxy(target, proxyHandler);
 }

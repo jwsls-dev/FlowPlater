@@ -4,6 +4,10 @@ import { EventSystem } from "./EventSystem";
 import { compileTemplate } from "./Template";
 import { updateDOM } from "../utils/UpdateDom";
 import { memoizedCompile } from "./Template";
+import {
+  saveToLocalStorage,
+  loadFromLocalStorage,
+} from "../utils/LocalStorage";
 
 export function instanceMethods(instanceName) {
   // Helper function to resolve a path within the data
@@ -35,7 +39,11 @@ export function instanceMethods(instanceName) {
 
       instance.elements.forEach(function (element) {
         try {
-          updateDOM(element, instance.template(instance.proxy));
+          updateDOM(
+            element,
+            instance.template(instance.proxy),
+            instance.animate,
+          );
         } catch (error) {
           element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
           errorLog(`Failed to refresh template: ${error.message}`);
@@ -53,6 +61,7 @@ export function instanceMethods(instanceName) {
       }
       Object.assign(instance.data, newData);
       Object.assign(instance.proxy, newData);
+      saveToLocalStorage(instanceName, instance.data);
       return this._updateDOM();
     },
 
@@ -68,6 +77,11 @@ export function instanceMethods(instanceName) {
       });
 
       try {
+        // Remove from localStorage if storage is enabled
+        if (_state.config?.storage?.enabled) {
+          localStorage.removeItem(`fp_${instanceName}`);
+        }
+
         // Clear elements and remove from DOM
         instance.elements.forEach(function (element) {
           try {
@@ -148,13 +162,17 @@ export function instanceMethods(instanceName) {
                     data: instance.data,
                     rendered,
                   });
-                  updateDOM(element, rendered);
+                  updateDOM(element, rendered, instance.animate);
                   return data;
                 });
               promises.push(promise);
             }
           } else {
-            updateDOM(element, instance.template(instance.proxy));
+            updateDOM(
+              element,
+              instance.template(instance.proxy),
+              instance.animate,
+            );
           }
         } catch (error) {
           element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
@@ -286,6 +304,7 @@ export function instanceMethods(instanceName) {
 
         target[last] = value;
         Object.assign(instance.proxy, instance.data);
+        saveToLocalStorage(instanceName, instance.data);
         return this._updateDOM();
       } catch (error) {
         errorLog(error.message);
