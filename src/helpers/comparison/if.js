@@ -73,23 +73,25 @@ export function ifHelper() {
         rightValue,
       });
 
-      // Evaluate the condition first
+      // Evaluate the condition
       const result = compare(leftValue, operator, rightValue);
 
-      // Now execute the appropriate branch, letting any errors propagate up
+      // Execute the appropriate branch
       if (result) {
         return options.fn(this);
       } else {
         return options.inverse(this);
       }
     } catch (error) {
-      // Only catch and handle errors related to the condition evaluation itself
-      if (error instanceof TemplateError) {
-        Debug.log(Debug.levels.ERROR, "Error evaluating if condition:", error);
-        throw error; // Re-throw to maintain error state
+      // Log the error stack for better debugging
+      if (!(error instanceof TemplateError)) {
+        Debug.log(
+          Debug.levels.ERROR,
+          "Error evaluating if condition:",
+          error.stack,
+        );
       }
-      Debug.log(Debug.levels.ERROR, "Error in if helper:", error);
-      throw error; // Re-throw other errors to maintain error state
+      throw error; // Re-throw to maintain error state
     }
   });
 }

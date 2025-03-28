@@ -9,6 +9,9 @@ export function setCustomTags(tags) {
 }
 
 export function replaceCustomTags(element) {
+  console.log("replaceCustomTags", element);
+  // Replace [[*]] with {{*}} in the template content
+  // element.innerHTML = element.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
   // Replace all custom tags
   currentCustomTags.forEach((tag) => {
     const elements = Array.from(element.getElementsByTagName(tag.tag));

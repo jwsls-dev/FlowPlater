@@ -1,5 +1,5 @@
 import { Calc } from "./jscalc";
-import { TemplateError, log } from "../../core/Debug";
+import { TemplateError, Debug } from "../../core/Debug";
 
 export function mathHelper() {
   Handlebars.registerHelper("math", function (expression, options) {
@@ -64,7 +64,7 @@ export function mathHelper() {
       },
     );
 
-    log(resolvedExpression);
+    Debug.log(Debug.levels.DEBUG, "Evaluating expression:", resolvedExpression);
 
     try {
       // Evaluate the expression using jscalc
@@ -72,7 +72,14 @@ export function mathHelper() {
       const result = c.exec(resolvedExpression);
       return result;
     } catch (error) {
-      throw new TemplateError(`Error evaluating expression: ${error.message}`);
+      // Only log and throw once
+      if (!(error instanceof TemplateError)) {
+        throw new TemplateError(
+          `Error evaluating expression: ${error.message}`,
+          error.stack,
+        );
+      }
+      throw error; // Re-throw TemplateErrors without wrapping
     }
   });
 }

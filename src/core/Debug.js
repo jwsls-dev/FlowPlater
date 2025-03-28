@@ -13,7 +13,19 @@ export const Debug = (function () {
       if (!this.debugMode) return;
       if (level <= this.level) {
         const prefix = ["ERROR", "WARN", "INFO", "DEBUG"][level];
-        console.log(`FlowPlater [${prefix}]:`, ...args);
+        switch (prefix) {
+          case "ERROR":
+            console.error(`FlowPlater [${prefix}]:`, ...args);
+            break;
+          case "WARN":
+            console.warn(`FlowPlater [${prefix}]:`, ...args);
+            break;
+          case "DEBUG":
+            console.debug(`FlowPlater [${prefix}]:`, ...args);
+            break;
+          default:
+            console.log(`FlowPlater [${prefix}]:`, ...args);
+        }
       }
     },
   };
@@ -29,22 +41,25 @@ export function errorLog(...args) {
 }
 
 export class FlowPlaterError extends Error {
-  constructor(message) {
+  constructor(message, stack) {
     super(message);
     this.name = "FlowPlaterError";
+    this.stack = stack;
   }
 }
 
 export class TemplateError extends FlowPlaterError {
-  constructor(message) {
+  constructor(message, stack) {
     super(message);
     this.name = "TemplateError";
+    this.stack = stack;
   }
 }
 
 export class RenderError extends FlowPlaterError {
-  constructor(message) {
+  constructor(message, stack) {
     super(message);
     this.name = "RenderError";
+    this.stack = stack;
   }
 }
