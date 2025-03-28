@@ -3,6 +3,7 @@ import { sumHelper } from "./math/sum";
 import { mathHelper } from "./math/math";
 import { eachHelper } from "./array/each";
 import { executeHelper } from "./utility/execute";
+import { setHelper } from "./utility/set";
 import { bunnyHelper } from "./utility/bunny";
 
 export function registerHelpers() {
@@ -11,5 +12,6 @@ export function registerHelpers() {
   mathHelper();
   eachHelper();
   executeHelper();
+  setHelper();
   bunnyHelper();
 }
