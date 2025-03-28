@@ -1,3 +1,5 @@
+import { errorLog } from "../../core/Debug";
+
 function* Lexer(expr) {
   var _regex = new RegExp(Lexer.lang, "g");
   var x;
@@ -13,8 +15,8 @@ function* Lexer(expr) {
 }
 
 Lexer.categories = {
-  op: "[+*/^|-]",
-  num: "\\d+(?:\\.\\d+)?%?",
+  op: "[+*/^]|-(?!\\d)",
+  num: "-?\\d+(?:\\.\\d+)?%?",
   group: "[\\[()\\]]",
   sep: ",",
   ident: "\\b(ans|pi|e)\\b",
@@ -47,7 +49,12 @@ class Calc {
 
   _next() {
     const next = this.l.next();
-    return next.done ? null : next.value;
+    if (next.done) {
+      //   console.debug("End of expression reached");
+      return null;
+    }
+    // console.debug("Next token:", next.value);
+    return next.value;
   }
 
   exec(expr) {
@@ -67,10 +74,8 @@ class Calc {
 
       return (Calc.ans = this.stack.pop());
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        throw error;
-      }
-      throw new SyntaxError(`Error parsing expression: ${error.message}`);
+      console.error("Error in expression evaluation:", error);
+      throw error;
     }
   }
 
@@ -148,7 +153,40 @@ class Calc {
   }
 
   e() {
-    return this._lrecmut(this.p, this.ep);
+    let result = this.t();
+    while (this.w && (this.w.token === "+" || this.w.token === "-")) {
+      const op = this.w.token;
+      this.w = this._next();
+      if (!this.t()) return false;
+      const right = this.stack.pop();
+      const left = this.stack.pop();
+      this.stack.push(Calc._chooseOp(op)(left, right));
+    }
+    return true;
+  }
+
+  t() {
+    let result = this.f();
+    while (this.w && (this.w.token === "*" || this.w.token === "/")) {
+      const op = this.w.token;
+      this.w = this._next();
+      if (!this.f()) return false;
+      const right = this.stack.pop();
+      const left = this.stack.pop();
+      this.stack.push(Calc._chooseOp(op)(left, right));
+    }
+    return result;
+  }
+
+  f() {
+    if (this.w && this.w.token === "-") {
+      this.w = this._next();
+      if (!this.z()) return false;
+      const val = this.stack.pop();
+      this.stack.push(-val);
+      return true;
+    }
+    return this.z();
   }
 
   ep() {
@@ -180,16 +218,21 @@ class Calc {
   }
 
   _wrapped_expr(cb, arg, a = "(", b = ")") {
+    if (!this.w) {
+      return false;
+    }
+
     if (this.w.token === a) {
-      this.w = this.l.next().value;
+      this.w = this._next();
       if (this.e()) {
-        if (this.w.token === b) {
-          this.w = this.l.next().value;
+        if (this.w && this.w.token === b) {
+          this.w = this._next();
           if (cb instanceof Function) cb.call(this, arg);
           return true;
         }
       }
     }
+    return false;
   }
 
   _rep_val(fn, args) {
@@ -198,7 +241,11 @@ class Calc {
       this.stack.push(Calc._chooseFn(fn).apply(null, args));
     } else {
       // For single argument functions
-      this.stack.push(Calc._chooseFn(fn)(this.stack.pop()));
+      const value = this.stack.pop();
+      if (value === undefined) {
+        throw new Error(`Function ${fn} requires an argument`);
+      }
+      this.stack.push(Calc._chooseFn(fn)(value));
     }
   }
 
