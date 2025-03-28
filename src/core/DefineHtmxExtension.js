@@ -51,7 +51,7 @@ export function defineHtmxExtension() {
       }
 
       var templateId = elt.getAttribute("fp-template");
-      log("Response received for request " + requestId + ": " + text);
+      log("Response received for request " + requestId + ": ", data);
 
       // Render template
       try {
@@ -93,7 +93,9 @@ export function defineHtmxExtension() {
         return text;
       } catch (error) {
         errorLog("Error rendering template:", error);
-        return text;
+        return (
+          "<div class='fp-error'>Error rendering template: " + error + "</div>"
+        );
       }
     },
 
@@ -151,7 +153,7 @@ export function defineHtmxExtension() {
           return false;
         }
 
-        updateDOM(target, fragment.innerHTML, swapStyle);
+        updateDOM(target, fragment.innerHTML, instance.animate);
 
         Debug.log(
           Debug.levels.DEBUG,

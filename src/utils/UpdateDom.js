@@ -1,24 +1,31 @@
 import { Debug } from "../core/Debug";
 import { Performance } from "./Performance";
-
-const ELEMENT_NODE = 1;
-const TEXT_NODE = 3;
-const COMMENT_NODE = 8;
-const DOCUMENT_FRAGMENT_NODE = 11;
-const NS_XHTML = "http://www.w3.org/1999/xhtml";
-const NS_SVG = "http://www.w3.org/2000/svg";
-const NS_XLINK = "http://www.w3.org/1999/xlink";
-
 /**
  * Optimized children morphing with keyed element handling
  */
 function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
-  console.log("Morphing children from:", fromEl.innerHTML);
-  console.log("Morphing children to:", toEl.innerHTML);
-
   // Handle empty initial state
   if (!fromEl.childNodes.length) {
     fromEl.innerHTML = toEl.innerHTML;
+    return;
+  }
+
+  // Special handling for form inputs - preserve their state completely
+  if (fromEl instanceof HTMLInputElement) {
+    const oldValue = fromEl.value;
+    const oldChecked = fromEl.checked;
+    const oldSelected =
+      fromEl instanceof HTMLSelectElement
+        ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
+        : null;
+
+    // Update non-state attributes from new element
+    Array.from(toEl.attributes).forEach((attr) => {
+      if (attr.name !== "value" && attr.name !== "checked") {
+        fromEl.setAttribute(attr.name, attr.value);
+      }
+    });
+
     return;
   }
 
@@ -136,17 +143,22 @@ function handleSpecialElement(fromEl, toEl) {
         ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
         : null;
 
-    // Update attributes from new element
+    // Update non-state attributes from new element
     Array.from(toEl.attributes).forEach((attr) => {
-      if (attr.name !== "value") {
-        // Don't overwrite value from attributes
+      // Skip value, checked, and Webflow-specific attributes
+      if (
+        attr.name !== "value" &&
+        attr.name !== "checked" &&
+        !attr.name.startsWith("w-")
+      ) {
         fromEl.setAttribute(attr.name, attr.value);
       }
     });
 
     // Restore state
     fromEl.value = oldValue;
-    if (oldChecked !== undefined) fromEl.checked = oldChecked;
+    fromEl.checked = oldChecked;
+
     if (oldSelected) {
       oldSelected.forEach((value) => {
         const option = fromEl.querySelector(`option[value="${value}"]`);
@@ -160,9 +172,11 @@ function handleSpecialElement(fromEl, toEl) {
     fromEl instanceof HTMLIFrameElement ||
     fromEl instanceof HTMLScriptElement
   ) {
-    // Only update attributes, don't touch content
+    // Only update non-Webflow attributes
     Array.from(toEl.attributes).forEach((attr) => {
-      fromEl.setAttribute(attr.name, attr.value);
+      if (!attr.name.startsWith("w-")) {
+        fromEl.setAttribute(attr.name, attr.value);
+      }
     });
   }
 }
@@ -193,6 +207,14 @@ function nodesAreEqual(node1, node2) {
 
   if (node1.nodeType === Node.COMMENT_NODE) {
     return node1.textContent === node2.textContent;
+  }
+
+  // Skip comparison for Webflow-specific elements
+  if (
+    node1 instanceof Element &&
+    (node1.className.includes("w-") || node2.className.includes("w-"))
+  ) {
+    return true;
   }
 
   return node1.isEqualNode(node2);
@@ -227,7 +249,7 @@ function cloneWithNamespace(node) {
 /**
  * Main update function with performance tracking and error handling
  */
-function updateDOM(element, newHTML) {
+async function updateDOM(element, newHTML, animate = false) {
   Performance.start("updateDOM");
 
   try {
@@ -239,23 +261,51 @@ function updateDOM(element, newHTML) {
       throw new Error("newHTML must be a string");
     }
 
-    // Create virtual node as a temporary container
-    const virtualContainer = document.createElement("div");
-    virtualContainer.innerHTML = newHTML.trim();
+    // Check if View Transitions API is supported and if animate is true
+    if (document.startViewTransition && animate) {
+      await document.startViewTransition(() => {
+        return new Promise((resolve) => {
+          // Create virtual node as a temporary container
+          const virtualContainer = document.createElement("div");
+          virtualContainer.innerHTML = newHTML.trim();
 
-    // Create indices of keyed elements for both containers
-    const oldKeyedElements = new Map();
-    const newKeyedElements = new Map();
-    indexTree(element, oldKeyedElements);
-    indexTree(virtualContainer, newKeyedElements);
+          // Create indices of keyed elements for both containers
+          const oldKeyedElements = new Map();
+          const newKeyedElements = new Map();
+          indexTree(element, oldKeyedElements);
+          indexTree(virtualContainer, newKeyedElements);
 
-    // Now morph the contents with keyed elements
-    morphChildren(
-      element,
-      virtualContainer,
-      oldKeyedElements,
-      newKeyedElements,
-    );
+          // Morph the contents with keyed elements
+          morphChildren(
+            element,
+            virtualContainer,
+            oldKeyedElements,
+            newKeyedElements,
+          );
+          resolve();
+
+          Performance.end("updateDOM");
+        });
+      }).finished;
+    } else {
+      // Fallback for browsers that don't support View Transitions
+      const virtualContainer = document.createElement("div");
+      virtualContainer.innerHTML = newHTML.trim();
+
+      const oldKeyedElements = new Map();
+      const newKeyedElements = new Map();
+      indexTree(element, oldKeyedElements);
+      indexTree(virtualContainer, newKeyedElements);
+
+      morphChildren(
+        element,
+        virtualContainer,
+        oldKeyedElements,
+        newKeyedElements,
+      );
+
+      Performance.end("updateDOM");
+    }
   } catch (error) {
     Debug.log(Debug.levels.ERROR, "Error in updateDOM:", error);
     console.error("UpdateDOM error:", error);
