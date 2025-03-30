@@ -57,7 +57,6 @@ async function concatenateFiles() {
       "",
     );
 
-    // Combine content with license first, then webpack bootstrap, then the rest
     const combinedContent =
       licenceContent +
       "\n" +
