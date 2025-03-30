@@ -102,6 +102,29 @@ export function render({
     // Load persisted data if available
     const persistedData = loadFromLocalStorage(instanceName, "instance");
     if (persistedData) {
+      // Check if stored data is HTML
+      if (persistedData.isHtml) {
+        // Get swap specification from element
+        const swapSpec = {
+          swapStyle:
+            elements[0].getAttribute("hx-swap")?.split(" ")[0] || "innerHTML",
+          swapDelay: 0,
+          settleDelay: 0,
+          transition:
+            elements[0].getAttribute("hx-swap")?.includes("transition:true") ||
+            false,
+        };
+
+        // Use htmx.swap with proper swap specification
+        if (returnHtml) {
+          return persistedData.data;
+        }
+        elements.forEach((element) => {
+          htmx.swap(element, persistedData.data, swapSpec);
+        });
+        return _state.instances[instanceName];
+      }
+      // Otherwise merge with current data
       data = { ...data, ...persistedData };
     }
 

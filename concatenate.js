@@ -8,7 +8,7 @@ const outputFilePath = path.join(__dirname, "dist", "flowplater_bundled.js");
 
 const handlebarsUrl =
   "https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js";
-const htmxUrl = "https://cdn.jsdelivr.net/npm/htmx.org@latest/dist/htmx.js";
+const htmxUrl = "https://cdn.jsdelivr.net/npm/htmx.org@2/dist/htmx.js";
 const htmxLicencePath = path.join(__dirname, "src", "licence_htmx.js");
 
 function fetchUrl(url, maxRedirects = 3) {

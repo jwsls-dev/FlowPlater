@@ -9,7 +9,10 @@ import {
   cleanupFormChangeListeners,
   getAllRelevantForms,
 } from "../utils/FormPersistence";
-import { loadFromLocalStorage } from "../utils/LocalStorage";
+import {
+  loadFromLocalStorage,
+  saveToLocalStorage,
+} from "../utils/LocalStorage";
 
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
@@ -43,6 +46,21 @@ export function defineHtmxExtension() {
 
       // Check if response looks like HTML
       if (typeof text === "string" && text.trim().startsWith("<!DOCTYPE")) {
+        // Store HTML response if storage is enabled
+        if (_state.config?.storage?.enabled) {
+          const instanceName = elt.getAttribute("fp-instance") || elt.id;
+          if (instanceName) {
+            saveToLocalStorage(
+              instanceName,
+              {
+                data: text,
+                isHtml: true,
+                timestamp: Date.now(),
+              },
+              "instance",
+            );
+          }
+        }
         return text; // Return HTML as-is
       }
 
