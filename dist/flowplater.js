@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.19 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.21 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -9993,15 +9993,13 @@ var FlowPlater = function() {
             q(e, t[e.name]);
         });
         f.log(f.levels.DEBUG, `Form state restoration summary for ${e.id}:
-    Storage type: ${r.storageType}
-    Restored elements:
-    ${r.restoredElements.map(e => `- ${e.name}: ${e.value}`).join("\n    ")}
-    
-    Updated custom visual states for:
-    ${r.customVisualUpdates.join(", ")}
-    
-    Skipped elements (persistence disabled):
-    ${r.skippedElements.join(", ")}`);
+      Storage type: ${r.storageType}
+      Restored elements:
+      ${r.restoredElements.map(e => `- ${e.name}: ${e.value}`).join("\n      ")}
+      Updated custom visual states for:
+      ${r.customVisualUpdates.join(", ")}
+      Skipped elements (persistence disabled):
+      ${r.skippedElements.join(", ")}`);
         y.publish("formState:afterRestore", {
             formId: e.id,
             formElement: e,
@@ -10060,11 +10058,11 @@ var FlowPlater = function() {
                 n.listenersAdded.push(t.name);
             });
             f.log(f.levels.DEBUG, `Form setup summary for ${r.id}:
-      - Total form elements: ${n.formElements}
-      - Checkbox wrappers: ${n.checkboxWrappers}
-      - Form persistence: ${n.persistenceEnabled ? "enabled" : "disabled"}
-      - Listeners added to: ${n.listenersAdded.join(", ")}
-      - Skipped elements: ${n.skippedElements.join(", ")}`);
+        Total form elements: ${n.formElements}
+        Checkbox wrappers: ${n.checkboxWrappers}
+        Form persistence: ${n.persistenceEnabled ? "enabled" : "disabled"}
+        Listeners added to: ${n.listenersAdded.join(", ")}
+        Skipped elements: ${n.skippedElements.join(", ")}`);
         } catch (e) {
             f.log(f.levels.ERROR, `Error setting up form change listeners: ${e.message}`);
         }
@@ -10105,10 +10103,10 @@ var FlowPlater = function() {
             if (Object.keys(i).length > 0) {
                 l(r, i, "save");
                 f.log(f.levels.DEBUG, `Form state update for ${r.id}:
-        - Changed element: ${t.name}
-        - Storage type: ${c(r) ? "localStorage" : "sessionStorage"}
-        - Updated values: ${JSON.stringify(n.changedValues, null, 2)}
-        - Skipped elements (persistence disabled): ${n.skippedElements.join(", ")}`);
+          Changed element: ${t.name}
+          Storage type: ${c(r) ? "localStorage" : "sessionStorage"}
+          Updated values: ${JSON.stringify(n.changedValues, null, 2)}
+          Skipped elements (persistence disabled): ${n.skippedElements.join(", ")}`);
                 y.publish("formState:changed", {
                     formId: r.id,
                     formElement: r,
@@ -11961,15 +11959,7 @@ var FlowPlater = function() {
             return t;
         }
     }
-    /**
-   * @namespace FlowPlater
-   * @description Core FlowPlater module that provides template processing and dynamic content management.
-   * Integrates with HTMX and Handlebars to provide a seamless templating and interaction experience.
-   * @version 1.4.19
-   * @author JWSLS
-   * @license Flowplater standard licence
-   */
-    const Pe = "1.4.19";
+    const Pe = "1.4.21";
     const Ne = "JWSLS";
     const Re = "Flowplater standard licence";
     const P = {

@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.19 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.21 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
