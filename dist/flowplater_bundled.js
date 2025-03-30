@@ -10896,15 +10896,17 @@ var FlowPlater = (function () {
     Debug.log(
       Debug.levels.DEBUG,
       `Form state restoration summary for ${form.id}:
-      Storage type: ${debugInfo.storageType}
-      Restored elements:
-      ${debugInfo.restoredElements
-        .map((el) => `- ${el.name}: ${el.value}`)
-        .join("\n      ")}
-      Updated custom visual states for:
-      ${debugInfo.customVisualUpdates.join(", ")}
-      Skipped elements (persistence disabled):
-      ${debugInfo.skippedElements.join(", ")}`,
+    Storage type: ${debugInfo.storageType}
+    Restored elements:
+    ${debugInfo.restoredElements
+      .map((el) => `- ${el.name}: ${el.value}`)
+      .join("\n    ")}
+    
+    Updated custom visual states for:
+    ${debugInfo.customVisualUpdates.join(", ")}
+    
+    Skipped elements (persistence disabled):
+    ${debugInfo.skippedElements.join(", ")}`,
     );
 
     // Emit event after restoration
@@ -10998,13 +11000,13 @@ var FlowPlater = (function () {
       Debug.log(
         Debug.levels.DEBUG,
         `Form setup summary for ${form.id}:
-        Total form elements: ${debugInfo.formElements}
-        Checkbox wrappers: ${debugInfo.checkboxWrappers}
-        Form persistence: ${
-          debugInfo.persistenceEnabled ? "enabled" : "disabled"
-        }
-        Listeners added to: ${debugInfo.listenersAdded.join(", ")}
-        Skipped elements: ${debugInfo.skippedElements.join(", ")}`,
+      - Total form elements: ${debugInfo.formElements}
+      - Checkbox wrappers: ${debugInfo.checkboxWrappers}
+      - Form persistence: ${
+        debugInfo.persistenceEnabled ? "enabled" : "disabled"
+      }
+      - Listeners added to: ${debugInfo.listenersAdded.join(", ")}
+      - Skipped elements: ${debugInfo.skippedElements.join(", ")}`,
       );
     } catch (error) {
       Debug.log(
@@ -11075,14 +11077,14 @@ var FlowPlater = (function () {
         Debug.log(
           Debug.levels.DEBUG,
           `Form state update for ${form.id}:
-          Changed element: ${element.name}
-          Storage type: ${
-            shouldUseLocalStorage(form) ? "localStorage" : "sessionStorage"
-          }
-          Updated values: ${JSON.stringify(debugInfo.changedValues, null, 2)}
-          Skipped elements (persistence disabled): ${debugInfo.skippedElements.join(
-            ", ",
-          )}`,
+        - Changed element: ${element.name}
+        - Storage type: ${
+          shouldUseLocalStorage(form) ? "localStorage" : "sessionStorage"
+        }
+        - Updated values: ${JSON.stringify(debugInfo.changedValues, null, 2)}
+        - Skipped elements (persistence disabled): ${debugInfo.skippedElements.join(
+          ", ",
+        )}`,
         );
 
         // Emit event
@@ -13230,6 +13232,11 @@ var FlowPlater = (function () {
         // Only process if fp-template is present
         if (!elt.hasAttribute("fp-template")) {
           return text;
+        }
+
+        // Check if response looks like HTML
+        if (typeof text === "string" && text.trim().startsWith("<!DOCTYPE")) {
+          return text; // Return HTML as-is
         }
 
         // Parse response data

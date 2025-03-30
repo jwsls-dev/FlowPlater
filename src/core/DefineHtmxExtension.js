@@ -41,6 +41,11 @@ export function defineHtmxExtension() {
         return text;
       }
 
+      // Check if response looks like HTML
+      if (typeof text === "string" && text.trim().startsWith("<!DOCTYPE")) {
+        return text; // Return HTML as-is
+      }
+
       // Parse response data
       let data;
       try {
