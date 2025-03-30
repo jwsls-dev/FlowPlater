@@ -1,16 +1,14 @@
 export const Debug = (function () {
   return {
-    level: 3,
+    level: 1,
     levels: {
       ERROR: 0,
       WARN: 1,
       INFO: 2,
       DEBUG: 3,
     },
-    debugMode: true,
 
     log: function (level, ...args) {
-      if (!this.debugMode) return;
       if (level <= this.level) {
         const prefix = ["ERROR", "WARN", "INFO", "DEBUG"][level];
         switch (prefix) {
