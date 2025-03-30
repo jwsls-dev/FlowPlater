@@ -44,16 +44,31 @@ async function concatenateFiles() {
     const libraryContent = fs.readFileSync(libraryFilePath, "utf-8");
     const licenceContent = fs.readFileSync(licenceFilePath, "utf-8");
     const htmxLicenceContent = fs.readFileSync(htmxLicencePath, "utf-8");
+
+    // Extract the webpack bootstrap code from libraryContent
+    const webpackBootstrapMatch = libraryContent.match(
+      /(function webpackUniversalModuleDefinition.*?return \/\/ webpackBootstrap\n)/s,
+    );
+    const webpackBootstrap = webpackBootstrapMatch
+      ? webpackBootstrapMatch[1]
+      : "";
+    const libraryContentWithoutBootstrap = libraryContent.replace(
+      webpackBootstrap,
+      "",
+    );
+
+    // Combine content with license first, then webpack bootstrap, then the rest
     const combinedContent =
       licenceContent +
       "\n" +
+      webpackBootstrap +
       handlebarsContent +
       "\n" +
       htmxLicenceContent +
       "\n" +
       htmxContent +
       "\n" +
-      libraryContent;
+      libraryContentWithoutBootstrap;
 
     fs.writeFileSync(outputFilePath, combinedContent);
     console.log("Files concatenated successfully!");
