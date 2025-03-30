@@ -85,27 +85,27 @@ THE SOFTWARE.
 })(this, function() {
     return function(r) {
         var n = {};
-        function a(e) {
+        function i(e) {
             if (n[e]) return n[e].exports;
             var t = n[e] = {
                 exports: {},
                 id: e,
                 loaded: false
             };
-            r[e].call(t.exports, t, t.exports, a);
+            r[e].call(t.exports, t, t.exports, i);
             t.loaded = true;
             return t.exports;
         }
-        a.m = r;
-        a.c = n;
-        a.p = "";
-        return a(0);
+        i.m = r;
+        i.c = n;
+        i.p = "";
+        return i(0);
     }([ function(e, t, r) {
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var a = r(2);
-        var i = n(a);
+        var i = r(2);
+        var a = n(i);
         var s = r(84);
         var o = n(s);
         var l = r(85);
@@ -116,7 +116,7 @@ THE SOFTWARE.
         var p = n(h);
         var d = r(83);
         var m = n(d);
-        var g = i["default"].create;
+        var g = a["default"].create;
         function v() {
             var r = g();
             r.compile = function(e, t) {
@@ -151,20 +151,20 @@ THE SOFTWARE.
     }, function(e, t, r) {
         "use strict";
         var n = r(3)["default"];
-        var a = r(1)["default"];
+        var i = r(1)["default"];
         t.__esModule = true;
-        var i = r(4);
-        var s = n(i);
+        var a = r(4);
+        var s = n(a);
         var o = r(77);
-        var l = a(o);
+        var l = i(o);
         var u = r(6);
-        var c = a(u);
+        var c = i(u);
         var f = r(5);
         var h = n(f);
         var p = r(78);
         var d = n(p);
         var m = r(83);
-        var g = a(m);
+        var g = i(m);
         function v() {
             var t = new s.HandlebarsEnvironment();
             h.extend(t, s);
@@ -206,9 +206,9 @@ THE SOFTWARE.
         var n = r(1)["default"];
         t.__esModule = true;
         t.HandlebarsEnvironment = v;
-        var a = r(5);
-        var i = r(6);
-        var s = n(i);
+        var i = r(5);
+        var a = r(6);
+        var s = n(a);
         var o = r(10);
         var l = r(70);
         var u = r(72);
@@ -244,11 +244,11 @@ THE SOFTWARE.
             logger: c["default"],
             log: c["default"].log,
             registerHelper: function e(t, r) {
-                if (a.toString.call(t) === g) {
+                if (i.toString.call(t) === g) {
                     if (r) {
                         throw new s["default"]("Arg not supported with multiple helpers");
                     }
-                    a.extend(this.helpers, t);
+                    i.extend(this.helpers, t);
                 } else {
                     this.helpers[t] = r;
                 }
@@ -257,8 +257,8 @@ THE SOFTWARE.
                 delete this.helpers[t];
             },
             registerPartial: function e(t, r) {
-                if (a.toString.call(t) === g) {
-                    a.extend(this.partials, t);
+                if (i.toString.call(t) === g) {
+                    i.extend(this.partials, t);
                 } else {
                     if (typeof r === "undefined") {
                         throw new s["default"]('Attempting to register a partial called "' + t + '" as undefined');
@@ -270,11 +270,11 @@ THE SOFTWARE.
                 delete this.partials[t];
             },
             registerDecorator: function e(t, r) {
-                if (a.toString.call(t) === g) {
+                if (i.toString.call(t) === g) {
                     if (r) {
                         throw new s["default"]("Arg not supported with multiple decorators");
                     }
-                    a.extend(this.decorators, t);
+                    i.extend(this.decorators, t);
                 } else {
                     this.decorators[t] = r;
                 }
@@ -288,7 +288,7 @@ THE SOFTWARE.
         };
         var y = c["default"].log;
         t.log = y;
-        t.createFrame = a.createFrame;
+        t.createFrame = i.createFrame;
         t.logger = c["default"];
     }, function(e, t) {
         "use strict";
@@ -309,8 +309,8 @@ THE SOFTWARE.
             "`": "&#x60;",
             "=": "&#x3D;"
         };
-        var n = /[&<>"'`=]/g, a = /[&<>"'`=]/;
-        function i(e) {
+        var n = /[&<>"'`=]/g, i = /[&<>"'`=]/;
+        function a(e) {
             return r[e];
         }
         function s(e) {
@@ -357,10 +357,10 @@ THE SOFTWARE.
                 }
                 e = "" + e;
             }
-            if (!a.test(e)) {
+            if (!i.test(e)) {
                 return e;
             }
-            return e.replace(n, i);
+            return e.replace(n, a);
         }
         function h(e) {
             if (!e && e !== 0) {
@@ -389,13 +389,13 @@ THE SOFTWARE.
         t.__esModule = true;
         var c = [ "description", "fileName", "lineNumber", "endLineNumber", "message", "name", "number", "stack" ];
         function f(e, t) {
-            var r = t && t.loc, n = undefined, a = undefined, i = undefined, s = undefined;
+            var r = t && t.loc, n = undefined, i = undefined, a = undefined, s = undefined;
             if (r) {
                 n = r.start.line;
-                a = r.end.line;
-                i = r.start.column;
+                i = r.end.line;
+                a = r.start.column;
                 s = r.end.column;
-                e += " - " + n + ":" + i;
+                e += " - " + n + ":" + a;
             }
             var o = Error.prototype.constructor.call(this, e);
             for (var l = 0; l < c.length; l++) {
@@ -407,10 +407,10 @@ THE SOFTWARE.
             try {
                 if (r) {
                     this.lineNumber = n;
-                    this.endLineNumber = a;
+                    this.endLineNumber = i;
                     if (u) {
                         Object.defineProperty(this, "column", {
-                            value: i,
+                            value: a,
                             enumerable: true
                         });
                         Object.defineProperty(this, "endColumn", {
@@ -418,7 +418,7 @@ THE SOFTWARE.
                             enumerable: true
                         });
                     } else {
-                        this.column = i;
+                        this.column = a;
                         this.endColumn = s;
                     }
                 }
@@ -433,9 +433,9 @@ THE SOFTWARE.
             __esModule: true
         };
     }, function(e, t, r) {
-        var a = r(9);
+        var i = r(9);
         e.exports = function e(t, r, n) {
-            return a.setDesc(t, r, n);
+            return i.setDesc(t, r, n);
         };
     }, function(e, t) {
         var r = Object;
@@ -457,8 +457,8 @@ THE SOFTWARE.
         t.__esModule = true;
         t.registerDefaultHelpers = y;
         t.moveHelperToHooks = b;
-        var a = r(11);
-        var i = n(a);
+        var i = r(11);
+        var a = n(i);
         var s = r(12);
         var o = n(s);
         var l = r(65);
@@ -472,7 +472,7 @@ THE SOFTWARE.
         var g = r(69);
         var v = n(g);
         function y(e) {
-            i["default"](e);
+            a["default"](e);
             o["default"](e);
             u["default"](e);
             f["default"](e);
@@ -492,8 +492,8 @@ THE SOFTWARE.
         "use strict";
         t.__esModule = true;
         var s = r(5);
-        t["default"] = function(i) {
-            i.registerHelper("blockHelperMissing", function(e, t) {
+        t["default"] = function(a) {
+            a.registerHelper("blockHelperMissing", function(e, t) {
                 var r = t.inverse, n = t.fn;
                 if (e === true) {
                     return n(this);
@@ -504,16 +504,16 @@ THE SOFTWARE.
                         if (t.ids) {
                             t.ids = [ t.name ];
                         }
-                        return i.helpers.each(e, t);
+                        return a.helpers.each(e, t);
                     } else {
                         return r(this);
                     }
                 } else {
                     if (t.data && t.ids) {
-                        var a = s.createFrame(t.data);
-                        a.contextPath = s.appendContextPath(t.data.contextPath, t.name);
+                        var i = s.createFrame(t.data);
+                        i.contextPath = s.appendContextPath(t.data.contextPath, t.name);
                         t = {
-                            data: a
+                            data: i
                         };
                     }
                     return n(e, t);
@@ -530,14 +530,14 @@ THE SOFTWARE.
         var n = r(1)["default"];
         t.__esModule = true;
         var v = r(5);
-        var a = r(6);
-        var y = n(a);
+        var i = r(6);
+        var y = n(i);
         t["default"] = function(e) {
             e.registerHelper("each", function(n, e) {
                 if (!e) {
                     throw new y["default"]("Must pass iterator to #each");
                 }
-                var a = e.fn, t = e.inverse, r = 0, i = "", s = undefined, o = undefined;
+                var i = e.fn, t = e.inverse, r = 0, a = "", s = undefined, o = undefined;
                 if (e.data && e.ids) {
                     o = v.appendContextPath(e.data.contextPath, e.ids[0]) + ".";
                 }
@@ -557,7 +557,7 @@ THE SOFTWARE.
                             s.contextPath = o + e;
                         }
                     }
-                    i = i + a(n[e], {
+                    a = a + i(n[e], {
                         data: s,
                         blockParams: v.blockParams([ n[e], e ], [ o + e, null ])
                     });
@@ -596,9 +596,9 @@ THE SOFTWARE.
                     }
                 }
                 if (r === 0) {
-                    i = t(this);
+                    a = t(this);
                 }
-                return i;
+                return a;
             });
         };
         e.exports = t["default"];
@@ -613,7 +613,7 @@ THE SOFTWARE.
         e.exports = r(21).Symbol;
     }, function(D, M, e) {
         "use strict";
-        var t = e(9), r = e(16), s = e(17), n = e(18), a = e(20), i = e(24), o = e(19), l = e(27), u = e(28), F = e(30), c = e(29), B = e(31), f = e(36), q = e(37), $ = e(38), V = e(39), h = e(32), p = e(26), d = t.getDesc, m = t.setDesc, g = t.create, v = f.get, y = r.Symbol, b = r.JSON, E = b && b.stringify, x = false, S = c("_hidden"), j = t.isEnum, w = l("symbol-registry"), k = l("symbols"), A = typeof y == "function", C = Object.prototype;
+        var t = e(9), r = e(16), s = e(17), n = e(18), i = e(20), a = e(24), o = e(19), l = e(27), u = e(28), B = e(30), c = e(29), $ = e(31), f = e(36), F = e(37), q = e(38), U = e(39), h = e(32), p = e(26), d = t.getDesc, m = t.setDesc, g = t.create, v = f.get, y = r.Symbol, b = r.JSON, E = b && b.stringify, x = false, S = c("_hidden"), V = t.isEnum, w = l("symbol-registry"), k = l("symbols"), A = typeof y == "function", C = Object.prototype;
         var _ = n && o(function() {
             return g(m({}, "a", {
                 get: function() {
@@ -628,7 +628,7 @@ THE SOFTWARE.
             m(e, t, r);
             if (n && e !== C) m(C, t, n);
         } : m;
-        var P = function(t) {
+        var I = function(t) {
             var e = k[t] = g(y.prototype);
             e._k = t;
             n && x && _(C, t, {
@@ -640,10 +640,10 @@ THE SOFTWARE.
             });
             return e;
         };
-        var I = function(e) {
+        var T = function(e) {
             return typeof e == "symbol";
         };
-        var T = function e(t, r, n) {
+        var O = function e(t, r, n) {
             if (n && s(k, r)) {
                 if (!n.enumerable) {
                     if (!s(t, S)) m(t, S, p(1, {}));
@@ -658,45 +658,45 @@ THE SOFTWARE.
             }
             return m(t, r, n);
         };
-        var O = function e(t, r) {
-            V(t);
-            var n = q(r = h(r)), a = 0, i = n.length, s;
-            while (i > a) T(t, s = n[a++], r[s]);
+        var P = function e(t, r) {
+            U(t);
+            var n = F(r = h(r)), i = 0, a = n.length, s;
+            while (a > i) O(t, s = n[i++], r[s]);
             return t;
         };
         var N = function e(t, r) {
-            return r === undefined ? g(t) : O(g(t), r);
+            return r === undefined ? g(t) : P(g(t), r);
         };
-        var H = function e(t) {
-            var r = j.call(this, t);
+        var R = function e(t) {
+            var r = V.call(this, t);
             return r || !s(this, t) || !s(k, t) || s(this, S) && this[S][t] ? r : true;
         };
-        var R = function e(t, r) {
+        var L = function e(t, r) {
             var n = d(t = h(t), r);
             if (n && s(k, r) && !(s(t, S) && t[S][r])) n.enumerable = true;
             return n;
         };
-        var L = function e(t) {
-            var r = v(h(t)), n = [], a = 0, i;
-            while (r.length > a) if (!s(k, i = r[a++]) && i != S) n.push(i);
+        var H = function e(t) {
+            var r = v(h(t)), n = [], i = 0, a;
+            while (r.length > i) if (!s(k, a = r[i++]) && a != S) n.push(a);
             return n;
         };
-        var U = function e(t) {
-            var r = v(h(t)), n = [], a = 0, i;
-            while (r.length > a) if (s(k, i = r[a++])) n.push(k[i]);
+        var j = function e(t) {
+            var r = v(h(t)), n = [], i = 0, a;
+            while (r.length > i) if (s(k, a = r[i++])) n.push(k[a]);
             return n;
         };
         var W = function e(t) {
-            if (t === undefined || I(t)) return;
-            var r = [ t ], n = 1, a = arguments, i, s;
-            while (a.length > n) r.push(a[n++]);
-            i = r[1];
-            if (typeof i == "function") s = i;
-            if (s || !$(i)) i = function(e, t) {
+            if (t === undefined || T(t)) return;
+            var r = [ t ], n = 1, i = arguments, a, s;
+            while (i.length > n) r.push(i[n++]);
+            a = r[1];
+            if (typeof a == "function") s = a;
+            if (s || !q(a)) a = function(e, t) {
                 if (s) t = s.call(this, e, t);
-                if (!I(t)) return t;
+                if (!T(t)) return t;
             };
-            r[1] = i;
+            r[1] = a;
             return E.apply(b, r);
         };
         var G = o(function() {
@@ -707,24 +707,24 @@ THE SOFTWARE.
         });
         if (!A) {
             y = function e() {
-                if (I(this)) throw TypeError("Symbol is not a constructor");
-                return P(F(arguments.length > 0 ? arguments[0] : undefined));
+                if (T(this)) throw TypeError("Symbol is not a constructor");
+                return I(B(arguments.length > 0 ? arguments[0] : undefined));
             };
-            i(y.prototype, "toString", function e() {
+            a(y.prototype, "toString", function e() {
                 return this._k;
             });
-            I = function(e) {
+            T = function(e) {
                 return e instanceof y;
             };
             t.create = N;
-            t.isEnum = H;
-            t.getDesc = R;
-            t.setDesc = T;
-            t.setDescs = O;
-            t.getNames = f.get = L;
-            t.getSymbols = U;
+            t.isEnum = R;
+            t.getDesc = L;
+            t.setDesc = O;
+            t.setDescs = P;
+            t.getNames = f.get = H;
+            t.getSymbols = j;
             if (n && !e(41)) {
-                i(C, "propertyIsEnumerable", H, true);
+                a(C, "propertyIsEnumerable", R, true);
             }
         }
         var X = {
@@ -732,7 +732,7 @@ THE SOFTWARE.
                 return s(w, e += "") ? w[e] : w[e] = y(e);
             },
             keyFor: function e(t) {
-                return B(w, t);
+                return $(w, t);
             },
             useSetter: function() {
                 x = true;
@@ -743,22 +743,22 @@ THE SOFTWARE.
         };
         t.each.call(("hasInstance,isConcatSpreadable,iterator,match,replace,search," + "species,split,toPrimitive,toStringTag,unscopables").split(","), function(e) {
             var t = c(e);
-            X[e] = A ? t : P(t);
+            X[e] = A ? t : I(t);
         });
         x = true;
-        a(a.G + a.W, {
+        i(i.G + i.W, {
             Symbol: y
         });
-        a(a.S, "Symbol", X);
-        a(a.S + a.F * !A, "Object", {
+        i(i.S, "Symbol", X);
+        i(i.S + i.F * !A, "Object", {
             create: N,
-            defineProperty: T,
-            defineProperties: O,
-            getOwnPropertyDescriptor: R,
-            getOwnPropertyNames: L,
-            getOwnPropertySymbols: U
+            defineProperty: O,
+            defineProperties: P,
+            getOwnPropertyDescriptor: L,
+            getOwnPropertyNames: H,
+            getOwnPropertySymbols: j
         });
-        b && a(a.S + a.F * (!A || G), "JSON", {
+        b && i(i.S + i.F * (!A || G), "JSON", {
             stringify: W
         });
         u(y, "Symbol");
@@ -791,13 +791,13 @@ THE SOFTWARE.
     }, function(e, t, r) {
         var d = r(16), m = r(21), g = r(22), v = "prototype";
         var y = function(e, t, r) {
-            var n = e & y.F, a = e & y.G, i = e & y.S, s = e & y.P, o = e & y.B, l = e & y.W, u = a ? m : m[t] || (m[t] = {}), c = a ? d : i ? d[t] : (d[t] || {})[v], f, h, p;
-            if (a) r = t;
+            var n = e & y.F, i = e & y.G, a = e & y.S, s = e & y.P, o = e & y.B, l = e & y.W, u = i ? m : m[t] || (m[t] = {}), c = i ? d : a ? d[t] : (d[t] || {})[v], f, h, p;
+            if (i) r = t;
             for (f in r) {
                 h = !n && c && f in c;
                 if (h && f in u) continue;
                 p = h ? c[f] : r[f];
-                u[f] = a && typeof c[f] != "function" ? r[f] : o && h ? g(p, d) : l && c[f] == p ? function(t) {
+                u[f] = i && typeof c[f] != "function" ? r[f] : o && h ? g(p, d) : l && c[f] == p ? function(t) {
                     var e = function(e) {
                         return this instanceof t ? new t(e) : t(e);
                     };
@@ -820,28 +820,28 @@ THE SOFTWARE.
         };
         if (typeof __e == "number") __e = r;
     }, function(e, t, r) {
-        var i = r(23);
-        e.exports = function(n, a, e) {
-            i(n);
-            if (a === undefined) return n;
+        var a = r(23);
+        e.exports = function(n, i, e) {
+            a(n);
+            if (i === undefined) return n;
             switch (e) {
               case 1:
                 return function(e) {
-                    return n.call(a, e);
+                    return n.call(i, e);
                 };
 
               case 2:
                 return function(e, t) {
-                    return n.call(a, e, t);
+                    return n.call(i, e, t);
                 };
 
               case 3:
                 return function(e, t, r) {
-                    return n.call(a, e, t, r);
+                    return n.call(i, e, t, r);
                 };
             }
             return function() {
-                return n.apply(a, arguments);
+                return n.apply(i, arguments);
             };
         };
     }, function(e, t) {
@@ -852,9 +852,9 @@ THE SOFTWARE.
     }, function(e, t, r) {
         e.exports = r(25);
     }, function(e, t, r) {
-        var n = r(9), a = r(26);
+        var n = r(9), i = r(26);
         e.exports = r(18) ? function(e, t, r) {
-            return n.setDesc(e, t, a(1, r));
+            return n.setDesc(e, t, i(1, r));
         } : function(e, t, r) {
             e[t] = r;
             return e;
@@ -869,22 +869,22 @@ THE SOFTWARE.
             };
         };
     }, function(e, t, r) {
-        var n = r(16), a = "__core-js_shared__", i = n[a] || (n[a] = {});
+        var n = r(16), i = "__core-js_shared__", a = n[i] || (n[i] = {});
         e.exports = function(e) {
-            return i[e] || (i[e] = {});
+            return a[e] || (a[e] = {});
         };
     }, function(e, t, r) {
-        var n = r(9).setDesc, a = r(17), i = r(29)("toStringTag");
+        var n = r(9).setDesc, i = r(17), a = r(29)("toStringTag");
         e.exports = function(e, t, r) {
-            if (e && !a(e = r ? e : e.prototype, i)) n(e, i, {
+            if (e && !i(e = r ? e : e.prototype, a)) n(e, a, {
                 configurable: true,
                 value: t
             });
         };
     }, function(e, t, r) {
-        var n = r(27)("wks"), a = r(30), i = r(16).Symbol;
+        var n = r(27)("wks"), i = r(30), a = r(16).Symbol;
         e.exports = function(e) {
-            return n[e] || (n[e] = i && i[e] || (i || a)("Symbol." + e));
+            return n[e] || (n[e] = a && a[e] || (a || i)("Symbol." + e));
         };
     }, function(e, t) {
         var r = 0, n = Math.random();
@@ -894,13 +894,13 @@ THE SOFTWARE.
     }, function(e, t, r) {
         var o = r(9), l = r(32);
         e.exports = function(e, t) {
-            var r = l(e), n = o.getKeys(r), a = n.length, i = 0, s;
-            while (a > i) if (r[s = n[i++]] === t) return s;
+            var r = l(e), n = o.getKeys(r), i = n.length, a = 0, s;
+            while (i > a) if (r[s = n[a++]] === t) return s;
         };
     }, function(e, t, r) {
-        var n = r(33), a = r(35);
+        var n = r(33), i = r(35);
         e.exports = function(e) {
-            return n(a(e));
+            return n(i(e));
         };
     }, function(e, t, r) {
         var n = r(34);
@@ -918,26 +918,26 @@ THE SOFTWARE.
             return e;
         };
     }, function(e, t, r) {
-        var n = r(32), a = r(9).getNames, i = {}.toString;
+        var n = r(32), i = r(9).getNames, a = {}.toString;
         var s = typeof window == "object" && Object.getOwnPropertyNames ? Object.getOwnPropertyNames(window) : [];
         var o = function(e) {
             try {
-                return a(e);
+                return i(e);
             } catch (e) {
                 return s.slice();
             }
         };
         e.exports.get = function e(t) {
-            if (s && i.call(t) == "[object Window]") return o(t);
-            return a(n(t));
+            if (s && a.call(t) == "[object Window]") return o(t);
+            return i(n(t));
         };
     }, function(e, t, r) {
         var o = r(9);
         e.exports = function(e) {
             var t = o.getKeys(e), r = o.getSymbols;
             if (r) {
-                var n = r(e), a = o.isEnum, i = 0, s;
-                while (n.length > i) if (a.call(e, s = n[i++])) t.push(s);
+                var n = r(e), i = o.isEnum, a = 0, s;
+                while (n.length > a) if (i.call(e, s = n[a++])) t.push(s);
             }
             return t;
         };
@@ -990,10 +990,10 @@ THE SOFTWARE.
         var l = r(47), u = r(35);
         e.exports = function(o) {
             return function(e, t) {
-                var r = String(u(e)), n = l(t), a = r.length, i, s;
-                if (n < 0 || n >= a) return o ? "" : undefined;
-                i = r.charCodeAt(n);
-                return i < 55296 || i > 56319 || n + 1 === a || (s = r.charCodeAt(n + 1)) < 56320 || s > 57343 ? o ? r.charAt(n) : i : o ? r.slice(n, n + 2) : (i - 55296 << 10) + (s - 56320) + 65536;
+                var r = String(u(e)), n = l(t), i = r.length, a, s;
+                if (n < 0 || n >= i) return o ? "" : undefined;
+                a = r.charCodeAt(n);
+                return a < 55296 || a > 56319 || n + 1 === i || (s = r.charCodeAt(n + 1)) < 56320 || s > 57343 ? o ? r.charAt(n) : a : o ? r.slice(n, n + 2) : (a - 55296 << 10) + (s - 56320) + 65536;
             };
         };
     }, function(e, t) {
@@ -1003,21 +1003,21 @@ THE SOFTWARE.
         };
     }, function(e, t, r) {
         "use strict";
-        var v = r(41), y = r(20), b = r(24), E = r(25), x = r(17), S = r(49), w = r(50), k = r(28), A = r(9).getProto, C = r(29)("iterator"), _ = !([].keys && "next" in [].keys()), P = "@@iterator", I = "keys", T = "values";
-        var O = function() {
+        var v = r(41), y = r(20), b = r(24), E = r(25), x = r(17), S = r(49), w = r(50), k = r(28), A = r(9).getProto, C = r(29)("iterator"), _ = !([].keys && "next" in [].keys()), I = "@@iterator", T = "keys", O = "values";
+        var P = function() {
             return this;
         };
-        e.exports = function(e, t, r, n, a, i, s) {
+        e.exports = function(e, t, r, n, i, a, s) {
             w(r, t, n);
             var o = function(t) {
                 if (!_ && t in f) return f[t];
                 switch (t) {
-                  case I:
+                  case T:
                     return function e() {
                         return new r(this, t);
                     };
 
-                  case T:
+                  case O:
                     return function e() {
                         return new r(this, t);
                     };
@@ -1026,12 +1026,12 @@ THE SOFTWARE.
                     return new r(this, t);
                 };
             };
-            var l = t + " Iterator", u = a == T, c = false, f = e.prototype, h = f[C] || f[P] || a && f[a], p = h || o(a), d, m;
+            var l = t + " Iterator", u = i == O, c = false, f = e.prototype, h = f[C] || f[I] || i && f[i], p = h || o(i), d, m;
             if (h) {
                 var g = A(p.call(new e()));
                 k(g, l, true);
-                if (!v && x(f, P)) E(g, C, O);
-                if (u && h.name !== T) {
+                if (!v && x(f, I)) E(g, C, P);
+                if (u && h.name !== O) {
                     c = true;
                     p = function e() {
                         return h.call(this);
@@ -1042,11 +1042,11 @@ THE SOFTWARE.
                 E(f, C, p);
             }
             S[t] = p;
-            S[l] = O;
-            if (a) {
+            S[l] = P;
+            if (i) {
                 d = {
-                    values: u ? p : o(T),
-                    keys: i ? p : o(I),
+                    values: u ? p : o(O),
+                    keys: a ? p : o(T),
                     entries: !u ? p : o("entries")
                 };
                 if (s) for (m in d) {
@@ -1059,15 +1059,15 @@ THE SOFTWARE.
         e.exports = {};
     }, function(e, t, r) {
         "use strict";
-        var n = r(9), a = r(26), i = r(28), s = {};
+        var n = r(9), i = r(26), a = r(28), s = {};
         r(25)(s, r(29)("iterator"), function() {
             return this;
         });
         e.exports = function(e, t, r) {
             e.prototype = n.create(s, {
-                next: a(1, r)
+                next: i(1, r)
             });
-            i(e, t + " Iterator");
+            a(e, t + " Iterator");
         };
     }, function(e, t, r) {
         r(52);
@@ -1075,7 +1075,7 @@ THE SOFTWARE.
         n.NodeList = n.HTMLCollection = n.Array;
     }, function(e, t, r) {
         "use strict";
-        var n = r(53), a = r(54), i = r(49), s = r(32);
+        var n = r(53), i = r(54), a = r(49), s = r(32);
         e.exports = r(48)(Array, "Array", function(e, t) {
             this._t = s(e);
             this._i = 0;
@@ -1084,13 +1084,13 @@ THE SOFTWARE.
             var e = this._t, t = this._k, r = this._i++;
             if (!e || r >= e.length) {
                 this._t = undefined;
-                return a(1);
+                return i(1);
             }
-            if (t == "keys") return a(0, r);
-            if (t == "values") return a(0, e[r]);
-            return a(0, [ r, e[r] ]);
+            if (t == "keys") return i(0, r);
+            if (t == "values") return i(0, e[r]);
+            return i(0, [ r, e[r] ]);
         }, "values");
-        i.Arguments = i.Array;
+        a.Arguments = a.Array;
         n("keys");
         n("values");
         n("entries");
@@ -1113,24 +1113,24 @@ THE SOFTWARE.
         r(45);
         e.exports = r(57);
     }, function(e, t, r) {
-        var n = r(39), a = r(58);
+        var n = r(39), i = r(58);
         e.exports = r(21).getIterator = function(e) {
-            var t = a(e);
+            var t = i(e);
             if (typeof t != "function") throw TypeError(e + " is not iterable!");
             return n(t.call(e));
         };
     }, function(e, t, r) {
-        var n = r(59), a = r(29)("iterator"), i = r(49);
+        var n = r(59), i = r(29)("iterator"), a = r(49);
         e.exports = r(21).getIteratorMethod = function(e) {
-            if (e != undefined) return e[a] || e["@@iterator"] || i[n(e)];
+            if (e != undefined) return e[i] || e["@@iterator"] || a[n(e)];
         };
     }, function(e, t, r) {
-        var a = r(34), i = r(29)("toStringTag"), s = a(function() {
+        var i = r(34), a = r(29)("toStringTag"), s = i(function() {
             return arguments;
         }()) == "Arguments";
         e.exports = function(e) {
             var t, r, n;
-            return e === undefined ? "Undefined" : e === null ? "Null" : typeof (r = (t = Object(e))[i]) == "string" ? r : s ? a(t) : (n = a(t)) == "Object" && typeof t.callee == "function" ? "Arguments" : n;
+            return e === undefined ? "Undefined" : e === null ? "Null" : typeof (r = (t = Object(e))[a]) == "string" ? r : s ? i(t) : (n = i(t)) == "Object" && typeof t.callee == "function" ? "Arguments" : n;
         };
     }, function(e, t, r) {
         e.exports = {
@@ -1153,11 +1153,11 @@ THE SOFTWARE.
             return Object(n(e));
         };
     }, function(e, t, r) {
-        var a = r(20), i = r(21), s = r(19);
+        var i = r(20), a = r(21), s = r(19);
         e.exports = function(e, t) {
-            var r = (i.Object || {})[e] || Object[e], n = {};
+            var r = (a.Object || {})[e] || Object[e], n = {};
             n[e] = t(r);
-            a(a.S + a.F * s(function() {
+            i(i.S + i.F * s(function() {
                 r(1);
             }), "Object", n);
         };
@@ -1165,14 +1165,14 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var a = r(6);
-        var i = n(a);
+        var i = r(6);
+        var a = n(i);
         t["default"] = function(e) {
             e.registerHelper("helperMissing", function() {
                 if (arguments.length === 1) {
                     return undefined;
                 } else {
-                    throw new i["default"]('Missing helper: "' + arguments[arguments.length - 1].name + '"');
+                    throw new a["default"]('Missing helper: "' + arguments[arguments.length - 1].name + '"');
                 }
             });
         };
@@ -1181,18 +1181,18 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var a = r(5);
-        var i = r(6);
-        var s = n(i);
+        var i = r(5);
+        var a = r(6);
+        var s = n(a);
         t["default"] = function(r) {
             r.registerHelper("if", function(e, t) {
                 if (arguments.length != 2) {
                     throw new s["default"]("#if requires exactly one argument");
                 }
-                if (a.isFunction(e)) {
+                if (i.isFunction(e)) {
                     e = e.call(this);
                 }
-                if (!t.hash.includeZero && !e || a.isEmpty(e)) {
+                if (!t.hash.includeZero && !e || i.isEmpty(e)) {
                     return t.inverse(this);
                 } else {
                     return t.fn(this);
@@ -1213,8 +1213,8 @@ THE SOFTWARE.
     }, function(e, t) {
         "use strict";
         t.__esModule = true;
-        t["default"] = function(a) {
-            a.registerHelper("log", function() {
+        t["default"] = function(i) {
+            i.registerHelper("log", function() {
                 var e = [ undefined ], t = arguments[arguments.length - 1];
                 for (var r = 0; r < arguments.length - 1; r++) {
                     e.push(arguments[r]);
@@ -1226,7 +1226,7 @@ THE SOFTWARE.
                     n = t.data.level;
                 }
                 e[0] = n;
-                a.log.apply(a, e);
+                i.log.apply(i, e);
             });
         };
         e.exports = t["default"];
@@ -1246,27 +1246,27 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var a = r(5);
-        var i = r(6);
-        var s = n(i);
+        var i = r(5);
+        var a = r(6);
+        var s = n(a);
         t["default"] = function(e) {
             e.registerHelper("with", function(e, t) {
                 if (arguments.length != 2) {
                     throw new s["default"]("#with requires exactly one argument");
                 }
-                if (a.isFunction(e)) {
+                if (i.isFunction(e)) {
                     e = e.call(this);
                 }
                 var r = t.fn;
-                if (!a.isEmpty(e)) {
+                if (!i.isEmpty(e)) {
                     var n = t.data;
                     if (t.data && t.ids) {
-                        n = a.createFrame(t.data);
-                        n.contextPath = a.appendContextPath(t.data.contextPath, t.ids[0]);
+                        n = i.createFrame(t.data);
+                        n.contextPath = i.appendContextPath(t.data.contextPath, t.ids[0]);
                     }
                     return r(e, {
                         data: n,
-                        blockParams: a.blockParams([ e ], [ n && n.contextPath ])
+                        blockParams: i.blockParams([ e ], [ n && n.contextPath ])
                     });
                 } else {
                     return t.inverse(this);
@@ -1279,29 +1279,29 @@ THE SOFTWARE.
         var n = r(1)["default"];
         t.__esModule = true;
         t.registerDefaultDecorators = s;
-        var a = r(71);
-        var i = n(a);
+        var i = r(71);
+        var a = n(i);
         function s(e) {
-            i["default"](e);
+            a["default"](e);
         }
     }, function(e, t, r) {
         "use strict";
         t.__esModule = true;
         var o = r(5);
         t["default"] = function(e) {
-            e.registerDecorator("inline", function(a, i, s, e) {
-                var t = a;
-                if (!i.partials) {
-                    i.partials = {};
+            e.registerDecorator("inline", function(i, a, s, e) {
+                var t = i;
+                if (!a.partials) {
+                    a.partials = {};
                     t = function(e, t) {
                         var r = s.partials;
-                        s.partials = o.extend({}, r, i.partials);
-                        var n = a(e, t);
+                        s.partials = o.extend({}, r, a.partials);
+                        var n = i(e, t);
                         s.partials = r;
                         return n;
                     };
                 }
-                i.partials[e.args[0]] = e.fn;
+                a.partials[e.args[0]] = e.fn;
                 return t;
             });
         };
@@ -1331,10 +1331,10 @@ THE SOFTWARE.
                     if (!console[r]) {
                         r = "log";
                     }
-                    for (var n = arguments.length, a = Array(n > 1 ? n - 1 : 0), i = 1; i < n; i++) {
-                        a[i - 1] = arguments[i];
+                    for (var n = arguments.length, i = Array(n > 1 ? n - 1 : 0), a = 1; a < n; a++) {
+                        i[a - 1] = arguments[a];
                     }
-                    console[r].apply(console, a);
+                    console[r].apply(console, i);
                 }
             }
         };
@@ -1343,15 +1343,15 @@ THE SOFTWARE.
     }, function(e, t, r) {
         "use strict";
         var n = r(74)["default"];
-        var a = r(60)["default"];
-        var i = r(1)["default"];
+        var i = r(60)["default"];
+        var a = r(1)["default"];
         t.__esModule = true;
         t.createProtoAccessControl = c;
         t.resultIsAllowed = f;
         t.resetLoggedProperties = d;
         var s = r(76);
         var o = r(72);
-        var l = i(o);
+        var l = a(o);
         var u = n(null);
         function c(e) {
             var t = n(null);
@@ -1396,7 +1396,7 @@ THE SOFTWARE.
             }
         }
         function d() {
-            a(u).forEach(function(e) {
+            i(u).forEach(function(e) {
                 delete u[e];
             });
         }
@@ -1414,13 +1414,13 @@ THE SOFTWARE.
         "use strict";
         var n = r(74)["default"];
         t.__esModule = true;
-        t.createNewLookupObject = i;
-        var a = r(5);
-        function i() {
+        t.createNewLookupObject = a;
+        var i = r(5);
+        function a() {
             for (var e = arguments.length, t = Array(e), r = 0; r < e; r++) {
                 t[r] = arguments[r];
             }
-            return a.extend.apply(undefined, [ n(null) ].concat(t));
+            return i.extend.apply(undefined, [ n(null) ].concat(t));
         }
     }, function(e, t) {
         "use strict";
@@ -1435,8 +1435,8 @@ THE SOFTWARE.
         e.exports = t["default"];
     }, function(e, t, r) {
         "use strict";
-        var a = r(79)["default"];
-        var i = r(60)["default"];
+        var i = r(79)["default"];
+        var a = r(60)["default"];
         var n = r(3)["default"];
         var s = r(1)["default"];
         t.__esModule = true;
@@ -1460,8 +1460,8 @@ THE SOFTWARE.
                 return;
             }
             if (t < u.LAST_COMPATIBLE_COMPILER_REVISION) {
-                var n = u.REVISION_CHANGES[r], a = u.REVISION_CHANGES[t];
-                throw new f["default"]("Template was precompiled with an older version of Handlebars than the current runtime. " + "Please update your precompiler to a newer version (" + n + ") or downgrade your runtime to an older version (" + a + ").");
+                var n = u.REVISION_CHANGES[r], i = u.REVISION_CHANGES[t];
+                throw new f["default"]("Template was precompiled with an older version of Handlebars than the current runtime. " + "Please update your precompiler to a newer version (" + n + ") or downgrade your runtime to an older version (" + i + ").");
             } else {
                 throw new f["default"]("Template was precompiled with a newer version of Handlebars than the current runtime. " + "Please update your runtime to a newer version (" + e[1] + ").");
             }
@@ -1488,23 +1488,23 @@ THE SOFTWARE.
                     hooks: this.hooks,
                     protoAccessControl: this.protoAccessControl
                 });
-                var a = u.VM.invokePartial.call(this, e, t, n);
-                if (a == null && u.compile) {
+                var i = u.VM.invokePartial.call(this, e, t, n);
+                if (i == null && u.compile) {
                     r.partials[r.name] = u.compile(e, l.compilerOptions, u);
-                    a = r.partials[r.name](t, n);
+                    i = r.partials[r.name](t, n);
                 }
-                if (a != null) {
+                if (i != null) {
                     if (r.indent) {
-                        var i = a.split("\n");
-                        for (var s = 0, o = i.length; s < o; s++) {
-                            if (!i[s] && s + 1 === o) {
+                        var a = i.split("\n");
+                        for (var s = 0, o = a.length; s < o; s++) {
+                            if (!a[s] && s + 1 === o) {
                                 break;
                             }
-                            i[s] = r.indent + i[s];
+                            a[s] = r.indent + a[s];
                         }
-                        a = i.join("\n");
+                        i = a.join("\n");
                     }
-                    return a;
+                    return i;
                 } else {
                     throw new f["default"]("The partial " + r.name + " could not be compiled when running in runtime-only mode");
                 }
@@ -1533,10 +1533,10 @@ THE SOFTWARE.
                 },
                 lookup: function e(t, r) {
                     var n = t.length;
-                    for (var a = 0; a < n; a++) {
-                        var i = t[a] && s.lookupProperty(t[a], r);
-                        if (i != null) {
-                            return t[a][r];
+                    for (var i = 0; i < n; i++) {
+                        var a = t[i] && s.lookupProperty(t[i], r);
+                        if (a != null) {
+                            return t[i][r];
                         }
                     }
                 },
@@ -1551,10 +1551,10 @@ THE SOFTWARE.
                     return r;
                 },
                 programs: [],
-                program: function e(t, r, n, a, i) {
+                program: function e(t, r, n, i, a) {
                     var s = this.programs[t], o = this.fn(t);
-                    if (r || i || a || n) {
-                        s = v(this, t, o, r, n, a, i);
+                    if (r || a || i || n) {
+                        s = v(this, t, o, r, n, i, a);
                     } else if (!s) {
                         s = this.programs[t] = v(this, t, o);
                     }
@@ -1573,7 +1573,7 @@ THE SOFTWARE.
                     }
                     return n;
                 },
-                nullContext: a({}),
+                nullContext: i({}),
                 noop: u.VM.noop,
                 compilerInfo: l.compiler
             };
@@ -1584,7 +1584,7 @@ THE SOFTWARE.
                 if (!t.partial && l.useData) {
                     r = x(e, r);
                 }
-                var n = undefined, a = l.useBlockParams ? [] : undefined;
+                var n = undefined, i = l.useBlockParams ? [] : undefined;
                 if (l.useDepths) {
                     if (t.depths) {
                         n = e != t.depths[0] ? [ e ].concat(t.depths) : t.depths;
@@ -1592,11 +1592,11 @@ THE SOFTWARE.
                         n = [ e ];
                     }
                 }
-                function i(e) {
-                    return "" + l.main(s, e, s.helpers, s.partials, r, a, n);
+                function a(e) {
+                    return "" + l.main(s, e, s.helpers, s.partials, r, i, n);
                 }
-                i = S(l.main, i, s, t.depths || [], r, a);
-                return i(e, t);
+                a = S(l.main, a, s, t.depths || [], r, i);
+                return a(e, t);
             }
             o.isTop = true;
             o._setup = function(e) {
@@ -1634,16 +1634,16 @@ THE SOFTWARE.
             };
             return o;
         }
-        function v(n, e, a, i, t, s, o) {
+        function v(n, e, i, a, t, s, o) {
             function r(e) {
                 var t = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
                 var r = o;
                 if (o && e != o[0] && !(e === n.nullContext && o[0] === null)) {
                     r = [ e ].concat(o);
                 }
-                return a(n, e, n.helpers, n.partials, t.data || i, s && [ t.blockParams ].concat(s), r);
+                return i(n, e, n.helpers, n.partials, t.data || a, s && [ t.blockParams ].concat(s), r);
             }
-            r = S(a, r, n, o, i, s);
+            r = S(i, r, n, o, a, s);
             r.program = e;
             r.depth = o ? o.length : 0;
             r.blockParams = t || 0;
@@ -1663,20 +1663,20 @@ THE SOFTWARE.
             return e;
         }
         function b(e, t, r) {
-            var a = r.data && r.data["partial-block"];
+            var i = r.data && r.data["partial-block"];
             r.partial = true;
             if (r.ids) {
                 r.data.contextPath = r.ids[0] || r.data.contextPath;
             }
-            var i = undefined;
+            var a = undefined;
             if (r.fn && r.fn !== E) {
                 (function() {
                     r.data = u.createFrame(r.data);
                     var n = r.fn;
-                    i = r.data["partial-block"] = function e(t) {
+                    a = r.data["partial-block"] = function e(t) {
                         var r = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
                         r.data = u.createFrame(r.data);
-                        r.data["partial-block"] = a;
+                        r.data["partial-block"] = i;
                         return n(t, r);
                     };
                     if (n.partials) {
@@ -1684,8 +1684,8 @@ THE SOFTWARE.
                     }
                 })();
             }
-            if (e === undefined && i) {
-                e = i;
+            if (e === undefined && a) {
+                e = a;
             }
             if (e === undefined) {
                 throw new f["default"]("The partial " + r.name + " could not be found");
@@ -1703,16 +1703,16 @@ THE SOFTWARE.
             }
             return t;
         }
-        function S(e, t, r, n, a, i) {
+        function S(e, t, r, n, i, a) {
             if (e.decorator) {
                 var s = {};
-                t = e.decorator(t, s, r, n && n[0], a, i, n);
+                t = e.decorator(t, s, r, n && n[0], i, a, n);
                 c.extend(t, s);
             }
             return t;
         }
         function w(r, n) {
-            i(r).forEach(function(e) {
+            a(r).forEach(function(e) {
                 var t = r[e];
                 r[e] = k(t, n);
             });
@@ -1797,16 +1797,16 @@ THE SOFTWARE.
     }, function(e, t, r) {
         "use strict";
         var n = r(1)["default"];
-        var a = r(3)["default"];
+        var i = r(3)["default"];
         t.__esModule = true;
         t.parseWithoutProcessing = p;
         t.parse = d;
-        var i = r(86);
-        var s = n(i);
+        var a = r(86);
+        var s = n(a);
         var o = r(87);
         var l = n(o);
         var u = r(89);
-        var c = a(u);
+        var c = i(u);
         var f = r(5);
         t.parser = s["default"];
         var h = {};
@@ -1958,15 +1958,15 @@ THE SOFTWARE.
                     87: "SEP"
                 },
                 productions_: [ 0, [ 3, 2 ], [ 4, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 7, 1 ], [ 13, 1 ], [ 10, 3 ], [ 16, 5 ], [ 9, 4 ], [ 9, 4 ], [ 24, 6 ], [ 27, 6 ], [ 38, 6 ], [ 43, 2 ], [ 45, 3 ], [ 45, 1 ], [ 26, 3 ], [ 8, 5 ], [ 8, 5 ], [ 11, 5 ], [ 12, 3 ], [ 59, 5 ], [ 63, 1 ], [ 63, 1 ], [ 64, 5 ], [ 69, 1 ], [ 71, 3 ], [ 74, 3 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 20, 1 ], [ 56, 1 ], [ 56, 1 ], [ 79, 2 ], [ 78, 1 ], [ 86, 3 ], [ 86, 1 ], [ 6, 0 ], [ 6, 2 ], [ 17, 0 ], [ 17, 2 ], [ 21, 0 ], [ 21, 2 ], [ 22, 0 ], [ 22, 1 ], [ 25, 0 ], [ 25, 1 ], [ 28, 0 ], [ 28, 1 ], [ 30, 0 ], [ 30, 2 ], [ 31, 0 ], [ 31, 1 ], [ 32, 0 ], [ 32, 1 ], [ 35, 0 ], [ 35, 2 ], [ 36, 0 ], [ 36, 1 ], [ 37, 0 ], [ 37, 1 ], [ 40, 0 ], [ 40, 2 ], [ 41, 0 ], [ 41, 1 ], [ 42, 0 ], [ 42, 1 ], [ 46, 0 ], [ 46, 1 ], [ 49, 0 ], [ 49, 2 ], [ 50, 0 ], [ 50, 1 ], [ 52, 0 ], [ 52, 2 ], [ 53, 0 ], [ 53, 1 ], [ 57, 0 ], [ 57, 2 ], [ 58, 0 ], [ 58, 1 ], [ 61, 0 ], [ 61, 2 ], [ 62, 0 ], [ 62, 1 ], [ 66, 0 ], [ 66, 2 ], [ 67, 0 ], [ 67, 1 ], [ 70, 1 ], [ 70, 2 ], [ 76, 1 ], [ 76, 2 ] ],
-                performAction: function e(t, r, n, a, i, s, o) {
+                performAction: function e(t, r, n, i, a, s, o) {
                     var l = s.length - 1;
-                    switch (i) {
+                    switch (a) {
                       case 1:
                         return s[l - 1];
                         break;
 
                       case 2:
-                        this.$ = a.prepareProgram(s[l]);
+                        this.$ = i.prepareProgram(s[l]);
                         break;
 
                       case 3:
@@ -1996,9 +1996,9 @@ THE SOFTWARE.
                       case 9:
                         this.$ = {
                             type: "CommentStatement",
-                            value: a.stripComment(s[l]),
-                            strip: a.stripFlags(s[l], s[l]),
-                            loc: a.locInfo(this._$)
+                            value: i.stripComment(s[l]),
+                            strip: i.stripFlags(s[l], s[l]),
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
@@ -2007,12 +2007,12 @@ THE SOFTWARE.
                             type: "ContentStatement",
                             original: s[l],
                             value: s[l],
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
                       case 11:
-                        this.$ = a.prepareRawBlock(s[l - 2], s[l - 1], s[l], this._$);
+                        this.$ = i.prepareRawBlock(s[l - 2], s[l - 1], s[l], this._$);
                         break;
 
                       case 12:
@@ -2024,11 +2024,11 @@ THE SOFTWARE.
                         break;
 
                       case 13:
-                        this.$ = a.prepareBlock(s[l - 3], s[l - 2], s[l - 1], s[l], false, this._$);
+                        this.$ = i.prepareBlock(s[l - 3], s[l - 2], s[l - 1], s[l], false, this._$);
                         break;
 
                       case 14:
-                        this.$ = a.prepareBlock(s[l - 3], s[l - 2], s[l - 1], s[l], true, this._$);
+                        this.$ = i.prepareBlock(s[l - 3], s[l - 2], s[l - 1], s[l], true, this._$);
                         break;
 
                       case 15:
@@ -2038,7 +2038,7 @@ THE SOFTWARE.
                             params: s[l - 3],
                             hash: s[l - 2],
                             blockParams: s[l - 1],
-                            strip: a.stripFlags(s[l - 5], s[l])
+                            strip: i.stripFlags(s[l - 5], s[l])
                         };
                         break;
 
@@ -2048,7 +2048,7 @@ THE SOFTWARE.
                             params: s[l - 3],
                             hash: s[l - 2],
                             blockParams: s[l - 1],
-                            strip: a.stripFlags(s[l - 5], s[l])
+                            strip: i.stripFlags(s[l - 5], s[l])
                         };
                         break;
 
@@ -2058,19 +2058,19 @@ THE SOFTWARE.
                             params: s[l - 3],
                             hash: s[l - 2],
                             blockParams: s[l - 1],
-                            strip: a.stripFlags(s[l - 5], s[l])
+                            strip: i.stripFlags(s[l - 5], s[l])
                         };
                         break;
 
                       case 18:
                         this.$ = {
-                            strip: a.stripFlags(s[l - 1], s[l - 1]),
+                            strip: i.stripFlags(s[l - 1], s[l - 1]),
                             program: s[l]
                         };
                         break;
 
                       case 19:
-                        var u = a.prepareBlock(s[l - 2], s[l - 1], s[l], s[l], false, this._$), c = a.prepareProgram([ u ], s[l - 1].loc);
+                        var u = i.prepareBlock(s[l - 2], s[l - 1], s[l], s[l], false, this._$), c = i.prepareProgram([ u ], s[l - 1].loc);
                         c.chained = true;
                         this.$ = {
                             strip: s[l - 2].strip,
@@ -2086,16 +2086,16 @@ THE SOFTWARE.
                       case 21:
                         this.$ = {
                             path: s[l - 1],
-                            strip: a.stripFlags(s[l - 2], s[l])
+                            strip: i.stripFlags(s[l - 2], s[l])
                         };
                         break;
 
                       case 22:
-                        this.$ = a.prepareMustache(s[l - 3], s[l - 2], s[l - 1], s[l - 4], a.stripFlags(s[l - 4], s[l]), this._$);
+                        this.$ = i.prepareMustache(s[l - 3], s[l - 2], s[l - 1], s[l - 4], i.stripFlags(s[l - 4], s[l]), this._$);
                         break;
 
                       case 23:
-                        this.$ = a.prepareMustache(s[l - 3], s[l - 2], s[l - 1], s[l - 4], a.stripFlags(s[l - 4], s[l]), this._$);
+                        this.$ = i.prepareMustache(s[l - 3], s[l - 2], s[l - 1], s[l - 4], i.stripFlags(s[l - 4], s[l]), this._$);
                         break;
 
                       case 24:
@@ -2105,13 +2105,13 @@ THE SOFTWARE.
                             params: s[l - 2],
                             hash: s[l - 1],
                             indent: "",
-                            strip: a.stripFlags(s[l - 4], s[l]),
-                            loc: a.locInfo(this._$)
+                            strip: i.stripFlags(s[l - 4], s[l]),
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
                       case 25:
-                        this.$ = a.preparePartialBlock(s[l - 2], s[l - 1], s[l], this._$);
+                        this.$ = i.preparePartialBlock(s[l - 2], s[l - 1], s[l], this._$);
                         break;
 
                       case 26:
@@ -2119,7 +2119,7 @@ THE SOFTWARE.
                             path: s[l - 3],
                             params: s[l - 2],
                             hash: s[l - 1],
-                            strip: a.stripFlags(s[l - 4], s[l])
+                            strip: i.stripFlags(s[l - 4], s[l])
                         };
                         break;
 
@@ -2137,7 +2137,7 @@ THE SOFTWARE.
                             path: s[l - 3],
                             params: s[l - 2],
                             hash: s[l - 1],
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
@@ -2145,21 +2145,21 @@ THE SOFTWARE.
                         this.$ = {
                             type: "Hash",
                             pairs: s[l],
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
                       case 31:
                         this.$ = {
                             type: "HashPair",
-                            key: a.id(s[l - 2]),
+                            key: i.id(s[l - 2]),
                             value: s[l],
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
                       case 32:
-                        this.$ = a.id(s[l - 1]);
+                        this.$ = i.id(s[l - 1]);
                         break;
 
                       case 33:
@@ -2175,7 +2175,7 @@ THE SOFTWARE.
                             type: "StringLiteral",
                             value: s[l],
                             original: s[l],
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
@@ -2184,7 +2184,7 @@ THE SOFTWARE.
                             type: "NumberLiteral",
                             value: Number(s[l]),
                             original: Number(s[l]),
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
@@ -2193,7 +2193,7 @@ THE SOFTWARE.
                             type: "BooleanLiteral",
                             value: s[l] === "true",
                             original: s[l] === "true",
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
@@ -2202,7 +2202,7 @@ THE SOFTWARE.
                             type: "UndefinedLiteral",
                             original: undefined,
                             value: undefined,
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
@@ -2211,7 +2211,7 @@ THE SOFTWARE.
                             type: "NullLiteral",
                             original: null,
                             value: null,
-                            loc: a.locInfo(this._$)
+                            loc: i.locInfo(this._$)
                         };
                         break;
 
@@ -2224,16 +2224,16 @@ THE SOFTWARE.
                         break;
 
                       case 42:
-                        this.$ = a.preparePath(true, s[l], this._$);
+                        this.$ = i.preparePath(true, s[l], this._$);
                         break;
 
                       case 43:
-                        this.$ = a.preparePath(false, s[l], this._$);
+                        this.$ = i.preparePath(false, s[l], this._$);
                         break;
 
                       case 44:
                         s[l - 2].push({
-                            part: a.id(s[l]),
+                            part: i.id(s[l]),
                             original: s[l],
                             separator: s[l - 1]
                         });
@@ -2242,7 +2242,7 @@ THE SOFTWARE.
 
                       case 45:
                         this.$ = [ {
-                            part: a.id(s[l]),
+                            part: i.id(s[l]),
                             original: s[l]
                         } ];
                         break;
@@ -3702,20 +3702,20 @@ THE SOFTWARE.
                     throw new Error(t);
                 },
                 parse: function e(t) {
-                    var r = this, n = [ 0 ], a = [ null ], i = [], s = this.table, o = "", l = 0, u = 0, c = 0, f = 2, h = 1;
+                    var r = this, n = [ 0 ], i = [ null ], a = [], s = this.table, o = "", l = 0, u = 0, c = 0, f = 2, h = 1;
                     this.lexer.setInput(t);
                     this.lexer.yy = this.yy;
                     this.yy.lexer = this.lexer;
                     this.yy.parser = this;
                     if (typeof this.lexer.yylloc == "undefined") this.lexer.yylloc = {};
                     var p = this.lexer.yylloc;
-                    i.push(p);
+                    a.push(p);
                     var d = this.lexer.options && this.lexer.options.ranges;
                     if (typeof this.yy.parseError === "function") this.parseError = this.yy.parseError;
                     function m(e) {
                         n.length = n.length - 2 * e;
-                        a.length = a.length - e;
                         i.length = i.length - e;
+                        a.length = a.length - e;
                     }
                     function g() {
                         var e;
@@ -3737,18 +3737,18 @@ THE SOFTWARE.
                             E = s[b] && s[b][v];
                         }
                         if (typeof E === "undefined" || !E.length || !E[0]) {
-                            var P = "";
+                            var I = "";
                             if (!c) {
                                 _ = [];
                                 for (k in s[b]) if (this.terminals_[k] && k > 2) {
                                     _.push("'" + this.terminals_[k] + "'");
                                 }
                                 if (this.lexer.showPosition) {
-                                    P = "Parse error on line " + (l + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + _.join(", ") + ", got '" + (this.terminals_[v] || v) + "'";
+                                    I = "Parse error on line " + (l + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + _.join(", ") + ", got '" + (this.terminals_[v] || v) + "'";
                                 } else {
-                                    P = "Parse error on line " + (l + 1) + ": Unexpected " + (v == 1 ? "end of input" : "'" + (this.terminals_[v] || v) + "'");
+                                    I = "Parse error on line " + (l + 1) + ": Unexpected " + (v == 1 ? "end of input" : "'" + (this.terminals_[v] || v) + "'");
                                 }
-                                this.parseError(P, {
+                                this.parseError(I, {
                                     text: this.lexer.match,
                                     token: this.terminals_[v] || v,
                                     line: this.lexer.yylineno,
@@ -3763,8 +3763,8 @@ THE SOFTWARE.
                         switch (E[0]) {
                           case 1:
                             n.push(v);
-                            a.push(this.lexer.yytext);
-                            i.push(this.lexer.yylloc);
+                            i.push(this.lexer.yytext);
+                            a.push(this.lexer.yylloc);
                             n.push(E[1]);
                             v = null;
                             if (!y) {
@@ -3781,28 +3781,28 @@ THE SOFTWARE.
 
                           case 2:
                             A = this.productions_[E[1]][1];
-                            w.$ = a[a.length - A];
+                            w.$ = i[i.length - A];
                             w._$ = {
-                                first_line: i[i.length - (A || 1)].first_line,
-                                last_line: i[i.length - 1].last_line,
-                                first_column: i[i.length - (A || 1)].first_column,
-                                last_column: i[i.length - 1].last_column
+                                first_line: a[a.length - (A || 1)].first_line,
+                                last_line: a[a.length - 1].last_line,
+                                first_column: a[a.length - (A || 1)].first_column,
+                                last_column: a[a.length - 1].last_column
                             };
                             if (d) {
-                                w._$.range = [ i[i.length - (A || 1)].range[0], i[i.length - 1].range[1] ];
+                                w._$.range = [ a[a.length - (A || 1)].range[0], a[a.length - 1].range[1] ];
                             }
-                            S = this.performAction.call(w, o, u, l, this.yy, E[1], a, i);
+                            S = this.performAction.call(w, o, u, l, this.yy, E[1], i, a);
                             if (typeof S !== "undefined") {
                                 return S;
                             }
                             if (A) {
                                 n = n.slice(0, -1 * A * 2);
-                                a = a.slice(0, -1 * A);
                                 i = i.slice(0, -1 * A);
+                                a = a.slice(0, -1 * A);
                             }
                             n.push(this.productions_[E[1]][0]);
-                            a.push(w.$);
-                            i.push(w._$);
+                            i.push(w.$);
+                            a.push(w._$);
                             C = s[n[n.length - 2]][n[n.length - 1]];
                             n.push(C);
                             break;
@@ -3864,19 +3864,19 @@ THE SOFTWARE.
                         this._input = t + this._input;
                         this.yytext = this.yytext.substr(0, this.yytext.length - r - 1);
                         this.offset -= r;
-                        var a = this.match.split(/(?:\r\n?|\n)/g);
+                        var i = this.match.split(/(?:\r\n?|\n)/g);
                         this.match = this.match.substr(0, this.match.length - 1);
                         this.matched = this.matched.substr(0, this.matched.length - 1);
                         if (n.length - 1) this.yylineno -= n.length - 1;
-                        var i = this.yylloc.range;
+                        var a = this.yylloc.range;
                         this.yylloc = {
                             first_line: this.yylloc.first_line,
                             last_line: this.yylineno + 1,
                             first_column: this.yylloc.first_column,
-                            last_column: n ? (n.length === a.length ? this.yylloc.first_column : 0) + a[a.length - n.length].length - n[0].length : this.yylloc.first_column - r
+                            last_column: n ? (n.length === i.length ? this.yylloc.first_column : 0) + i[i.length - n.length].length - n[0].length : this.yylloc.first_column - r
                         };
                         if (this.options.ranges) {
-                            this.yylloc.range = [ i[0], i[0] + this.yyleng - r ];
+                            this.yylloc.range = [ a[0], a[0] + this.yyleng - r ];
                         }
                         return this;
                     },
@@ -3908,7 +3908,7 @@ THE SOFTWARE.
                             return this.EOF;
                         }
                         if (!this._input) this.done = true;
-                        var t, r, n, a, i, s;
+                        var t, r, n, i, a, s;
                         if (!this._more) {
                             this.yytext = "";
                             this.match = "";
@@ -3918,7 +3918,7 @@ THE SOFTWARE.
                             n = this._input.match(this.rules[o[l]]);
                             if (n && (!r || n[0].length > r[0].length)) {
                                 r = n;
-                                a = l;
+                                i = l;
                                 if (!this.options.flex) break;
                             }
                         }
@@ -3941,7 +3941,7 @@ THE SOFTWARE.
                             this._more = false;
                             this._input = this._input.slice(r[0].length);
                             this.matched += r[0];
-                            t = this.performAction.call(this, this.yy, this, o[a], this.conditionStack[this.conditionStack.length - 1]);
+                            t = this.performAction.call(this, this.yy, this, o[i], this.conditionStack[this.conditionStack.length - 1]);
                             if (this.done && this._input) this.done = false;
                             if (t) return t; else return;
                         }
@@ -3980,18 +3980,18 @@ THE SOFTWARE.
                     }
                 };
                 e.options = {};
-                e.performAction = function e(t, r, n, a) {
-                    function i(e, t) {
+                e.performAction = function e(t, r, n, i) {
+                    function a(e, t) {
                         return r.yytext = r.yytext.substring(e, r.yyleng - t + e);
                     }
-                    var s = a;
+                    var s = i;
                     switch (n) {
                       case 0:
                         if (r.yytext.slice(-2) === "\\\\") {
-                            i(0, 1);
+                            a(0, 1);
                             this.begin("mu");
                         } else if (r.yytext.slice(-1) === "\\") {
-                            i(0, 1);
+                            a(0, 1);
                             this.begin("emu");
                         } else {
                             this.begin("mu");
@@ -4018,7 +4018,7 @@ THE SOFTWARE.
                         if (this.conditionStack[this.conditionStack.length - 1] === "raw") {
                             return 15;
                         } else {
-                            i(5, 9);
+                            a(5, 9);
                             return "END_RAW_BLOCK";
                         }
                         break;
@@ -4137,12 +4137,12 @@ THE SOFTWARE.
                         break;
 
                       case 31:
-                        r.yytext = i(1, 2).replace(/\\"/g, '"');
+                        r.yytext = a(1, 2).replace(/\\"/g, '"');
                         return 80;
                         break;
 
                       case 32:
-                        r.yytext = i(1, 2).replace(/\\'/g, "'");
+                        r.yytext = a(1, 2).replace(/\\'/g, "'");
                         return 80;
                         break;
 
@@ -4235,44 +4235,44 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var a = r(88);
-        var i = n(a);
+        var i = r(88);
+        var a = n(i);
         function s() {
             var e = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
             this.options = e;
         }
-        s.prototype = new i["default"]();
+        s.prototype = new a["default"]();
         s.prototype.Program = function(e) {
             var t = !this.options.ignoreStandalone;
             var r = !this.isRootSeen;
             this.isRootSeen = true;
             var n = e.body;
-            for (var a = 0, i = n.length; a < i; a++) {
-                var s = n[a], o = this.accept(s);
+            for (var i = 0, a = n.length; i < a; i++) {
+                var s = n[i], o = this.accept(s);
                 if (!o) {
                     continue;
                 }
-                var l = p(n, a, r), u = d(n, a, r), c = o.openStandalone && l, f = o.closeStandalone && u, h = o.inlineStandalone && l && u;
+                var l = p(n, i, r), u = d(n, i, r), c = o.openStandalone && l, f = o.closeStandalone && u, h = o.inlineStandalone && l && u;
                 if (o.close) {
-                    m(n, a, true);
+                    m(n, i, true);
                 }
                 if (o.open) {
-                    g(n, a, true);
+                    g(n, i, true);
                 }
                 if (t && h) {
-                    m(n, a);
-                    if (g(n, a)) {
+                    m(n, i);
+                    if (g(n, i)) {
                         if (s.type === "PartialStatement") {
-                            s.indent = /([ \t]+$)/.exec(n[a - 1].original)[1];
+                            s.indent = /([ \t]+$)/.exec(n[i - 1].original)[1];
                         }
                     }
                 }
                 if (t && c) {
                     m((s.program || s.inverse).body);
-                    g(n, a);
+                    g(n, i);
                 }
                 if (t && f) {
-                    m(n, a);
+                    m(n, i);
                     g((s.inverse || s.program).body);
                 }
             }
@@ -4281,14 +4281,14 @@ THE SOFTWARE.
         s.prototype.BlockStatement = s.prototype.DecoratorBlock = s.prototype.PartialBlockStatement = function(e) {
             this.accept(e.program);
             this.accept(e.inverse);
-            var t = e.program || e.inverse, r = e.program && e.inverse, n = r, a = r;
+            var t = e.program || e.inverse, r = e.program && e.inverse, n = r, i = r;
             if (r && r.chained) {
                 n = r.body[0].program;
-                while (a.chained) {
-                    a = a.body[a.body.length - 1].program;
+                while (i.chained) {
+                    i = i.body[i.body.length - 1].program;
                 }
             }
-            var i = {
+            var a = {
                 open: e.openStrip.open,
                 close: e.closeStrip.close,
                 openStandalone: d(t.body),
@@ -4306,7 +4306,7 @@ THE SOFTWARE.
                     m(n.body, null, true);
                 }
                 if (e.closeStrip.open) {
-                    g(a.body, null, true);
+                    g(i.body, null, true);
                 }
                 if (!this.options.ignoreStandalone && p(t.body) && d(n.body)) {
                     g(t.body);
@@ -4315,7 +4315,7 @@ THE SOFTWARE.
             } else if (e.closeStrip.open) {
                 g(t.body, null, true);
             }
-            return i;
+            return a;
         };
         s.prototype.Decorator = s.prototype.MustacheStatement = function(e) {
             return e.strip;
@@ -4332,24 +4332,24 @@ THE SOFTWARE.
             if (t === undefined) {
                 t = e.length;
             }
-            var n = e[t - 1], a = e[t - 2];
+            var n = e[t - 1], i = e[t - 2];
             if (!n) {
                 return r;
             }
             if (n.type === "ContentStatement") {
-                return (a || !r ? /\r?\n\s*?$/ : /(^|\r?\n)\s*?$/).test(n.original);
+                return (i || !r ? /\r?\n\s*?$/ : /(^|\r?\n)\s*?$/).test(n.original);
             }
         }
         function d(e, t, r) {
             if (t === undefined) {
                 t = -1;
             }
-            var n = e[t + 1], a = e[t + 2];
+            var n = e[t + 1], i = e[t + 2];
             if (!n) {
                 return r;
             }
             if (n.type === "ContentStatement") {
-                return (a || !r ? /^\s*?\r?\n/ : /^\s*?(\r?\n|$)/).test(n.original);
+                return (i || !r ? /^\s*?\r?\n/ : /^\s*?(\r?\n|$)/).test(n.original);
             }
         }
         function m(e, t, r) {
@@ -4357,18 +4357,18 @@ THE SOFTWARE.
             if (!n || n.type !== "ContentStatement" || !r && n.rightStripped) {
                 return;
             }
-            var a = n.value;
+            var i = n.value;
             n.value = n.value.replace(r ? /^\s+/ : /^[ \t]*\r?\n?/, "");
-            n.rightStripped = n.value !== a;
+            n.rightStripped = n.value !== i;
         }
         function g(e, t, r) {
             var n = e[t == null ? e.length - 1 : t - 1];
             if (!n || n.type !== "ContentStatement" || !r && n.leftStripped) {
                 return;
             }
-            var a = n.value;
+            var i = n.value;
             n.value = n.value.replace(r ? /\s+$/ : /[ \t]+$/, "");
-            n.leftStripped = n.value !== a;
+            n.leftStripped = n.value !== i;
             return n.leftStripped;
         }
         t["default"] = s;
@@ -4377,8 +4377,8 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        var a = r(6);
-        var i = n(a);
+        var i = r(6);
+        var a = n(i);
         function s() {
             this.parents = [];
         }
@@ -4389,7 +4389,7 @@ THE SOFTWARE.
                 var n = this.accept(t[r]);
                 if (this.mutating) {
                     if (n && !s.prototype[n.type]) {
-                        throw new i["default"]('Unexpected node type "' + n.type + '" found when accepting ' + r + " on " + t.type);
+                        throw new a["default"]('Unexpected node type "' + n.type + '" found when accepting ' + r + " on " + t.type);
                     }
                     t[r] = n;
                 }
@@ -4397,7 +4397,7 @@ THE SOFTWARE.
             acceptRequired: function e(t, r) {
                 this.acceptKey(t, r);
                 if (!t[r]) {
-                    throw new i["default"](t.type + " requires " + r);
+                    throw new a["default"](t.type + " requires " + r);
                 }
             },
             acceptArray: function e(t) {
@@ -4415,7 +4415,7 @@ THE SOFTWARE.
                     return;
                 }
                 if (!this[t.type]) {
-                    throw new i["default"]("Unknown type: " + t.type, t);
+                    throw new a["default"]("Unknown type: " + t.type, t);
                 }
                 if (this.current) {
                     this.parents.unshift(this.current);
@@ -4478,7 +4478,7 @@ THE SOFTWARE.
         "use strict";
         var n = r(1)["default"];
         t.__esModule = true;
-        t.SourceLocation = i;
+        t.SourceLocation = a;
         t.id = s;
         t.stripFlags = o;
         t.stripComment = l;
@@ -4488,8 +4488,8 @@ THE SOFTWARE.
         t.prepareBlock = d;
         t.prepareProgram = m;
         t.preparePartialBlock = g;
-        var a = r(6);
-        var c = n(a);
+        var i = r(6);
+        var c = n(i);
         function u(e, t) {
             t = t.path ? t.path.original : t;
             if (e.path.original !== t) {
@@ -4499,7 +4499,7 @@ THE SOFTWARE.
                 throw new c["default"](e.path.original + " doesn't match " + t, r);
             }
         }
-        function i(e, t) {
+        function a(e, t) {
             this.source = e;
             this.start = {
                 line: t.first_line,
@@ -4528,32 +4528,32 @@ THE SOFTWARE.
         }
         function f(e, t, r) {
             r = this.locInfo(r);
-            var n = e ? "@" : "", a = [], i = 0;
+            var n = e ? "@" : "", i = [], a = 0;
             for (var s = 0, o = t.length; s < o; s++) {
                 var l = t[s].part, u = t[s].original !== l;
                 n += (t[s].separator || "") + l;
                 if (!u && (l === ".." || l === "." || l === "this")) {
-                    if (a.length > 0) {
+                    if (i.length > 0) {
                         throw new c["default"]("Invalid path: " + n, {
                             loc: r
                         });
                     } else if (l === "..") {
-                        i++;
+                        a++;
                     }
                 } else {
-                    a.push(l);
+                    i.push(l);
                 }
             }
             return {
                 type: "PathExpression",
                 data: e,
-                depth: i,
-                parts: a,
+                depth: a,
+                parts: i,
                 original: n,
                 loc: r
             };
         }
-        function h(e, t, r, n, a, i) {
+        function h(e, t, r, n, i, a) {
             var s = n.charAt(3) || n.charAt(2), o = s !== "{" && s !== "&";
             var l = /\*/.test(n);
             return {
@@ -4562,14 +4562,14 @@ THE SOFTWARE.
                 params: t,
                 hash: r,
                 escaped: o,
-                strip: a,
-                loc: this.locInfo(i)
+                strip: i,
+                loc: this.locInfo(a)
             };
         }
         function p(e, t, r, n) {
             u(e, r);
             n = this.locInfo(n);
-            var a = {
+            var i = {
                 type: "Program",
                 body: t,
                 strip: {},
@@ -4580,14 +4580,14 @@ THE SOFTWARE.
                 path: e.path,
                 params: e.params,
                 hash: e.hash,
-                program: a,
+                program: i,
                 openStrip: {},
                 inverseStrip: {},
                 closeStrip: {},
                 loc: n
             };
         }
-        function d(e, t, r, n, a, i) {
+        function d(e, t, r, n, i, a) {
             if (n && n.path) {
                 u(e, n);
             }
@@ -4604,10 +4604,10 @@ THE SOFTWARE.
                 l = r.strip;
                 o = r.program;
             }
-            if (a) {
-                a = o;
+            if (i) {
+                i = o;
                 o = t;
-                t = a;
+                t = i;
             }
             return {
                 type: s ? "DecoratorBlock" : "BlockStatement",
@@ -4619,7 +4619,7 @@ THE SOFTWARE.
                 openStrip: e.strip,
                 inverseStrip: l,
                 closeStrip: n && n.strip,
-                loc: this.locInfo(i)
+                loc: this.locInfo(a)
             };
         }
         function m(e, t) {
@@ -4662,16 +4662,16 @@ THE SOFTWARE.
     }, function(e, t, r) {
         "use strict";
         var n = r(74)["default"];
-        var a = r(1)["default"];
+        var i = r(1)["default"];
         t.__esModule = true;
         t.Compiler = f;
         t.precompile = h;
         t.compile = p;
-        var i = r(6);
-        var l = a(i);
+        var a = r(6);
+        var l = i(a);
         var u = r(5);
         var s = r(84);
-        var c = a(s);
+        var c = i(s);
         var o = [].slice;
         function f() {}
         f.prototype = {
@@ -4682,8 +4682,8 @@ THE SOFTWARE.
                     return false;
                 }
                 for (var n = 0; n < r; n++) {
-                    var a = this.opcodes[n], i = t.opcodes[n];
-                    if (a.opcode !== i.opcode || !d(a.args, i.args)) {
+                    var i = this.opcodes[n], a = t.opcodes[n];
+                    if (i.opcode !== a.opcode || !d(i.args, a.args)) {
                         return false;
                     }
                 }
@@ -4717,11 +4717,11 @@ THE SOFTWARE.
                 return this.accept(t);
             },
             compileProgram: function e(t) {
-                var r = new this.compiler(), n = r.compile(t, this.options), a = this.guid++;
+                var r = new this.compiler(), n = r.compile(t, this.options), i = this.guid++;
                 this.usePartial = this.usePartial || n.usePartial;
-                this.children[a] = n;
+                this.children[i] = n;
                 this.useDepths = this.useDepths || n.useDepths;
-                return a;
+                return i;
             },
             accept: function e(t) {
                 if (!this[t.type]) {
@@ -4735,8 +4735,8 @@ THE SOFTWARE.
             Program: function e(t) {
                 this.options.blockParams.unshift(t.blockParams);
                 var r = t.body, n = r.length;
-                for (var a = 0; a < n; a++) {
-                    this.accept(r[a]);
+                for (var i = 0; i < n; i++) {
+                    this.accept(r[i]);
                 }
                 this.options.blockParams.shift();
                 this.isSimple = n === 1;
@@ -4748,10 +4748,10 @@ THE SOFTWARE.
                 var r = t.program, n = t.inverse;
                 r = r && this.compileProgram(r);
                 n = n && this.compileProgram(n);
-                var a = this.classifySexpr(t);
-                if (a === "helper") {
+                var i = this.classifySexpr(t);
+                if (i === "helper") {
                     this.helperSexpr(t, r, n);
-                } else if (a === "simple") {
+                } else if (i === "simple") {
                     this.simpleSexpr(t);
                     this.opcode("pushProgram", r);
                     this.opcode("pushProgram", n);
@@ -4768,9 +4768,9 @@ THE SOFTWARE.
             },
             DecoratorBlock: function e(t) {
                 var r = t.program && this.compileProgram(t.program);
-                var n = this.setupFullMustacheParams(t, r, undefined), a = t.path;
+                var n = this.setupFullMustacheParams(t, r, undefined), i = t.path;
                 this.useDecorators = true;
-                this.opcode("registerDecorator", n.length, a.original);
+                this.opcode("registerDecorator", n.length, i.original);
             },
             PartialStatement: function e(t) {
                 this.usePartial = true;
@@ -4792,8 +4792,8 @@ THE SOFTWARE.
                         });
                     }
                 }
-                var a = t.name.original, i = t.name.type === "SubExpression";
-                if (i) {
+                var i = t.name.original, a = t.name.type === "SubExpression";
+                if (a) {
                     this.accept(t.name);
                 }
                 this.setupFullMustacheParams(t, r, undefined, true);
@@ -4802,7 +4802,7 @@ THE SOFTWARE.
                     this.opcode("appendContent", s);
                     s = "";
                 }
-                this.opcode("invokePartial", i, a, s);
+                this.opcode("invokePartial", a, i, s);
                 this.opcode("append");
             },
             PartialBlockStatement: function e(t) {
@@ -4837,13 +4837,13 @@ THE SOFTWARE.
                 }
             },
             ambiguousSexpr: function e(t, r, n) {
-                var a = t.path, i = a.parts[0], s = r != null || n != null;
-                this.opcode("getContext", a.depth);
+                var i = t.path, a = i.parts[0], s = r != null || n != null;
+                this.opcode("getContext", i.depth);
                 this.opcode("pushProgram", r);
                 this.opcode("pushProgram", n);
-                a.strict = true;
-                this.accept(a);
-                this.opcode("invokeAmbiguous", i, s);
+                i.strict = true;
+                this.accept(i);
+                this.opcode("invokeAmbiguous", a, s);
             },
             simpleSexpr: function e(t) {
                 var r = t.path;
@@ -4852,24 +4852,24 @@ THE SOFTWARE.
                 this.opcode("resolvePossibleLambda");
             },
             helperSexpr: function e(t, r, n) {
-                var a = this.setupFullMustacheParams(t, r, n), i = t.path, s = i.parts[0];
+                var i = this.setupFullMustacheParams(t, r, n), a = t.path, s = a.parts[0];
                 if (this.options.knownHelpers[s]) {
-                    this.opcode("invokeKnownHelper", a.length, s);
+                    this.opcode("invokeKnownHelper", i.length, s);
                 } else if (this.options.knownHelpersOnly) {
                     throw new l["default"]("You specified knownHelpersOnly, but used the unknown helper " + s, t);
                 } else {
-                    i.strict = true;
-                    i.falsy = true;
-                    this.accept(i);
-                    this.opcode("invokeHelper", a.length, i.original, c["default"].helpers.simpleId(i));
+                    a.strict = true;
+                    a.falsy = true;
+                    this.accept(a);
+                    this.opcode("invokeHelper", i.length, a.original, c["default"].helpers.simpleId(a));
                 }
             },
             PathExpression: function e(t) {
                 this.addDepth(t.depth);
                 this.opcode("getContext", t.depth);
-                var r = t.parts[0], n = c["default"].helpers.scopedId(t), a = !t.depth && !n && this.blockParamIndex(r);
-                if (a) {
-                    this.opcode("lookupBlockParam", a, t.parts);
+                var r = t.parts[0], n = c["default"].helpers.scopedId(t), i = !t.depth && !n && this.blockParamIndex(r);
+                if (i) {
+                    this.opcode("lookupBlockParam", i, t.parts);
                 } else if (!r) {
                     this.opcode("pushContext");
                 } else if (t.data) {
@@ -4895,9 +4895,9 @@ THE SOFTWARE.
                 this.opcode("pushLiteral", "null");
             },
             Hash: function e(t) {
-                var r = t.pairs, n = 0, a = r.length;
+                var r = t.pairs, n = 0, i = r.length;
                 this.opcode("pushHash");
-                for (;n < a; n++) {
+                for (;n < i; n++) {
                     this.pushParam(r[n].value);
                 }
                 while (n--) {
@@ -4921,19 +4921,19 @@ THE SOFTWARE.
             classifySexpr: function e(t) {
                 var r = c["default"].helpers.simpleId(t.path);
                 var n = r && !!this.blockParamIndex(t.path.parts[0]);
-                var a = !n && c["default"].helpers.helperExpression(t);
-                var i = !n && (a || r);
-                if (i && !a) {
+                var i = !n && c["default"].helpers.helperExpression(t);
+                var a = !n && (i || r);
+                if (a && !i) {
                     var s = t.path.parts[0], o = this.options;
                     if (o.knownHelpers[s]) {
-                        a = true;
+                        i = true;
                     } else if (o.knownHelpersOnly) {
-                        i = false;
+                        a = false;
                     }
                 }
-                if (a) {
+                if (i) {
                     return "helper";
-                } else if (i) {
+                } else if (a) {
                     return "ambiguous";
                 } else {
                     return "simple";
@@ -4965,8 +4965,8 @@ THE SOFTWARE.
                             n = this.blockParamIndex(t.parts[0]);
                         }
                         if (n) {
-                            var a = t.parts.slice(1).join(".");
-                            this.opcode("pushId", "BlockParam", n, a);
+                            var i = t.parts.slice(1).join(".");
+                            this.opcode("pushId", "BlockParam", n, i);
                         } else {
                             r = t.original || r;
                             if (r.replace) {
@@ -4978,23 +4978,23 @@ THE SOFTWARE.
                     this.accept(t);
                 }
             },
-            setupFullMustacheParams: function e(t, r, n, a) {
-                var i = t.params;
-                this.pushParams(i);
+            setupFullMustacheParams: function e(t, r, n, i) {
+                var a = t.params;
+                this.pushParams(a);
                 this.opcode("pushProgram", r);
                 this.opcode("pushProgram", n);
                 if (t.hash) {
                     this.accept(t.hash);
                 } else {
-                    this.opcode("emptyHash", a);
+                    this.opcode("emptyHash", i);
                 }
-                return i;
+                return a;
             },
             blockParamIndex: function e(t) {
                 for (var r = 0, n = this.options.blockParams.length; r < n; r++) {
-                    var a = this.options.blockParams[r], i = a && u.indexOf(a, t);
-                    if (a && i >= 0) {
-                        return [ r, i ];
+                    var i = this.options.blockParams[r], a = i && u.indexOf(i, t);
+                    if (i && a >= 0) {
+                        return [ r, a ];
                     }
                 }
             }
@@ -5010,25 +5010,25 @@ THE SOFTWARE.
             if (t.compat) {
                 t.useDepths = true;
             }
-            var n = r.parse(e, t), a = new r.Compiler().compile(n, t);
-            return new r.JavaScriptCompiler().compile(a, t);
+            var n = r.parse(e, t), i = new r.Compiler().compile(n, t);
+            return new r.JavaScriptCompiler().compile(i, t);
         }
-        function p(n, a, i) {
-            if (a === undefined) a = {};
+        function p(n, i, a) {
+            if (i === undefined) i = {};
             if (n == null || typeof n !== "string" && n.type !== "Program") {
                 throw new l["default"]("You must pass a string or Handlebars AST to Handlebars.compile. You passed " + n);
             }
-            a = u.extend({}, a);
-            if (!("data" in a)) {
-                a.data = true;
+            i = u.extend({}, i);
+            if (!("data" in i)) {
+                i.data = true;
             }
-            if (a.compat) {
-                a.useDepths = true;
+            if (i.compat) {
+                i.useDepths = true;
             }
             var s = undefined;
             function o() {
-                var e = i.parse(n, a), t = new i.Compiler().compile(e, a), r = new i.JavaScriptCompiler().compile(t, a, undefined, true);
-                return i.template(r);
+                var e = a.parse(n, i), t = new a.Compiler().compile(e, i), r = new a.JavaScriptCompiler().compile(t, i, undefined, true);
+                return a.template(r);
             }
             function e(e, t) {
                 if (!s) {
@@ -5081,9 +5081,9 @@ THE SOFTWARE.
         var l = r(60)["default"];
         var n = r(1)["default"];
         t.__esModule = true;
-        var a = r(4);
-        var i = r(6);
-        var m = n(i);
+        var i = r(4);
+        var a = r(6);
+        var m = n(a);
         var s = r(5);
         var o = r(92);
         var u = n(o);
@@ -5099,7 +5099,7 @@ THE SOFTWARE.
                 return [ this.aliasable("container.lookup"), "(depths, ", JSON.stringify(t), ")" ];
             },
             compilerInfo: function e() {
-                var t = a.COMPILER_REVISION, r = a.REVISION_CHANGES[t];
+                var t = i.COMPILER_REVISION, r = i.REVISION_CHANGES[t];
                 return [ t, r ];
             },
             appendToBuffer: function e(t, r, n) {
@@ -5124,12 +5124,12 @@ THE SOFTWARE.
                 return [ "lookupProperty(", t, ",", JSON.stringify(r), ")" ];
             },
             lookupPropertyFunctionIsUsed: false,
-            compile: function e(t, r, n, a) {
+            compile: function e(t, r, n, i) {
                 this.environment = t;
                 this.options = r;
                 this.stringParams = this.options.stringParams;
                 this.trackIds = this.options.trackIds;
-                this.precompile = !a;
+                this.precompile = !i;
                 this.name = this.environment.name;
                 this.isChild = !!n;
                 this.context = n || {
@@ -5151,9 +5151,9 @@ THE SOFTWARE.
                 this.compileChildren(t, r);
                 this.useDepths = this.useDepths || t.useDepths || t.useDecorators || this.options.compat;
                 this.useBlockParams = this.useBlockParams || t.useBlockParams;
-                var i = t.opcodes, s = undefined, o = undefined, l = undefined, u = undefined;
-                for (l = 0, u = i.length; l < u; l++) {
-                    s = i[l];
+                var a = t.opcodes, s = undefined, o = undefined, l = undefined, u = undefined;
+                for (l = 0, u = a.length; l < u; l++) {
+                    s = a[l];
                     this.source.currentLocation = s.loc;
                     o = o || s.loc;
                     this[s.opcode].apply(this, s.args);
@@ -5167,7 +5167,7 @@ THE SOFTWARE.
                     this.useDecorators = true;
                     this.decorators.prepend([ "var decorators = container.decorators, ", this.lookupPropertyFunctionVarDeclaration(), ";\n" ]);
                     this.decorators.push("return fn;");
-                    if (a) {
+                    if (i) {
                         this.decorators = Function.apply(this, [ "fn", "props", "container", "depth0", "data", "blockParams", "depths", this.decorators.merge() ]);
                     } else {
                         this.decorators.prepend("function(fn, props, container, depth0, data, blockParams, depths) {\n");
@@ -5177,7 +5177,7 @@ THE SOFTWARE.
                 } else {
                     this.decorators = undefined;
                 }
-                var c = this.createFunctionContext(a);
+                var c = this.createFunctionContext(i);
                 if (!this.isChild) {
                     var f = {
                         compiler: this.compilerInfo(),
@@ -5214,7 +5214,7 @@ THE SOFTWARE.
                     if (this.options.compat) {
                         f.compat = true;
                     }
-                    if (!a) {
+                    if (!i) {
                         f.compiler = JSON.stringify(f.compiler);
                         this.source.currentLocation = {
                             start: {
@@ -5247,16 +5247,16 @@ THE SOFTWARE.
             createFunctionContext: function e(t) {
                 var r = this;
                 var n = "";
-                var a = this.stackVars.concat(this.registers.list);
-                if (a.length > 0) {
-                    n += ", " + a.join(", ");
+                var i = this.stackVars.concat(this.registers.list);
+                if (i.length > 0) {
+                    n += ", " + i.join(", ");
                 }
-                var i = 0;
+                var a = 0;
                 l(this.aliases).forEach(function(e) {
                     var t = r.aliases[e];
                     if (t.children && t.referenceCount > 1) {
-                        n += ", alias" + ++i + "=" + e;
-                        t.children[0] = "alias" + i;
+                        n += ", alias" + ++a + "=" + e;
+                        t.children[0] = "alias" + a;
                     }
                 });
                 if (this.lookupPropertyFunctionIsUsed) {
@@ -5278,7 +5278,7 @@ THE SOFTWARE.
                 }
             },
             mergeSource: function e(t) {
-                var r = this.environment.isSimple, n = !this.forceBuffer, a = undefined, i = undefined, s = undefined, o = undefined;
+                var r = this.environment.isSimple, n = !this.forceBuffer, i = undefined, a = undefined, s = undefined, o = undefined;
                 this.source.each(function(e) {
                     if (e.appendToBuffer) {
                         if (s) {
@@ -5289,15 +5289,15 @@ THE SOFTWARE.
                         o = e;
                     } else {
                         if (s) {
-                            if (!i) {
-                                a = true;
+                            if (!a) {
+                                i = true;
                             } else {
                                 s.prepend("buffer += ");
                             }
                             o.add(";");
                             s = o = undefined;
                         }
-                        i = true;
+                        a = true;
                         if (!r) {
                             n = false;
                         }
@@ -5307,11 +5307,11 @@ THE SOFTWARE.
                     if (s) {
                         s.prepend("return ");
                         o.add(";");
-                    } else if (!i) {
+                    } else if (!a) {
                         this.source.push('return "";');
                     }
                 } else {
-                    t += ", buffer = " + (a ? "" : this.initializeBuffer());
+                    t += ", buffer = " + (i ? "" : this.initializeBuffer());
                     if (s) {
                         s.prepend("return buffer + ");
                         o.add(";");
@@ -5320,7 +5320,7 @@ THE SOFTWARE.
                     }
                 }
                 if (t) {
-                    this.source.prepend("var " + t.substring(2) + (a ? "" : ";\n"));
+                    this.source.prepend("var " + t.substring(2) + (i ? "" : ";\n"));
                 }
                 return this.source.merge();
             },
@@ -5330,8 +5330,8 @@ THE SOFTWARE.
             blockValue: function e(t) {
                 var r = this.aliasable("container.hooks.blockHelperMissing"), n = [ this.contextName(0) ];
                 this.setupHelperArgs(t, 0, n);
-                var a = this.popStack();
-                n.splice(1, 0, a);
+                var i = this.popStack();
+                n.splice(1, 0, i);
                 this.push(this.source.functionCall(r, "call", n));
             },
             ambiguousBlockValue: function e() {
@@ -5373,14 +5373,14 @@ THE SOFTWARE.
             pushContext: function e() {
                 this.pushStackLiteral(this.contextName(this.lastContext));
             },
-            lookupOnContext: function e(t, r, n, a) {
-                var i = 0;
-                if (!a && this.options.compat && !this.lastContext) {
-                    this.push(this.depthedLookup(t[i++]));
+            lookupOnContext: function e(t, r, n, i) {
+                var a = 0;
+                if (!i && this.options.compat && !this.lastContext) {
+                    this.push(this.depthedLookup(t[a++]));
                 } else {
                     this.pushContext();
                 }
-                this.resolvePath("context", t, i, r, n);
+                this.resolvePath("context", t, a, r, n);
             },
             lookupBlockParam: function e(t, r) {
                 this.useBlockParams = true;
@@ -5395,17 +5395,17 @@ THE SOFTWARE.
                 }
                 this.resolvePath("data", r, 0, true, n);
             },
-            resolvePath: function e(r, n, a, i, t) {
+            resolvePath: function e(r, n, i, a, t) {
                 var s = this;
                 if (this.options.strict || this.options.assumeObjects) {
-                    this.push(h(this.options.strict && t, this, n, a, r));
+                    this.push(h(this.options.strict && t, this, n, i, r));
                     return;
                 }
                 var o = n.length;
-                for (;a < o; a++) {
+                for (;i < o; i++) {
                     this.replaceStack(function(e) {
-                        var t = s.nameLookup(e, n[a], r);
-                        if (!i) {
+                        var t = s.nameLookup(e, n[i], r);
+                        if (!a) {
                             return [ " != null ? ", t, " : ", e ];
                         } else {
                             return [ " && ", t ];
@@ -5474,28 +5474,28 @@ THE SOFTWARE.
                 }
             },
             registerDecorator: function e(t, r) {
-                var n = this.nameLookup("decorators", r, "decorator"), a = this.setupHelperArgs(r, t);
-                this.decorators.push([ "fn = ", this.decorators.functionCall(n, "", [ "fn", "props", "container", a ]), " || fn;" ]);
+                var n = this.nameLookup("decorators", r, "decorator"), i = this.setupHelperArgs(r, t);
+                this.decorators.push([ "fn = ", this.decorators.functionCall(n, "", [ "fn", "props", "container", i ]), " || fn;" ]);
             },
             invokeHelper: function e(t, r, n) {
-                var a = this.popStack(), i = this.setupHelper(t, r);
+                var i = this.popStack(), a = this.setupHelper(t, r);
                 var s = [];
                 if (n) {
-                    s.push(i.name);
+                    s.push(a.name);
                 }
-                s.push(a);
+                s.push(i);
                 if (!this.options.strict) {
                     s.push(this.aliasable("container.hooks.helperMissing"));
                 }
                 var o = [ "(", this.itemsSeparatedBy(s, "||"), ")" ];
-                var l = this.source.functionCall(o, "call", i.callParams);
+                var l = this.source.functionCall(o, "call", a.callParams);
                 this.push(l);
             },
             itemsSeparatedBy: function e(t, r) {
                 var n = [];
                 n.push(t[0]);
-                for (var a = 1; a < t.length; a++) {
-                    n.push(r, t[a]);
+                for (var i = 1; i < t.length; i++) {
+                    n.push(r, t[i]);
                 }
                 return n;
             },
@@ -5507,57 +5507,57 @@ THE SOFTWARE.
                 this.useRegister("helper");
                 var n = this.popStack();
                 this.emptyHash();
-                var a = this.setupHelper(0, t, r);
-                var i = this.lastHelper = this.nameLookup("helpers", t, "helper");
-                var s = [ "(", "(helper = ", i, " || ", n, ")" ];
+                var i = this.setupHelper(0, t, r);
+                var a = this.lastHelper = this.nameLookup("helpers", t, "helper");
+                var s = [ "(", "(helper = ", a, " || ", n, ")" ];
                 if (!this.options.strict) {
                     s[0] = "(helper = ";
                     s.push(" != null ? helper : ", this.aliasable("container.hooks.helperMissing"));
                 }
-                this.push([ "(", s, a.paramsInit ? [ "),(", a.paramsInit ] : [], "),", "(typeof helper === ", this.aliasable('"function"'), " ? ", this.source.functionCall("helper", "call", a.callParams), " : helper))" ]);
+                this.push([ "(", s, i.paramsInit ? [ "),(", i.paramsInit ] : [], "),", "(typeof helper === ", this.aliasable('"function"'), " ? ", this.source.functionCall("helper", "call", i.callParams), " : helper))" ]);
             },
             invokePartial: function e(t, r, n) {
-                var a = [], i = this.setupParams(r, 1, a);
+                var i = [], a = this.setupParams(r, 1, i);
                 if (t) {
                     r = this.popStack();
-                    delete i.name;
+                    delete a.name;
                 }
                 if (n) {
-                    i.indent = JSON.stringify(n);
+                    a.indent = JSON.stringify(n);
                 }
-                i.helpers = "helpers";
-                i.partials = "partials";
-                i.decorators = "container.decorators";
+                a.helpers = "helpers";
+                a.partials = "partials";
+                a.decorators = "container.decorators";
                 if (!t) {
-                    a.unshift(this.nameLookup("partials", r, "partial"));
+                    i.unshift(this.nameLookup("partials", r, "partial"));
                 } else {
-                    a.unshift(r);
+                    i.unshift(r);
                 }
                 if (this.options.compat) {
-                    i.depths = "depths";
+                    a.depths = "depths";
                 }
-                i = this.objectLiteral(i);
-                a.push(i);
-                this.push(this.source.functionCall("container.invokePartial", "", a));
+                a = this.objectLiteral(a);
+                i.push(a);
+                this.push(this.source.functionCall("container.invokePartial", "", i));
             },
             assignToHash: function e(t) {
-                var r = this.popStack(), n = undefined, a = undefined, i = undefined;
+                var r = this.popStack(), n = undefined, i = undefined, a = undefined;
                 if (this.trackIds) {
-                    i = this.popStack();
+                    a = this.popStack();
                 }
                 if (this.stringParams) {
-                    a = this.popStack();
+                    i = this.popStack();
                     n = this.popStack();
                 }
                 var s = this.hash;
                 if (n) {
                     s.contexts[t] = n;
                 }
-                if (a) {
-                    s.types[t] = a;
-                }
                 if (i) {
-                    s.ids[t] = i;
+                    s.types[t] = i;
+                }
+                if (a) {
+                    s.ids[t] = a;
                 }
                 s.values[t] = r;
             },
@@ -5574,26 +5574,26 @@ THE SOFTWARE.
             },
             compiler: f,
             compileChildren: function e(t, r) {
-                var n = t.children, a = undefined, i = undefined;
+                var n = t.children, i = undefined, a = undefined;
                 for (var s = 0, o = n.length; s < o; s++) {
-                    a = n[s];
-                    i = new this.compiler();
-                    var l = this.matchExistingProgram(a);
+                    i = n[s];
+                    a = new this.compiler();
+                    var l = this.matchExistingProgram(i);
                     if (l == null) {
                         this.context.programs.push("");
                         var u = this.context.programs.length;
-                        a.index = u;
-                        a.name = "program" + u;
-                        this.context.programs[u] = i.compile(a, r, this.context, !this.precompile);
-                        this.context.decorators[u] = i.decorators;
-                        this.context.environments[u] = a;
-                        this.useDepths = this.useDepths || i.useDepths;
-                        this.useBlockParams = this.useBlockParams || i.useBlockParams;
-                        a.useDepths = this.useDepths;
-                        a.useBlockParams = this.useBlockParams;
+                        i.index = u;
+                        i.name = "program" + u;
+                        this.context.programs[u] = a.compile(i, r, this.context, !this.precompile);
+                        this.context.decorators[u] = a.decorators;
+                        this.context.environments[u] = i;
+                        this.useDepths = this.useDepths || a.useDepths;
+                        this.useBlockParams = this.useBlockParams || a.useBlockParams;
+                        i.useDepths = this.useDepths;
+                        i.useBlockParams = this.useBlockParams;
                     } else {
-                        a.index = l.index;
-                        a.name = "program" + l.index;
+                        i.index = l.index;
+                        i.name = "program" + l.index;
                         this.useDepths = this.useDepths || l.useDepths;
                         this.useBlockParams = this.useBlockParams || l.useBlockParams;
                     }
@@ -5601,9 +5601,9 @@ THE SOFTWARE.
             },
             matchExistingProgram: function e(t) {
                 for (var r = 0, n = this.context.environments.length; r < n; r++) {
-                    var a = this.context.environments[r];
-                    if (a && a.equals(t)) {
-                        return a;
+                    var i = this.context.environments[r];
+                    if (i && i.equals(t)) {
+                        return i;
                     }
                 }
             },
@@ -5643,7 +5643,7 @@ THE SOFTWARE.
                 }
             },
             replaceStack: function e(t) {
-                var r = [ "(" ], n = undefined, a = undefined, i = undefined;
+                var r = [ "(" ], n = undefined, i = undefined, a = undefined;
                 if (!this.isInline()) {
                     throw new m["default"]("replaceStack on non-inline");
                 }
@@ -5651,18 +5651,18 @@ THE SOFTWARE.
                 if (s instanceof c) {
                     n = [ s.value ];
                     r = [ "(", n ];
-                    i = true;
-                } else {
                     a = true;
+                } else {
+                    i = true;
                     var o = this.incrStack();
                     r = [ "((", this.push(o), " = ", s, ")" ];
                     n = this.topStack();
                 }
                 var l = t.call(this, n);
-                if (!i) {
+                if (!a) {
                     this.popStack();
                 }
-                if (a) {
+                if (i) {
                     this.stackSlot--;
                 }
                 this.push(r.concat(l, ")"));
@@ -5681,13 +5681,13 @@ THE SOFTWARE.
                 var t = this.inlineStack;
                 this.inlineStack = [];
                 for (var r = 0, n = t.length; r < n; r++) {
-                    var a = t[r];
-                    if (a instanceof c) {
-                        this.compileStack.push(a);
-                    } else {
-                        var i = this.incrStack();
-                        this.pushSource([ i, " = ", a, ";" ]);
+                    var i = t[r];
+                    if (i instanceof c) {
                         this.compileStack.push(i);
+                    } else {
+                        var a = this.incrStack();
+                        this.pushSource([ a, " = ", i, ";" ]);
+                        this.compileStack.push(a);
                     }
                 }
             },
@@ -5741,33 +5741,33 @@ THE SOFTWARE.
                 return r;
             },
             setupHelper: function e(t, r, n) {
-                var a = [], i = this.setupHelperArgs(r, t, a, n);
+                var i = [], a = this.setupHelperArgs(r, t, i, n);
                 var s = this.nameLookup("helpers", r, "helper"), o = this.aliasable(this.contextName(0) + " != null ? " + this.contextName(0) + " : (container.nullContext || {})");
                 return {
-                    params: a,
-                    paramsInit: i,
+                    params: i,
+                    paramsInit: a,
                     name: s,
-                    callParams: [ o ].concat(a)
+                    callParams: [ o ].concat(i)
                 };
             },
             setupParams: function e(t, r, n) {
-                var a = {}, i = [], s = [], o = [], l = !n, u = undefined;
+                var i = {}, a = [], s = [], o = [], l = !n, u = undefined;
                 if (l) {
                     n = [];
                 }
-                a.name = this.quotedString(t);
-                a.hash = this.popStack();
+                i.name = this.quotedString(t);
+                i.hash = this.popStack();
                 if (this.trackIds) {
-                    a.hashIds = this.popStack();
+                    i.hashIds = this.popStack();
                 }
                 if (this.stringParams) {
-                    a.hashTypes = this.popStack();
-                    a.hashContexts = this.popStack();
+                    i.hashTypes = this.popStack();
+                    i.hashContexts = this.popStack();
                 }
                 var c = this.popStack(), f = this.popStack();
                 if (f || c) {
-                    a.fn = f || "container.noop";
-                    a.inverse = c || "container.noop";
+                    i.fn = f || "container.noop";
+                    i.inverse = c || "container.noop";
                 }
                 var h = r;
                 while (h--) {
@@ -5778,40 +5778,40 @@ THE SOFTWARE.
                     }
                     if (this.stringParams) {
                         s[h] = this.popStack();
-                        i[h] = this.popStack();
+                        a[h] = this.popStack();
                     }
                 }
                 if (l) {
-                    a.args = this.source.generateArray(n);
+                    i.args = this.source.generateArray(n);
                 }
                 if (this.trackIds) {
-                    a.ids = this.source.generateArray(o);
+                    i.ids = this.source.generateArray(o);
                 }
                 if (this.stringParams) {
-                    a.types = this.source.generateArray(s);
-                    a.contexts = this.source.generateArray(i);
+                    i.types = this.source.generateArray(s);
+                    i.contexts = this.source.generateArray(a);
                 }
                 if (this.options.data) {
-                    a.data = "data";
+                    i.data = "data";
                 }
                 if (this.useBlockParams) {
-                    a.blockParams = "blockParams";
+                    i.blockParams = "blockParams";
                 }
-                return a;
+                return i;
             },
-            setupHelperArgs: function e(t, r, n, a) {
-                var i = this.setupParams(t, r, n);
-                i.loc = JSON.stringify(this.source.currentLocation);
-                i = this.objectLiteral(i);
-                if (a) {
+            setupHelperArgs: function e(t, r, n, i) {
+                var a = this.setupParams(t, r, n);
+                a.loc = JSON.stringify(this.source.currentLocation);
+                a = this.objectLiteral(a);
+                if (i) {
                     this.useRegister("options");
                     n.push("options");
-                    return [ "options=", i ];
+                    return [ "options=", a ];
                 } else if (n) {
-                    n.push(i);
+                    n.push(a);
                     return "";
                 } else {
-                    return i;
+                    return a;
                 }
             }
         };
@@ -5825,32 +5825,32 @@ THE SOFTWARE.
         f.isValidJavaScriptVariableName = function(e) {
             return !f.RESERVED_WORDS[e] && /^[a-zA-Z_$][0-9a-zA-Z_$]*$/.test(e);
         };
-        function h(e, t, r, n, a) {
-            var i = t.popStack(), s = r.length;
+        function h(e, t, r, n, i) {
+            var a = t.popStack(), s = r.length;
             if (e) {
                 s--;
             }
             for (;n < s; n++) {
-                i = t.nameLookup(i, r[n], a);
+                a = t.nameLookup(a, r[n], i);
             }
             if (e) {
-                return [ t.aliasable("container.strict"), "(", i, ", ", t.quotedString(r[n]), ", ", JSON.stringify(t.source.currentLocation), " )" ];
+                return [ t.aliasable("container.strict"), "(", a, ", ", t.quotedString(r[n]), ", ", JSON.stringify(t.source.currentLocation), " )" ];
             } else {
-                return i;
+                return a;
             }
         }
         t["default"] = f;
         e.exports = t["default"];
     }, function(e, t, r) {
         "use strict";
-        var i = r(60)["default"];
+        var a = r(60)["default"];
         t.__esModule = true;
         var s = r(5);
         var n = undefined;
         try {
             if (false) {
-                var a = require("source-map");
-                n = a.SourceNode;
+                var i = require("source-map");
+                n = i.SourceNode;
             }
         } catch (e) {}
         if (!n) {
@@ -5886,8 +5886,8 @@ THE SOFTWARE.
         function o(e, t, r) {
             if (s.isArray(e)) {
                 var n = [];
-                for (var a = 0, i = e.length; a < i; a++) {
-                    n.push(t.wrap(e[a], r));
+                for (var i = 0, a = e.length; i < a; i++) {
+                    n.push(t.wrap(e[i], r));
                 }
                 return n;
             } else if (typeof e === "boolean" || typeof e === "number") {
@@ -5946,21 +5946,21 @@ THE SOFTWARE.
             },
             objectLiteral: function e(r) {
                 var n = this;
-                var a = [];
-                i(r).forEach(function(e) {
+                var i = [];
+                a(r).forEach(function(e) {
                     var t = o(r[e], n);
                     if (t !== "undefined") {
-                        a.push([ n.quotedString(e), ":", t ]);
+                        i.push([ n.quotedString(e), ":", t ]);
                     }
                 });
-                var t = this.generateList(a);
+                var t = this.generateList(i);
                 t.prepend("{");
                 t.add("}");
                 return t;
             },
             generateList: function e(t) {
                 var r = this.empty();
-                for (var n = 0, a = t.length; n < a; n++) {
+                for (var n = 0, i = t.length; n < i; n++) {
                     if (n) {
                         r.add(",");
                     }
@@ -6168,8 +6168,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
         function getAttributeValueWithDisinheritance(e, t, r) {
             var n = getAttributeValue(t, r);
-            var a = getAttributeValue(t, "hx-disinherit");
-            if (e !== t && a && (a === "*" || a.split(" ").indexOf(r) >= 0)) {
+            var i = getAttributeValue(t, "hx-disinherit");
+            if (e !== t && i && (i === "*" || i.split(" ").indexOf(r) >= 0)) {
                 return "unset";
             } else {
                 return n;
@@ -6200,15 +6200,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function parseHTML(e, t) {
             var r = new DOMParser();
             var n = r.parseFromString(e, "text/html");
-            var a = n.body;
+            var i = n.body;
             while (t > 0) {
                 t--;
-                a = a.firstChild;
+                i = i.firstChild;
             }
-            if (a == null) {
-                a = getDocument().createDocumentFragment();
+            if (i == null) {
+                i = getDocument().createDocumentFragment();
             }
-            return a;
+            return i;
         }
         function aFullPageResponse(e) {
             return /<body/.test(e);
@@ -6221,21 +6221,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 n = n.replace(HEAD_TAG_REGEX, "");
             }
             if (htmx.config.useTemplateFragments && t) {
-                var a = parseHTML("<body><template>" + n + "</template></body>", 0);
-                var i = a.querySelector("template").content;
+                var i = parseHTML("<body><template>" + n + "</template></body>", 0);
+                var a = i.querySelector("template").content;
                 if (htmx.config.allowScriptTags) {
-                    forEach(i.querySelectorAll("script"), function(e) {
+                    forEach(a.querySelectorAll("script"), function(e) {
                         if (htmx.config.inlineScriptNonce) {
                             e.nonce = htmx.config.inlineScriptNonce;
                         }
                         e.htmxExecuted = navigator.userAgent.indexOf("Firefox") === -1;
                     });
                 } else {
-                    forEach(i.querySelectorAll("script"), function(e) {
+                    forEach(a.querySelectorAll("script"), function(e) {
                         removeElement(e);
                     });
                 }
-                return i;
+                return a;
             }
             switch (r) {
               case "thead":
@@ -6494,18 +6494,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         var scanForwardQuery = function(e, t) {
             var r = getDocument().querySelectorAll(t);
             for (var n = 0; n < r.length; n++) {
-                var a = r[n];
-                if (a.compareDocumentPosition(e) === Node.DOCUMENT_POSITION_PRECEDING) {
-                    return a;
+                var i = r[n];
+                if (i.compareDocumentPosition(e) === Node.DOCUMENT_POSITION_PRECEDING) {
+                    return i;
                 }
             }
         };
         var scanBackwardsQuery = function(e, t) {
             var r = getDocument().querySelectorAll(t);
             for (var n = r.length - 1; n >= 0; n--) {
-                var a = r[n];
-                if (a.compareDocumentPosition(e) === Node.DOCUMENT_POSITION_FOLLOWING) {
-                    return a;
+                var i = r[n];
+                if (i.compareDocumentPosition(e) === Node.DOCUMENT_POSITION_FOLLOWING) {
+                    return i;
                 }
             }
         };
@@ -6616,9 +6616,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function isInlineSwap(e, t) {
             var r = getExtensions(t);
             for (var n = 0; n < r.length; n++) {
-                var a = r[n];
+                var i = r[n];
                 try {
-                    if (a.isInlineSwap(e)) {
+                    if (i.isInlineSwap(e)) {
                         return true;
                     }
                 } catch (e) {
@@ -6627,8 +6627,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             }
             return e === "outerHTML";
         }
-        function oobSwap(e, a, i) {
-            var t = "#" + getRawAttribute(a, "id");
+        function oobSwap(e, i, a) {
+            var t = "#" + getRawAttribute(i, "id");
             var s = "outerHTML";
             if (e === "true") {} else if (e.indexOf(":") > 0) {
                 s = e.substr(0, e.indexOf(":"));
@@ -6640,7 +6640,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (r) {
                 forEach(r, function(e) {
                     var t;
-                    var r = a.cloneNode(true);
+                    var r = i.cloneNode(true);
                     t = getDocument().createDocumentFragment();
                     t.appendChild(r);
                     if (!isInlineSwap(s, e)) {
@@ -6654,17 +6654,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     if (!triggerEvent(e, "htmx:oobBeforeSwap", n)) return;
                     e = n.target;
                     if (n["shouldSwap"]) {
-                        swap(s, e, e, t, i);
+                        swap(s, e, e, t, a);
                     }
-                    forEach(i.elts, function(e) {
+                    forEach(a.elts, function(e) {
                         triggerEvent(e, "htmx:oobAfterSwap", n);
                     });
                 });
-                a.parentNode.removeChild(a);
+                i.parentNode.removeChild(i);
             } else {
-                a.parentNode.removeChild(a);
+                i.parentNode.removeChild(i);
                 triggerErrorEvent(getDocument().body, "htmx:oobErrorNoTarget", {
-                    content: a
+                    content: i
                 });
             }
             return e;
@@ -6672,9 +6672,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function handleOutOfBandSwaps(e, t, r) {
             var n = getClosestAttributeValue(e, "hx-select-oob");
             if (n) {
-                var a = n.split(",");
-                for (var i = 0; i < a.length; i++) {
-                    var s = a[i].split(":", 2);
+                var i = n.split(",");
+                for (var a = 0; a < i.length; a++) {
+                    var s = i[a].split(":", 2);
                     var o = s[0].trim();
                     if (o.indexOf("#") === 0) {
                         o = o.substring(1);
@@ -6708,12 +6708,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 if (t && t.length > 0) {
                     var r = t.replace("'", "\\'");
                     var n = e.tagName.replace(":", "\\:");
-                    var a = s.querySelector(n + "[id='" + r + "']");
-                    if (a && a !== s) {
-                        var i = e.cloneNode();
-                        cloneAttributes(e, a);
+                    var i = s.querySelector(n + "[id='" + r + "']");
+                    if (i && i !== s) {
+                        var a = e.cloneNode();
+                        cloneAttributes(e, i);
                         o.tasks.push(function() {
-                            cloneAttributes(e, i);
+                            cloneAttributes(e, a);
                         });
                     }
                 }
@@ -6738,11 +6738,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function insertNodesBefore(e, t, r, n) {
             handleAttributes(e, r, n);
             while (r.childNodes.length > 0) {
-                var a = r.firstChild;
-                addClassToElement(a, htmx.config.addedClass);
-                e.insertBefore(a, t);
-                if (a.nodeType !== Node.TEXT_NODE && a.nodeType !== Node.COMMENT_NODE) {
-                    n.tasks.push(makeAjaxLoadTask(a));
+                var i = r.firstChild;
+                addClassToElement(i, htmx.config.addedClass);
+                e.insertBefore(i, t);
+                if (i.nodeType !== Node.TEXT_NODE && i.nodeType !== Node.COMMENT_NODE) {
+                    n.tasks.push(makeAjaxLoadTask(i));
                 }
             }
         }
@@ -6813,12 +6813,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 return swapInnerHTML(t, e, r);
             } else {
                 var n;
-                var a = t.previousSibling;
+                var i = t.previousSibling;
                 insertNodesBefore(parentElt(t), t, e, r);
-                if (a == null) {
+                if (i == null) {
                     n = parentElt(t).firstChild;
                 } else {
-                    n = a.nextSibling;
+                    n = i.nextSibling;
                 }
                 r.elts = r.elts.filter(function(e) {
                     return e != t;
@@ -6864,55 +6864,55 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function maybeSelectFromResponse(e, t, r) {
             var n = r || getClosestAttributeValue(e, "hx-select");
             if (n) {
-                var a = getDocument().createDocumentFragment();
+                var i = getDocument().createDocumentFragment();
                 forEach(t.querySelectorAll(n), function(e) {
-                    a.appendChild(e);
+                    i.appendChild(e);
                 });
-                t = a;
+                t = i;
             }
             return t;
         }
-        function swap(e, t, r, n, a) {
+        function swap(e, t, r, n, i) {
             switch (e) {
               case "none":
                 return;
 
               case "outerHTML":
-                swapOuterHTML(r, n, a);
+                swapOuterHTML(r, n, i);
                 return;
 
               case "afterbegin":
-                swapAfterBegin(r, n, a);
+                swapAfterBegin(r, n, i);
                 return;
 
               case "beforebegin":
-                swapBeforeBegin(r, n, a);
+                swapBeforeBegin(r, n, i);
                 return;
 
               case "beforeend":
-                swapBeforeEnd(r, n, a);
+                swapBeforeEnd(r, n, i);
                 return;
 
               case "afterend":
-                swapAfterEnd(r, n, a);
+                swapAfterEnd(r, n, i);
                 return;
 
               case "delete":
-                swapDelete(r, n, a);
+                swapDelete(r, n, i);
                 return;
 
               default:
-                var i = getExtensions(t);
-                for (var s = 0; s < i.length; s++) {
-                    var o = i[s];
+                var a = getExtensions(t);
+                for (var s = 0; s < a.length; s++) {
+                    var o = a[s];
                     try {
-                        var l = o.handleSwap(e, r, n, a);
+                        var l = o.handleSwap(e, r, n, i);
                         if (l) {
                             if (typeof l.length !== "undefined") {
                                 for (var u = 0; u < l.length; u++) {
                                     var c = l[u];
                                     if (c.nodeType !== Node.TEXT_NODE && c.nodeType !== Node.COMMENT_NODE) {
-                                        a.tasks.push(makeAjaxLoadTask(c));
+                                        i.tasks.push(makeAjaxLoadTask(c));
                                     }
                                 }
                             }
@@ -6923,9 +6923,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                 }
                 if (e === "innerHTML") {
-                    swapInnerHTML(r, n, a);
+                    swapInnerHTML(r, n, i);
                 } else {
-                    swap(htmx.config.defaultSwapStyle, t, r, n, a);
+                    swap(htmx.config.defaultSwapStyle, t, r, n, i);
                 }
             }
         }
@@ -6938,29 +6938,29 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             }
         }
-        function selectAndSwap(e, t, r, n, a, i) {
-            a.title = findTitle(n);
+        function selectAndSwap(e, t, r, n, i, a) {
+            i.title = findTitle(n);
             var s = makeFragment(n);
             if (s) {
-                handleOutOfBandSwaps(r, s, a);
-                s = maybeSelectFromResponse(r, s, i);
+                handleOutOfBandSwaps(r, s, i);
+                s = maybeSelectFromResponse(r, s, a);
                 handlePreservedElements(s);
-                return swap(e, r, t, s, a);
+                return swap(e, r, t, s, i);
             }
         }
         function handleTrigger(e, t, r) {
             var n = e.getResponseHeader(t);
             if (n.indexOf("{") === 0) {
-                var a = parseJSON(n);
-                for (var i in a) {
-                    if (a.hasOwnProperty(i)) {
-                        var s = a[i];
+                var i = parseJSON(n);
+                for (var a in i) {
+                    if (i.hasOwnProperty(a)) {
+                        var s = i[a];
                         if (!isRawObject(s)) {
                             s = {
                                 value: s
                             };
                         }
-                        triggerEvent(r, i, s);
+                        triggerEvent(r, a, s);
                     }
                 }
             } else {
@@ -6989,10 +6989,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                     t.push(e.substr(n, r - n + 1));
                 } else if (STRINGISH_START.indexOf(e.charAt(r)) !== -1) {
-                    var a = e.charAt(r);
+                    var i = e.charAt(r);
                     var n = r;
                     r++;
-                    while (r < e.length && e.charAt(r) !== a) {
+                    while (r < e.length && e.charAt(r) !== i) {
                         if (e.charAt(r) === "\\") {
                             r++;
                         }
@@ -7000,8 +7000,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                     t.push(e.substr(n, r - n + 1));
                 } else {
-                    var i = e.charAt(r);
-                    t.push(i);
+                    var a = e.charAt(r);
+                    t.push(a);
                 }
                 r++;
             }
@@ -7014,30 +7014,30 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (t[0] === "[") {
                 t.shift();
                 var n = 1;
-                var a = " return (function(" + r + "){ return (";
-                var i = null;
+                var i = " return (function(" + r + "){ return (";
+                var a = null;
                 while (t.length > 0) {
                     var s = t[0];
                     if (s === "]") {
                         n--;
                         if (n === 0) {
-                            if (i === null) {
-                                a = a + "true";
+                            if (a === null) {
+                                i = i + "true";
                             }
                             t.shift();
-                            a += ")})";
+                            i += ")})";
                             try {
                                 var o = maybeEval(e, function() {
-                                    return Function(a)();
+                                    return Function(i)();
                                 }, function() {
                                     return true;
                                 });
-                                o.source = a;
+                                o.source = i;
                                 return o;
                             } catch (e) {
                                 triggerErrorEvent(getDocument().body, "htmx:syntax:error", {
                                     error: e,
-                                    source: a
+                                    source: i
                                 });
                                 return null;
                             }
@@ -7045,12 +7045,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     } else if (s === "[") {
                         n++;
                     }
-                    if (isPossibleRelativeReference(s, i, r)) {
-                        a += "((" + r + "." + s + ") ? (" + r + "." + s + ") : (window." + s + "))";
+                    if (isPossibleRelativeReference(s, a, r)) {
+                        i += "((" + r + "." + s + ") ? (" + r + "." + s + ") : (window." + s + "))";
                     } else {
-                        a = a + s;
+                        i = i + s;
                     }
-                    i = t.shift();
+                    a = t.shift();
                 }
             }
         }
@@ -7075,20 +7075,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         var INPUT_SELECTOR = "input, textarea, select";
         function parseAndCacheTrigger(e, t, r) {
             var n = [];
-            var a = tokenizeString(t);
+            var i = tokenizeString(t);
             do {
-                consumeUntil(a, NOT_WHITESPACE);
-                var i = a.length;
-                var s = consumeUntil(a, /[,\[\s]/);
+                consumeUntil(i, NOT_WHITESPACE);
+                var a = i.length;
+                var s = consumeUntil(i, /[,\[\s]/);
                 if (s !== "") {
                     if (s === "every") {
                         var o = {
                             trigger: "every"
                         };
-                        consumeUntil(a, NOT_WHITESPACE);
-                        o.pollInterval = parseInterval(consumeUntil(a, /[,\[\s]/));
-                        consumeUntil(a, NOT_WHITESPACE);
-                        var l = maybeGenerateConditional(e, a, "event");
+                        consumeUntil(i, NOT_WHITESPACE);
+                        o.pollInterval = parseInterval(consumeUntil(i, /[,\[\s]/));
+                        consumeUntil(i, NOT_WHITESPACE);
+                        var l = maybeGenerateConditional(e, i, "event");
                         if (l) {
                             o.eventFilter = l;
                         }
@@ -7102,68 +7102,68 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         var u = {
                             trigger: s
                         };
-                        var l = maybeGenerateConditional(e, a, "event");
+                        var l = maybeGenerateConditional(e, i, "event");
                         if (l) {
                             u.eventFilter = l;
                         }
-                        while (a.length > 0 && a[0] !== ",") {
-                            consumeUntil(a, NOT_WHITESPACE);
-                            var c = a.shift();
+                        while (i.length > 0 && i[0] !== ",") {
+                            consumeUntil(i, NOT_WHITESPACE);
+                            var c = i.shift();
                             if (c === "changed") {
                                 u.changed = true;
                             } else if (c === "once") {
                                 u.once = true;
                             } else if (c === "consume") {
                                 u.consume = true;
-                            } else if (c === "delay" && a[0] === ":") {
-                                a.shift();
-                                u.delay = parseInterval(consumeUntil(a, WHITESPACE_OR_COMMA));
-                            } else if (c === "from" && a[0] === ":") {
-                                a.shift();
-                                if (COMBINED_SELECTOR_START.test(a[0])) {
-                                    var f = consumeCSSSelector(a);
+                            } else if (c === "delay" && i[0] === ":") {
+                                i.shift();
+                                u.delay = parseInterval(consumeUntil(i, WHITESPACE_OR_COMMA));
+                            } else if (c === "from" && i[0] === ":") {
+                                i.shift();
+                                if (COMBINED_SELECTOR_START.test(i[0])) {
+                                    var f = consumeCSSSelector(i);
                                 } else {
-                                    var f = consumeUntil(a, WHITESPACE_OR_COMMA);
+                                    var f = consumeUntil(i, WHITESPACE_OR_COMMA);
                                     if (f === "closest" || f === "find" || f === "next" || f === "previous") {
-                                        a.shift();
-                                        var h = consumeCSSSelector(a);
+                                        i.shift();
+                                        var h = consumeCSSSelector(i);
                                         if (h.length > 0) {
                                             f += " " + h;
                                         }
                                     }
                                 }
                                 u.from = f;
-                            } else if (c === "target" && a[0] === ":") {
-                                a.shift();
-                                u.target = consumeCSSSelector(a);
-                            } else if (c === "throttle" && a[0] === ":") {
-                                a.shift();
-                                u.throttle = parseInterval(consumeUntil(a, WHITESPACE_OR_COMMA));
-                            } else if (c === "queue" && a[0] === ":") {
-                                a.shift();
-                                u.queue = consumeUntil(a, WHITESPACE_OR_COMMA);
-                            } else if (c === "root" && a[0] === ":") {
-                                a.shift();
-                                u[c] = consumeCSSSelector(a);
-                            } else if (c === "threshold" && a[0] === ":") {
-                                a.shift();
-                                u[c] = consumeUntil(a, WHITESPACE_OR_COMMA);
+                            } else if (c === "target" && i[0] === ":") {
+                                i.shift();
+                                u.target = consumeCSSSelector(i);
+                            } else if (c === "throttle" && i[0] === ":") {
+                                i.shift();
+                                u.throttle = parseInterval(consumeUntil(i, WHITESPACE_OR_COMMA));
+                            } else if (c === "queue" && i[0] === ":") {
+                                i.shift();
+                                u.queue = consumeUntil(i, WHITESPACE_OR_COMMA);
+                            } else if (c === "root" && i[0] === ":") {
+                                i.shift();
+                                u[c] = consumeCSSSelector(i);
+                            } else if (c === "threshold" && i[0] === ":") {
+                                i.shift();
+                                u[c] = consumeUntil(i, WHITESPACE_OR_COMMA);
                             } else {
                                 triggerErrorEvent(e, "htmx:syntax:error", {
-                                    token: a.shift()
+                                    token: i.shift()
                                 });
                             }
                         }
                         n.push(u);
                     }
                 }
-                if (a.length === i) {
+                if (i.length === a) {
                     triggerErrorEvent(e, "htmx:syntax:error", {
-                        token: a.shift()
+                        token: i.shift()
                     });
                 }
-                consumeUntil(a, NOT_WHITESPACE);
-            } while (a[0] === "," && a.shift());
+                consumeUntil(i, NOT_WHITESPACE);
+            } while (i[0] === "," && i.shift());
             if (r) {
                 r[t] = n;
             }
@@ -7219,15 +7219,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function boostElement(t, r, e) {
             if (t.tagName === "A" && isLocalLink(t) && (t.target === "" || t.target === "_self") || t.tagName === "FORM") {
                 r.boosted = true;
-                var n, a;
+                var n, i;
                 if (t.tagName === "A") {
                     n = "get";
-                    a = getRawAttribute(t, "href");
+                    i = getRawAttribute(t, "href");
                 } else {
-                    var i = getRawAttribute(t, "method");
-                    n = i ? i.toLowerCase() : "get";
+                    var a = getRawAttribute(t, "method");
+                    n = a ? a.toLowerCase() : "get";
                     if (n === "get") {}
-                    a = getRawAttribute(t, "action");
+                    i = getRawAttribute(t, "action");
                 }
                 e.forEach(function(e) {
                     addEventListener(t, function(e, t) {
@@ -7235,7 +7235,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             cleanUpElement(e);
                             return;
                         }
-                        issueAjaxRequest(n, a, e, t);
+                        issueAjaxRequest(n, i, e, t);
                     }, r, e, true);
                 });
             }
@@ -7272,13 +7272,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             }
             return false;
         }
-        function addEventListener(i, s, e, o, l) {
-            var u = getInternalData(i);
+        function addEventListener(a, s, e, o, l) {
+            var u = getInternalData(a);
             var t;
             if (o.from) {
-                t = querySelectorAllExt(i, o.from);
+                t = querySelectorAllExt(a, o.from);
             } else {
-                t = [ i ];
+                t = [ a ];
             }
             if (o.changed) {
                 t.forEach(function(e) {
@@ -7287,18 +7287,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 });
             }
             forEach(t, function(n) {
-                var a = function(e) {
-                    if (!bodyContains(i)) {
-                        n.removeEventListener(o.trigger, a);
+                var i = function(e) {
+                    if (!bodyContains(a)) {
+                        n.removeEventListener(o.trigger, i);
                         return;
                     }
-                    if (ignoreBoostedAnchorCtrlClick(i, e)) {
+                    if (ignoreBoostedAnchorCtrlClick(a, e)) {
                         return;
                     }
-                    if (l || shouldCancel(e, i)) {
+                    if (l || shouldCancel(e, a)) {
                         e.preventDefault();
                     }
-                    if (maybeFilterEvent(o, i, e)) {
+                    if (maybeFilterEvent(o, a, e)) {
                         return;
                     }
                     var t = getInternalData(e);
@@ -7306,8 +7306,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     if (t.handledFor == null) {
                         t.handledFor = [];
                     }
-                    if (t.handledFor.indexOf(i) < 0) {
-                        t.handledFor.push(i);
+                    if (t.handledFor.indexOf(a) < 0) {
+                        t.handledFor.push(a);
                         if (o.consume) {
                             e.stopPropagation();
                         }
@@ -7338,18 +7338,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         }
                         if (o.throttle > 0) {
                             if (!u.throttle) {
-                                s(i, e);
+                                s(a, e);
                                 u.throttle = setTimeout(function() {
                                     u.throttle = null;
                                 }, o.throttle);
                             }
                         } else if (o.delay > 0) {
                             u.delayed = setTimeout(function() {
-                                s(i, e);
+                                s(a, e);
                             }, o.delay);
                         } else {
-                            triggerEvent(i, "htmx:trigger");
-                            s(i, e);
+                            triggerEvent(a, "htmx:trigger");
+                            s(a, e);
                         }
                     }
                 };
@@ -7358,10 +7358,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
                 e.listenerInfos.push({
                     trigger: o.trigger,
-                    listener: a,
+                    listener: i,
                     on: n
                 });
-                n.addEventListener(o.trigger, a);
+                n.addEventListener(o.trigger, i);
             });
         }
         var windowIsScrolling = false;
@@ -7399,12 +7399,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
         function processWebSocketInfo(e, t, r) {
             var n = splitOnWhitespace(r);
-            for (var a = 0; a < n.length; a++) {
-                var i = n[a].split(/:(.+)/);
-                if (i[0] === "connect") {
-                    ensureWebSocket(e, i[1], 0);
+            for (var i = 0; i < n.length; i++) {
+                var a = n[i].split(/:(.+)/);
+                if (a[0] === "connect") {
+                    ensureWebSocket(e, a[1], 0);
                 }
-                if (i[0] === "send") {
+                if (a[0] === "send") {
                     processWebSocketSend(e);
                 }
             }
@@ -7451,9 +7451,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 });
                 var r = makeSettleInfo(o);
                 var n = makeFragment(t);
-                var a = toArray(n.children);
-                for (var i = 0; i < a.length; i++) {
-                    var s = a[i];
+                var i = toArray(n.children);
+                for (var a = 0; a < i.length; a++) {
+                    var s = i[a];
                     oobSwap(getAttributeValue(s, "hx-swap-oob") || "true", s, r);
                 }
                 settleImmediately(r.tasks);
@@ -7474,14 +7474,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     var t = getInternalData(c).webSocket;
                     var r = getHeaders(u, c);
                     var n = getInputValues(u, "post");
-                    var a = n.errors;
-                    var i = n.values;
+                    var i = n.errors;
+                    var a = n.values;
                     var s = getExpressionVars(u);
-                    var o = mergeObjects(i, s);
+                    var o = mergeObjects(a, s);
                     var l = filterValues(o, u);
                     l["HEADERS"] = r;
-                    if (a && a.length > 0) {
-                        triggerEvent(u, "htmx:validation:halted", a);
+                    if (i && i.length > 0) {
+                        triggerEvent(u, "htmx:validation:halted", i);
                         return;
                     }
                     t.send(JSON.stringify(l));
@@ -7507,13 +7507,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
         function processSSEInfo(e, t, r) {
             var n = splitOnWhitespace(r);
-            for (var a = 0; a < n.length; a++) {
-                var i = n[a].split(/:(.+)/);
-                if (i[0] === "connect") {
-                    processSSESource(e, i[1]);
+            for (var i = 0; i < n.length; i++) {
+                var a = n[i].split(/:(.+)/);
+                if (a[0] === "connect") {
+                    processSSESource(e, a[1]);
                 }
-                if (i[0] === "swap") {
-                    processSSESwap(e, i[1]);
+                if (a[0] === "swap") {
+                    processSSESwap(e, a[1]);
                 }
             }
         }
@@ -7528,50 +7528,50 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             };
             getInternalData(t).sseEventSource = r;
         }
-        function processSSESwap(i, s) {
-            var o = getClosestMatch(i, hasEventSource);
+        function processSSESwap(a, s) {
+            var o = getClosestMatch(a, hasEventSource);
             if (o) {
                 var l = getInternalData(o).sseEventSource;
                 var u = function(e) {
                     if (maybeCloseSSESource(o)) {
                         return;
                     }
-                    if (!bodyContains(i)) {
+                    if (!bodyContains(a)) {
                         l.removeEventListener(s, u);
                         return;
                     }
                     var t = e.data;
-                    withExtensions(i, function(e) {
-                        t = e.transformResponse(t, null, i);
+                    withExtensions(a, function(e) {
+                        t = e.transformResponse(t, null, a);
                     });
-                    var r = getSwapSpecification(i);
-                    var n = getTarget(i);
-                    var a = makeSettleInfo(i);
-                    selectAndSwap(r.swapStyle, n, i, t, a);
-                    settleImmediately(a.tasks);
-                    triggerEvent(i, "htmx:sseMessage", e);
+                    var r = getSwapSpecification(a);
+                    var n = getTarget(a);
+                    var i = makeSettleInfo(a);
+                    selectAndSwap(r.swapStyle, n, a, t, i);
+                    settleImmediately(i.tasks);
+                    triggerEvent(a, "htmx:sseMessage", e);
                 };
-                getInternalData(i).sseListener = u;
+                getInternalData(a).sseListener = u;
                 l.addEventListener(s, u);
             } else {
-                triggerErrorEvent(i, "htmx:noSSESourceError");
+                triggerErrorEvent(a, "htmx:noSSESourceError");
             }
         }
         function processSSETrigger(e, t, r) {
             var n = getClosestMatch(e, hasEventSource);
             if (n) {
-                var a = getInternalData(n).sseEventSource;
-                var i = function() {
+                var i = getInternalData(n).sseEventSource;
+                var a = function() {
                     if (!maybeCloseSSESource(n)) {
                         if (bodyContains(e)) {
                             t(e);
                         } else {
-                            a.removeEventListener(r, i);
+                            i.removeEventListener(r, a);
                         }
                     }
                 };
-                getInternalData(e).sseListener = i;
-                a.addEventListener(r, i);
+                getInternalData(e).sseListener = a;
+                i.addEventListener(r, a);
             } else {
                 triggerErrorEvent(e, "htmx:noSSESourceError");
             }
@@ -7586,28 +7586,28 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             return getInternalData(e).sseEventSource != null;
         }
         function loadImmediately(e, t, r, n) {
-            var a = function() {
+            var i = function() {
                 if (!r.loaded) {
                     r.loaded = true;
                     t(e);
                 }
             };
             if (n > 0) {
-                setTimeout(a, n);
+                setTimeout(i, n);
             } else {
-                a();
+                i();
             }
         }
-        function processVerbs(t, a, e) {
-            var i = false;
+        function processVerbs(t, i, e) {
+            var a = false;
             forEach(VERBS, function(r) {
                 if (hasAttribute(t, "hx-" + r)) {
                     var n = getAttributeValue(t, "hx-" + r);
-                    i = true;
-                    a.path = n;
-                    a.verb = r;
+                    a = true;
+                    i.path = n;
+                    i.verb = r;
                     e.forEach(function(e) {
-                        addTriggerHandler(t, e, a, function(e, t) {
+                        addTriggerHandler(t, e, i, function(e, t) {
                             if (closest(e, htmx.config.disableSelector)) {
                                 cleanUpElement(e);
                                 return;
@@ -7617,7 +7617,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     });
                 }
             });
-            return i;
+            return a;
         }
         function addTriggerHandler(n, e, t, r) {
             if (e.sseEvent) {
@@ -7627,14 +7627,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 addEventListener(n, r, t, e);
                 maybeReveal(n);
             } else if (e.trigger === "intersect") {
-                var a = {};
+                var i = {};
                 if (e.root) {
-                    a.root = querySelectorExt(n, e.root);
+                    i.root = querySelectorExt(n, e.root);
                 }
                 if (e.threshold) {
-                    a.threshold = parseFloat(e.threshold);
+                    i.threshold = parseFloat(e.threshold);
                 }
-                var i = new IntersectionObserver(function(e) {
+                var a = new IntersectionObserver(function(e) {
                     for (var t = 0; t < e.length; t++) {
                         var r = e[t];
                         if (r.isIntersecting) {
@@ -7642,8 +7642,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             break;
                         }
                     }
-                }, a);
-                i.observe(n);
+                }, i);
+                a.observe(n);
                 addEventListener(n, r, t, e);
             } else if (e.trigger === "load") {
                 if (!maybeFilterEvent(e, n, makeEvent("load", {
@@ -7712,10 +7712,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 var n = document.evaluate('.//*[@*[ starts-with(name(), "hx-on:") or starts-with(name(), "data-hx-on:") or' + ' starts-with(name(), "hx-on-") or starts-with(name(), "data-hx-on-") ]]', e);
                 while (t = n.iterateNext()) r.push(t);
             } else if (typeof e.getElementsByTagName === "function") {
-                var a = e.getElementsByTagName("*");
-                for (var i = 0; i < a.length; i++) {
-                    if (shouldProcessHxOn(a[i])) {
-                        r.push(a[i]);
+                var i = e.getElementsByTagName("*");
+                for (var a = 0; a < i.length; a++) {
+                    if (shouldProcessHxOn(i[a])) {
+                        r.push(i[a]);
                     }
                 }
             }
@@ -7763,10 +7763,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             var t = tokenizeString(e);
             var r = 0;
             for (var n = 0; n < t.length; n++) {
-                const a = t[n];
-                if (a === "{") {
+                const i = t[n];
+                if (i === "{") {
                     r++;
-                } else if (a === "}") {
+                } else if (i === "}") {
                     r--;
                 }
             }
@@ -7777,19 +7777,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (!Array.isArray(n.onHandlers)) {
                 n.onHandlers = [];
             }
-            var a;
-            var i = function(e) {
+            var i;
+            var a = function(e) {
                 return maybeEval(t, function() {
-                    if (!a) {
-                        a = new Function("event", r);
+                    if (!i) {
+                        i = new Function("event", r);
                     }
-                    a.call(t, e);
+                    i.call(t, e);
                 });
             };
-            t.addEventListener(e, i);
+            t.addEventListener(e, a);
             n.onHandlers.push({
                 event: e,
-                listener: i
+                listener: a
             });
         }
         function processHxOn(e) {
@@ -7797,19 +7797,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (t) {
                 var r = {};
                 var n = t.split("\n");
-                var a = null;
-                var i = 0;
+                var i = null;
+                var a = 0;
                 while (n.length > 0) {
                     var s = n.shift();
                     var o = s.match(/^\s*([a-zA-Z:\-\.]+:)(.*)/);
-                    if (i === 0 && o) {
+                    if (a === 0 && o) {
                         s.split(":");
-                        a = o[1].slice(0, -1);
-                        r[a] = o[2];
+                        i = o[1].slice(0, -1);
+                        r[i] = o[2];
                     } else {
-                        r[a] += s;
+                        r[i] += s;
                     }
-                    i += countCurlies(s);
+                    a += countCurlies(s);
                 }
                 for (var l in r) {
                     addHxOnEventHandler(e, l, r[l]);
@@ -7822,10 +7822,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 var r = e.attributes[t].name;
                 var n = e.attributes[t].value;
                 if (startsWith(r, "hx-on") || startsWith(r, "data-hx-on")) {
-                    var a = r.indexOf("-on") + 3;
-                    var i = r.slice(a, a + 1);
-                    if (i === "-" || i === ":") {
-                        var s = r.slice(a + 1);
+                    var i = r.indexOf("-on") + 3;
+                    var a = r.slice(i, i + 1);
+                    if (a === "-" || a === ":") {
+                        var s = r.slice(i + 1);
                         if (startsWith(s, ":")) {
                             s = "htmx" + s;
                         } else if (startsWith(s, "-")) {
@@ -7866,13 +7866,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 if (t.tagName === "FORM" || getRawAttribute(t, "type") === "submit" && hasAttribute(t, "form")) {
                     initButtonTracking(t);
                 }
-                var a = getAttributeValue(t, "hx-sse");
-                if (a) {
-                    processSSEInfo(t, r, a);
-                }
-                var i = getAttributeValue(t, "hx-ws");
+                var i = getAttributeValue(t, "hx-sse");
                 if (i) {
-                    processWebSocketInfo(t, r, i);
+                    processSSEInfo(t, r, i);
+                }
+                var a = getAttributeValue(t, "hx-ws");
+                if (a) {
+                    processWebSocketInfo(t, r, a);
                 }
                 triggerEvent(t, "htmx:afterProcessNode");
             }
@@ -7946,16 +7946,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     errorInfo: r
                 });
             }
-            var a = e.dispatchEvent(n);
-            var i = kebabEventName(t);
-            if (a && i !== t) {
-                var s = makeEvent(i, n.detail);
-                a = a && e.dispatchEvent(s);
+            var i = e.dispatchEvent(n);
+            var a = kebabEventName(t);
+            if (i && a !== t) {
+                var s = makeEvent(a, n.detail);
+                i = i && e.dispatchEvent(s);
             }
             withExtensions(e, function(e) {
-                a = a && (e.onEvent(t, n) !== false && !n.defaultPrevented);
+                i = i && (e.onEvent(t, n) !== false && !n.defaultPrevented);
             });
-            return a;
+            return i;
         }
         var currentPathForHistory = location.pathname + location.search;
         function getHistoryElement() {
@@ -7971,10 +7971,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 return;
             }
             e = normalizePath(e);
-            var a = parseJSON(localStorage.getItem("htmx-history-cache")) || [];
-            for (var i = 0; i < a.length; i++) {
-                if (a[i].url === e) {
-                    a.splice(i, 1);
+            var i = parseJSON(localStorage.getItem("htmx-history-cache")) || [];
+            for (var a = 0; a < i.length; a++) {
+                if (i[a].url === e) {
+                    i.splice(a, 1);
                     break;
                 }
             }
@@ -7986,22 +7986,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             };
             triggerEvent(getDocument().body, "htmx:historyItemCreated", {
                 item: s,
-                cache: a
+                cache: i
             });
-            a.push(s);
-            while (a.length > htmx.config.historyCacheSize) {
-                a.shift();
+            i.push(s);
+            while (i.length > htmx.config.historyCacheSize) {
+                i.shift();
             }
-            while (a.length > 0) {
+            while (i.length > 0) {
                 try {
-                    localStorage.setItem("htmx-history-cache", JSON.stringify(a));
+                    localStorage.setItem("htmx-history-cache", JSON.stringify(i));
                     break;
                 } catch (e) {
                     triggerErrorEvent(getDocument().body, "htmx:historyCacheError", {
                         cause: e,
-                        cache: a
+                        cache: i
                     });
-                    a.shift();
+                    i.shift();
                 }
             }
         }
@@ -8071,14 +8071,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 e.call();
             });
         }
-        function loadHistoryFromServer(i) {
+        function loadHistoryFromServer(a) {
             var e = new XMLHttpRequest();
             var s = {
-                path: i,
+                path: a,
                 xhr: e
             };
             triggerEvent(getDocument().body, "htmx:historyCacheMiss", s);
-            e.open("GET", i, true);
+            e.open("GET", a, true);
             e.setRequestHeader("HX-Request", "true");
             e.setRequestHeader("HX-History-Restore-Request", "true");
             e.setRequestHeader("HX-Current-URL", getDocument().location.href);
@@ -8091,18 +8091,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     var r = makeSettleInfo(t);
                     var n = findTitle(this.response);
                     if (n) {
-                        var a = find("title");
-                        if (a) {
-                            a.innerHTML = n;
+                        var i = find("title");
+                        if (i) {
+                            i.innerHTML = n;
                         } else {
                             window.document.title = n;
                         }
                     }
                     swapInnerHTML(t, e, r);
                     settleImmediately(r.tasks);
-                    currentPathForHistory = i;
+                    currentPathForHistory = a;
                     triggerEvent(getDocument().body, "htmx:historyRestore", {
-                        path: i,
+                        path: a,
                         cacheMiss: true,
                         serverResponse: this.response
                     });
@@ -8119,9 +8119,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (t) {
                 var r = makeFragment(t.content);
                 var n = getHistoryElement();
-                var a = makeSettleInfo(n);
-                swapInnerHTML(n, r, a);
-                settleImmediately(a.tasks);
+                var i = makeSettleInfo(n);
+                swapInnerHTML(n, r, i);
+                settleImmediately(i.tasks);
                 document.title = t.title;
                 setTimeout(function() {
                     window.scrollTo(0, t.scroll);
@@ -8220,14 +8220,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             }
         }
-        function processInputValue(t, r, n, e, a) {
+        function processInputValue(t, r, n, e, i) {
             if (e == null || haveSeenNode(t, e)) {
                 return;
             } else {
                 t.push(e);
             }
             if (shouldInclude(e)) {
-                var i = getRawAttribute(e, "name");
+                var a = getRawAttribute(e, "name");
                 var s = e.value;
                 if (e.multiple && e.tagName === "SELECT") {
                     s = toArray(e.querySelectorAll("option:checked")).map(function(e) {
@@ -8237,15 +8237,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 if (e.files) {
                     s = toArray(e.files);
                 }
-                addValueToValues(i, s, r);
-                if (a) {
+                addValueToValues(a, s, r);
+                if (i) {
                     validateElement(e, n);
                 }
             }
             if (matches(e, "form")) {
                 var o = e.elements;
                 forEach(o, function(e) {
-                    processInputValue(t, r, n, e, a);
+                    processInputValue(t, r, n, e, i);
                 });
             }
         }
@@ -8268,8 +8268,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         function getInputValues(e, t) {
             var r = [];
             var n = {};
-            var a = {};
-            var i = [];
+            var i = {};
+            var a = [];
             var s = getInternalData(e);
             if (s.lastButtonClicked && !bodyContains(s.lastButtonClicked)) {
                 s.lastButtonClicked = null;
@@ -8279,26 +8279,26 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 o = o && s.lastButtonClicked.formNoValidate !== true;
             }
             if (t !== "get") {
-                processInputValue(r, a, i, closest(e, "form"), o);
+                processInputValue(r, i, a, closest(e, "form"), o);
             }
-            processInputValue(r, n, i, e, o);
+            processInputValue(r, n, a, e, o);
             if (s.lastButtonClicked || e.tagName === "BUTTON" || e.tagName === "INPUT" && getRawAttribute(e, "type") === "submit") {
                 var l = s.lastButtonClicked || e;
                 var u = getRawAttribute(l, "name");
-                addValueToValues(u, l.value, a);
+                addValueToValues(u, l.value, i);
             }
             var c = findAttributeTargets(e, "hx-include");
             forEach(c, function(e) {
-                processInputValue(r, n, i, e, o);
+                processInputValue(r, n, a, e, o);
                 if (!matches(e, "form")) {
                     forEach(e.querySelectorAll(INPUT_SELECTOR), function(e) {
-                        processInputValue(r, n, i, e, o);
+                        processInputValue(r, n, a, e, o);
                     });
                 }
             });
-            n = mergeObjects(n, a);
+            n = mergeObjects(n, i);
             return {
-                errors: i,
+                errors: a,
                 values: n
             };
         }
@@ -8401,10 +8401,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 n["show"] = "top";
             }
             if (r) {
-                var a = splitOnWhitespace(r);
-                if (a.length > 0) {
-                    for (var i = 0; i < a.length; i++) {
-                        var s = a[i];
+                var i = splitOnWhitespace(r);
+                if (i.length > 0) {
+                    for (var a = 0; a < i.length; a++) {
+                        var s = i[a];
                         if (s.indexOf("swap:") === 0) {
                             n["swapDelay"] = parseInterval(s.substr(5));
                         } else if (s.indexOf("settle:") === 0) {
@@ -8430,7 +8430,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         } else if (s.indexOf("focus-scroll:") === 0) {
                             var p = s.substr("focus-scroll:".length);
                             n["focusScroll"] = p == "true";
-                        } else if (i == 0) {
+                        } else if (a == 0) {
                             n["swapStyle"] = s;
                         } else {
                             logError("Unknown modifier in hx-swap: " + s);
@@ -8444,14 +8444,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             return getClosestAttributeValue(e, "hx-encoding") === "multipart/form-data" || matches(e, "form") && getRawAttribute(e, "enctype") === "multipart/form-data";
         }
         function encodeParamsForBody(t, r, n) {
-            var a = null;
+            var i = null;
             withExtensions(r, function(e) {
-                if (a == null) {
-                    a = e.encodeParameters(t, n, r);
+                if (i == null) {
+                    i = e.encodeParameters(t, n, r);
                 }
             });
-            if (a != null) {
-                return a;
+            if (i != null) {
+                return i;
             } else {
                 if (usesFormData(r)) {
                     return makeFormData(n);
@@ -8470,38 +8470,38 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             var r = e[0];
             var n = e[e.length - 1];
             if (t.scroll) {
-                var a = null;
+                var i = null;
                 if (t.scrollTarget) {
-                    a = querySelectorExt(r, t.scrollTarget);
+                    i = querySelectorExt(r, t.scrollTarget);
                 }
-                if (t.scroll === "top" && (r || a)) {
-                    a = a || r;
-                    a.scrollTop = 0;
+                if (t.scroll === "top" && (r || i)) {
+                    i = i || r;
+                    i.scrollTop = 0;
                 }
-                if (t.scroll === "bottom" && (n || a)) {
-                    a = a || n;
-                    a.scrollTop = a.scrollHeight;
+                if (t.scroll === "bottom" && (n || i)) {
+                    i = i || n;
+                    i.scrollTop = i.scrollHeight;
                 }
             }
             if (t.show) {
-                var a = null;
+                var i = null;
                 if (t.showTarget) {
-                    var i = t.showTarget;
+                    var a = t.showTarget;
                     if (t.showTarget === "window") {
-                        i = "body";
+                        a = "body";
                     }
-                    a = querySelectorExt(r, i);
+                    i = querySelectorExt(r, a);
                 }
-                if (t.show === "top" && (r || a)) {
-                    a = a || r;
-                    a.scrollIntoView({
+                if (t.show === "top" && (r || i)) {
+                    i = i || r;
+                    i.scrollIntoView({
                         block: "start",
                         behavior: htmx.config.scrollBehavior
                     });
                 }
-                if (t.show === "bottom" && (n || a)) {
-                    a = a || n;
-                    a.scrollIntoView({
+                if (t.show === "bottom" && (n || i)) {
+                    i = i || n;
+                    i.scrollIntoView({
                         block: "end",
                         behavior: htmx.config.scrollBehavior
                     });
@@ -8515,30 +8515,30 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (e == null) {
                 return n;
             }
-            var a = getAttributeValue(e, t);
-            if (a) {
-                var i = a.trim();
+            var i = getAttributeValue(e, t);
+            if (i) {
+                var a = i.trim();
                 var s = r;
-                if (i === "unset") {
+                if (a === "unset") {
                     return null;
                 }
-                if (i.indexOf("javascript:") === 0) {
-                    i = i.substr(11);
+                if (a.indexOf("javascript:") === 0) {
+                    a = a.substr(11);
                     s = true;
-                } else if (i.indexOf("js:") === 0) {
-                    i = i.substr(3);
+                } else if (a.indexOf("js:") === 0) {
+                    a = a.substr(3);
                     s = true;
                 }
-                if (i.indexOf("{") !== 0) {
-                    i = "{" + i + "}";
+                if (a.indexOf("{") !== 0) {
+                    a = "{" + a + "}";
                 }
                 var o;
                 if (s) {
                     o = maybeEval(e, function() {
-                        return Function("return (" + i + ")")();
+                        return Function("return (" + a + ")")();
                     }, {});
                 } else {
-                    o = parseJSON(i);
+                    o = parseJSON(a);
                 }
                 for (var l in o) {
                     if (o.hasOwnProperty(l)) {
@@ -8627,13 +8627,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
         function verifyPath(e, t, r) {
             var n;
-            var a;
+            var i;
             if (typeof URL === "function") {
-                a = new URL(t, document.location.href);
-                var i = document.location.origin;
-                n = i === a.origin;
+                i = new URL(t, document.location.href);
+                var a = document.location.origin;
+                n = a === i.origin;
             } else {
-                a = t;
+                i = t;
                 n = startsWith(t, document.location.origin);
             }
             if (htmx.config.selfRequestsOnly) {
@@ -8642,15 +8642,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             }
             return triggerEvent(e, "htmx:validateUrl", mergeObjects({
-                url: a,
+                url: i,
                 sameHost: n
             }, r));
         }
-        function issueAjaxRequest(t, r, n, a, i, e) {
+        function issueAjaxRequest(t, r, n, i, a, e) {
             var s = null;
             var o = null;
-            i = i != null ? i : {};
-            if (i.returnPromise && typeof Promise !== "undefined") {
+            a = a != null ? a : {};
+            if (a.returnPromise && typeof Promise !== "undefined") {
                 var l = new Promise(function(e, t) {
                     s = e;
                     o = t;
@@ -8659,13 +8659,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (n == null) {
                 n = getDocument().body;
             }
-            var D = i.handler || handleAjaxResponse;
-            var M = i.select || null;
+            var D = a.handler || handleAjaxResponse;
+            var M = a.select || null;
             if (!bodyContains(n)) {
                 maybeCall(s);
                 return l;
             }
-            var u = i.targetOverride || getTarget(n);
+            var u = a.targetOverride || getTarget(n);
             if (u == null || u == DUMMY_ELT) {
                 triggerErrorEvent(n, "htmx:targetError", {
                     target: getAttributeValue(n, "hx-target")
@@ -8689,20 +8689,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             }
             var d = getClosestAttributeValue(n, "hx-confirm");
             if (e === undefined) {
-                var F = function(e) {
-                    return issueAjaxRequest(t, r, n, a, i, !!e);
+                var B = function(e) {
+                    return issueAjaxRequest(t, r, n, i, a, !!e);
                 };
-                var B = {
+                var $ = {
                     target: u,
                     elt: n,
                     path: r,
                     verb: t,
-                    triggeringEvent: a,
-                    etc: i,
-                    issueRequest: F,
+                    triggeringEvent: i,
+                    etc: a,
+                    issueRequest: B,
                     question: d
                 };
-                if (triggerEvent(n, "htmx:confirm", B) === false) {
+                if (triggerEvent(n, "htmx:confirm", $) === false) {
                     maybeCall(s);
                     return l;
                 }
@@ -8712,14 +8712,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             var v = null;
             var y = false;
             if (g) {
-                var q = g.split(":");
-                var $ = q[0].trim();
-                if ($ === "this") {
+                var F = g.split(":");
+                var q = F[0].trim();
+                if (q === "this") {
                     m = findThisElement(n, "hx-sync");
                 } else {
-                    m = querySelectorExt(n, $);
+                    m = querySelectorExt(n, q);
                 }
-                g = (q[1] || "drop").trim();
+                g = (F[1] || "drop").trim();
                 c = getInternalData(m);
                 if (g === "drop" && c.xhr && c.abortable !== true) {
                     maybeCall(s);
@@ -8734,8 +8734,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 } else if (g === "replace") {
                     triggerEvent(m, "htmx:abort");
                 } else if (g.indexOf("queue") === 0) {
-                    var V = g.split(" ");
-                    v = (V[1] || "last").trim();
+                    var U = g.split(" ");
+                    v = (U[1] || "last").trim();
                 }
             }
             if (c.xhr) {
@@ -8743,8 +8743,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     triggerEvent(m, "htmx:abort");
                 } else {
                     if (v == null) {
-                        if (a) {
-                            var b = getInternalData(a);
+                        if (i) {
+                            var b = getInternalData(i);
                             if (b && b.triggerSpec && b.triggerSpec.queue) {
                                 v = b.triggerSpec.queue;
                             }
@@ -8758,16 +8758,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                     if (v === "first" && c.queuedRequests.length === 0) {
                         c.queuedRequests.push(function() {
-                            issueAjaxRequest(t, r, n, a, i);
+                            issueAjaxRequest(t, r, n, i, a);
                         });
                     } else if (v === "all") {
                         c.queuedRequests.push(function() {
-                            issueAjaxRequest(t, r, n, a, i);
+                            issueAjaxRequest(t, r, n, i, a);
                         });
                     } else if (v === "last") {
                         c.queuedRequests = [];
                         c.queuedRequests.push(function() {
-                            issueAjaxRequest(t, r, n, a, i);
+                            issueAjaxRequest(t, r, n, i, a);
                         });
                     }
                     maybeCall(s);
@@ -8785,9 +8785,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     e();
                 }
             };
-            var j = getClosestAttributeValue(n, "hx-prompt");
-            if (j) {
-                var S = prompt(j);
+            var V = getClosestAttributeValue(n, "hx-prompt");
+            if (V) {
+                var S = prompt(V);
                 if (S === null || !triggerEvent(n, "htmx:prompt", {
                     prompt: S,
                     target: u
@@ -8808,14 +8808,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             if (t !== "get" && !usesFormData(n)) {
                 w["Content-Type"] = "application/x-www-form-urlencoded";
             }
-            if (i.headers) {
-                w = mergeObjects(w, i.headers);
+            if (a.headers) {
+                w = mergeObjects(w, a.headers);
             }
-            var U = getInputValues(n, t);
-            var k = U.errors;
-            var A = U.values;
-            if (i.values) {
-                A = mergeObjects(A, i.values);
+            var j = getInputValues(n, t);
+            var k = j.errors;
+            var A = j.values;
+            if (a.values) {
+                A = mergeObjects(A, a.values);
             }
             var W = getExpressionVars(n);
             var G = mergeObjects(A, W);
@@ -8828,66 +8828,66 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             }
             var _ = getValuesForElement(n, "hx-request");
             var X = getInternalData(n).boosted;
-            var P = htmx.config.methodsThatUseUrlParams.indexOf(t) >= 0;
-            var I = {
+            var I = htmx.config.methodsThatUseUrlParams.indexOf(t) >= 0;
+            var T = {
                 boosted: X,
-                useUrlParams: P,
+                useUrlParams: I,
                 parameters: C,
                 unfilteredParameters: G,
                 headers: w,
                 target: u,
                 verb: t,
                 errors: k,
-                withCredentials: i.credentials || _.credentials || htmx.config.withCredentials,
-                timeout: i.timeout || _.timeout || htmx.config.timeout,
+                withCredentials: a.credentials || _.credentials || htmx.config.withCredentials,
+                timeout: a.timeout || _.timeout || htmx.config.timeout,
                 path: r,
-                triggeringEvent: a
+                triggeringEvent: i
             };
-            if (!triggerEvent(n, "htmx:configRequest", I)) {
+            if (!triggerEvent(n, "htmx:configRequest", T)) {
                 maybeCall(s);
                 x();
                 return l;
             }
-            r = I.path;
-            t = I.verb;
-            w = I.headers;
-            C = I.parameters;
-            k = I.errors;
-            P = I.useUrlParams;
+            r = T.path;
+            t = T.verb;
+            w = T.headers;
+            C = T.parameters;
+            k = T.errors;
+            I = T.useUrlParams;
             if (k && k.length > 0) {
-                triggerEvent(n, "htmx:validation:halted", I);
+                triggerEvent(n, "htmx:validation:halted", T);
                 maybeCall(s);
                 x();
                 return l;
             }
             var z = r.split("#");
             var J = z[0];
-            var T = z[1];
-            var O = r;
-            if (P) {
-                O = J;
+            var O = z[1];
+            var P = r;
+            if (I) {
+                P = J;
                 var K = Object.keys(C).length !== 0;
                 if (K) {
-                    if (O.indexOf("?") < 0) {
-                        O += "?";
+                    if (P.indexOf("?") < 0) {
+                        P += "?";
                     } else {
-                        O += "&";
+                        P += "&";
                     }
-                    O += urlEncode(C);
-                    if (T) {
-                        O += "#" + T;
+                    P += urlEncode(C);
+                    if (O) {
+                        P += "#" + O;
                     }
                 }
             }
-            if (!verifyPath(n, O, I)) {
-                triggerErrorEvent(n, "htmx:invalidPath", I);
+            if (!verifyPath(n, P, T)) {
+                triggerErrorEvent(n, "htmx:invalidPath", T);
                 maybeCall(o);
                 return l;
             }
-            E.open(t.toUpperCase(), O, true);
+            E.open(t.toUpperCase(), P, true);
             E.overrideMimeType("text/html");
-            E.withCredentials = I.withCredentials;
-            E.timeout = I.timeout;
+            E.withCredentials = T.withCredentials;
+            E.timeout = T.timeout;
             if (_.noHeaders) {} else {
                 for (var N in w) {
                     if (w.hasOwnProperty(N)) {
@@ -8896,27 +8896,27 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     }
                 }
             }
-            var H = {
+            var R = {
                 xhr: E,
                 target: u,
-                requestConfig: I,
-                etc: i,
+                requestConfig: T,
+                etc: a,
                 boosted: X,
                 select: M,
                 pathInfo: {
                     requestPath: r,
-                    finalRequestPath: O,
-                    anchor: T
+                    finalRequestPath: P,
+                    anchor: O
                 }
             };
             E.onload = function() {
                 try {
                     var e = hierarchyForElt(n);
-                    H.pathInfo.responsePath = getPathFromResponse(E);
-                    D(n, H);
-                    removeRequestIndicators(R, L);
-                    triggerEvent(n, "htmx:afterRequest", H);
-                    triggerEvent(n, "htmx:afterOnLoad", H);
+                    R.pathInfo.responsePath = getPathFromResponse(E);
+                    D(n, R);
+                    removeRequestIndicators(L, H);
+                    triggerEvent(n, "htmx:afterRequest", R);
+                    triggerEvent(n, "htmx:afterOnLoad", R);
                     if (!bodyContains(n)) {
                         var t = null;
                         while (e.length > 0 && t == null) {
@@ -8926,8 +8926,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                             }
                         }
                         if (t) {
-                            triggerEvent(t, "htmx:afterRequest", H);
-                            triggerEvent(t, "htmx:afterOnLoad", H);
+                            triggerEvent(t, "htmx:afterRequest", R);
+                            triggerEvent(t, "htmx:afterOnLoad", R);
                         }
                     }
                     maybeCall(s);
@@ -8935,38 +8935,38 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 } catch (e) {
                     triggerErrorEvent(n, "htmx:onLoadError", mergeObjects({
                         error: e
-                    }, H));
+                    }, R));
                     throw e;
                 }
             };
             E.onerror = function() {
-                removeRequestIndicators(R, L);
-                triggerErrorEvent(n, "htmx:afterRequest", H);
-                triggerErrorEvent(n, "htmx:sendError", H);
+                removeRequestIndicators(L, H);
+                triggerErrorEvent(n, "htmx:afterRequest", R);
+                triggerErrorEvent(n, "htmx:sendError", R);
                 maybeCall(o);
                 x();
             };
             E.onabort = function() {
-                removeRequestIndicators(R, L);
-                triggerErrorEvent(n, "htmx:afterRequest", H);
-                triggerErrorEvent(n, "htmx:sendAbort", H);
+                removeRequestIndicators(L, H);
+                triggerErrorEvent(n, "htmx:afterRequest", R);
+                triggerErrorEvent(n, "htmx:sendAbort", R);
                 maybeCall(o);
                 x();
             };
             E.ontimeout = function() {
-                removeRequestIndicators(R, L);
-                triggerErrorEvent(n, "htmx:afterRequest", H);
-                triggerErrorEvent(n, "htmx:timeout", H);
+                removeRequestIndicators(L, H);
+                triggerErrorEvent(n, "htmx:afterRequest", R);
+                triggerErrorEvent(n, "htmx:timeout", R);
                 maybeCall(o);
                 x();
             };
-            if (!triggerEvent(n, "htmx:beforeRequest", H)) {
+            if (!triggerEvent(n, "htmx:beforeRequest", R)) {
                 maybeCall(s);
                 x();
                 return l;
             }
-            var R = addRequestIndicatorClasses(n);
-            var L = disableElements(n);
+            var L = addRequestIndicatorClasses(n);
+            var H = disableElements(n);
             forEach([ "loadstart", "loadend", "progress", "abort" ], function(t) {
                 forEach([ E, E.upload ], function(e) {
                     e.addEventListener(t, function(e) {
@@ -8978,36 +8978,36 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     });
                 });
             });
-            triggerEvent(n, "htmx:beforeSend", H);
-            var Z = P ? null : encodeParamsForBody(E, n, C);
+            triggerEvent(n, "htmx:beforeSend", R);
+            var Z = I ? null : encodeParamsForBody(E, n, C);
             E.send(Z);
             return l;
         }
         function determineHistoryUpdates(e, t) {
             var r = t.xhr;
             var n = null;
-            var a = null;
+            var i = null;
             if (hasHeader(r, /HX-Push:/i)) {
                 n = r.getResponseHeader("HX-Push");
-                a = "push";
+                i = "push";
             } else if (hasHeader(r, /HX-Push-Url:/i)) {
                 n = r.getResponseHeader("HX-Push-Url");
-                a = "push";
+                i = "push";
             } else if (hasHeader(r, /HX-Replace-Url:/i)) {
                 n = r.getResponseHeader("HX-Replace-Url");
-                a = "replace";
+                i = "replace";
             }
             if (n) {
                 if (n === "false") {
                     return {};
                 } else {
                     return {
-                        type: a,
+                        type: i,
                         path: n
                     };
                 }
             }
-            var i = t.pathInfo.finalRequestPath;
+            var a = t.pathInfo.finalRequestPath;
             var s = t.pathInfo.responsePath;
             var o = getClosestAttributeValue(e, "hx-push-url");
             var l = getClosestAttributeValue(e, "hx-replace-url");
@@ -9022,14 +9022,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 f = l;
             } else if (u) {
                 c = "push";
-                f = s || i;
+                f = s || a;
             }
             if (f) {
                 if (f === "false") {
                     return {};
                 }
                 if (f === "true") {
-                    f = s || i;
+                    f = s || a;
                 }
                 if (t.pathInfo.anchor && f.indexOf("#") === -1) {
                     f = f + "#" + t.pathInfo.anchor;
@@ -9084,24 +9084,24 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                 }
             }
             var d = determineHistoryUpdates(l, u);
-            var a = c.status >= 200 && c.status < 400 && c.status !== 204;
+            var i = c.status >= 200 && c.status < 400 && c.status !== 204;
             var m = c.response;
-            var i = c.status >= 400;
+            var a = c.status >= 400;
             var g = htmx.config.ignoreTitle;
             var s = mergeObjects({
-                shouldSwap: a,
+                shouldSwap: i,
                 serverResponse: m,
-                isError: i,
+                isError: a,
                 ignoreTitle: g
             }, u);
             if (!triggerEvent(f, "htmx:beforeSwap", s)) return;
             f = s.target;
             m = s.serverResponse;
-            i = s.isError;
+            a = s.isError;
             g = s.ignoreTitle;
             u.target = f;
-            u.failed = i;
-            u.successful = !i;
+            u.failed = a;
+            u.successful = !a;
             if (s.shouldSwap) {
                 if (c.status === 286) {
                     cancelPolling(l);
@@ -9160,17 +9160,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                         var n = makeSettleInfo(f);
                         selectAndSwap(p.swapStyle, f, l, m, n, r);
                         if (t.elt && !bodyContains(t.elt) && getRawAttribute(t.elt, "id")) {
-                            var a = document.getElementById(getRawAttribute(t.elt, "id"));
-                            var i = {
+                            var i = document.getElementById(getRawAttribute(t.elt, "id"));
+                            var a = {
                                 preventScroll: p.focusScroll !== undefined ? !p.focusScroll : !htmx.config.defaultFocusScroll
                             };
-                            if (a) {
-                                if (t.start && a.setSelectionRange) {
+                            if (i) {
+                                if (t.start && i.setSelectionRange) {
                                     try {
-                                        a.setSelectionRange(t.start, t.end);
+                                        i.setSelectionRange(t.start, t.end);
                                     } catch (e) {}
                                 }
-                                a.focus(i);
+                                i.focus(a);
                             }
                         }
                         f.classList.remove(htmx.config.swappingClass);
@@ -9258,7 +9258,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                     b();
                 }
             }
-            if (i) {
+            if (a) {
                 triggerErrorEvent(l, "htmx:responseError", mergeObjects({
                     error: "Response Status Error Code " + c.status + " from " + u.pathInfo.requestPath
                 }, u));
@@ -9397,18 +9397,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 var FlowPlater = function() {
     "use strict";
-    const c = function() {
+    const f = function() {
         return {
-            level: 3,
+            level: 1,
             levels: {
                 ERROR: 0,
                 WARN: 1,
                 INFO: 2,
                 DEBUG: 3
             },
-            debugMode: true,
             log: function(e, ...t) {
-                if (!this.debugMode) return;
                 if (e <= this.level) {
                     const r = [ "ERROR", "WARN", "INFO", "DEBUG" ][e];
                     switch (r) {
@@ -9431,11 +9429,11 @@ var FlowPlater = function() {
             }
         };
     }();
-    function p(...e) {
-        c.log(c.levels.INFO, ...e);
+    function m(...e) {
+        f.log(f.levels.INFO, ...e);
     }
-    function d(...e) {
-        c.log(c.levels.ERROR, ...e);
+    function g(...e) {
+        f.log(f.levels.ERROR, ...e);
     }
     class s extends Error {
         constructor(e, t) {
@@ -9444,15 +9442,15 @@ var FlowPlater = function() {
             this.stack = t;
         }
     }
-    class m extends s {
+    class v extends s {
         constructor(e, t) {
             super(e);
             this.name = "TemplateError";
             this.stack = t;
         }
     }
-    const g = function() {
-        const i = new Map();
+    const y = function() {
+        const a = new Map();
         return {
             subscribe(e, t, r = null) {
                 if (!e || typeof e !== "string") {
@@ -9461,51 +9459,51 @@ var FlowPlater = function() {
                 if (!t || typeof t !== "function") {
                     s(`Invalid callback for event "${e}". Callback must be a function.`);
                 }
-                if (!i.has(e)) {
-                    i.set(e, []);
+                if (!a.has(e)) {
+                    a.set(e, []);
                 }
-                i.get(e).push({
+                a.get(e).push({
                     callback: t,
                     context: r
                 });
-                c.log(c.levels.DEBUG, `Subscribed to event: ${e}`);
+                f.log(f.levels.DEBUG, `Subscribed to event: ${e}`);
                 return () => this.unsubscribe(e, t);
             },
             unsubscribe(e, t) {
                 if (!e || typeof e !== "string") {
                     s("Invalid event name. Event name must be a non-empty string. If you are trying to unsubscribe from all events, use unsubscribeAll() instead.");
                 }
-                if (!i.has(e)) return;
-                const r = i.get(e);
-                i.set(e, r.filter(e => e.callback !== t));
+                if (!a.has(e)) return;
+                const r = a.get(e);
+                a.set(e, r.filter(e => e.callback !== t));
             },
             unsubscribeAll() {
-                i.clear();
-                c.log(c.levels.INFO, "Cleared all event subscribers");
+                a.clear();
+                f.log(f.levels.INFO, "Cleared all event subscribers");
             },
             publish(r, n) {
-                if (!i.has(r)) return;
-                i.get(r).forEach(({
+                if (!a.has(r)) return;
+                a.get(r).forEach(({
                     callback: e,
                     context: t
                 }) => {
                     try {
                         e.call(t, n);
                     } catch (e) {
-                        d(`Error in event subscriber for ${r}:`, e);
+                        g(`Error in event subscriber for ${r}:`, e);
                     }
                 });
                 if (n && n.instanceName) {
-                    const a = `${n.instanceName}:${r}`;
-                    if (i.has(a)) {
-                        i.get(a).forEach(({
+                    const i = `${n.instanceName}:${r}`;
+                    if (a.has(i)) {
+                        a.get(i).forEach(({
                             callback: e,
                             context: t
                         }) => {
                             try {
                                 e.call(t, n);
                             } catch (e) {
-                                d(`Error in instance event subscriber for ${a}:`, e);
+                                g(`Error in instance event subscriber for ${i}:`, e);
                             }
                         });
                     }
@@ -9513,7 +9511,7 @@ var FlowPlater = function() {
             }
         };
     }();
-    const v = {
+    const b = {
         templateCache: {},
         instances: {},
         length: 0,
@@ -9522,13 +9520,13 @@ var FlowPlater = function() {
             debug: false
         }
     };
-    function i(e) {
-        return v.instances[e];
+    function a(e) {
+        return b.instances[e];
     }
-    function e() {
-        return v.instances;
+    function D() {
+        return b.instances;
     }
-    const y = {
+    const E = {
         marks: {},
         start: function(e) {
             this.marks[e] = performance.now();
@@ -9537,11 +9535,11 @@ var FlowPlater = function() {
             if (!this.marks[e]) return;
             const t = performance.now() - this.marks[e];
             delete this.marks[e];
-            c.log(c.levels.DEBUG, `${e} took ${t.toFixed(2)}ms`);
+            f.log(f.levels.DEBUG, `${e} took ${t.toFixed(2)}ms`);
             return t;
         }
     };
-    class n {
+    class M {
         constructor(e) {
             this.cache = new Map();
             this.original = e;
@@ -9549,581 +9547,76 @@ var FlowPlater = function() {
         apply(...e) {
             const t = JSON.stringify(e);
             if (this.cache.has(t)) {
-                c.log(c.levels.DEBUG, "Cache hit:", t);
+                f.log(f.levels.DEBUG, "Cache hit:", t);
                 return this.cache.get(t);
             }
-            c.log(c.levels.DEBUG, "Cache miss:", t);
+            f.log(f.levels.DEBUG, "Cache miss:", t);
             const r = this.original.apply(this, e);
             this.cache.set(t, r);
             return r;
         }
     }
-    function D(e) {
-        const t = new n(e);
+    function B(e) {
+        const t = new M(e);
         const r = (...e) => t.apply(...e);
         r.original = t.original;
         r.cache = t.cache;
         return r;
     }
-    function f(o, e, i, t) {
-        if (!o.childNodes.length) {
-            o.innerHTML = e.innerHTML;
-            return;
-        }
-        if (o instanceof HTMLInputElement) {
-            o.value;
-            o.checked;
-            o instanceof HTMLSelectElement ? Array.from(o.selectedOptions).map(e => e.value) : null;
-            Array.from(e.attributes).forEach(e => {
-                if (e.name !== "value" && e.name !== "checked") {
-                    o.setAttribute(e.name, e.value);
-                }
-            });
-            return;
-        }
-        const l = o instanceof SVGElement;
-        if (M(o)) {
-            F(o, e);
-            return;
-        }
-        if (!o.children.length && o.childNodes.length || !e.children.length && e.childNodes.length) {
-            B(o, e);
-            return;
-        }
-        const u = Array.from(o.childNodes);
-        const r = Array.from(e.childNodes);
-        if (u.length === 1 && r.length === 1 && u[0].nodeType === r[0].nodeType && u[0].nodeName === r[0].nodeName) {
-            f(u[0], r[0], i);
-            return;
-        }
-        const c = new Set();
-        r.forEach((e, t) => {
-            if (e.nodeType === Node.ELEMENT_NODE) {
-                const r = e.getAttribute("data-key");
-                if (r) {
-                    const n = i.get(r);
-                    if (n) {
-                        const a = u.indexOf(n);
-                        if (a !== -1) {
-                            o.insertBefore(n, u[t] || null);
-                            c.add(a);
-                        }
-                    }
-                }
-            }
-        });
-        r.forEach((r, e) => {
-            const t = u.findIndex((e, t) => !c.has(t) && h(e, r));
-            if (t !== -1) {
-                c.add(t);
-                const n = u[t];
-                const a = Array.from(o.childNodes).indexOf(n);
-                if (a !== e) {
-                    const i = u[e];
-                    if (i && i !== n) {
-                        o.insertBefore(n, i);
-                    }
-                }
-            } else {
-                const s = l ? b(r) : r.cloneNode(true);
-                const i = u[e] || null;
-                o.insertBefore(s, i);
-            }
-        });
-        u.forEach((e, t) => {
-            if (!c.has(t)) {
-                o.removeChild(e);
-            }
-        });
-    }
-    function M(e) {
-        const t = [ "INPUT", "SELECT", "TEXTAREA", "IFRAME", "SCRIPT" ];
-        return t.includes(e.tagName);
-    }
-    function F(r, e) {
-        if (r instanceof HTMLInputElement || r instanceof HTMLSelectElement || r instanceof HTMLTextAreaElement) {
-            const t = r.value;
-            const n = r.checked;
-            const a = r instanceof HTMLSelectElement ? Array.from(r.selectedOptions).map(e => e.value) : null;
-            Array.from(e.attributes).forEach(e => {
-                if (e.name !== "value" && e.name !== "checked" && !e.name.startsWith("w-")) {
-                    r.setAttribute(e.name, e.value);
-                }
-            });
-            r.value = t;
-            r.checked = n;
-            if (a) {
-                a.forEach(e => {
-                    const t = r.querySelector(`option[value="${e}"]`);
-                    if (t) t.selected = true;
-                });
-            }
-        }
-        if (r instanceof HTMLIFrameElement || r instanceof HTMLScriptElement) {
-            Array.from(e.attributes).forEach(e => {
-                if (!e.name.startsWith("w-")) {
-                    r.setAttribute(e.name, e.value);
-                }
-            });
-        }
-    }
-    function B(n, e) {
-        const t = Array.from(n.childNodes);
-        const a = Array.from(e.childNodes);
-        if (t.length === a.length) {
-            t.forEach((e, t) => {
-                const r = a[t];
-                if (!h(e, r)) {
-                    n.replaceChild(r.cloneNode(true), e);
-                }
-            });
-        } else {
-            n.innerHTML = e.innerHTML;
-        }
-    }
-    function h(e, t) {
-        if (e.nodeType !== t.nodeType) return false;
-        if (e.nodeType === Node.TEXT_NODE) {
-            return e.textContent.trim() === t.textContent.trim();
-        }
-        if (e.nodeType === Node.COMMENT_NODE) {
-            return e.textContent === t.textContent;
-        }
-        if (e instanceof Element && (e.className.includes("w-") || t.className.includes("w-"))) {
-            return true;
-        }
-        return e.isEqualNode(t);
-    }
-    function b(e) {
-        if (!(e instanceof Element)) return e.cloneNode(true);
-        const t = e.namespaceURI;
-        const r = t ? document.createElementNS(t, e.tagName) : document.createElement(e.tagName);
-        Array.from(e.attributes).forEach(e => {
-            const t = e.namespaceURI;
-            if (t) {
-                r.setAttributeNS(t, e.name, e.value);
-            } else {
-                r.setAttribute(e.name, e.value);
-            }
-        });
-        Array.from(e.childNodes).forEach(e => {
-            r.appendChild(b(e));
-        });
-        return r;
-    }
-    async function E(a, i, e = false) {
-        y.start("updateDOM");
-        try {
-            if (!a || !(a instanceof HTMLElement)) {
-                throw new Error("Invalid target element");
-            }
-            if (typeof i !== "string") {
-                throw new Error("newHTML must be a string");
-            }
-            if (document.startViewTransition && e) {
-                await document.startViewTransition(() => {
-                    return new Promise(e => {
-                        const t = document.createElement("div");
-                        t.innerHTML = i.trim();
-                        const r = new Map();
-                        const n = new Map();
-                        o(a, r);
-                        o(t, n);
-                        f(a, t, r, n);
-                        e();
-                        y.end("updateDOM");
-                    });
-                }).finished;
-            } else {
-                const t = document.createElement("div");
-                t.innerHTML = i.trim();
-                const r = new Map();
-                const n = new Map();
-                o(a, r);
-                o(t, n);
-                f(a, t, r, n);
-                y.end("updateDOM");
-            }
-        } catch (e) {
-            c.log(c.levels.ERROR, "Error in updateDOM:", e);
-            console.error("UpdateDOM error:", e);
-            throw e;
-        } finally {
-            y.end("updateDOM");
-        }
-    }
-    function o(e, t) {
-        const r = document.createTreeWalker(e, NodeFilter.SHOW_ELEMENT, null, false);
-        let n;
-        while (n = r.nextNode()) {
-            const a = n.getAttribute("data-key");
-            if (a) {
-                t.set(a, n);
-            }
-        }
-    }
-    function l(e, t) {
-        if (v.config?.storage?.enabled) {
-            try {
-                const r = v.config.storage.ttl || 30 * 24 * 60 * 60;
-                const n = Date.now() + r * 1e3;
-                const a = {
-                    data: t,
-                    expiry: n
-                };
-                localStorage.setItem(`fp_${e}`, JSON.stringify(a));
-            } catch (e) {
-                d(`Failed to save to localStorage: ${e.message}`);
-            }
-        }
-    }
-    function q(e) {
-        if (v.config?.storage?.enabled) {
-            try {
-                const t = localStorage.getItem(`fp_${e}`);
-                if (!t) return null;
-                const r = JSON.parse(t);
-                const n = Date.now();
-                if (r.expiry && n > r.expiry) {
-                    localStorage.removeItem(`fp_${e}`);
-                    return null;
-                }
-                return r.data;
-            } catch (e) {
-                d(`Failed to load from localStorage: ${e.message}`);
-                return null;
-            }
-        }
-        return null;
-    }
-    function $(u) {
-        function a(e) {
-            const t = e.split(/[\.\[\]'"]/);
-            let r = this.data;
-            for (let e = 0; e < t.length; e++) {
-                const n = t[e];
-                if (n === "") continue;
-                if (r === undefined || r === null || !r.hasOwnProperty(n)) {
-                    return undefined;
-                }
-                r = r[n];
-            }
-            return r;
-        }
-        return {
-            _updateDOM: function() {
-                const e = v.instances[u];
-                if (!e) {
-                    d("Instance not found: " + u);
-                    return this;
-                }
-                e.elements.forEach(function(t) {
-                    try {
-                        E(t, e.template(e.proxy), e.animate);
-                    } catch (e) {
-                        t.innerHTML = `<div class="fp-error">Error refreshing template: ${e.message}</div>`;
-                        d(`Failed to refresh template: ${e.message}`);
-                    }
-                });
-                return this;
-            },
-            update: function(e) {
-                const t = v.instances[u];
-                if (!t) {
-                    d("Instance not found: " + u);
-                    return this;
-                }
-                Object.assign(t.data, e);
-                Object.assign(t.proxy, e);
-                l(u, t.data);
-                return this._updateDOM();
-            },
-            remove: function() {
-                const e = v.instances[u];
-                if (!e) {
-                    throw new Error("Instance not found: " + u);
-                }
-                g.publish("beforeRemove", {
-                    instanceName: u,
-                    elements: e.elements
-                });
-                try {
-                    if (v.config?.storage?.enabled) {
-                        localStorage.removeItem(`fp_${u}`);
-                    }
-                    e.elements.forEach(function(e) {
-                        try {
-                            e.innerHTML = "";
-                        } catch (e) {
-                            d("Error removing instance: " + e.message);
-                        }
-                    });
-                    e.elements = [];
-                    delete v.instances[u];
-                    delete v.templateCache[e.templateId];
-                    g.publish("afterRemove", {
-                        instanceName: u,
-                        elements: []
-                    });
-                    p("Removed instance: " + u);
-                    return true;
-                } catch (e) {
-                    throw e;
-                }
-            },
-            refresh: async function(s = {
-                remote: true,
-                recompile: false
-            }) {
-                const o = v.instances[u];
-                if (!o) {
-                    d("Instance not found: " + u);
-                    return Promise.reject(new Error("Instance not found: " + u));
-                }
-                const e = o.template(o.data);
-                const t = s.recompile || !e && o.data;
-                if (t) {
-                    o.template = S(o.templateId, true);
-                }
-                c.log(c.levels.DEBUG, "Refresh - Template check:", {
-                    templateId: o.templateId,
-                    templateElement: document.querySelector(o.templateId),
-                    compiledTemplate: o.template(o.data)
-                });
-                const l = [];
-                o.elements.forEach(function(r) {
-                    try {
-                        if (s.remote) {
-                            const e = [ "get", "post", "put", "patch", "delete" ];
-                            const t = e.some(e => r.getAttribute(`hx-${e}`));
-                            if (t) {
-                                const n = e.find(e => r.getAttribute(`hx-${e}`));
-                                const a = r.getAttribute(`hx-${n}`);
-                                const i = fetch(a, {
-                                    method: n.toUpperCase()
-                                }).then(e => {
-                                    if (!e.ok) {
-                                        throw new Error(`HTTP error! status: ${e.status}`);
-                                    }
-                                    return e.json();
-                                }).then(e => {
-                                    Object.assign(o.data, e);
-                                    Object.assign(o.proxy, e);
-                                    const t = o.template(o.proxy);
-                                    c.log(c.levels.DEBUG, "Refresh - Template render:", {
-                                        data: o.data,
-                                        rendered: t
-                                    });
-                                    E(r, t, o.animate);
-                                    return e;
-                                });
-                                l.push(i);
-                            }
-                        } else {
-                            E(r, o.template(o.proxy), o.animate);
-                        }
-                    } catch (e) {
-                        r.innerHTML = `<div class="fp-error">Error refreshing template: ${e.message}</div>`;
-                        d(`Failed to refresh template: ${e.message}`);
-                        l.push(Promise.reject(e));
-                    }
-                });
-                await Promise.all(l);
-                return this;
-            },
-            getData: function() {
-                return v.instances[u].data;
-            },
-            getProxy: function() {
-                return v.instances[u].proxy;
-            },
-            getElements: function() {
-                return v.instances[u].elements;
-            },
-            merge: function(e, r) {
-                const t = v.instances[u];
-                if (!t) {
-                    d("Instance not found: " + u);
-                    return this;
-                }
-                let n = r !== undefined ? r : e;
-                try {
-                    function a(t, e) {
-                        for (const r in e) {
-                            if (e.hasOwnProperty(r)) {
-                                if (Array.isArray(e[r]) && Array.isArray(t[r])) {
-                                    const n = new Map(t[r].map(e => [ e.id, e ]));
-                                    e[r].forEach(e => {
-                                        if (e.id && n.has(e.id)) {
-                                            a(n.get(e.id), e);
-                                        } else {
-                                            t[r].push(e);
-                                        }
-                                    });
-                                } else if (e[r] && typeof e[r] === "object" && !Array.isArray(e[r])) {
-                                    t[r] = t[r] || {};
-                                    a(t[r], e[r]);
-                                } else {
-                                    t[r] = e[r];
-                                }
-                            }
-                        }
-                        return t;
-                    }
-                    if (e && r !== undefined) {
-                        let t = this.getData();
-                        const i = e.split(/[\.\[\]'"]/);
-                        for (let e = 0; e < i.length - 1; e++) {
-                            const o = i[e];
-                            if (o === "") continue;
-                            if (!t[o]) t[o] = {};
-                            t = t[o];
-                        }
-                        const s = i[i.length - 1];
-                        if (s !== "") {
-                            if (!t[s]) {
-                                t[s] = Array.isArray(r) ? [] : {};
-                            }
-                            if (Array.isArray(r)) {
-                                if (!Array.isArray(t[s])) {
-                                    t[s] = [];
-                                }
-                                const l = t[s];
-                                r.forEach(t => {
-                                    if (t.id) {
-                                        const e = l.findIndex(e => e.id === t.id);
-                                        if (e >= 0) {
-                                            a(l[e], t);
-                                        } else {
-                                            l.push(t);
-                                        }
-                                    } else {
-                                        l.push(t);
-                                    }
-                                });
-                            } else if (typeof r === "object") {
-                                a(t[s], r);
-                            } else {
-                                t[s] = r;
-                            }
-                        }
-                    } else {
-                        a(this.getData(), n);
-                    }
-                    return this._updateDOM();
-                } catch (e) {
-                    d(e.message);
-                    return this;
-                }
-            },
-            set: function(e, t) {
-                const r = v.instances[u];
-                if (!r) {
-                    d("Instance not found: " + u);
-                    return this;
-                }
-                try {
-                    const n = e.split(/[\.\[\]'"]/g).filter(Boolean);
-                    const a = n.pop();
-                    const i = n.reduce((e, t) => {
-                        if (!e[t]) e[t] = {};
-                        return e[t];
-                    }, r.data);
-                    i[a] = t;
-                    Object.assign(r.proxy, r.data);
-                    l(u, r.data);
-                    return this._updateDOM();
-                } catch (e) {
-                    d(e.message);
-                    return this;
-                }
-            },
-            push: function(e, t) {
-                let r = a.call(this, e);
-                if (!Array.isArray(r)) {
-                    d("Target at path is not an array: " + e);
-                    return this;
-                }
-                try {
-                    r.push(t);
-                    return this._updateDOM();
-                } catch (e) {
-                    d(e.message);
-                    return this;
-                }
-            },
-            updateWhere: function(e, t, n) {
-                let r = a.call(this, e);
-                if (!Array.isArray(r)) {
-                    d("Target at path is not an array: " + e);
-                    return this;
-                }
-                try {
-                    r.forEach(r => {
-                        const e = Object.entries(t).every(([ e, t ]) => r[e] === t);
-                        if (e) {
-                            Object.assign(r, n);
-                        }
-                    });
-                    return this._updateDOM();
-                } catch (e) {
-                    d(e.message);
-                    return this;
-                }
-            },
-            get: function(e) {
-                return !e ? this.getData() : a.call(this, e);
-            }
-        };
-    }
-    const t = [ {
+    const e = [ {
         tag: "fpselect",
         replaceWith: "select"
     } ];
-    let x = t;
-    function r(e) {
-        x = e;
+    let h = e;
+    function t(e) {
+        h = e;
     }
-    function V(e) {
-        console.log("replaceCustomTags", e);
-        x.forEach(t => {
-            const r = Array.from(e.getElementsByTagName(t.tag));
-            for (let e = 0; e < r.length; e++) {
-                const n = r[e];
-                const a = document.createElement(t.replaceWith);
-                a.innerHTML = n.innerHTML;
-                for (let e of n.attributes) {
-                    a.setAttribute(e.name, e.value);
+    function $(e) {
+        let t = false;
+        for (const r of h) {
+            const n = e.getElementsByTagName(r.tag);
+            if (n.length > 0) {
+                t = true;
+                const i = Array.from(n);
+                for (const a of i) {
+                    const s = document.createElement(r.replaceWith);
+                    s.innerHTML = a.innerHTML;
+                    for (const o of a.attributes) {
+                        s.setAttribute(o.name, o.value);
+                    }
+                    a.parentNode.replaceChild(s, a);
                 }
-                n.parentNode.replaceChild(a, n);
             }
-        });
+        }
+        if (t) {
+            m("replaced custom tags", e);
+        }
         return e;
     }
-    function S(e, t = false) {
+    function x(e, t = false) {
         if (!t) {
-            return a(e);
+            return n(e);
         }
-        delete v.templateCache[e];
-        const r = a.original(e);
-        a.cache.set(JSON.stringify([ e ]), r);
+        delete b.templateCache[e];
+        const r = n.original(e);
+        n.cache.set(JSON.stringify([ e ]), r);
         return r;
     }
-    const a = D(function(t) {
-        y.start("compile:" + t);
+    const n = B(function(t) {
+        E.start("compile:" + t);
         const e = t.startsWith("#") ? t : "#" + t;
         var r = document.querySelector(e);
-        p("Trying to compile template: " + t);
+        m("Trying to compile template: " + t);
         if (!r) {
-            d("Template not found: " + t);
-            y.end("compile:" + t);
+            g("Template not found: " + t);
+            E.end("compile:" + t);
             return null;
         }
-        if (!v.templateCache[t] || r.hasAttribute("fp-dynamic") && r.getAttribute("fp-dynamic") !== "false") {
-            p("compiling template: " + t);
+        if (!b.templateCache[t] || r.hasAttribute("fp-dynamic") && r.getAttribute("fp-dynamic") !== "false") {
+            m("compiling template: " + t);
             function u(t) {
                 let r = t.tagName.toLowerCase();
-                x.forEach(e => {
+                h.forEach(e => {
                     if (r === e.tag) {
                         r = e.replaceWith;
                     }
@@ -10153,8 +9646,8 @@ var FlowPlater = function() {
                             } else if (t === "comment") {
                                 l += `{{!-- ${r} --}}`;
                             } else if (t === "if") {
-                                const a = r.replace(/"/g, '\\"');
-                                l += `{{#${t} "${a}"}}${n}{{/${t}}}`;
+                                const i = r.replace(/"/g, '\\"');
+                                l += `{{#${t} "${i}"}}${n}{{/${t}}}`;
                             } else if (t === "else") {
                                 l += `{{${t}}}${n}`;
                             } else if (t === "math") {
@@ -10171,110 +9664,1137 @@ var FlowPlater = function() {
                         } else if (e.tagName === "template" || e.tagName === "fptemplate" || e.hasAttribute("fp-template")) {
                             l += e.outerHTML;
                         } else {
-                            const i = c(e);
+                            const a = c(e);
                             const s = u(e);
                             let t = e.tagName.toLowerCase();
-                            x.forEach(e => {
+                            h.forEach(e => {
                                 if (t === e.tag) {
                                     t = e.replaceWith;
                                 }
                             });
                             const o = `</${t}>`;
-                            l += `${s}${i}${o}`;
+                            l += `${s}${a}${o}`;
                         }
                     }
                 });
                 return l;
             }
             const n = c(r);
-            p("Compiling Handlebars template: " + n);
+            m("Compiling Handlebars template: " + n);
             try {
-                const a = Handlebars.compile(n);
-                const i = v.config?.templates?.cacheSize || 100;
-                if (Object.keys(v.templateCache).length >= i) {
-                    const s = Object.keys(v.templateCache)[0];
-                    delete v.templateCache[s];
-                    p(`Cache limit reached. Removed template: ${s}`);
+                const i = Handlebars.compile(n);
+                const a = b.config?.templates?.cacheSize || 100;
+                if (Object.keys(b.templateCache).length >= a) {
+                    const s = Object.keys(b.templateCache)[0];
+                    delete b.templateCache[s];
+                    m(`Cache limit reached. Removed template: ${s}`);
                 }
-                v.templateCache[t] = a;
-                y.end("compile:" + t);
-                return a;
+                b.templateCache[t] = i;
+                E.end("compile:" + t);
+                return i;
             } catch (e) {
-                d("Template not valid: " + n + " | Error: " + e.message);
-                y.end("compile:" + t);
+                g("Template not valid: " + n + " | Error: " + e.message);
+                E.end("compile:" + t);
                 return null;
             }
         }
-        y.end("compile:" + t);
-        return v.templateCache[t];
+        E.end("compile:" + t);
+        return b.templateCache[t];
     });
-    function w({
+    function S(e, t, r = "") {
+        f.log(f.levels.DEBUG, `Storage config:`, b.config?.storage);
+        if (b.config?.storage?.enabled) {
+            try {
+                const n = b.config.storage.ttl || 30 * 24 * 60 * 60;
+                const i = {
+                    data: t,
+                    expiry: n === -1 ? -1 : Date.now() + n * 1e3
+                };
+                const a = `fp_${r}${r ? "_" : ""}${e}`;
+                f.log(f.levels.DEBUG, `Saving to localStorage:`, {
+                    key: a,
+                    data: i
+                });
+                localStorage.setItem(a, JSON.stringify(i));
+            } catch (e) {
+                g(`Failed to save to localStorage: ${e.message}`);
+            }
+        } else {
+            f.log(f.levels.DEBUG, `Storage is disabled, skipping save`);
+        }
+    }
+    function w(e, t = "") {
+        f.log(f.levels.DEBUG, `Storage config:`, b.config?.storage);
+        if (b.config?.storage?.enabled) {
+            try {
+                const r = `fp_${t}${t ? "_" : ""}${e}`;
+                const n = localStorage.getItem(r);
+                if (!n) {
+                    f.log(f.levels.DEBUG, `No stored item found for: ${r}`);
+                    return null;
+                }
+                const i = JSON.parse(n);
+                if (i.expiry !== -1 && Date.now() > i.expiry) {
+                    f.log(f.levels.DEBUG, `Stored item has expired: ${r}`);
+                    localStorage.removeItem(r);
+                    return null;
+                }
+                f.log(f.levels.DEBUG, `Loaded from localStorage:`, {
+                    key: r,
+                    data: i
+                });
+                return i.data;
+            } catch (e) {
+                g(`Failed to load from localStorage: ${e.message}`);
+                return null;
+            }
+        } else {
+            f.log(f.levels.DEBUG, `Storage is disabled, skipping load`);
+        }
+        return null;
+    }
+    function o(e, t, r = {}) {
+        return {
+            formId: e.id,
+            type: t,
+            persistenceEnabled: i(e),
+            ...r
+        };
+    }
+    function l(e, t, r = "save") {
+        const n = c(e);
+        const i = `fp_form_${e.id}`;
+        if (r === "save") {
+            if (n) {
+                S(e.id, t, "form");
+            } else {
+                sessionStorage.setItem(i, JSON.stringify(t));
+            }
+        } else if (r === "load") {
+            return n ? w(e.id, "form") : JSON.parse(sessionStorage.getItem(i));
+        } else if (r === "clear") {
+            if (n) localStorage.removeItem(i);
+            sessionStorage.removeItem(i);
+        }
+    }
+    function u(e, t) {
+        Array.from(e.elements).forEach(e => {
+            if (!e.name || e.type === "file") return;
+            if (!i(e)) return;
+            t(e);
+        });
+    }
+    function F(t, e, r, n = "add") {
+        const i = e === "change" ? [ "change", t.type !== "checkbox" && t.type !== "radio" ? "input" : null ] : [ e ];
+        i.filter(Boolean).forEach(e => {
+            t[`${n}EventListener`](e, r);
+        });
+    }
+    function q(e, t) {
+        if (e.type === "checkbox" || e.type === "radio") {
+            e.checked = t;
+            U(e);
+        } else if (e instanceof HTMLSelectElement && e.multiple) {
+            Array.from(e.options).forEach(e => {
+                e.selected = t.includes(e.value);
+            });
+        } else {
+            e.value = t;
+        }
+    }
+    function U(e) {
+        const t = e.closest(e.type === "checkbox" ? ".w-checkbox" : ".w-radio");
+        if (!t) return;
+        const r = t.querySelector(`.w-${e.type}-input`);
+        if (r) {
+            r.classList.toggle("w--redirected-checked", e.checked);
+        }
+    }
+    function r(t) {
+        let e = false;
+        let r = false;
+        let n = false;
+        for (const [ i, a ] of Object.entries(b.instances)) {
+            if (Array.from(a.elements).some(e => e.contains(t))) {
+                e = true;
+                break;
+            }
+        }
+        if (t.hasAttribute("fp-persist")) {
+            r = t.getAttribute("fp-persist") !== "false";
+            n = t.getAttribute("fp-persist") === "true";
+        } else {
+            const s = t.form;
+            if (s && s.hasAttribute("fp-persist")) {
+                r = s.getAttribute("fp-persist") !== "false";
+                n = s.getAttribute("fp-persist") === "true";
+            } else if (b.config?.storage?.enabled && !b.config?.persistForm) {
+                r = false;
+                n = false;
+            } else {
+                r = b.config?.persistForm;
+                n = b.config?.storage?.enabled && b.config?.persistForm;
+            }
+        }
+        if (t.tagName === "FORM") {
+            const o = Array.from(t.elements).some(e => e.getAttribute("fp-persist") === "true");
+            if (o) {
+                n = b.config?.storage?.enabled;
+            }
+        }
+        return {
+            shouldPersist: e && r,
+            useLocalStorage: n && b.config?.storage?.enabled
+        };
+    }
+    function i(e) {
+        return r(e).shouldPersist;
+    }
+    function c(e) {
+        return r(e).useLocalStorage;
+    }
+    function V(e) {
+        try {
+            if (e instanceof HTMLInputElement || e instanceof HTMLSelectElement || e instanceof HTMLTextAreaElement) {
+                const t = {
+                    value: e.value,
+                    checked: e.checked,
+                    selected: e instanceof HTMLSelectElement ? e.multiple ? Array.from(e.selectedOptions).map(e => e.value) : e.value : null,
+                    selectionStart: e instanceof HTMLTextAreaElement ? e.selectionStart : null,
+                    selectionEnd: e instanceof HTMLTextAreaElement ? e.selectionEnd : null,
+                    scrollTop: e instanceof HTMLTextAreaElement ? e.scrollTop : null,
+                    scrollLeft: e instanceof HTMLTextAreaElement ? e.scrollLeft : null
+                };
+                return t;
+            }
+            return null;
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error capturing element state: ${e.message}`);
+            return null;
+        }
+    }
+    function j(r, e) {
+        try {
+            if (!e) return;
+            if (r instanceof HTMLSelectElement) {
+                if (e.selected) {
+                    if (r.multiple && Array.isArray(e.selected)) {
+                        e.selected.forEach(e => {
+                            const t = r.querySelector(`option[value="${e}"]`);
+                            if (t) t.selected = true;
+                        });
+                    } else {
+                        const t = r.querySelector(`option[value="${e.selected}"]`);
+                        if (t) {
+                            t.selected = true;
+                            r.value = e.selected;
+                        }
+                    }
+                }
+            } else if (r instanceof HTMLTextAreaElement) {
+                r.value = e.value;
+                if (e.selectionStart !== null && e.selectionEnd !== null) {
+                    r.setSelectionRange(e.selectionStart, e.selectionEnd);
+                }
+                if (e.scrollTop !== null) r.scrollTop = e.scrollTop;
+                if (e.scrollLeft !== null) r.scrollLeft = e.scrollLeft;
+            } else {
+                r.value = e.value;
+                r.checked = e.checked;
+            }
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error restoring element state: ${e.message}`);
+        }
+    }
+    function p(t, e) {
+        try {
+            Array.from(e.attributes).forEach(e => {
+                if (e.name !== "value" && e.name !== "checked" && !e.name.startsWith("w-")) {
+                    t.setAttribute(e.name, e.value);
+                }
+            });
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error updating element attributes: ${e.message}`);
+        }
+    }
+    function d(e, t) {
+        try {
+            if (e instanceof HTMLInputElement || e instanceof HTMLSelectElement || e instanceof HTMLTextAreaElement) {
+                const r = V(e);
+                p(e, t);
+                j(e, r);
+            }
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error preserving element state: ${e.message}`);
+        }
+    }
+    function W(e) {
+        try {
+            const t = e.getElementsByTagName("form");
+            const n = {};
+            Array.from(t).forEach(e => {
+                if (!e.id) return;
+                const t = {};
+                const r = e.elements;
+                Array.from(r).forEach(e => {
+                    if (!e.name || e.type === "file") return;
+                    if (!i(e)) return;
+                    if (e.type === "checkbox" || e.type === "radio") {
+                        t[e.name] = e.checked;
+                    } else if (e instanceof HTMLSelectElement) {
+                        if (e.multiple) {
+                            t[e.name] = Array.from(e.selectedOptions).map(e => e.value);
+                        } else {
+                            t[e.name] = e.value;
+                        }
+                    } else {
+                        t[e.name] = e.value;
+                    }
+                });
+                if (Object.keys(t).length > 0) {
+                    y.publish("formState:beforeCapture", {
+                        formId: e.id,
+                        formElement: e,
+                        state: t
+                    });
+                    n[e.id] = t;
+                    if (c(e)) {
+                        S(e.id, t, "form");
+                    } else {
+                        sessionStorage.setItem(`fp_form_${e.id}`, JSON.stringify(t));
+                    }
+                }
+            });
+            return n;
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error capturing form states: ${e.message}`);
+            return {};
+        }
+    }
+    function G(e) {
+        if (!e.id) return false;
+        const t = l(e, null, "load");
+        if (!t) {
+            f.log(f.levels.DEBUG, `No stored state found for form: ${e.id}`);
+            return false;
+        }
+        const r = o(e, "restore", {
+            restoredElements: [],
+            customVisualUpdates: [],
+            skippedElements: [],
+            storageType: c(e) ? "localStorage" : "sessionStorage"
+        });
+        u(e, e => {
+            if (!(e.name in t)) return;
+            r.restoredElements.push({
+                name: e.name,
+                value: t[e.name]
+            });
+            q(e, t[e.name]);
+        });
+        f.log(f.levels.DEBUG, `Form state restoration summary for ${e.id}:
+    Storage type: ${r.storageType}
+    Restored elements:
+    ${r.restoredElements.map(e => `- ${e.name}: ${e.value}`).join("\n    ")}
+    
+    Updated custom visual states for:
+    ${r.customVisualUpdates.join(", ")}
+    
+    Skipped elements (persistence disabled):
+    ${r.skippedElements.join(", ")}`);
+        y.publish("formState:afterRestore", {
+            formId: e.id,
+            formElement: e,
+            state: t
+        });
+        return true;
+    }
+    function X(e) {
+        try {
+            const t = e.getElementsByTagName("form");
+            Array.from(t).forEach(G);
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error restoring form states: ${e.message}`);
+        }
+    }
+    function z(e) {
+        try {
+            const t = document.getElementById(e);
+            if (!t) return;
+            l(t, null, "clear");
+            y.publish("formState:clear", {
+                formId: e,
+                formElement: t
+            });
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error clearing form state: ${e.message}`);
+        }
+    }
+    function J(r) {
+        try {
+            if (!r.id) {
+                f.log(f.levels.DEBUG, "Skipping form without ID");
+                return;
+            }
+            const n = o(r, "setup", {
+                formElements: r.elements.length,
+                checkboxWrappers: r.querySelectorAll(".w-checkbox").length,
+                listenersAdded: [],
+                skippedElements: []
+            });
+            if (!r._fpChangeListeners) {
+                r._fpChangeListeners = [];
+            }
+            u(r, t => {
+                if (r._fpChangeListeners.some(({
+                    element: e
+                }) => e === t)) {
+                    return;
+                }
+                const e = e => Y(e);
+                F(t, "change", e);
+                r._fpChangeListeners.push({
+                    element: t,
+                    handler: e
+                });
+                n.listenersAdded.push(t.name);
+            });
+            f.log(f.levels.DEBUG, `Form setup summary for ${r.id}:
+      - Total form elements: ${n.formElements}
+      - Checkbox wrappers: ${n.checkboxWrappers}
+      - Form persistence: ${n.persistenceEnabled ? "enabled" : "disabled"}
+      - Listeners added to: ${n.listenersAdded.join(", ")}
+      - Skipped elements: ${n.skippedElements.join(", ")}`);
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error setting up form change listeners: ${e.message}`);
+        }
+    }
+    function K(e) {
+        try {
+            if (!e._fpChangeListeners) return;
+            e._fpChangeListeners.forEach(({
+                element: e,
+                handler: t
+            }) => {
+                e.removeEventListener("change", t);
+                e.removeEventListener("input", t);
+            });
+            e._fpChangeListeners = [];
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error cleaning up form change listeners: ${e.message}`);
+        }
+    }
+    function Y(e) {
+        try {
+            const t = e.target;
+            const r = t.form;
+            if (!r || !r.id) {
+                f.log(f.levels.DEBUG, "Skipping change handler - no form or form ID");
+                return;
+            }
+            const n = o(r, "change", {
+                changedValues: {},
+                skippedElements: []
+            });
+            const i = {};
+            u(r, e => {
+                const t = e.type === "checkbox" || e.type === "radio" ? e.checked : e instanceof HTMLSelectElement && e.multiple ? Array.from(e.selectedOptions).map(e => e.value) : e.value;
+                i[e.name] = t;
+                n.changedValues[e.name] = t;
+            });
+            if (Object.keys(i).length > 0) {
+                l(r, i, "save");
+                f.log(f.levels.DEBUG, `Form state update for ${r.id}:
+        - Changed element: ${t.name}
+        - Storage type: ${c(r) ? "localStorage" : "sessionStorage"}
+        - Updated values: ${JSON.stringify(n.changedValues, null, 2)}
+        - Skipped elements (persistence disabled): ${n.skippedElements.join(", ")}`);
+                y.publish("formState:changed", {
+                    formId: r.id,
+                    formElement: r,
+                    state: i,
+                    changedElement: t
+                });
+            }
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error handling form element change: ${e.message}`);
+        }
+    }
+    function Z(e) {
+        const t = new Set();
+        if (e.tagName === "FORM") {
+            t.add(e);
+        }
+        const r = e.closest("form");
+        if (r) {
+            t.add(r);
+        }
+        const n = e.getElementsByTagName("form");
+        Array.from(n).forEach(e => t.add(e));
+        return t;
+    }
+    function k(e) {
+        try {
+            f.log(f.levels.DEBUG, "Setting up form submit handlers for element:", e);
+            const t = Z(e);
+            f.log(f.levels.DEBUG, `Found ${t.size} forms`);
+            t.forEach(e => {
+                Q(e);
+            });
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error setting up form submit handlers: ${e.message}`);
+        }
+    }
+    function Q(e) {
+        if (!e.id) {
+            f.log(f.levels.DEBUG, "Skipping form without ID");
+            return;
+        }
+        f.log(f.levels.DEBUG, `Setting up handlers for form: ${e.id}`);
+        e.removeEventListener("submit", ee);
+        e.addEventListener("submit", ee);
+        J(e);
+        e._fpHandlersSetup = true;
+        if (A(e)) {
+            f.log(f.levels.DEBUG, `Restoring state for form: ${e.id}`);
+            G(e);
+        } else {
+            f.log(f.levels.DEBUG, `Skipping form restoration - no persistent elements: ${e.id}`);
+        }
+    }
+    function ee(e) {
+        try {
+            const t = e.target;
+            if (t.id) {
+                z(t.id);
+            }
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error handling form submit: ${e.message}`);
+        }
+    }
+    function te(e) {
+        try {
+            const t = new MutationObserver(e => {
+                e.forEach(e => {
+                    e.addedNodes.forEach(e => {
+                        if (e.tagName === "FORM") {
+                            k(e);
+                        }
+                    });
+                });
+            });
+            t.observe(e, {
+                childList: true,
+                subtree: true
+            });
+            return t;
+        } catch (e) {
+            f.log(f.levels.ERROR, `Error setting up dynamic form observer: ${e.message}`);
+            return null;
+        }
+    }
+    function A(e) {
+        const t = e.querySelectorAll('[fp-persist="true"]');
+        if (t.length > 0) {
+            return true;
+        }
+        if (e.tagName === "FORM" && e.hasAttribute("fp-persist")) {
+            return e.getAttribute("fp-persist") !== "false";
+        }
+        const r = e.tagName === "FORM" ? [ e ] : e.getElementsByTagName("form");
+        for (const n of r) {
+            if (n.getAttribute("fp-persist") === "false") {
+                continue;
+            }
+            const i = n.elements;
+            for (const a of i) {
+                if (!a.name || a.type === "file") continue;
+                const s = a.closest('[fp-persist="false"]');
+                if (!s) {
+                    if (!a.hasAttribute("fp-persist") && b.config?.persistForm) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    function re(o, e, a, t) {
+        if (!o.childNodes.length) {
+            o.innerHTML = e.innerHTML;
+            if (b.config?.persistForm) {
+                k(o);
+            }
+            return;
+        }
+        if (o instanceof HTMLInputElement) {
+            d(o, e);
+            return;
+        }
+        const l = o instanceof SVGElement;
+        if (ne(o)) {
+            if (o instanceof HTMLIFrameElement || o instanceof HTMLScriptElement) {
+                p(o, e);
+            } else {
+                d(o, e);
+            }
+            return;
+        }
+        if (!o.children.length && o.childNodes.length || !e.children.length && e.childNodes.length) {
+            ie(o, e);
+            return;
+        }
+        if (b.config?.persistForm) {
+            W(o);
+        }
+        const u = Array.from(o.childNodes);
+        const r = Array.from(e.childNodes);
+        if (u.length === 1 && r.length === 1 && u[0].nodeType === r[0].nodeType && u[0].nodeName === r[0].nodeName) {
+            re(u[0], r[0], a);
+            return;
+        }
+        const c = new Set();
+        r.forEach((e, t) => {
+            if (e.nodeType === Node.ELEMENT_NODE) {
+                const r = e.getAttribute("data-key");
+                if (r) {
+                    const n = a.get(r);
+                    if (n) {
+                        const i = u.indexOf(n);
+                        if (i !== -1) {
+                            o.insertBefore(n, u[t] || null);
+                            c.add(i);
+                        }
+                    }
+                }
+            }
+        });
+        r.forEach((r, e) => {
+            const t = u.findIndex((e, t) => !c.has(t) && ae(e, r));
+            if (t !== -1) {
+                c.add(t);
+                const n = u[t];
+                const i = Array.from(o.childNodes).indexOf(n);
+                if (i !== e) {
+                    const a = u[e];
+                    if (a && a !== n) {
+                        o.insertBefore(n, a);
+                    }
+                }
+            } else {
+                const s = l ? se(r) : r.cloneNode(true);
+                const a = u[e] || null;
+                o.insertBefore(s, a);
+            }
+        });
+        u.forEach((e, t) => {
+            if (!c.has(t)) {
+                o.removeChild(e);
+            }
+        });
+    }
+    function ne(e) {
+        const t = [ "INPUT", "SELECT", "TEXTAREA", "IFRAME", "SCRIPT" ];
+        return t.includes(e.tagName);
+    }
+    function ie(n, e) {
+        const t = Array.from(n.childNodes);
+        const i = Array.from(e.childNodes);
+        if (t.length === i.length) {
+            t.forEach((e, t) => {
+                const r = i[t];
+                if (!ae(e, r)) {
+                    n.replaceChild(r.cloneNode(true), e);
+                }
+            });
+        } else {
+            n.innerHTML = e.innerHTML;
+        }
+    }
+    function ae(e, t) {
+        if (e.nodeType !== t.nodeType) return false;
+        if (e.nodeType === Node.TEXT_NODE) {
+            return e.textContent.trim() === t.textContent.trim();
+        }
+        if (e.nodeType === Node.COMMENT_NODE) {
+            return e.textContent === t.textContent;
+        }
+        if (e instanceof Element && (e.className.includes("w-") || t.className.includes("w-"))) {
+            return true;
+        }
+        return e.isEqualNode(t);
+    }
+    function se(e) {
+        if (!(e instanceof Element)) return e.cloneNode(true);
+        const t = e.namespaceURI;
+        const r = t ? document.createElementNS(t, e.tagName) : document.createElement(e.tagName);
+        Array.from(e.attributes).forEach(e => {
+            const t = e.namespaceURI;
+            if (t) {
+                r.setAttributeNS(t, e.name, e.value);
+            } else {
+                r.setAttribute(e.name, e.value);
+            }
+        });
+        Array.from(e.childNodes).forEach(e => {
+            r.appendChild(se(e));
+        });
+        return r;
+    }
+    async function C(a, s, t = false) {
+        E.start("updateDOM");
+        const e = a.hasAttribute("fp-restoring");
+        if (e) {
+            f.log(f.levels.DEBUG, "Already restoring, skipping");
+            return;
+        }
+        a.setAttribute("fp-restoring", "true");
+        try {
+            if (!a || !(a instanceof HTMLElement)) {
+                throw new Error("Invalid target element");
+            }
+            if (typeof s !== "string") {
+                throw new Error("newHTML must be a string");
+            }
+            f.log(f.levels.DEBUG, "Starting updateDOM with config:", b.config);
+            f.log(f.levels.DEBUG, `Form persistence enabled: ${b.config?.persistForm}, Should restore form: ${A(a)}`);
+            let i = null;
+            if (A(a)) {
+                f.log(f.levels.DEBUG, "Capturing form states before update");
+                i = W(a);
+                f.log(f.levels.DEBUG, "Captured form states:", i);
+            }
+            let e = null;
+            if (A(a)) {
+                f.log(f.levels.DEBUG, "Setting up dynamic form observer");
+                e = te(a);
+            }
+            const r = () => {
+                return new Promise(e => {
+                    const t = document.createElement("div");
+                    t.innerHTML = s.trim();
+                    const r = new Map();
+                    const n = new Map();
+                    oe(a, r);
+                    oe(t, n);
+                    re(a, t, r, n);
+                    if (A(a) && i) {
+                        f.log(f.levels.DEBUG, "Restoring form states after update");
+                        X(a);
+                        k(a);
+                    }
+                    e();
+                });
+            };
+            if (document.startViewTransition && t) {
+                await document.startViewTransition(() => r()).finished;
+            } else {
+                await r();
+            }
+            if (b.config?.persistForm && A(a)) {
+                f.log(f.levels.DEBUG, "Restoring form states after update");
+                const n = a.querySelectorAll('[fp-persist="true"]');
+                f.log(f.levels.DEBUG, `Found ${n.length} inputs to restore`);
+                X(a);
+            }
+            if (e) {
+                f.log(f.levels.DEBUG, "Disconnecting form observer");
+                e.disconnect();
+            }
+        } catch (e) {
+            f.log(f.levels.ERROR, "Error in updateDOM:", e);
+            console.error("UpdateDOM error:", e);
+            throw e;
+        } finally {
+            a.removeAttribute("fp-restoring");
+            E.end("updateDOM");
+        }
+    }
+    function oe(e, t) {
+        const r = document.createTreeWalker(e, NodeFilter.SHOW_ELEMENT, null, false);
+        let n;
+        while (n = r.nextNode()) {
+            const i = n.getAttribute("data-key");
+            if (i) {
+                t.set(i, n);
+            }
+        }
+    }
+    function le(c) {
+        function a(e) {
+            const t = e.split(/[\.\[\]'"]/);
+            let r = this.data;
+            for (let e = 0; e < t.length; e++) {
+                const n = t[e];
+                if (n === "") continue;
+                if (r === undefined || r === null || !r.hasOwnProperty(n)) {
+                    return undefined;
+                }
+                r = r[n];
+            }
+            return r;
+        }
+        return {
+            _updateDOM: function() {
+                const e = b.instances[c];
+                if (!e) {
+                    g("Instance not found: " + c);
+                    return this;
+                }
+                e.elements.forEach(function(t) {
+                    try {
+                        C(t, e.template(e.proxy), e.animate);
+                    } catch (e) {
+                        t.innerHTML = `<div class="fp-error">Error refreshing template: ${e.message}</div>`;
+                        g(`Failed to refresh template: ${e.message}`);
+                    }
+                });
+                return this;
+            },
+            update: function(e) {
+                const t = b.instances[c];
+                if (!t) {
+                    g("Instance not found: " + c);
+                    return this;
+                }
+                Object.assign(t.data, e);
+                Object.assign(t.proxy, e);
+                const r = c.replace("#", "");
+                S(r, t.data, "instance");
+                return this._updateDOM();
+            },
+            remove: function() {
+                const e = b.instances[c];
+                if (!e) {
+                    throw new Error("Instance not found: " + c);
+                }
+                y.publish("beforeRemove", {
+                    instanceName: c,
+                    elements: e.elements
+                });
+                try {
+                    if (b.config?.storage?.enabled) {
+                        localStorage.removeItem(`fp_${c}`);
+                    }
+                    e.elements.forEach(function(e) {
+                        try {
+                            e.innerHTML = "";
+                        } catch (e) {
+                            g("Error removing instance: " + e.message);
+                        }
+                    });
+                    e.elements = [];
+                    delete b.instances[c];
+                    delete b.templateCache[e.templateId];
+                    y.publish("afterRemove", {
+                        instanceName: c,
+                        elements: []
+                    });
+                    m("Removed instance: " + c);
+                    return true;
+                } catch (e) {
+                    throw e;
+                }
+            },
+            refresh: async function(s = {
+                remote: true,
+                recompile: false
+            }) {
+                const o = b.instances[c];
+                if (!o) {
+                    g("Instance not found: " + c);
+                    return Promise.reject(new Error("Instance not found: " + c));
+                }
+                const e = o.template(o.data);
+                const t = s.recompile || !e && o.data;
+                if (t) {
+                    o.template = x(o.templateId, true);
+                }
+                f.log(f.levels.DEBUG, "Refresh - Template check:", {
+                    templateId: o.templateId,
+                    templateElement: document.querySelector(o.templateId),
+                    compiledTemplate: o.template(o.data)
+                });
+                const l = [];
+                o.elements.forEach(function(r) {
+                    try {
+                        if (s.remote) {
+                            const e = [ "get", "post", "put", "patch", "delete" ];
+                            const t = e.some(e => r.getAttribute(`hx-${e}`));
+                            if (t) {
+                                const n = e.find(e => r.getAttribute(`hx-${e}`));
+                                const i = r.getAttribute(`hx-${n}`);
+                                const a = fetch(i, {
+                                    method: n.toUpperCase()
+                                }).then(e => {
+                                    if (!e.ok) {
+                                        throw new Error(`HTTP error! status: ${e.status}`);
+                                    }
+                                    return e.json();
+                                }).then(e => {
+                                    Object.assign(o.data, e);
+                                    Object.assign(o.proxy, e);
+                                    const t = o.template(o.proxy);
+                                    f.log(f.levels.DEBUG, "Refresh - Template render:", {
+                                        data: o.data,
+                                        rendered: t
+                                    });
+                                    C(r, t, o.animate);
+                                    return e;
+                                });
+                                l.push(a);
+                            }
+                        } else {
+                            C(r, o.template(o.proxy), o.animate);
+                        }
+                    } catch (e) {
+                        r.innerHTML = `<div class="fp-error">Error refreshing template: ${e.message}</div>`;
+                        g(`Failed to refresh template: ${e.message}`);
+                        l.push(Promise.reject(e));
+                    }
+                });
+                await Promise.all(l);
+                return this;
+            },
+            getData: function() {
+                return b.instances[c].data;
+            },
+            getProxy: function() {
+                return b.instances[c].proxy;
+            },
+            getElements: function() {
+                return b.instances[c].elements;
+            },
+            merge: function(e, r) {
+                const t = b.instances[c];
+                if (!t) {
+                    g("Instance not found: " + c);
+                    return this;
+                }
+                let n = r !== undefined ? r : e;
+                try {
+                    function i(t, e) {
+                        for (const r in e) {
+                            if (e.hasOwnProperty(r)) {
+                                if (Array.isArray(e[r]) && Array.isArray(t[r])) {
+                                    const n = new Map(t[r].map(e => [ e.id, e ]));
+                                    e[r].forEach(e => {
+                                        if (e.id && n.has(e.id)) {
+                                            i(n.get(e.id), e);
+                                        } else {
+                                            t[r].push(e);
+                                        }
+                                    });
+                                } else if (e[r] && typeof e[r] === "object" && !Array.isArray(e[r])) {
+                                    t[r] = t[r] || {};
+                                    i(t[r], e[r]);
+                                } else {
+                                    t[r] = e[r];
+                                }
+                            }
+                        }
+                        return t;
+                    }
+                    if (e && r !== undefined) {
+                        let t = this.getData();
+                        const a = e.split(/[\.\[\]'"]/);
+                        for (let e = 0; e < a.length - 1; e++) {
+                            const o = a[e];
+                            if (o === "") continue;
+                            if (!t[o]) t[o] = {};
+                            t = t[o];
+                        }
+                        const s = a[a.length - 1];
+                        if (s !== "") {
+                            if (!t[s]) {
+                                t[s] = Array.isArray(r) ? [] : {};
+                            }
+                            if (Array.isArray(r)) {
+                                if (!Array.isArray(t[s])) {
+                                    t[s] = [];
+                                }
+                                const l = t[s];
+                                r.forEach(t => {
+                                    if (t.id) {
+                                        const e = l.findIndex(e => e.id === t.id);
+                                        if (e >= 0) {
+                                            i(l[e], t);
+                                        } else {
+                                            l.push(t);
+                                        }
+                                    } else {
+                                        l.push(t);
+                                    }
+                                });
+                            } else if (typeof r === "object") {
+                                i(t[s], r);
+                            } else {
+                                t[s] = r;
+                            }
+                        }
+                    } else {
+                        i(this.getData(), n);
+                    }
+                    if (b.config?.storage?.enabled) {
+                        const u = c.replace("#", "");
+                        S(u, t.data, "instance");
+                    }
+                    return this._updateDOM();
+                } catch (e) {
+                    g(e.message);
+                    return this;
+                }
+            },
+            set: function(e, t) {
+                const r = b.instances[c];
+                if (!r) {
+                    g("Instance not found: " + c);
+                    return this;
+                }
+                try {
+                    const n = e.split(/[\.\[\]'"]/g).filter(Boolean);
+                    const i = n.pop();
+                    const a = n.reduce((e, t) => {
+                        if (!e[t]) e[t] = {};
+                        return e[t];
+                    }, r.data);
+                    a[i] = t;
+                    Object.assign(r.proxy, r.data);
+                    const s = c.replace("#", "");
+                    S(s, r.data, "instance");
+                    return this._updateDOM();
+                } catch (e) {
+                    g(e.message);
+                    return this;
+                }
+            },
+            push: function(e, t) {
+                let r = a.call(this, e);
+                if (!Array.isArray(r)) {
+                    g("Target at path is not an array: " + e);
+                    return this;
+                }
+                try {
+                    r.push(t);
+                    if (b.config?.storage?.enabled) {
+                        const n = c.replace("#", "");
+                        S(n, instance.data, "instance");
+                    }
+                    return this._updateDOM();
+                } catch (e) {
+                    g(e.message);
+                    return this;
+                }
+            },
+            updateWhere: function(e, t, n) {
+                let r = a.call(this, e);
+                if (!Array.isArray(r)) {
+                    g("Target at path is not an array: " + e);
+                    return this;
+                }
+                try {
+                    r.forEach(r => {
+                        const e = Object.entries(t).every(([ e, t ]) => r[e] === t);
+                        if (e) {
+                            Object.assign(r, n);
+                        }
+                    });
+                    if (b.config?.storage?.enabled) {
+                        const i = c.replace("#", "");
+                        S(i, instance.data, "instance");
+                    }
+                    return this._updateDOM();
+                } catch (e) {
+                    g(e.message);
+                    return this;
+                }
+            },
+            get: function(e) {
+                return !e ? this.getData() : a.call(this, e);
+            },
+            refreshTemplate: function(e, t = false) {
+                E.start("refreshTemplate:" + e);
+                const r = x(e, t);
+                if (!r) {
+                    g("Failed to compile template: " + e);
+                    E.end("refreshTemplate:" + e);
+                    return false;
+                }
+            }
+        };
+    }
+    function _({
         template: e,
         data: t,
         target: r,
         returnHtml: n = false,
-        instanceName: a,
-        animate: i = v.defaults.animation,
+        instanceName: i,
+        animate: a = b.defaults.animation,
         recompile: s = false
     }) {
-        y.start("render:" + (a || "anonymous"));
-        g.publish("beforeRender", {
-            instanceName: a,
+        E.start("render:" + (i || "anonymous"));
+        y.publish("beforeRender", {
+            instanceName: i,
             template: e,
             data: t,
             target: r,
             returnHtml: n,
             recompile: s
         });
-        var o;
-        if (typeof r === "string") {
-            o = document.querySelectorAll(r);
-        } else if (typeof r === "object" && r.jquery) {
-            o = r.toArray();
-        } else if (typeof r === "object") {
-            o = r;
-        } else {
-            d("Invalid target type: " + typeof r);
+        if (!e || e === "self") {
+            const h = typeof r === "string" ? document.querySelector(r) : r;
+            e = "#" + h.id;
+        }
+        let o = [];
+        if (r instanceof NodeList) {
+            o = Array.from(r);
+        } else if (typeof r === "string") {
+            o = Array.from(document.querySelectorAll(r));
+        } else if (r instanceof Element) {
+            o = [ r ];
+        }
+        if (o.length === 0) {
+            g("No target elements found");
             return;
         }
         if (o.length === undefined) {
             o = [ o ];
         }
-        if (a) {
-            a = a;
+        if (i) {
+            i = i;
         } else if (o[0].hasAttribute("fp-instance")) {
-            a = o[0].getAttribute("fp-instance");
+            i = o[0].getAttribute("fp-instance");
         } else if (o[0].id) {
-            a = o[0].id;
+            i = o[0].id;
         } else {
-            a = v.length;
+            i = b.length;
         }
-        p("Rendering instance: " + a, e, t, r);
-        var l = S(e, s);
-        v.length++;
+        m("Rendering instance: " + i, e, t, r);
+        var l = x(e, s);
+        b.length++;
         if (!l) {
-            d("Template not found: " + e);
+            g("Template not found: " + e);
             return;
         }
         if (o.length === 0) {
-            d("Target not found: " + r);
+            g("Target not found: " + r);
             return;
         }
-        if (!v.instances[a] || v.instances[a].data !== t) {
-            const h = q(a);
-            if (h) {
+        if (!b.instances[i] || b.instances[i].data !== t) {
+            const p = w(i, "instance");
+            if (p) {
                 t = {
                     ...t,
-                    ...h
+                    ...p
                 };
             }
-            var u = k(t, t => {
+            var u = ue(t, t => {
                 const e = o.filter(e => document.body.contains(e));
                 e.forEach(e => {
-                    E(e, l(t));
+                    C(e, l(t));
                 });
             });
-            v.instances[a] = {
+            b.instances[i] = {
                 elements: new Set(o),
                 template: l,
                 templateId: o[0].getAttribute("fp-template") || e,
@@ -10283,11 +10803,15 @@ var FlowPlater = function() {
                 cleanup: () => {
                     this.elements.clear();
                 },
-                ...$(a)
+                ...le(i)
             };
+            if (b.config?.storage?.enabled) {
+                const d = i.replace("#", "");
+                S(d, t, "instance");
+            }
         }
-        const c = v.instances[a];
-        p("Proxy created: ", c.proxy);
+        const c = b.instances[i];
+        m("Proxy created: ", c.proxy);
         try {
             if (n) {
                 var f = c.template(c.proxy);
@@ -10295,39 +10819,39 @@ var FlowPlater = function() {
             }
             o.forEach(function(t) {
                 try {
-                    E(t, c.template(c.proxy), c.animate);
+                    C(t, c.template(c.proxy), c.animate);
                 } catch (e) {
                     t.innerHTML = `<div class="fp-error">Error rendering template: ${e.message}</div>`;
-                    d(`Failed to render template: ${e.message}`);
+                    g(`Failed to render template: ${e.message}`);
                 }
             });
             return c;
         } catch (e) {
-            if (!(e instanceof m)) {
-                d(`Failed to render template: ${e.message}`);
+            if (!(e instanceof v)) {
+                g(`Failed to render template: ${e.message}`);
             }
             throw e;
         } finally {
-            g.publish("afterRender", {
-                instanceName: a,
+            y.publish("afterRender", {
+                instanceName: i,
                 template: e,
                 data: t,
                 target: r,
                 elements: o,
                 returnHtml: n
             });
-            p("Rendered instance: " + a, e, t, r);
-            y.end("render:" + (a || "anonymous"));
+            m("Rendered instance: " + i, e, t, r);
+            E.end("render:" + (i || "anonymous"));
         }
     }
-    function k(e, n) {
+    function ue(e, n) {
         if (typeof e !== "object" || e === null) {
             return e;
         }
         const t = {
             get(e, t) {
                 const r = e[t];
-                return r && typeof r === "object" ? k(r, n) : r;
+                return r && typeof r === "object" ? ue(r, n) : r;
             },
             set(e, t, r) {
                 e[t] = r;
@@ -10342,7 +10866,7 @@ var FlowPlater = function() {
         };
         return new Proxy(e, t);
     }
-    function j(e, t, r) {
+    function ce(e, t, r) {
         if (!isNaN(e)) e = Number(e);
         if (!isNaN(r)) r = Number(r);
         function n(e) {
@@ -10387,7 +10911,7 @@ var FlowPlater = function() {
                 return e.localeCompare(r) >= 0;
 
               default:
-                throw new m("Unsupported operator for strings: " + t);
+                throw new v("Unsupported operator for strings: " + t);
             }
         }
         switch (t) {
@@ -10419,10 +10943,10 @@ var FlowPlater = function() {
             return new RegExp(r).test(e);
 
           default:
-            throw new m("Unsupported operator: " + t);
+            throw new v("Unsupported operator: " + t);
         }
     }
-    function U() {
+    function fe() {
         Handlebars.registerHelper("if", function(e, t) {
             function r(t, e, r) {
                 if (t.startsWith('"') && t.endsWith('"') || t.startsWith("'") && t.endsWith("'")) {
@@ -10437,9 +10961,9 @@ var FlowPlater = function() {
                 if (t.startsWith("this.")) {
                     const n = t.split(".").slice(1);
                     let e = r;
-                    for (const i of n) {
-                        if (e && typeof e === "object" && i in e) {
-                            e = e[i];
+                    for (const a of n) {
+                        if (e && typeof e === "object" && a in e) {
+                            e = e[a];
                         } else {
                             return undefined;
                         }
@@ -10447,45 +10971,45 @@ var FlowPlater = function() {
                     return e;
                 }
                 const n = t.split(".");
-                let a = e;
-                for (const i of n) {
-                    if (a && typeof a === "object" && i in a) {
-                        a = a[i];
+                let i = e;
+                for (const a of n) {
+                    if (i && typeof i === "object" && a in i) {
+                        i = i[a];
                     } else {
                         return undefined;
                     }
                 }
-                return a;
+                return i;
             }
             try {
                 const n = e.trim();
-                const [ a, i, s ] = n.split(/\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/);
-                if (!a || !i || !s) {
-                    throw new m(`Invalid expression format: ${n}`);
+                const [ i, a, s ] = n.split(/\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/);
+                if (!i || !a || !s) {
+                    throw new v(`Invalid expression format: ${n}`);
                 }
-                const o = r(a, t.data.root, this);
+                const o = r(i, t.data.root, this);
                 const l = r(s, t.data.root, this);
-                c.log(c.levels.INFO, "Evaluating expression:", {
+                f.log(f.levels.INFO, "Evaluating expression:", {
                     raw: n,
                     leftValue: o,
-                    operator: i,
+                    operator: a,
                     rightValue: l
                 });
-                const u = j(o, i, l);
+                const u = ce(o, a, l);
                 if (u) {
                     return t.fn(this);
                 } else {
                     return t.inverse(this);
                 }
             } catch (e) {
-                if (!(e instanceof m)) {
-                    c.log(c.levels.ERROR, "Error evaluating if condition:", e.stack);
+                if (!(e instanceof v)) {
+                    f.log(f.levels.ERROR, "Error evaluating if condition:", e.stack);
                 }
                 throw e;
             }
         });
     }
-    function W() {
+    function he() {
         Handlebars.registerHelper("sum", function() {
             var t = 0;
             for (var e = 0; e < arguments.length - 1; e++) {
@@ -10501,23 +11025,23 @@ var FlowPlater = function() {
             return t;
         });
     }
-    function* u(e) {
-        var t = new RegExp(u.lang, "g");
+    function* I(e) {
+        var t = new RegExp(I.lang, "g");
         var r;
         while ((r = t.exec(e)) !== null) {
             var [ n ] = r;
-            for (var a in u.categories) {
-                if (new RegExp(u.categories[a]).test(n)) {
+            for (var i in I.categories) {
+                if (new RegExp(I.categories[i]).test(n)) {
                     yield {
                         token: n,
-                        category: a
+                        category: i
                     };
                     break;
                 }
             }
         }
     }
-    u.categories = {
+    I.categories = {
         op: "[+*/^]|-(?!\\d)",
         num: "-?\\d+(?:\\.\\d+)?%?",
         group: "[\\[()\\]]",
@@ -10525,15 +11049,15 @@ var FlowPlater = function() {
         ident: "\\b(ans|pi|e)\\b",
         func: "\\b(sqrt|abs|log|ln|sin|cos|tan|min|max)\\b"
     };
-    u.lang = [ u.categories.op, u.categories.num, u.categories.group, u.categories.sep, u.categories.ident, u.categories.func ].join("|");
-    u.cat = {
+    I.lang = [ I.categories.op, I.categories.num, I.categories.group, I.categories.sep, I.categories.ident, I.categories.func ].join("|");
+    I.cat = {
         INT: "num",
         IDENT: "ident",
         PCNT: "num",
         FUNC: "func",
         SEP: "sep"
     };
-    class A {
+    class T {
         constructor() {
             this.stack = [];
             this.w = null;
@@ -10548,7 +11072,7 @@ var FlowPlater = function() {
         }
         exec(e) {
             try {
-                this.l = u(e);
+                this.l = I(e);
                 this.w = this._next();
                 if (!this.e()) {
                     throw new SyntaxError(this.w ? this.w.token : "Unexpected end of expression");
@@ -10556,7 +11080,7 @@ var FlowPlater = function() {
                 if (this.w !== null) {
                     throw new SyntaxError(`Unexpected token: ${this.w.token}`);
                 }
-                return A.ans = this.stack.pop();
+                return T.ans = this.stack.pop();
             } catch (e) {
                 console.error("Error in expression evaluation:", e);
                 throw e;
@@ -10568,11 +11092,11 @@ var FlowPlater = function() {
         z() {
             if (this._wrapped_expr()) {
                 return true;
-            } else if (this.w && [ "INT", "IDENT", "PCNT" ].some(e => u.cat[e] === this.w.category)) {
-                this.stack.push(A._val(this.w));
+            } else if (this.w && [ "INT", "IDENT", "PCNT" ].some(e => I.cat[e] === this.w.category)) {
+                this.stack.push(T._val(this.w));
                 this.w = this._next();
                 return true;
-            } else if (this.w && this.w.category === u.cat.FUNC) {
+            } else if (this.w && this.w.category === I.cat.FUNC) {
                 var e = this.w.token;
                 this.w = this._next();
                 if (e === "min" || e === "max") {
@@ -10614,12 +11138,12 @@ var FlowPlater = function() {
         }
         _ophit(e, t, r, n) {
             if (this.w && e.some(e => e === this.w.token)) {
-                var a = this.w.token;
-                var i = this.stack.pop();
+                var i = this.w.token;
+                var a = this.stack.pop();
                 this.w = this._next();
                 if (t.call(this)) {
                     var s = this.stack.pop();
-                    this.stack.push(A._chooseOp(a)(i, s));
+                    this.stack.push(T._chooseOp(i)(a, s));
                     return r.call(this);
                 }
             } else if (!this.w || n.some(e => e === this.w.token)) {
@@ -10635,7 +11159,7 @@ var FlowPlater = function() {
                 if (!this.t()) return false;
                 const t = this.stack.pop();
                 const r = this.stack.pop();
-                this.stack.push(A._chooseOp(e)(r, t));
+                this.stack.push(T._chooseOp(e)(r, t));
             }
             return true;
         }
@@ -10647,7 +11171,7 @@ var FlowPlater = function() {
                 if (!this.f()) return false;
                 const r = this.stack.pop();
                 const n = this.stack.pop();
-                this.stack.push(A._chooseOp(t)(n, r));
+                this.stack.push(T._chooseOp(t)(n, r));
             }
             return e;
         }
@@ -10694,13 +11218,13 @@ var FlowPlater = function() {
         }
         _rep_val(e, t) {
             if (t) {
-                this.stack.push(A._chooseFn(e).apply(null, t));
+                this.stack.push(T._chooseFn(e).apply(null, t));
             } else {
                 const r = this.stack.pop();
                 if (r === undefined) {
                     throw new Error(`Function ${e} requires an argument`);
                 }
-                this.stack.push(A._chooseFn(e)(r));
+                this.stack.push(T._chooseFn(e)(r));
             }
         }
         static _chooseFn(e) {
@@ -10738,10 +11262,10 @@ var FlowPlater = function() {
         }
         static _val(e) {
             var t;
-            if (e.category === u.cat.INT || e.category === u.cat.PCNT) {
+            if (e.category === I.cat.INT || e.category === I.cat.PCNT) {
                 t = parseFloat(e.token);
                 if (e.token.endsWith("%")) t /= 100;
-            } else if (e.category === u.cat.IDENT) {
+            } else if (e.category === I.cat.IDENT) {
                 if (e.token === "pi") {
                     t = Math.PI;
                 } else if (e.token === "e") {
@@ -10774,8 +11298,8 @@ var FlowPlater = function() {
             }
         }
     }
-    A.ans = 0;
-    function G() {
+    T.ans = 0;
+    function pe() {
         Handlebars.registerHelper("math", function(e, r) {
             const n = [ "min", "max", "sqrt", "abs", "log", "ln", "sin", "cos", "tan" ];
             const t = e.replace(/@{([^}]+)}/g, (e, t) => {
@@ -10792,7 +11316,7 @@ var FlowPlater = function() {
                     return NaN;
                 }
             });
-            const a = t.replace(/[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)*/g, t => {
+            const i = t.replace(/[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)*/g, t => {
                 if (n.includes(t) && !t.includes(".")) {
                     return t;
                 }
@@ -10809,39 +11333,39 @@ var FlowPlater = function() {
                     return NaN;
                 }
             });
-            c.log(c.levels.DEBUG, "Evaluating expression:", a);
+            f.log(f.levels.DEBUG, "Evaluating expression:", i);
             try {
-                const i = new A();
-                const s = i.exec(a);
+                const a = new T();
+                const s = a.exec(i);
                 return s;
             } catch (e) {
-                if (!(e instanceof m)) {
-                    throw new m(`Error evaluating expression: ${e.message}`, e.stack);
+                if (!(e instanceof v)) {
+                    throw new v(`Error evaluating expression: ${e.message}`, e.stack);
                 }
                 throw e;
             }
         });
     }
-    function C(a, i) {
+    function de(i, a) {
         return function(e, t) {
-            let r = a ? e[a] : e;
-            let n = a ? t[a] : t;
-            if (r === null || r === undefined) return i ? -1 : 1;
-            if (n === null || n === undefined) return i ? 1 : -1;
+            let r = i ? e[i] : e;
+            let n = i ? t[i] : t;
+            if (r === null || r === undefined) return a ? -1 : 1;
+            if (n === null || n === undefined) return a ? 1 : -1;
             if (typeof r === "string" && typeof n === "string") {
-                return i ? n.localeCompare(r) : r.localeCompare(n);
+                return a ? n.localeCompare(r) : r.localeCompare(n);
             }
-            if (r < n) return i ? 1 : -1;
-            if (r > n) return i ? -1 : 1;
+            if (r < n) return a ? 1 : -1;
+            if (r > n) return a ? -1 : 1;
             return 0;
         };
     }
-    function X() {
+    function me() {
         Handlebars.registerHelper("each", function(e, t) {
             var r = "";
             var n = t.hash.limit;
-            var a = t.hash.startAt || 0;
-            var i = t.hash.sortBy;
+            var i = t.hash.startAt || 0;
+            var a = t.hash.sortBy;
             var s = t.hash.descending;
             var o = t.hash.sortBeforeLimit;
             var l = t.inverse;
@@ -10866,11 +11390,11 @@ var FlowPlater = function() {
                 n = h.length;
             }
             if (o) {
-                h.sort(C(i, s));
-                h = h.slice(a, n + a);
+                h.sort(de(a, s));
+                h = h.slice(i, n + i);
             } else {
-                h = h.slice(a, n + a);
-                h.sort(C(i, s));
+                h = h.slice(i, n + i);
+                h.sort(de(a, s));
             }
             for (var p = 0; p < h.length; p++) {
                 var d = Array.isArray(e) ? h[p] : h[p][1];
@@ -10892,7 +11416,7 @@ var FlowPlater = function() {
             return r;
         });
     }
-    function z() {
+    function ge() {
         Handlebars.registerHelper("execute", function(e, ...t) {
             t.pop();
             const r = String(e);
@@ -10900,24 +11424,24 @@ var FlowPlater = function() {
             if (typeof n === "function") {
                 return n(...t);
             } else {
-                d("Function not found or is not a function: " + e);
+                g("Function not found or is not a function: " + e);
             }
         });
     }
-    function J() {
+    function ve() {
         Handlebars.registerHelper("set", function(e, t, r) {
             if (!e || !t) {
-                d("setHelper: varName and varValue are required");
+                g("setHelper: varName and varValue are required");
                 return "";
             }
             if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(e)) {
-                d(`setHelper: varName ${e} is not a valid variable name`);
+                g(`setHelper: varName ${e} is not a valid variable name`);
                 return "";
             }
             r.data.root[e] = t;
         });
     }
-    function K() {
+    function ye() {
         if (typeof Handlebars === "undefined") {
             console.error("Handlebars is not loaded yet!");
             return;
@@ -10965,16 +11489,16 @@ var FlowPlater = function() {
             window.bunnyAnimation();
         }
     }
-    function Y() {
-        U();
-        W();
-        G();
-        X();
-        z();
-        J();
-        K();
+    function be() {
+        fe();
+        he();
+        pe();
+        me();
+        ge();
+        ve();
+        ye();
     }
-    const _ = {
+    const O = {
         processingElements: new Map(),
         currentRequestId: 0,
         generateRequestId() {
@@ -10992,7 +11516,7 @@ var FlowPlater = function() {
                         timestamp: Date.now(),
                         processed: false
                     });
-                    c.log(c.levels.DEBUG, "Added element to processing set", e, t);
+                    f.log(f.levels.DEBUG, "Added element to processing set", e, t);
                 }
                 break;
 
@@ -11007,7 +11531,7 @@ var FlowPlater = function() {
               case "cleanup":
                 if (n && n.requestId === t) {
                     this.processingElements.delete(e);
-                    c.log(c.levels.DEBUG, "Cleaned up after request", e, t);
+                    f.log(f.levels.DEBUG, "Cleaned up after request", e, t);
                 }
                 break;
             }
@@ -11018,7 +11542,7 @@ var FlowPlater = function() {
             for (const [ r, n ] of this.processingElements.entries()) {
                 if (e - n.timestamp > t) {
                     this.processingElements.delete(r);
-                    c.log(c.levels.DEBUG, "Cleaned up stale processing entry", r, n.requestId);
+                    f.log(f.levels.DEBUG, "Cleaned up stale processing entry", r, n.requestId);
                 }
             }
         },
@@ -11033,9 +11557,9 @@ var FlowPlater = function() {
                 this.handleRequest(t, r, "start");
                 var n = e.detail.elt;
                 if (n.hasAttribute("fp-instance")) {
-                    var a = n.getAttribute("fp-instance");
-                    g.publish("request-start", {
-                        instanceName: a,
+                    var i = n.getAttribute("fp-instance");
+                    y.publish("request-start", {
+                        instanceName: i,
                         ...e.detail
                     });
                 }
@@ -11044,7 +11568,7 @@ var FlowPlater = function() {
                 var t = e.detail.elt;
                 if (t.hasAttribute("fp-instance")) {
                     var r = t.getAttribute("fp-instance");
-                    g.publish("request-end", {
+                    y.publish("request-end", {
                         instanceName: r,
                         ...e.detail
                     });
@@ -11056,7 +11580,7 @@ var FlowPlater = function() {
                 const n = this.processingElements.get(t);
                 if (!n || n.requestId !== r) {
                     e.preventDefault();
-                    c.log(c.levels.DEBUG, "Prevented swap - request ID mismatch");
+                    f.log(f.levels.DEBUG, "Prevented swap - request ID mismatch");
                 }
             });
             document.body.addEventListener("htmx:responseError", e => {
@@ -11068,7 +11592,7 @@ var FlowPlater = function() {
             });
         }
     };
-    function Z(e) {
+    function Ee(e) {
         function l(e) {
             var t = {};
             if (e.attributes) {
@@ -11077,12 +11601,12 @@ var FlowPlater = function() {
                     t["_" + n.nodeName] = n.nodeValue;
                 }
             }
-            var a = e.childNodes;
-            if (a.length === 1 && a[0].nodeType === 3) {
-                return a[0].nodeValue.trim();
+            var i = e.childNodes;
+            if (i.length === 1 && i[0].nodeType === 3) {
+                return i[0].nodeValue.trim();
             } else {
-                for (var i = 0; i < a.length; i++) {
-                    var s = a[i];
+                for (var a = 0; a < i.length; a++) {
+                    var s = i[a];
                     if (s.nodeType === 1) {
                         var o = l(s);
                         if (t[s.nodeName]) {
@@ -11102,15 +11626,15 @@ var FlowPlater = function() {
         var r = t.parseFromString(e, "text/xml");
         return l(r.documentElement);
     }
-    function Q() {
+    function xe() {
         htmx.defineExtension("flowplater", {
             transformResponse: function(t, e, r) {
                 const n = e.requestId;
-                const a = _.processingElements.get(r);
-                c.log(c.levels.DEBUG, "Transform response for request", n, "current info:", a);
-                if (!a || a.requestId !== n) {
-                    c.log(c.levels.DEBUG, "Skipping transformation - request ID mismatch", {
-                        current: a?.requestId,
+                const i = O.processingElements.get(r);
+                f.log(f.levels.DEBUG, "Transform response for request", n, "current info:", i);
+                if (!i || i.requestId !== n) {
+                    f.log(f.levels.DEBUG, "Skipping transformation - request ID mismatch", {
+                        current: i?.requestId,
                         received: n
                     });
                     return t;
@@ -11118,115 +11642,126 @@ var FlowPlater = function() {
                 if (!r.hasAttribute("fp-template")) {
                     return t;
                 }
-                let i;
+                let a;
                 try {
                     if (e.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
                         var s = new DOMParser();
                         var o = s.parseFromString(t, "text/xml");
-                        i = Z(o);
+                        a = Ee(o);
                     } else {
-                        i = JSON.parse(t);
+                        a = JSON.parse(t);
                     }
                 } catch (e) {
-                    d("Failed to parse response:", e);
+                    g("Failed to parse response:", e);
                     return t;
                 }
                 var l = r.getAttribute("fp-template");
-                p("Response received for request " + n + ": ", i);
+                m("Response received for request " + n + ": ", a);
+                const u = r.getAttribute("fp-instance") || r.id;
+                w(u, "instance");
                 try {
                     let e;
                     if (l) {
-                        p("Rendering html to " + l + " based on htmx response");
-                        e = w({
+                        m("Rendering html to " + l + " based on htmx response");
+                        e = _({
                             template: l,
-                            data: i,
+                            data: a,
                             target: r,
                             returnHtml: true
                         });
                     } else {
                         if (!r.id) {
-                            d("No template found. If the current element is a template, it must have an id.");
+                            g("No template found. If the current element is a template, it must have an id.");
                             return t;
                         }
-                        p("Rendering html to current element based on htmx response");
-                        var u = "#" + r.id;
-                        e = w({
-                            template: u,
-                            data: i,
+                        m("Rendering html to current element based on htmx response");
+                        var c = "#" + r.id;
+                        e = _({
+                            template: c,
+                            data: a,
                             target: r,
                             returnHtml: true
                         });
                     }
                     if (e) {
-                        c.log(c.levels.DEBUG, "Template rendered successfully for request", n);
+                        f.log(f.levels.DEBUG, "Template rendered successfully for request", n);
                         return e;
                     }
                     return t;
                 } catch (e) {
-                    d("Error rendering template:", e);
+                    g("Error rendering template:", e);
                     return "<div class='fp-error'>Error rendering template: " + e + "</div>";
                 }
             },
             handleSwap: function(e, t, r, n) {
                 if (!t.hasAttribute("fp-template")) {
+                    f.log(f.levels.DEBUG, "No fp-template attribute, skipping handleSwap");
                     return false;
                 }
                 try {
-                    const a = t.getAttribute("fp-instance") || t.id;
-                    if (!a) {
-                        c.log(c.levels.DEBUG, "No instance name found for element, falling back to default swap");
+                    const i = t.getAttribute("fp-instance") || t.id;
+                    if (!i) {
+                        f.log(f.levels.DEBUG, "No instance name found for element, falling back to default swap");
                         return false;
                     }
-                    const i = v.instances[a];
-                    if (!i) {
-                        c.log(c.levels.DEBUG, "No instance found for name: " + a);
+                    const a = b.instances[i];
+                    if (!a) {
+                        f.log(f.levels.DEBUG, "No instance found for name: " + i);
                         return false;
                     }
                     const s = [ "innerHTML" ];
                     if (!s.includes(e)) {
-                        c.log(c.levels.DEBUG, "Unsupported swap style for smart DOM swap: " + e + ", falling back to default swap");
+                        f.log(f.levels.DEBUG, "Unsupported swap style for smart DOM swap: " + e + ", falling back to default swap");
                         const o = [ "outerHTML", "beforebegin", "afterbegin", "afterend" ];
                         if (o.includes(e)) {
-                            c.log(c.levels.WARN, "Breaking swap style: " + e + ", instance methods will not work as expected. Target container was removed from the DOM.");
+                            f.log(f.levels.WARN, "Breaking swap style: " + e + ", instance methods will not work as expected. Target container was removed from the DOM.");
                         }
                         return false;
                     }
-                    E(t, r.innerHTML, i.animate);
-                    c.log(c.levels.DEBUG, "HTMX smart innerHTML swap completed for instance: " + a);
+                    f.log(f.levels.DEBUG, "Using updateDOM for swap with config:", b.config);
+                    C(t, r.innerHTML, a.animate);
+                    f.log(f.levels.DEBUG, "HTMX smart innerHTML swap completed for instance: " + i);
                     return true;
                 } catch (e) {
-                    d("Error in handleSwap:", e);
+                    g("Error in handleSwap:", e);
                     return false;
                 }
             },
             onEvent: function(e, t) {
                 if (t.detail.handled) return;
                 const r = t.detail.elt;
-                const n = t.detail.requestId || _.generateRequestId();
+                const n = t.detail.requestId || O.generateRequestId();
                 switch (e) {
                   case "htmx:beforeRequest":
                     t.detail.requestId = n;
                     t.detail.xhr.requestId = n;
-                    _.handleRequest(r, n, "start");
+                    O.handleRequest(r, n, "start");
                     break;
 
                   case "htmx:beforeSwap":
-                    const a = _.processingElements.get(r);
-                    if (!a || a.requestId !== n) {
+                    const i = O.processingElements.get(r);
+                    if (!i || i.requestId !== n) {
                         t.preventDefault();
-                        c.log(c.levels.DEBUG, "Prevented swap - request ID mismatch");
+                        f.log(f.levels.DEBUG, "Prevented swap - request ID mismatch");
                         return;
                     }
                     break;
 
                   case "htmx:afterSwap":
-                    _.handleRequest(r, n, "cleanup");
+                    O.handleRequest(r, n, "cleanup");
+                    const a = Z(r);
+                    a.forEach(K);
+                    break;
+
+                  case "htmx:afterSettle":
+                    f.log(f.levels.DEBUG, `Setting up form handlers after DOM settle for target: ${r.id || "unknown"}, ` + `has fp-template: ${r.hasAttribute("fp-template")}, ` + `parent form: ${r.closest("form")?.id || "none"}`);
+                    k(r);
                     break;
                 }
             }
         });
     }
-    function ee(r) {
+    function Se(r) {
         try {
             if (r.hasAttribute("data-fp-proxy-processed") || !r.hasAttribute("fp-proxy") || r.getAttribute("fp-proxy") === "false") {
                 return r;
@@ -11242,11 +11777,11 @@ var FlowPlater = function() {
             r.setAttribute("data-fp-proxy-processed", "true");
             return r;
         } catch (e) {
-            c.log(c.levels.ERROR, `Error in setupProxy: ${e.message}`);
+            f.log(f.levels.ERROR, `Error in setupProxy: ${e.message}`);
             return r;
         }
     }
-    function P(t) {
+    function we(t) {
         if (!t) {
             errorLog("No URL provided for preloading");
             return;
@@ -11272,22 +11807,22 @@ var FlowPlater = function() {
             timeoutId: n
         };
     }
-    function te(n) {
+    function ke(n) {
         const e = n.getAttribute("fp-preload") || "mouseover";
         if (e === "mouseover") {
             let t = true;
             let e;
             let r;
-            const a = () => {
+            const i = () => {
                 t = true;
                 e = setTimeout(() => {
                     if (t) {
                         const e = n.getAttribute("href") || n.getAttribute("hx-get") || n.getAttribute("fp-get");
-                        r = P(e);
+                        r = we(e);
                     }
                 }, 100);
             };
-            const i = () => {
+            const a = () => {
                 t = false;
                 if (e) {
                     clearTimeout(e);
@@ -11297,17 +11832,17 @@ var FlowPlater = function() {
                     r.cleanup();
                 }
             };
-            n.addEventListener("mouseover", a);
-            n.addEventListener("mouseout", i);
+            n.addEventListener("mouseover", i);
+            n.addEventListener("mouseout", a);
             n._preloadCleanup = () => {
-                n.removeEventListener("mouseover", a);
-                n.removeEventListener("mouseout", i);
-                i();
+                n.removeEventListener("mouseover", i);
+                n.removeEventListener("mouseout", a);
+                a();
             };
         } else {
             const t = () => {
                 const e = n.getAttribute("href") || n.getAttribute("hx-get") || n.getAttribute("fp-get");
-                P(e);
+                we(e);
             };
             n.addEventListener(e, t);
             n._preloadCleanup = () => {
@@ -11315,31 +11850,31 @@ var FlowPlater = function() {
             };
         }
     }
-    function re(t) {
+    function Ae(t) {
         try {
             if (t.hasAttribute("data-fp-preload-processed")) {
                 return t;
             }
             if (t.hasAttribute("fp-preload")) {
-                te(t);
+                ke(t);
                 t.setAttribute("data-fp-preload-processed", "true");
             }
             return t;
         } catch (e) {
-            c.log(c.levels.ERROR, `Error in processPreload: ${e.message}`);
+            f.log(f.levels.ERROR, `Error in processPreload: ${e.message}`);
             return t;
         }
     }
-    const ne = [ "boost", "get", "post", "on", "push-url", "select", "select-oob", "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable", "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt", "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url", "request", "sync", "validate", "vars" ];
-    function ae(n) {
+    const Ce = [ "boost", "get", "post", "on", "push-url", "select", "select-oob", "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable", "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt", "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url", "request", "sync", "validate", "vars" ];
+    function _e(n) {
         try {
-            const a = "fp-";
-            const i = "hx-";
-            ne.forEach(e => {
-                const t = a + e;
+            const i = "fp-";
+            const a = "hx-";
+            Ce.forEach(e => {
+                const t = i + e;
                 if (n.hasAttribute(t)) {
                     const r = n.getAttribute(t);
-                    n.setAttribute(i + e, r);
+                    n.setAttribute(a + e, r);
                     n.removeAttribute(t);
                 }
             });
@@ -11349,7 +11884,7 @@ var FlowPlater = function() {
             return n;
         }
     }
-    function ie(t) {
+    function Ie(t) {
         try {
             const r = [ "get", "post", "put", "patch", "delete" ];
             function o(e, t) {
@@ -11366,22 +11901,22 @@ var FlowPlater = function() {
                     var t = "hx-" + e;
                     if (s.hasAttribute(t)) {
                         var r = s.getAttribute(t);
-                        p("Original URL: " + r);
+                        m("Original URL: " + r);
                         var n = o(s, "fp-prepend");
-                        var a = o(s, "fp-append");
-                        var i = r;
+                        var i = o(s, "fp-append");
+                        var a = r;
                         if (n) {
-                            i = n + i;
+                            a = n + a;
                         }
-                        if (a) {
-                            i += a;
+                        if (i) {
+                            a += i;
                         }
-                        s.setAttribute(t, i);
-                        p("Modified URL: " + i);
-                        if (i !== r) {
-                            p("Modification successful for", e, "on element", s);
+                        s.setAttribute(t, a);
+                        m("Modified URL: " + a);
+                        if (a !== r) {
+                            m("Modification successful for", e, "on element", s);
                         } else {
-                            d("Modification failed for", e, "on element", s);
+                            g("Modification failed for", e, "on element", s);
                         }
                     }
                 });
@@ -11391,13 +11926,13 @@ var FlowPlater = function() {
             }
             return t;
         } catch (e) {
-            d(`Error in processUrlAffixes: ${e.message}`);
+            g(`Error in processUrlAffixes: ${e.message}`);
             return t;
         }
     }
-    function se(t) {
+    function Te(t) {
         try {
-            var e = t.getAttribute("fp-animation") || v.defaults.animation;
+            var e = t.getAttribute("fp-animation") || b.defaults.animation;
             if (e === "true") {
                 var r = t.getAttribute("hx-swap");
                 if (!r) {
@@ -11408,21 +11943,21 @@ var FlowPlater = function() {
             }
             return t;
         } catch (e) {
-            c.log(c.levels.ERROR, `Error in setupAnimation: ${e.message}`);
+            f.log(f.levels.ERROR, `Error in setupAnimation: ${e.message}`);
             return t;
         }
     }
-    function oe(t) {
+    function Oe(t) {
         try {
             var e = t.getAttribute("hx-ext") || "";
             if (!e.includes("flowplater")) {
                 var r = e ? e + ", flowplater" : "flowplater";
                 t.setAttribute("hx-ext", r);
-                c.log(c.levels.INFO, "Added hx-ext attribute to " + t.id);
+                f.log(f.levels.INFO, "Added hx-ext attribute to " + t.id);
             }
             return t;
         } catch (e) {
-            c.log(c.levels.ERROR, `Error in addHtmxExtensionAttribute: ${e.message}`);
+            f.log(f.levels.ERROR, `Error in addHtmxExtensionAttribute: ${e.message}`);
             return t;
         }
     }
@@ -11434,16 +11969,15 @@ var FlowPlater = function() {
    * @author JWSLS
    * @license Flowplater standard licence
    */
-    const le = "1.4.19";
-    const ue = "JWSLS";
-    const ce = "Flowplater standard licence";
-    const I = {
+    const Pe = "1.4.19";
+    const Ne = "JWSLS";
+    const Re = "Flowplater standard licence";
+    const P = {
         debug: {
-            level: window.location.hostname.endsWith(".webflow.io") ? 3 : 1,
-            enabled: true
+            level: window.location.hostname.endsWith(".webflow.io") || window.location.hostname.endsWith(".canvas.webflow.com") ? 3 : 1
         },
         selectors: {
-            fp: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]"
+            fp: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch], [fp-persist]"
         },
         templates: {
             cacheSize: 100,
@@ -11457,12 +11991,12 @@ var FlowPlater = function() {
             timeout: 1e4,
             swapStyle: "innerHTML"
         },
-        customTags: t,
+        customTags: e,
         storage: {
             enabled: false,
             ttl: 30 * 24 * 60 * 60
         },
-        persistData: false
+        persistForm: true
     };
     if (typeof Handlebars === "undefined") {
         throw new s("FlowPlater requires Handlebars. Get it at https://handlebarsjs.com/");
@@ -11470,31 +12004,31 @@ var FlowPlater = function() {
     if (typeof htmx === "undefined") {
         throw new s("FlowPlater requires htmx. Get it at https://htmx.org/");
     }
-    v.config = JSON.parse(JSON.stringify(I));
-    _.setupEventListeners();
-    Q();
-    const T = {
+    b.config = JSON.parse(JSON.stringify(P));
+    O.setupEventListeners();
+    xe();
+    const N = {
         processors: [ {
             name: "customTags",
-            process: V
+            process: $
         }, {
             name: "htmxAttributes",
-            process: ae
+            process: _e
         }, {
             name: "htmxExtensionAttribute",
-            process: oe
+            process: Oe
         }, {
             name: "urlAffixes",
-            process: ie
+            process: Ie
         }, {
             name: "animation",
-            process: se
+            process: Te
         }, {
             name: "proxy",
-            process: ee
+            process: Se
         }, {
             name: "preload",
-            process: re
+            process: Ae
         }, {
             name: "htmxProcess",
             process: e => {
@@ -11502,39 +12036,39 @@ var FlowPlater = function() {
                 return e;
             }
         } ],
-        FP_SELECTOR: "[fp-template], [fp-get], [fp-post], [fp-delete], [fp-patch]",
-        processElement: function(a) {
-            if (a._preloadCleanup) {
-                a._preloadCleanup();
+        FP_SELECTOR: b.config.selectors.fp,
+        processElement: function(i) {
+            if (i._preloadCleanup) {
+                i._preloadCleanup();
             }
-            let i = {
+            let a = {
                 success: true,
                 errors: [],
                 warnings: [],
-                finalElement: a
+                finalElement: i
             };
-            i.finalElement = this.processors.reduce((t, r, e) => {
+            a.finalElement = this.processors.reduce((t, r, e) => {
                 if (!t) {
-                    i.errors.push({
+                    a.errors.push({
                         phase: r.name,
                         error: `Element became undefined at processor index ${e}`,
                         processor: this.processors[e - 1]
                     });
-                    i.success = false;
-                    return a;
+                    a.success = false;
+                    return i;
                 }
                 try {
                     const n = r.process(t);
                     return n;
                 } catch (e) {
-                    i.errors.push({
+                    a.errors.push({
                         phase: r.name,
                         error: e.message,
                         stack: e.stack
                     });
-                    c.log(c.levels.ERROR, `Error in processor ${r.name}: ${e.message}`, e);
-                    if (e instanceof m) {
-                        i.warnings.push({
+                    f.log(f.levels.ERROR, `Error in processor ${r.name}: ${e.message}`, e);
+                    if (e instanceof v) {
+                        a.warnings.push({
                             phase: r.name,
                             message: "Falling back to original template"
                         });
@@ -11542,87 +12076,87 @@ var FlowPlater = function() {
                     }
                     return t;
                 }
-            }, a);
-            if (i.errors.length > 0) {
-                g.publish("processingChain:error", i);
+            }, i);
+            if (a.errors.length > 0) {
+                y.publish("processingChain:error", a);
             }
-            if (i.warnings.length > 0) {
-                g.publish("processingChain:warning", i);
+            if (a.warnings.length > 0) {
+                y.publish("processingChain:warning", a);
             }
-            return i.finalElement;
+            return a.finalElement;
         }
     };
-    function fe(e = document) {
-        if (e === document || !e.matches(T.FP_SELECTOR)) {
-            const t = e.querySelectorAll(T.FP_SELECTOR);
+    function Le(e = document) {
+        if (e === document || !e.matches(N.FP_SELECTOR)) {
+            const t = e.querySelectorAll(N.FP_SELECTOR);
             t.forEach(e => {
-                T.processElement(e);
+                N.processElement(e);
                 const t = e.getAttribute("fp-template");
                 if (t && t !== "self" && t !== "") {
                     const r = document.querySelector(t.startsWith("#") ? t : `#${t}`);
                     if (r) {
-                        T.processElement(r);
+                        N.processElement(r);
                     }
                 }
             });
             return;
         }
-        T.processElement(e);
+        N.processElement(e);
     }
     Handlebars.unregisterHelper("each");
     Handlebars.unregisterHelper("if");
-    Y(Handlebars);
-    const O = {
-        compileTemplate: S,
-        render: w,
-        getInstance: i,
-        getInstances: e,
-        on: (...e) => g.subscribe(...e),
-        off: (...e) => g.unsubscribe(...e),
-        emit: (...e) => g.publish(...e),
+    be(Handlebars);
+    const He = {
+        compileTemplate: x,
+        render: _,
+        getInstance: a,
+        getInstances: D,
+        on: (...e) => y.subscribe(...e),
+        off: (...e) => y.unsubscribe(...e),
+        emit: (...e) => y.publish(...e),
         debug: function(e) {
-            c.level = e;
+            f.level = e;
             return this;
         },
         templateCache: {
             set: function(e, t) {
-                const r = v.config.templates.cacheSize;
-                const n = v.templateCache;
+                const r = b.config.templates.cacheSize;
+                const n = b.templateCache;
                 if (Object.keys(n).length >= r) {
-                    const a = Object.keys(n)[0];
-                    delete n[a];
-                    c.log(c.levels.INFO, `Cache limit reached. Removed template: ${a}`);
+                    const i = Object.keys(n)[0];
+                    delete n[i];
+                    f.log(f.levels.INFO, `Cache limit reached. Removed template: ${i}`);
                 }
                 n[e] = t;
                 return t;
             },
             get: function(e) {
                 if (e) {
-                    return v.templateCache[e];
+                    return b.templateCache[e];
                 }
-                return v.templateCache;
+                return b.templateCache;
             },
             isCached: function(e) {
-                return !!v.templateCache[e];
+                return !!b.templateCache[e];
             },
             clear: function(e) {
                 if (e) {
-                    delete v.templateCache[e];
-                    c.log(c.levels.INFO, `Cleared template cache for: ${e}`);
+                    delete b.templateCache[e];
+                    f.log(f.levels.INFO, `Cleared template cache for: ${e}`);
                 } else {
-                    v.templateCache = {};
-                    c.log(c.levels.INFO, "Cleared entire template cache");
+                    b.templateCache = {};
+                    f.log(f.levels.INFO, "Cleared entire template cache");
                 }
             },
             size: function() {
-                return Object.keys(v.templateCache).length;
+                return Object.keys(b.templateCache).length;
             }
         },
-        init: function(e = document, o = {
+        init: function(e = document, u = {
             render: true
         }) {
-            y.start("init");
-            c.log(c.levels.INFO, "Initializing FlowPlater...");
+            E.start("init");
+            f.log(f.levels.INFO, "Initializing FlowPlater...");
             const t = document.querySelectorAll("[fp-template]");
             t.forEach(t => {
                 let e = t.getAttribute("fp-template");
@@ -11632,43 +12166,58 @@ var FlowPlater = function() {
                 if (e) {
                     const r = document.querySelector(e);
                     if (r) {
-                        console.log("replacing template content", r);
+                        m("replacing template content", r);
                         const n = r.getElementsByTagName("script");
-                        const a = Array.from(n).map(e => e.innerHTML);
+                        const i = Array.from(n).map(e => e.innerHTML);
                         Array.from(n).forEach((e, t) => {
-                            e.innerHTML = `##SCRIPT_${t}##`;
+                            e.innerHTML = `##FP_SCRIPT_${t}##`;
                         });
                         r.innerHTML = r.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
                         Array.from(r.getElementsByTagName("script")).forEach((e, t) => {
-                            e.innerHTML = a[t];
+                            e.innerHTML = i[t];
                         });
                     }
-                    S(e, true);
-                    if (o.render) {
-                        const i = [ "get", "post", "put", "patch", "delete" ];
-                        const s = i.some(e => t.hasAttribute(`hx-${e}`) || t.hasAttribute(`fp-${e}`));
+                    x(e, true);
+                    if (u.render) {
+                        const a = [ "get", "post", "put", "patch", "delete" ];
+                        const s = a.some(e => t.hasAttribute(`hx-${e}`) || t.hasAttribute(`fp-${e}`));
                         if (!s) {
-                            w({
+                            _({
                                 template: e,
                                 data: {},
                                 target: t
                             });
                         } else {
-                            c.log(c.levels.INFO, `Skipping initial render for template with HTMX/FP methods: ${e}`);
+                            if (b.config?.storage?.enabled) {
+                                const o = t.getAttribute("fp-instance") || e;
+                                const l = w(o, "instance");
+                                if (l) {
+                                    f.log(f.levels.INFO, `Found stored data for instance: ${o}, rendering with stored data`);
+                                    _({
+                                        template: e,
+                                        data: l,
+                                        target: t
+                                    });
+                                } else {
+                                    f.log(f.levels.INFO, `Skipping initial render for instance: ${o}`);
+                                }
+                            } else {
+                                f.log(f.levels.INFO, `Skipping initial render for template with HTMX/FP methods: ${e}`);
+                            }
                         }
                     }
                 } else {
-                    d(`No template ID found for element: ${t.id}`, t, "Make sure your template has an ID attribute");
+                    g(`No template ID found for element: ${t.id}`, t, "Make sure your template has an ID attribute");
                 }
             });
-            fe(e);
-            c.log(c.levels.INFO, "FlowPlater initialized successfully");
-            y.end("init");
+            Le(e);
+            f.log(f.levels.INFO, "FlowPlater initialized successfully");
+            E.end("init");
             return this;
         },
         cleanup: function(e) {
             if (e) {
-                const t = v.instances[e];
+                const t = b.instances[e];
                 if (t) {
                     t.elements.forEach(e => {
                         if (e._preloadCleanup) {
@@ -11676,24 +12225,24 @@ var FlowPlater = function() {
                         }
                         e.removeEventListeners();
                     });
-                    delete v.instances[e];
-                    p(`Cleaned up instance: ${e}`);
+                    delete b.instances[e];
+                    m(`Cleaned up instance: ${e}`);
                 }
             } else {
-                Object.keys(v.instances).forEach(e => {
+                Object.keys(b.instances).forEach(e => {
                     this.cleanup(e);
                 });
-                p("Cleaned up all instances");
+                m("Cleaned up all instances");
             }
             return this;
         },
-        version: le,
-        author: ue,
-        license: ce,
-        setCustomTags: r,
+        version: Pe,
+        author: Ne,
+        license: Re,
+        setCustomTags: t,
         config: function(e = {}) {
             if ("storage" in e) {
-                e.storage = N(e.storage, I.storage);
+                e.storage = De(e.storage, P.storage);
             }
             function n(e, t) {
                 for (const r in t) {
@@ -11705,37 +12254,36 @@ var FlowPlater = function() {
                 }
                 return e;
             }
-            v.config = n(JSON.parse(JSON.stringify(v.config)), e);
-            c.level = v.config.debug.level;
-            c.debugMode = v.config.debug.enabled;
-            T.FP_SELECTOR = v.config.selectors.fp;
+            b.config = n(JSON.parse(JSON.stringify(b.config)), e);
+            f.level = b.config.debug.level;
+            N.FP_SELECTOR = b.config.selectors.fp;
             if (typeof htmx !== "undefined") {
-                htmx.config.timeout = v.config.htmx.timeout;
-                htmx.config.defaultSwapStyle = v.config.htmx.swapStyle;
+                htmx.config.timeout = b.config.htmx.timeout;
+                htmx.config.defaultSwapStyle = b.config.htmx.swapStyle;
             }
             if (e.customTags) {
-                r(e.customTags);
+                t(e.customTags);
             }
-            c.log(c.levels.INFO, "FlowPlater configured with:", v.config);
+            f.log(f.levels.INFO, "FlowPlater configured with:", b.config);
             return this;
         },
         getConfig: function() {
-            return JSON.parse(JSON.stringify(v.config));
+            return JSON.parse(JSON.stringify(b.config));
         },
         destroy: function() {
-            Object.keys(v.instances).forEach(e => {
+            Object.keys(b.instances).forEach(e => {
                 this.cleanup(e);
             });
-            v.templateCache = {};
-            v.instances = {};
-            g.unsubscribeAll();
-            p("Cleaned up all instances");
+            b.templateCache = {};
+            b.instances = {};
+            y.unsubscribeAll();
+            m("Cleaned up all instances");
         },
         create: function(e, t = {
             refresh: true
         }) {
-            y.start(`createInstance:${e}`);
-            c.log(c.levels.INFO, `Creating FlowPlater instance: ${e}`);
+            E.start(`createInstance:${e}`);
+            f.log(f.levels.INFO, `Creating FlowPlater instance: ${e}`);
             let r;
             if (e.startsWith("#")) {
                 r = document.getElementById(e.slice(1));
@@ -11750,19 +12298,19 @@ var FlowPlater = function() {
                 this.templateCache.clear(n);
             }
             this.init(r);
-            const a = i(e);
-            if (!a) {
+            const i = a(e);
+            if (!i) {
                 throw new s(`Failed to create instance: ${e}`);
             }
             if (t.refresh) {
-                a.refresh();
+                i.refresh();
             }
-            c.log(c.levels.INFO, `Instance created successfully: ${e}`);
-            y.end(`createInstance:${e}`);
-            return a;
+            f.log(f.levels.INFO, `Instance created successfully: ${e}`);
+            E.end(`createInstance:${e}`);
+            return i;
         }
     };
-    function N(e, t) {
+    function De(e, t) {
         if (typeof e === "boolean") {
             return {
                 enabled: e,
@@ -11770,6 +12318,12 @@ var FlowPlater = function() {
             };
         }
         if (typeof e === "number") {
+            if (e === -1) {
+                return {
+                    enabled: true,
+                    ttl: -1
+                };
+            }
             return {
                 enabled: e > 0,
                 ttl: e > 0 ? e : t.ttl
@@ -11777,29 +12331,29 @@ var FlowPlater = function() {
         }
         return e;
     }
-    let H = JSON.parse(JSON.stringify(I));
-    const R = document.querySelector('meta[name="fp-config"]');
-    if (R) {
+    let R = JSON.parse(JSON.stringify(P));
+    const L = document.querySelector('meta[name="fp-config"]');
+    if (L) {
         try {
-            const L = JSON.parse(R.content);
-            if ("storage" in L) {
-                L.storage = N(L.storage, I.storage);
+            const H = JSON.parse(L.content);
+            if ("storage" in H) {
+                H.storage = De(H.storage, P.storage);
             }
-            H = {
-                ...H,
-                ...L
+            R = {
+                ...R,
+                ...H
             };
         } catch (e) {
-            d("Error parsing fp-config meta tag:", R, "Make sure your meta tag is valid");
+            g("Error parsing fp-config meta tag:", L, "Make sure your meta tag is valid");
         }
     }
-    O.config(H);
+    He.config(R);
     if (document.readyState === "complete" || document.readyState !== "loading") {
         setTimeout(() => {
             try {
                 FlowPlater.init();
             } catch (e) {
-                d("FlowPlater initialization failed:", e);
+                g("FlowPlater initialization failed:", e);
             }
         }, 1);
     } else {
@@ -11808,10 +12362,10 @@ var FlowPlater = function() {
                 try {
                     FlowPlater.init();
                 } catch (e) {
-                    d("FlowPlater initialization failed:", e);
+                    g("FlowPlater initialization failed:", e);
                 }
             }, 1);
         });
     }
-    return O;
+    return He;
 }();

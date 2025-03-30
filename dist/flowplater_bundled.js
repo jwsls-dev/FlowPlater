@@ -9995,17 +9995,15 @@ var FlowPlater = (function () {
 
   const Debug = (function () {
     return {
-      level: 3,
+      level: 1,
       levels: {
         ERROR: 0,
         WARN: 1,
         INFO: 2,
         DEBUG: 3,
       },
-      debugMode: true,
 
       log: function (level, ...args) {
-        if (!this.debugMode) return;
         if (level <= this.level) {
           const prefix = ["ERROR", "WARN", "INFO", "DEBUG"][level];
           switch (prefix) {
@@ -10220,6 +10218,1069 @@ var FlowPlater = (function () {
     return wrapper;
   }
 
+  // Default customTags - can be overridden via meta config in init()
+  const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
+  let currentCustomTags = customTagList; // Use default list initially - override in init()
+
+  function setCustomTags(tags) {
+    currentCustomTags = tags;
+  }
+
+  function replaceCustomTags(element) {
+    let replaced = false;
+
+    // Replace all custom tags in a single pass
+    for (const tag of currentCustomTags) {
+      const elements = element.getElementsByTagName(tag.tag);
+      if (elements.length > 0) {
+        replaced = true;
+
+        // Convert to array since the live HTMLCollection will change as we replace elements
+        const elementsArray = Array.from(elements);
+        for (const customElement of elementsArray) {
+          const newElement = document.createElement(tag.replaceWith);
+          newElement.innerHTML = customElement.innerHTML;
+
+          // Copy all attributes from the custom element to the new element
+          for (const attr of customElement.attributes) {
+            newElement.setAttribute(attr.name, attr.value);
+          }
+
+          // Replace the custom element with the new element
+          customElement.parentNode.replaceChild(newElement, customElement);
+        }
+      }
+    }
+
+    if (replaced) {
+      log("replaced custom tags", element);
+    }
+
+    return element;
+  }
+
+  function compileTemplate(templateId, recompile = false) {
+    if (!recompile) {
+      return memoizedCompile(templateId);
+    }
+
+    // For recompile=true:
+    // 1. Clear template cache
+    delete _state.templateCache[templateId];
+    // 2. Compile without memoization
+    const compiledTemplate = memoizedCompile.original(templateId);
+    // 3. Update the memoized cache with the new template
+    memoizedCompile.cache.set(JSON.stringify([templateId]), compiledTemplate);
+
+    return compiledTemplate;
+  }
+
+  const memoizedCompile = memoize(function (templateId) {
+    // if templateId is empty or "self", use the current element
+    Performance.start("compile:" + templateId);
+
+    // Add # prefix if templateId doesn't start with it
+    const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
+    var templateElement = document.querySelector(selector);
+
+    log("Trying to compile template: " + templateId);
+
+    if (!templateElement) {
+      errorLog$1("Template not found: " + templateId);
+      Performance.end("compile:" + templateId);
+      return null;
+    }
+
+    // Check if template needs compilation
+    if (
+      !_state.templateCache[templateId] ||
+      (templateElement.hasAttribute("fp-dynamic") &&
+        templateElement.getAttribute("fp-dynamic") !== "false")
+    ) {
+      log("compiling template: " + templateId);
+
+      // Function to construct tag with attributes
+      function constructTagWithAttributes(element) {
+        let tagName = element.tagName.toLowerCase();
+        // Replace all custom tags
+        currentCustomTags.forEach((tag) => {
+          if (tagName === tag.tag) {
+            tagName = tag.replaceWith;
+          }
+        });
+        let attributes = "";
+        for (let attr of element.attributes) {
+          attributes += ` ${attr.name}="${attr.value}"`;
+        }
+        return `<${tagName}${attributes}>`;
+      }
+
+      function processNode(node) {
+        let result = "";
+
+        // Loop through each child node
+        node.childNodes.forEach((child) => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            result += child.textContent;
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            if (child.hasAttribute("fp")) {
+              // Process as a Handlebars helper
+              const helperName = child.tagName.toLowerCase();
+              const args = child
+                .getAttribute("fp")
+                .split(" ")
+                .map((arg) => arg.replace(/&quot;/g, '"'))
+                .join(" ");
+
+              const innerContent = processNode(child);
+
+              if (
+                helperName === "log" ||
+                helperName === "lookup" ||
+                helperName === "execute"
+              ) {
+                if (innerContent) {
+                  result += `{{${helperName} ${innerContent} ${args}}}`;
+                } else {
+                  result += `{{${helperName} ${args}}}`;
+                }
+              } else if (helperName === "comment") {
+                result += `{{!-- ${args} --}}`;
+              } else if (helperName === "if") {
+                const escapedArgs = args.replace(/"/g, '\\"');
+                result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
+              } else if (helperName === "else") {
+                result += `{{${helperName}}}${innerContent}`;
+              } else if (helperName === "math") {
+                if (innerContent) {
+                  console.warn(
+                    `FlowPlater: The <${helperName}> helper does not accept inner content.`,
+                  );
+                }
+                result += `{{#${helperName} "${args}"}}`;
+              } else {
+                result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
+              }
+            } else if (child.tagName === "else") {
+              const innerContent = processNode(child);
+              result += `{{${child.tagName.toLowerCase()}}}${innerContent}`;
+            } else if (
+              child.tagName === "template" ||
+              child.tagName === "fptemplate" ||
+              child.hasAttribute("fp-template")
+            ) {
+              result += child.outerHTML;
+            } else {
+              const childContent = processNode(child);
+              const startTag = constructTagWithAttributes(child);
+              let endTagName = child.tagName.toLowerCase();
+              currentCustomTags.forEach((tag) => {
+                if (endTagName === tag.tag) {
+                  endTagName = tag.replaceWith;
+                }
+              });
+              const endTag = `</${endTagName}>`;
+              result += `${startTag}${childContent}${endTag}`;
+            }
+          }
+        });
+        return result;
+      }
+
+      const handlebarsTemplate = processNode(templateElement);
+      log("Compiling Handlebars template: " + handlebarsTemplate);
+
+      try {
+        const compiledTemplate = Handlebars.compile(handlebarsTemplate);
+
+        // Check cache size limit before adding new template
+        const cacheSize = _state.config?.templates?.cacheSize || 100; // Default to 100 if not configured
+        if (Object.keys(_state.templateCache).length >= cacheSize) {
+          // Remove oldest template
+          const oldestKey = Object.keys(_state.templateCache)[0];
+          delete _state.templateCache[oldestKey];
+          log(`Cache limit reached. Removed template: ${oldestKey}`);
+        }
+
+        // Add new template to cache
+        _state.templateCache[templateId] = compiledTemplate;
+        Performance.end("compile:" + templateId);
+        return compiledTemplate;
+      } catch (e) {
+        errorLog$1(
+          "Template not valid: " + handlebarsTemplate + " | Error: " + e.message,
+        );
+        Performance.end("compile:" + templateId);
+        return null;
+      }
+    }
+    Performance.end("compile:" + templateId);
+    return _state.templateCache[templateId];
+  });
+
+  function saveToLocalStorage(instanceName, data, prefix = "") {
+    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+    if (_state.config?.storage?.enabled) {
+      try {
+        const ttl = _state.config.storage.ttl || 30 * 24 * 60 * 60; // default 30 days in seconds
+        const storageData = {
+          data,
+          expiry: ttl === -1 ? -1 : Date.now() + ttl * 1000, // -1 for infinite TTL
+        };
+
+        const key = `fp_${prefix}${prefix ? "_" : ""}${instanceName}`;
+        Debug.log(Debug.levels.DEBUG, `Saving to localStorage:`, {
+          key,
+          data: storageData,
+        });
+        localStorage.setItem(key, JSON.stringify(storageData));
+      } catch (error) {
+        errorLog$1(`Failed to save to localStorage: ${error.message}`);
+      }
+    } else {
+      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping save`);
+    }
+  }
+
+  function loadFromLocalStorage(instanceName, prefix = "") {
+    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+    if (_state.config?.storage?.enabled) {
+      try {
+        const key = `fp_${prefix}${prefix ? "_" : ""}${instanceName}`;
+        const storedItem = localStorage.getItem(key);
+        if (!storedItem) {
+          Debug.log(Debug.levels.DEBUG, `No stored item found for: ${key}`);
+          return null;
+        }
+
+        const storageData = JSON.parse(storedItem);
+
+        // Check if data has expired (skip check for infinite TTL)
+        if (storageData.expiry !== -1 && Date.now() > storageData.expiry) {
+          Debug.log(Debug.levels.DEBUG, `Stored item has expired: ${key}`);
+          localStorage.removeItem(key);
+          return null;
+        }
+
+        Debug.log(Debug.levels.DEBUG, `Loaded from localStorage:`, {
+          key,
+          data: storageData,
+        });
+        return storageData.data;
+      } catch (error) {
+        errorLog$1(`Failed to load from localStorage: ${error.message}`);
+        return null;
+      }
+    } else {
+      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping load`);
+    }
+    return null;
+  }
+
+  /**
+   * Helper function to collect debug information consistently
+   */
+  function collectDebugInfo(form, type, details = {}) {
+    return {
+      formId: form.id,
+      type,
+      persistenceEnabled: isPersistenceEnabledForElement(form),
+      ...details,
+    };
+  }
+
+  /**
+   * Helper function to handle storage operations
+   */
+  function handleFormStorage(form, state, operation = "save") {
+    const useLocal = shouldUseLocalStorage(form);
+    const key = `fp_form_${form.id}`;
+
+    if (operation === "save") {
+      if (useLocal) {
+        saveToLocalStorage(form.id, state, "form");
+      } else {
+        sessionStorage.setItem(key, JSON.stringify(state));
+      }
+    } else if (operation === "load") {
+      return useLocal
+        ? loadFromLocalStorage(form.id, "form")
+        : JSON.parse(sessionStorage.getItem(key));
+    } else if (operation === "clear") {
+      if (useLocal) localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    }
+  }
+
+  /**
+   * Helper function to process form elements consistently
+   */
+  function processFormElements(form, callback) {
+    Array.from(form.elements).forEach((element) => {
+      if (!element.name || element.type === "file") return;
+      if (!isPersistenceEnabledForElement(element)) return;
+
+      callback(element);
+    });
+  }
+
+  /**
+   * Helper function to manage event listeners
+   */
+  function manageEventListener(element, eventType, handler, operation = "add") {
+    const events =
+      eventType === "change"
+        ? [
+            "change",
+            element.type !== "checkbox" && element.type !== "radio"
+              ? "input"
+              : null,
+          ]
+        : [eventType];
+
+    events.filter(Boolean).forEach((event) => {
+      element[`${operation}EventListener`](event, handler);
+    });
+  }
+
+  /**
+   * Helper function to restore element values
+   */
+  function restoreElementValue(element, value) {
+    if (element.type === "checkbox" || element.type === "radio") {
+      element.checked = value;
+      updateCustomVisualState(element);
+    } else if (element instanceof HTMLSelectElement && element.multiple) {
+      Array.from(element.options).forEach((option) => {
+        option.selected = value.includes(option.value);
+      });
+    } else {
+      element.value = value;
+    }
+  }
+
+  /**
+   * Helper function to update custom visual state
+   */
+  function updateCustomVisualState(element) {
+    const wrapper = element.closest(
+      element.type === "checkbox" ? ".w-checkbox" : ".w-radio",
+    );
+    if (!wrapper) return;
+
+    const customInput = wrapper.querySelector(`.w-${element.type}-input`);
+    if (customInput) {
+      customInput.classList.toggle("w--redirected-checked", element.checked);
+    }
+  }
+
+  /**
+   * Gets persistence settings for an element
+   * @param {HTMLElement} element - The element to check
+   * @returns {Object} - Object containing persistence settings
+   */
+  function getPersistenceSettings(element) {
+    let elementInsideInstanceElement = false;
+    let shouldPersist = false;
+    let useLocalStorage = false;
+
+    // Check if element is part of a template instance
+    for (const [instanceName, instance] of Object.entries(_state.instances)) {
+      if (Array.from(instance.elements).some((el) => el.contains(element))) {
+        elementInsideInstanceElement = true;
+        break;
+      }
+    }
+
+    // Check persistence settings
+    if (element.hasAttribute("fp-persist")) {
+      shouldPersist = element.getAttribute("fp-persist") !== "false";
+      useLocalStorage = element.getAttribute("fp-persist") === "true";
+    } else {
+      const form = element.form;
+      if (form && form.hasAttribute("fp-persist")) {
+        shouldPersist = form.getAttribute("fp-persist") !== "false";
+        useLocalStorage = form.getAttribute("fp-persist") === "true";
+      } else if (_state.config?.storage?.enabled && !_state.config?.persistForm) {
+        shouldPersist = false;
+        useLocalStorage = false;
+      } else {
+        shouldPersist = _state.config?.persistForm;
+        useLocalStorage =
+          _state.config?.storage?.enabled && _state.config?.persistForm;
+      }
+    }
+
+    // For forms, check if any elements have explicit persistence
+    if (element.tagName === "FORM") {
+      const hasPersistentElements = Array.from(element.elements).some(
+        (input) => input.getAttribute("fp-persist") === "true",
+      );
+      if (hasPersistentElements) {
+        useLocalStorage = _state.config?.storage?.enabled;
+      }
+    }
+
+    return {
+      shouldPersist: elementInsideInstanceElement && shouldPersist,
+      useLocalStorage: useLocalStorage && _state.config?.storage?.enabled,
+    };
+  }
+
+  /**
+   * Checks if persistence is enabled for an element
+   * @param {HTMLElement} element - The element to check
+   * @returns {boolean} - Whether persistence is enabled for this element
+   */
+  function isPersistenceEnabledForElement(element) {
+    return getPersistenceSettings(element).shouldPersist;
+  }
+
+  /**
+   * Determines which storage to use based on configuration
+   * @param {HTMLElement} element - The element to check
+   * @returns {boolean} - true for localStorage, false for sessionStorage
+   */
+  function shouldUseLocalStorage(element) {
+    return getPersistenceSettings(element).useLocalStorage;
+  }
+
+  /**
+   * Captures the state of a form element
+   * @param {HTMLElement} element - The form element to capture state from
+   * @returns {Object} The captured state
+   */
+  function captureElementState(element) {
+    try {
+      if (
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLSelectElement ||
+        element instanceof HTMLTextAreaElement
+      ) {
+        const state = {
+          value: element.value,
+          checked: element.checked,
+          selected:
+            element instanceof HTMLSelectElement
+              ? element.multiple
+                ? Array.from(element.selectedOptions).map((opt) => opt.value)
+                : element.value
+              : null,
+          selectionStart:
+            element instanceof HTMLTextAreaElement
+              ? element.selectionStart
+              : null,
+          selectionEnd:
+            element instanceof HTMLTextAreaElement ? element.selectionEnd : null,
+          scrollTop:
+            element instanceof HTMLTextAreaElement ? element.scrollTop : null,
+          scrollLeft:
+            element instanceof HTMLTextAreaElement ? element.scrollLeft : null,
+        };
+
+        return state;
+      }
+      return null;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error capturing element state: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Restores the state of a form element
+   * @param {HTMLElement} element - The form element to restore state to
+   * @param {Object} state - The state to restore
+   */
+  function restoreElementState(element, state) {
+    try {
+      if (!state) return;
+
+      if (element instanceof HTMLSelectElement) {
+        if (state.selected) {
+          if (element.multiple && Array.isArray(state.selected)) {
+            // Handle multiple select
+            state.selected.forEach((value) => {
+              const option = element.querySelector(`option[value="${value}"]`);
+              if (option) option.selected = true;
+            });
+          } else {
+            // Handle single select
+            const option = element.querySelector(
+              `option[value="${state.selected}"]`,
+            );
+            if (option) {
+              option.selected = true;
+              element.value = state.selected;
+            }
+          }
+        }
+      } else if (element instanceof HTMLTextAreaElement) {
+        element.value = state.value;
+        if (state.selectionStart !== null && state.selectionEnd !== null) {
+          element.setSelectionRange(state.selectionStart, state.selectionEnd);
+        }
+        if (state.scrollTop !== null) element.scrollTop = state.scrollTop;
+        if (state.scrollLeft !== null) element.scrollLeft = state.scrollLeft;
+      } else {
+        element.value = state.value;
+        element.checked = state.checked;
+      }
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error restoring element state: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Updates non-state attributes of a form element
+   * @param {HTMLElement} fromEl - The target element
+   * @param {HTMLElement} toEl - The source element
+   */
+  function updateElementAttributes(fromEl, toEl) {
+    try {
+      Array.from(toEl.attributes).forEach((attr) => {
+        // Skip value, checked, and Webflow-specific attributes
+        if (
+          attr.name !== "value" &&
+          attr.name !== "checked" &&
+          !attr.name.startsWith("w-")
+        ) {
+          fromEl.setAttribute(attr.name, attr.value);
+        }
+      });
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error updating element attributes: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Preserves the state of a form element during DOM updates
+   * @param {HTMLElement} fromEl - The target element
+   * @param {HTMLElement} toEl - The source element
+   */
+  function preserveElementState(fromEl, toEl) {
+    try {
+      if (
+        fromEl instanceof HTMLInputElement ||
+        fromEl instanceof HTMLSelectElement ||
+        fromEl instanceof HTMLTextAreaElement
+      ) {
+        const state = captureElementState(fromEl);
+        updateElementAttributes(fromEl, toEl);
+        restoreElementState(fromEl, state);
+      }
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error preserving element state: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Captures the state of all forms within an element
+   * @param {HTMLElement} element - The container element
+   * @returns {Object} - Map of form states by form ID
+   */
+  function captureFormStates(element) {
+    try {
+      const forms = element.getElementsByTagName("form");
+      const formStates = {};
+
+      Array.from(forms).forEach((form) => {
+        if (!form.id) return;
+
+        const formState = {};
+        const formElements = form.elements;
+
+        Array.from(formElements).forEach((input) => {
+          if (!input.name || input.type === "file") return;
+
+          // Skip if persistence is disabled for this element
+          if (!isPersistenceEnabledForElement(input)) return;
+
+          if (input.type === "checkbox" || input.type === "radio") {
+            formState[input.name] = input.checked;
+          } else if (input instanceof HTMLSelectElement) {
+            if (input.multiple) {
+              formState[input.name] = Array.from(input.selectedOptions).map(
+                (opt) => opt.value,
+              );
+            } else {
+              formState[input.name] = input.value;
+            }
+          } else {
+            formState[input.name] = input.value;
+          }
+        });
+
+        // Only store if there are elements to store
+        if (Object.keys(formState).length > 0) {
+          // Emit event before storing
+          EventSystem.publish("formState:beforeCapture", {
+            formId: form.id,
+            formElement: form,
+            state: formState,
+          });
+
+          formStates[form.id] = formState;
+
+          // Store based on configuration
+          if (shouldUseLocalStorage(form)) {
+            saveToLocalStorage(form.id, formState, "form");
+          } else {
+            sessionStorage.setItem(
+              `fp_form_${form.id}`,
+              JSON.stringify(formState),
+            );
+          }
+        }
+      });
+
+      return formStates;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error capturing form states: ${error.message}`,
+      );
+      return {};
+    }
+  }
+
+  /**
+   * Restores the state of a single form from storage
+   * @param {HTMLFormElement} form - The form to restore state for
+   * @returns {boolean} - Whether state was restored
+   */
+  function restoreSingleFormState(form) {
+    if (!form.id) return false;
+
+    // Try to get state from storage
+    const formState = handleFormStorage(form, null, "load");
+    if (!formState) {
+      Debug.log(Debug.levels.DEBUG, `No stored state found for form: ${form.id}`);
+      return false;
+    }
+
+    const debugInfo = collectDebugInfo(form, "restore", {
+      restoredElements: [],
+      customVisualUpdates: [],
+      skippedElements: [],
+      storageType: shouldUseLocalStorage(form)
+        ? "localStorage"
+        : "sessionStorage",
+    });
+
+    // Restore state directly for this form
+    processFormElements(form, (input) => {
+      if (!(input.name in formState)) return;
+
+      debugInfo.restoredElements.push({
+        name: input.name,
+        value: formState[input.name],
+      });
+
+      restoreElementValue(input, formState[input.name]);
+    });
+
+    // Single debug log with all information
+    Debug.log(
+      Debug.levels.DEBUG,
+      `Form state restoration summary for ${form.id}:
+    Storage type: ${debugInfo.storageType}
+    Restored elements:
+    ${debugInfo.restoredElements
+      .map((el) => `- ${el.name}: ${el.value}`)
+      .join("\n    ")}
+    
+    Updated custom visual states for:
+    ${debugInfo.customVisualUpdates.join(", ")}
+    
+    Skipped elements (persistence disabled):
+    ${debugInfo.skippedElements.join(", ")}`,
+    );
+
+    // Emit event after restoration
+    EventSystem.publish("formState:afterRestore", {
+      formId: form.id,
+      formElement: form,
+      state: formState,
+    });
+
+    return true;
+  }
+
+  /**
+   * Restores form states within an element
+   * @param {HTMLElement} element - The container element
+   */
+  function restoreFormStates(element) {
+    try {
+      const forms = element.getElementsByTagName("form");
+      Array.from(forms).forEach(restoreSingleFormState);
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error restoring form states: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Clears stored form state
+   * @param {string} formId - ID of the form to clear
+   */
+  function clearFormState(formId) {
+    try {
+      const form = document.getElementById(formId);
+      if (!form) return;
+
+      handleFormStorage(form, null, "clear");
+
+      EventSystem.publish("formState:clear", {
+        formId,
+        formElement: form,
+      });
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error clearing form state: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Sets up change event listeners for form elements
+   * @param {HTMLElement} form - The form element to set up listeners for
+   */
+  function setupFormChangeListeners(form) {
+    try {
+      if (!form.id) {
+        Debug.log(Debug.levels.DEBUG, "Skipping form without ID");
+        return;
+      }
+
+      const debugInfo = collectDebugInfo(form, "setup", {
+        formElements: form.elements.length,
+        checkboxWrappers: form.querySelectorAll(".w-checkbox").length,
+        listenersAdded: [],
+        skippedElements: [],
+      });
+
+      // Initialize new listeners array if it doesn't exist
+      if (!form._fpChangeListeners) {
+        form._fpChangeListeners = [];
+      }
+
+      // Handle regular form elements
+      processFormElements(form, (element) => {
+        // Skip if element already has a listener
+        if (form._fpChangeListeners.some(({ element: el }) => el === element)) {
+          return;
+        }
+
+        const changeHandler = (event) => handleFormElementChange(event);
+        manageEventListener(element, "change", changeHandler);
+
+        // Store the handler reference
+        form._fpChangeListeners.push({ element, handler: changeHandler });
+        debugInfo.listenersAdded.push(element.name);
+      });
+
+      // Output collected debug information
+      Debug.log(
+        Debug.levels.DEBUG,
+        `Form setup summary for ${form.id}:
+      - Total form elements: ${debugInfo.formElements}
+      - Checkbox wrappers: ${debugInfo.checkboxWrappers}
+      - Form persistence: ${
+        debugInfo.persistenceEnabled ? "enabled" : "disabled"
+      }
+      - Listeners added to: ${debugInfo.listenersAdded.join(", ")}
+      - Skipped elements: ${debugInfo.skippedElements.join(", ")}`,
+      );
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error setting up form change listeners: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Cleans up change event listeners for form elements
+   * @param {HTMLElement} form - The form element to clean up listeners for
+   */
+  function cleanupFormChangeListeners(form) {
+    try {
+      if (!form._fpChangeListeners) return;
+
+      form._fpChangeListeners.forEach(({ element, handler }) => {
+        element.removeEventListener("change", handler);
+        element.removeEventListener("input", handler);
+      });
+
+      form._fpChangeListeners = [];
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error cleaning up form change listeners: ${error.message}`,
+      );
+    }
+  }
+
+  function handleFormElementChange(event) {
+    try {
+      const element = event.target;
+      const form = element.form;
+      if (!form || !form.id) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Skipping change handler - no form or form ID",
+        );
+        return;
+      }
+
+      const debugInfo = collectDebugInfo(form, "change", {
+        changedValues: {},
+        skippedElements: [],
+      });
+
+      // Capture the current state of the form
+      const formState = {};
+      processFormElements(form, (input) => {
+        const value =
+          input.type === "checkbox" || input.type === "radio"
+            ? input.checked
+            : input instanceof HTMLSelectElement && input.multiple
+              ? Array.from(input.selectedOptions).map((opt) => opt.value)
+              : input.value;
+
+        formState[input.name] = value;
+        debugInfo.changedValues[input.name] = value;
+      });
+
+      // Only store if there are elements to store
+      if (Object.keys(formState).length > 0) {
+        handleFormStorage(form, formState, "save");
+
+        // Output collected debug information
+        Debug.log(
+          Debug.levels.DEBUG,
+          `Form state update for ${form.id}:
+        - Changed element: ${element.name}
+        - Storage type: ${
+          shouldUseLocalStorage(form) ? "localStorage" : "sessionStorage"
+        }
+        - Updated values: ${JSON.stringify(debugInfo.changedValues, null, 2)}
+        - Skipped elements (persistence disabled): ${debugInfo.skippedElements.join(
+          ", ",
+        )}`,
+        );
+
+        // Emit event
+        EventSystem.publish("formState:changed", {
+          formId: form.id,
+          formElement: form,
+          state: formState,
+          changedElement: element,
+        });
+      }
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error handling form element change: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Gets all relevant forms for an element (target, parent, and children)
+   * @param {HTMLElement} element - The element to get forms for
+   * @returns {Set<HTMLFormElement>} - Set of unique form elements
+   */
+  function getAllRelevantForms(element) {
+    const forms = new Set();
+
+    // Add the target if it's a form
+    if (element.tagName === "FORM") {
+      forms.add(element);
+    }
+
+    // Add parent forms
+    const parentForm = element.closest("form");
+    if (parentForm) {
+      forms.add(parentForm);
+    }
+
+    // Add child forms
+    const childForms = element.getElementsByTagName("form");
+    Array.from(childForms).forEach((form) => forms.add(form));
+
+    return forms;
+  }
+
+  /**
+   * Sets up form submission handlers to clear state on submit
+   * @param {HTMLElement} element - The container element
+   */
+  function setupFormSubmitHandlers(element) {
+    try {
+      Debug.log(
+        Debug.levels.DEBUG,
+        "Setting up form submit handlers for element:",
+        element,
+      );
+
+      // Get all relevant forms
+      const forms = getAllRelevantForms(element);
+
+      Debug.log(Debug.levels.DEBUG, `Found ${forms.size} forms`);
+      forms.forEach((form) => {
+        setupSingleFormHandlers(form);
+      });
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error setting up form submit handlers: ${error.message}`,
+      );
+    }
+  }
+
+  function setupSingleFormHandlers(form) {
+    if (!form.id) {
+      Debug.log(Debug.levels.DEBUG, "Skipping form without ID");
+      return;
+    }
+
+    // Always set up handlers for forms that have been updated by HTMX
+    Debug.log(Debug.levels.DEBUG, `Setting up handlers for form: ${form.id}`);
+
+    // Remove existing listener if any
+    form.removeEventListener("submit", handleFormSubmit);
+    // Add new listener
+    form.addEventListener("submit", handleFormSubmit);
+
+    // Set up change listeners for form elements
+    setupFormChangeListeners(form);
+
+    // Mark form as having handlers set up
+    form._fpHandlersSetup = true;
+
+    // Check if form restoration is needed
+    if (shouldRestoreForm(form)) {
+      Debug.log(Debug.levels.DEBUG, `Restoring state for form: ${form.id}`);
+      restoreSingleFormState(form);
+    } else {
+      Debug.log(
+        Debug.levels.DEBUG,
+        `Skipping form restoration - no persistent elements: ${form.id}`,
+      );
+    }
+  }
+
+  function handleFormSubmit(event) {
+    try {
+      const form = event.target;
+      if (form.id) {
+        clearFormState(form.id);
+      }
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error handling form submit: ${error.message}`,
+      );
+    }
+  }
+
+  function setupDynamicFormObserver(container) {
+    try {
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (node.tagName === "FORM") {
+              setupFormSubmitHandlers(node);
+            }
+          });
+        });
+      });
+
+      observer.observe(container, {
+        childList: true,
+        subtree: true,
+      });
+
+      return observer;
+    } catch (error) {
+      Debug.log(
+        Debug.levels.ERROR,
+        `Error setting up dynamic form observer: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Checks if form restoration should be performed for a form or its elements
+   * @param {HTMLElement} element - The form or container element to check
+   * @returns {boolean} - Whether form restoration should be performed
+   */
+  function shouldRestoreForm(element) {
+    // First check if there are any explicitly persistent elements
+    // These override any parent fp-persist="false" settings
+    const explicitlyPersistentInputs = element.querySelectorAll(
+      '[fp-persist="true"]',
+    );
+    if (explicitlyPersistentInputs.length > 0) {
+      return true;
+    }
+
+    // Check if element itself is a form with explicit persistence setting
+    if (element.tagName === "FORM" && element.hasAttribute("fp-persist")) {
+      return element.getAttribute("fp-persist") !== "false";
+    }
+
+    // For forms or elements containing forms, check each form
+    const forms =
+      element.tagName === "FORM"
+        ? [element]
+        : element.getElementsByTagName("form");
+    for (const form of forms) {
+      // If form explicitly disables persistence, skip it
+      if (form.getAttribute("fp-persist") === "false") {
+        continue;
+      }
+
+      // Check all form elements
+      const formElements = form.elements;
+      for (const input of formElements) {
+        // Skip elements without name or file inputs
+        if (!input.name || input.type === "file") continue;
+
+        // Check if input is inside an element with fp-persist="false"
+        const persistFalseParent = input.closest('[fp-persist="false"]');
+        if (!persistFalseParent) {
+          // If no parent disables persistence and input doesn't have explicit setting,
+          // use global setting
+          if (!input.hasAttribute("fp-persist") && _state.config?.persistForm) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   /**
    * Optimized children morphing with keyed element handling
    */
@@ -10227,24 +11288,17 @@ var FlowPlater = (function () {
     // Handle empty initial state
     if (!fromEl.childNodes.length) {
       fromEl.innerHTML = toEl.innerHTML;
+
+      // Setup form persistence if enabled
+      if (_state.config?.persistForm) {
+        setupFormSubmitHandlers(fromEl);
+      }
       return;
     }
 
     // Special handling for form inputs - preserve their state completely
     if (fromEl instanceof HTMLInputElement) {
-      fromEl.value;
-      fromEl.checked;
-      fromEl instanceof HTMLSelectElement
-          ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
-          : null;
-
-      // Update non-state attributes from new element
-      Array.from(toEl.attributes).forEach((attr) => {
-        if (attr.name !== "value" && attr.name !== "checked") {
-          fromEl.setAttribute(attr.name, attr.value);
-        }
-      });
-
+      preserveElementState(fromEl, toEl);
       return;
     }
 
@@ -10253,7 +11307,14 @@ var FlowPlater = (function () {
 
     // Handle special elements (form inputs, iframes, scripts)
     if (isSpecialElement(fromEl)) {
-      handleSpecialElement(fromEl, toEl);
+      if (
+        fromEl instanceof HTMLIFrameElement ||
+        fromEl instanceof HTMLScriptElement
+      ) {
+        updateElementAttributes(fromEl, toEl);
+      } else {
+        preserveElementState(fromEl, toEl);
+      }
       return;
     }
 
@@ -10264,6 +11325,9 @@ var FlowPlater = (function () {
     ) {
       handleMixedContent(fromEl, toEl);
       return;
+    }
+    if (_state.config?.persistForm) {
+      captureFormStates(fromEl);
     }
 
     const oldNodes = Array.from(fromEl.childNodes);
@@ -10348,58 +11412,6 @@ var FlowPlater = (function () {
     return specialTags.includes(el.tagName);
   }
 
-  function handleSpecialElement(fromEl, toEl) {
-    // Preserve form element state
-    if (
-      fromEl instanceof HTMLInputElement ||
-      fromEl instanceof HTMLSelectElement ||
-      fromEl instanceof HTMLTextAreaElement
-    ) {
-      const oldValue = fromEl.value;
-      const oldChecked = fromEl.checked;
-      const oldSelected =
-        fromEl instanceof HTMLSelectElement
-          ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
-          : null;
-
-      // Update non-state attributes from new element
-      Array.from(toEl.attributes).forEach((attr) => {
-        // Skip value, checked, and Webflow-specific attributes
-        if (
-          attr.name !== "value" &&
-          attr.name !== "checked" &&
-          !attr.name.startsWith("w-")
-        ) {
-          fromEl.setAttribute(attr.name, attr.value);
-        }
-      });
-
-      // Restore state
-      fromEl.value = oldValue;
-      fromEl.checked = oldChecked;
-
-      if (oldSelected) {
-        oldSelected.forEach((value) => {
-          const option = fromEl.querySelector(`option[value="${value}"]`);
-          if (option) option.selected = true;
-        });
-      }
-    }
-
-    // Handle iframes and scripts
-    if (
-      fromEl instanceof HTMLIFrameElement ||
-      fromEl instanceof HTMLScriptElement
-    ) {
-      // Only update non-Webflow attributes
-      Array.from(toEl.attributes).forEach((attr) => {
-        if (!attr.name.startsWith("w-")) {
-          fromEl.setAttribute(attr.name, attr.value);
-        }
-      });
-    }
-  }
-
   function handleMixedContent(fromEl, toEl) {
     const oldNodes = Array.from(fromEl.childNodes);
     const newNodes = Array.from(toEl.childNodes);
@@ -10471,6 +11483,14 @@ var FlowPlater = (function () {
   async function updateDOM(element, newHTML, animate = false) {
     Performance.start("updateDOM");
 
+    // Add a flag to prevent multiple restorations
+    const isAlreadyRestoring = element.hasAttribute("fp-restoring");
+    if (isAlreadyRestoring) {
+      Debug.log(Debug.levels.DEBUG, "Already restoring, skipping");
+      return;
+    }
+    element.setAttribute("fp-restoring", "true");
+
     try {
       if (!element || !(element instanceof HTMLElement)) {
         throw new Error("Invalid target element");
@@ -10480,56 +11500,90 @@ var FlowPlater = (function () {
         throw new Error("newHTML must be a string");
       }
 
-      // Check if View Transitions API is supported and if animate is true
+      Debug.log(
+        Debug.levels.DEBUG,
+        "Starting updateDOM with config:",
+        _state.config,
+      );
+
+      // Log form persistence state
+      Debug.log(
+        Debug.levels.DEBUG,
+        `Form persistence enabled: ${
+        _state.config?.persistForm
+      }, Should restore form: ${shouldRestoreForm(element)}`,
+      );
+
+      // Capture form states if form restoration is needed
+      let formStates = null;
+      if (shouldRestoreForm(element)) {
+        Debug.log(Debug.levels.DEBUG, "Capturing form states before update");
+        formStates = captureFormStates(element);
+        Debug.log(Debug.levels.DEBUG, "Captured form states:", formStates);
+      }
+
+      // Single observer setup
+      let formObserver = null;
+      if (shouldRestoreForm(element)) {
+        Debug.log(Debug.levels.DEBUG, "Setting up dynamic form observer");
+        formObserver = setupDynamicFormObserver(element);
+      }
+
+      const updateContent = () => {
+        return new Promise((resolve) => {
+          const virtualContainer = document.createElement("div");
+          virtualContainer.innerHTML = newHTML.trim();
+
+          const oldKeyedElements = new Map();
+          const newKeyedElements = new Map();
+          indexTree(element, oldKeyedElements);
+          indexTree(virtualContainer, newKeyedElements);
+
+          morphChildren(
+            element,
+            virtualContainer,
+            oldKeyedElements,
+            newKeyedElements,
+          );
+
+          // Single form restoration
+          if (shouldRestoreForm(element) && formStates) {
+            Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
+            restoreFormStates(element);
+            setupFormSubmitHandlers(element);
+          }
+
+          resolve();
+        });
+      };
+
       if (document.startViewTransition && animate) {
-        await document.startViewTransition(() => {
-          return new Promise((resolve) => {
-            // Create virtual node as a temporary container
-            const virtualContainer = document.createElement("div");
-            virtualContainer.innerHTML = newHTML.trim();
-
-            // Create indices of keyed elements for both containers
-            const oldKeyedElements = new Map();
-            const newKeyedElements = new Map();
-            indexTree(element, oldKeyedElements);
-            indexTree(virtualContainer, newKeyedElements);
-
-            // Morph the contents with keyed elements
-            morphChildren(
-              element,
-              virtualContainer,
-              oldKeyedElements,
-              newKeyedElements,
-            );
-            resolve();
-
-            Performance.end("updateDOM");
-          });
-        }).finished;
+        await document.startViewTransition(() => updateContent()).finished;
       } else {
-        // Fallback for browsers that don't support View Transitions
-        const virtualContainer = document.createElement("div");
-        virtualContainer.innerHTML = newHTML.trim();
+        await updateContent();
+      }
 
-        const oldKeyedElements = new Map();
-        const newKeyedElements = new Map();
-        indexTree(element, oldKeyedElements);
-        indexTree(virtualContainer, newKeyedElements);
-
-        morphChildren(
-          element,
-          virtualContainer,
-          oldKeyedElements,
-          newKeyedElements,
+      // Add form restoration after content update
+      if (_state.config?.persistForm && shouldRestoreForm(element)) {
+        Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
+        const persistedInputs = element.querySelectorAll('[fp-persist="true"]');
+        Debug.log(
+          Debug.levels.DEBUG,
+          `Found ${persistedInputs.length} inputs to restore`,
         );
+        restoreFormStates(element);
+      }
 
-        Performance.end("updateDOM");
+      if (formObserver) {
+        Debug.log(Debug.levels.DEBUG, "Disconnecting form observer");
+        formObserver.disconnect();
       }
     } catch (error) {
       Debug.log(Debug.levels.ERROR, "Error in updateDOM:", error);
       console.error("UpdateDOM error:", error);
       throw error;
     } finally {
+      element.removeAttribute("fp-restoring");
       Performance.end("updateDOM");
     }
   }
@@ -10552,48 +11606,6 @@ var FlowPlater = (function () {
         keyedElements.set(key, currentNode);
       }
     }
-  }
-
-  function saveToLocalStorage(instanceName, data) {
-    if (_state.config?.storage?.enabled) {
-      try {
-        const ttl = _state.config.storage.ttl || 30 * 24 * 60 * 60; // default 30 days in seconds
-        const expiryTime = Date.now() + ttl * 1000; // Convert seconds to milliseconds
-
-        const storageData = {
-          data,
-          expiry: expiryTime,
-        };
-
-        localStorage.setItem(`fp_${instanceName}`, JSON.stringify(storageData));
-      } catch (error) {
-        errorLog$1(`Failed to save to localStorage: ${error.message}`);
-      }
-    }
-  }
-
-  function loadFromLocalStorage(instanceName) {
-    if (_state.config?.storage?.enabled) {
-      try {
-        const storedItem = localStorage.getItem(`fp_${instanceName}`);
-        if (!storedItem) return null;
-
-        const storageData = JSON.parse(storedItem);
-        const now = Date.now();
-
-        // Check if data has expired
-        if (storageData.expiry && now > storageData.expiry) {
-          localStorage.removeItem(`fp_${instanceName}`);
-          return null;
-        }
-
-        return storageData.data;
-      } catch (error) {
-        errorLog$1(`Failed to load from localStorage: ${error.message}`);
-        return null;
-      }
-    }
-    return null;
   }
 
   function instanceMethods(instanceName) {
@@ -10648,7 +11660,8 @@ var FlowPlater = (function () {
         }
         Object.assign(instance.data, newData);
         Object.assign(instance.proxy, newData);
-        saveToLocalStorage(instanceName, instance.data);
+        const storageId = instanceName.replace("#", "");
+        saveToLocalStorage(storageId, instance.data, "instance");
         return this._updateDOM();
       },
 
@@ -10867,6 +11880,12 @@ var FlowPlater = (function () {
             deepMerge(this.getData(), newData);
           }
 
+          // Save to localStorage after merge
+          if (_state.config?.storage?.enabled) {
+            const storageId = instanceName.replace("#", "");
+            saveToLocalStorage(storageId, instance.data, "instance");
+          }
+
           return this._updateDOM();
         } catch (error) {
           errorLog$1(error.message);
@@ -10891,7 +11910,8 @@ var FlowPlater = (function () {
 
           target[last] = value;
           Object.assign(instance.proxy, instance.data);
-          saveToLocalStorage(instanceName, instance.data);
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
           return this._updateDOM();
         } catch (error) {
           errorLog$1(error.message);
@@ -10908,6 +11928,11 @@ var FlowPlater = (function () {
 
         try {
           array.push(value);
+          // Save to localStorage after push
+          if (_state.config?.storage?.enabled) {
+            const storageId = instanceName.replace("#", "");
+            saveToLocalStorage(storageId, instance.data, "instance");
+          }
           return this._updateDOM();
         } catch (error) {
           errorLog$1(error.message);
@@ -10932,6 +11957,12 @@ var FlowPlater = (function () {
             }
           });
 
+          // Save to localStorage after update
+          if (_state.config?.storage?.enabled) {
+            const storageId = instanceName.replace("#", "");
+            saveToLocalStorage(storageId, instance.data, "instance");
+          }
+
           return this._updateDOM();
         } catch (error) {
           errorLog$1(error.message);
@@ -10942,199 +11973,19 @@ var FlowPlater = (function () {
       get: function (path) {
         return !path ? this.getData() : _resolvePath.call(this, path);
       },
+
+      refreshTemplate: function (templateId, recompile = false) {
+        Performance.start("refreshTemplate:" + templateId);
+        const compiledTemplate = compileTemplate(templateId, recompile);
+        if (!compiledTemplate) {
+          errorLog$1("Failed to compile template: " + templateId);
+          Performance.end("refreshTemplate:" + templateId);
+          return false;
+        }
+        // ... rest of refreshTemplate implementation ...
+      },
     };
   }
-
-  // Default customTags - can be overridden via meta config in init()
-  const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
-  let currentCustomTags = customTagList; // Use default list initially - override in init()
-
-  function setCustomTags(tags) {
-    currentCustomTags = tags;
-  }
-
-  function replaceCustomTags(element) {
-    console.log("replaceCustomTags", element);
-    // Replace [[*]] with {{*}} in the template content
-    // element.innerHTML = element.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
-    // Replace all custom tags
-    currentCustomTags.forEach((tag) => {
-      const elements = Array.from(element.getElementsByTagName(tag.tag));
-      for (let i = 0; i < elements.length; i++) {
-        const customElement = elements[i];
-        const newElement = document.createElement(tag.replaceWith);
-        newElement.innerHTML = customElement.innerHTML;
-
-        // Copy all attributes from the custom element to the new element
-        for (let attr of customElement.attributes) {
-          newElement.setAttribute(attr.name, attr.value);
-        }
-
-        // Replace the custom element with the new element
-        customElement.parentNode.replaceChild(newElement, customElement);
-      }
-    });
-    return element;
-  }
-
-  function compileTemplate(templateId, recompile = false) {
-    if (!recompile) {
-      return memoizedCompile(templateId);
-    }
-
-    // For recompile=true:
-    // 1. Clear template cache
-    delete _state.templateCache[templateId];
-    // 2. Compile without memoization
-    const compiledTemplate = memoizedCompile.original(templateId);
-    // 3. Update the memoized cache with the new template
-    memoizedCompile.cache.set(JSON.stringify([templateId]), compiledTemplate);
-
-    return compiledTemplate;
-  }
-
-  const memoizedCompile = memoize(function (templateId) {
-    // if templateId is empty or "self", use the current element
-    Performance.start("compile:" + templateId);
-
-    // Add # prefix if templateId doesn't start with it
-    const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
-    var templateElement = document.querySelector(selector);
-
-    log("Trying to compile template: " + templateId);
-
-    if (!templateElement) {
-      errorLog$1("Template not found: " + templateId);
-      Performance.end("compile:" + templateId);
-      return null;
-    }
-
-    // Check if template needs compilation
-    if (
-      !_state.templateCache[templateId] ||
-      (templateElement.hasAttribute("fp-dynamic") &&
-        templateElement.getAttribute("fp-dynamic") !== "false")
-    ) {
-      log("compiling template: " + templateId);
-
-      // Function to construct tag with attributes
-      function constructTagWithAttributes(element) {
-        let tagName = element.tagName.toLowerCase();
-        // Replace all custom tags
-        currentCustomTags.forEach((tag) => {
-          if (tagName === tag.tag) {
-            tagName = tag.replaceWith;
-          }
-        });
-        let attributes = "";
-        for (let attr of element.attributes) {
-          attributes += ` ${attr.name}="${attr.value}"`;
-        }
-        return `<${tagName}${attributes}>`;
-      }
-
-      function processNode(node) {
-        let result = "";
-
-        // Loop through each child node
-        node.childNodes.forEach((child) => {
-          if (child.nodeType === Node.TEXT_NODE) {
-            result += child.textContent;
-          } else if (child.nodeType === Node.ELEMENT_NODE) {
-            if (child.hasAttribute("fp")) {
-              // Process as a Handlebars helper
-              const helperName = child.tagName.toLowerCase();
-              const args = child
-                .getAttribute("fp")
-                .split(" ")
-                .map((arg) => arg.replace(/&quot;/g, '"'))
-                .join(" ");
-
-              const innerContent = processNode(child);
-
-              if (
-                helperName === "log" ||
-                helperName === "lookup" ||
-                helperName === "execute"
-              ) {
-                if (innerContent) {
-                  result += `{{${helperName} ${innerContent} ${args}}}`;
-                } else {
-                  result += `{{${helperName} ${args}}}`;
-                }
-              } else if (helperName === "comment") {
-                result += `{{!-- ${args} --}}`;
-              } else if (helperName === "if") {
-                const escapedArgs = args.replace(/"/g, '\\"');
-                result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
-              } else if (helperName === "else") {
-                result += `{{${helperName}}}${innerContent}`;
-              } else if (helperName === "math") {
-                if (innerContent) {
-                  console.warn(
-                    `FlowPlater: The <${helperName}> helper does not accept inner content.`,
-                  );
-                }
-                result += `{{#${helperName} "${args}"}}`;
-              } else {
-                result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
-              }
-            } else if (child.tagName === "else") {
-              const innerContent = processNode(child);
-              result += `{{${child.tagName.toLowerCase()}}}${innerContent}`;
-            } else if (
-              child.tagName === "template" ||
-              child.tagName === "fptemplate" ||
-              child.hasAttribute("fp-template")
-            ) {
-              result += child.outerHTML;
-            } else {
-              const childContent = processNode(child);
-              const startTag = constructTagWithAttributes(child);
-              let endTagName = child.tagName.toLowerCase();
-              currentCustomTags.forEach((tag) => {
-                if (endTagName === tag.tag) {
-                  endTagName = tag.replaceWith;
-                }
-              });
-              const endTag = `</${endTagName}>`;
-              result += `${startTag}${childContent}${endTag}`;
-            }
-          }
-        });
-        return result;
-      }
-
-      const handlebarsTemplate = processNode(templateElement);
-      log("Compiling Handlebars template: " + handlebarsTemplate);
-
-      try {
-        const compiledTemplate = Handlebars.compile(handlebarsTemplate);
-
-        // Check cache size limit before adding new template
-        const cacheSize = _state.config?.templates?.cacheSize || 100; // Default to 100 if not configured
-        if (Object.keys(_state.templateCache).length >= cacheSize) {
-          // Remove oldest template
-          const oldestKey = Object.keys(_state.templateCache)[0];
-          delete _state.templateCache[oldestKey];
-          log(`Cache limit reached. Removed template: ${oldestKey}`);
-        }
-
-        // Add new template to cache
-        _state.templateCache[templateId] = compiledTemplate;
-        Performance.end("compile:" + templateId);
-        return compiledTemplate;
-      } catch (e) {
-        errorLog$1(
-          "Template not valid: " + handlebarsTemplate + " | Error: " + e.message,
-        );
-        Performance.end("compile:" + templateId);
-        return null;
-      }
-    }
-    Performance.end("compile:" + templateId);
-    return _state.templateCache[templateId];
-  });
 
   function render({
     template,
@@ -11160,17 +12011,25 @@ var FlowPlater = (function () {
     /*                                initial setup                               */
     /* -------------------------------------------------------------------------- */
 
-    var elements;
+    // Handle empty or "self" template
+    if (!template || template === "self") {
+      const targetElement =
+        typeof target === "string" ? document.querySelector(target) : target;
+      template = "#" + targetElement.id;
+    }
 
-    // Get the target elements
-    if (typeof target === "string") {
-      elements = document.querySelectorAll(target);
-    } else if (typeof target === "object" && target.jquery) {
-      elements = target.toArray();
-    } else if (typeof target === "object") {
-      elements = target;
-    } else {
-      errorLog$1("Invalid target type: " + typeof target);
+    // Normalize target to array
+    let elements = [];
+    if (target instanceof NodeList) {
+      elements = Array.from(target);
+    } else if (typeof target === "string") {
+      elements = Array.from(document.querySelectorAll(target));
+    } else if (target instanceof Element) {
+      elements = [target];
+    }
+
+    if (elements.length === 0) {
+      errorLog$1("No target elements found");
       return;
     }
 
@@ -11217,7 +12076,7 @@ var FlowPlater = (function () {
       _state.instances[instanceName].data !== data
     ) {
       // Load persisted data if available
-      const persistedData = loadFromLocalStorage(instanceName);
+      const persistedData = loadFromLocalStorage(instanceName, "instance");
       if (persistedData) {
         data = { ...data, ...persistedData };
       }
@@ -11245,6 +12104,12 @@ var FlowPlater = (function () {
         },
         ...instanceMethods(instanceName),
       };
+
+      // Save initial instance data to storage
+      if (_state.config?.storage?.enabled) {
+        const storageId = instanceName.replace("#", "");
+        saveToLocalStorage(storageId, data, "instance");
+      }
     }
 
     const instance = _state.instances[instanceName];
@@ -12387,6 +13252,10 @@ var FlowPlater = (function () {
         var templateId = elt.getAttribute("fp-template");
         log("Response received for request " + requestId + ": ", data);
 
+        // Get instance name and load stored data
+        const instanceName = elt.getAttribute("fp-instance") || elt.id;
+        loadFromLocalStorage(instanceName, "instance");
+
         // Render template
         try {
           let rendered;
@@ -12421,7 +13290,6 @@ var FlowPlater = (function () {
               "Template rendered successfully for request",
               requestId,
             );
-            // updateDOM(elt, rendered);
             return rendered;
           }
           return text;
@@ -12436,6 +13304,10 @@ var FlowPlater = (function () {
       handleSwap: function (swapStyle, target, fragment, settleInfo) {
         // Skip if element doesn't have fp-template
         if (!target.hasAttribute("fp-template")) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "No fp-template attribute, skipping handleSwap",
+          );
           return false; // Let HTMX handle the swap
         }
 
@@ -12487,6 +13359,13 @@ var FlowPlater = (function () {
             return false;
           }
 
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Using updateDOM for swap with config:",
+            _state.config,
+          );
+
+          // Use updateDOM which handles all form persistence and setup internally
           updateDOM(target, fragment.innerHTML, instance.animate);
 
           Debug.log(
@@ -12494,6 +13373,7 @@ var FlowPlater = (function () {
             "HTMX smart innerHTML swap completed for instance: " + instanceName,
           );
 
+          // Return true to tell HTMX we've handled the swap
           return true;
         } catch (e) {
           errorLog$1("Error in handleSwap:", e);
@@ -12529,6 +13409,22 @@ var FlowPlater = (function () {
 
           case "htmx:afterSwap":
             RequestHandler.handleRequest(target, requestId, "cleanup");
+            // Clean up form listeners before setting up new ones
+            const formsToCleanup = getAllRelevantForms(target);
+            formsToCleanup.forEach(cleanupFormChangeListeners);
+            break;
+
+          case "htmx:afterSettle":
+            // Re-setup form handlers after the DOM has settled
+            Debug.log(
+              Debug.levels.DEBUG,
+              `Setting up form handlers after DOM settle for target: ${
+              target.id || "unknown"
+            }, ` +
+                `has fp-template: ${target.hasAttribute("fp-template")}, ` +
+                `parent form: ${target.closest("form")?.id || "none"}`,
+            );
+            setupFormSubmitHandlers(target);
             break;
         }
       },
@@ -12832,7 +13728,6 @@ var FlowPlater = (function () {
    * @typedef {Object} FlowPlaterConfig
    * @property {Object} debug - Debug configuration settings
    * @property {number} debug.level - Debug level (0-3, 0 = error, 1 = warning, 2 = info, 3 = debug)
-   * @property {boolean} debug.enabled - Enable/disable debug mode
    * @property {Object} selectors - DOM selector configurations
    * @property {string} selectors.fp - Main FlowPlater element selector
    * @property {Object} templates - Template handling configuration
@@ -12847,15 +13742,19 @@ var FlowPlater = (function () {
    * @property {Object} customTags - Custom tag definitions
    * @property {Object} storage - Storage configuration
    * @property {boolean} storage.enabled - Whether to persist instance data
-   * @property {number} storage.ttl - Time to live in seconds (default: 30 days in seconds)
+   * @property {number} storage.ttl - Time to live in seconds (default: 30 days in seconds, -1 for infinite)
+   * @property {boolean} persistForm - Whether to persist form states
    */
   const defaultConfig = {
     debug: {
-      level: window.location.hostname.endsWith(".webflow.io") ? 3 : 1,
-      enabled: true,
+      level:
+        window.location.hostname.endsWith(".webflow.io") ||
+        window.location.hostname.endsWith(".canvas.webflow.com")
+          ? 3
+          : 1,
     },
     selectors: {
-      fp: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]",
+      fp: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch], [fp-persist]",
     },
     templates: {
       cacheSize: 100,
@@ -12874,7 +13773,7 @@ var FlowPlater = (function () {
       enabled: false,
       ttl: 30 * 24 * 60 * 60, // 30 days in seconds
     },
-    persistData: false,
+    persistForm: true,
   };
 
   /* -------------------------------------------------------------------------- */
@@ -12956,7 +13855,7 @@ var FlowPlater = (function () {
      * @type {string}
      * @description Selector used to identify FlowPlater elements in the DOM
      */
-    FP_SELECTOR: "[fp-template], [fp-get], [fp-post], [fp-delete], [fp-patch]",
+    FP_SELECTOR: _state.config.selectors.fp,
 
     /**
      * @function processElement
@@ -13188,7 +14087,8 @@ var FlowPlater = (function () {
           // template.innerHTML = template.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
           const templateElement = document.querySelector(templateId);
           if (templateElement) {
-            console.log("replacing template content", templateElement);
+            log("replacing template content", templateElement);
+
             const scriptTags = templateElement.getElementsByTagName("script");
             const scriptContents = Array.from(scriptTags).map(
               (script) => script.innerHTML,
@@ -13196,7 +14096,7 @@ var FlowPlater = (function () {
 
             // Temporarily replace script contents with placeholders
             Array.from(scriptTags).forEach((script, i) => {
-              script.innerHTML = `##SCRIPT_${i}##`;
+              script.innerHTML = `##FP_SCRIPT_${i}##`;
             });
 
             // Do the replacement on the template
@@ -13232,10 +14132,34 @@ var FlowPlater = (function () {
                 target: template,
               });
             } else {
-              Debug.log(
-                Debug.levels.INFO,
-                `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
-              );
+              // Check for stored data when HTMX/FP methods are present
+              if (_state.config?.storage?.enabled) {
+                // Get instance name from attribute or fallback to template id
+                const instanceName =
+                  template.getAttribute("fp-instance") || templateId;
+                const storedData = loadFromLocalStorage(instanceName, "instance");
+                if (storedData) {
+                  Debug.log(
+                    Debug.levels.INFO,
+                    `Found stored data for instance: ${instanceName}, rendering with stored data`,
+                  );
+                  render({
+                    template: templateId,
+                    data: storedData,
+                    target: template,
+                  });
+                } else {
+                  Debug.log(
+                    Debug.levels.INFO,
+                    `Skipping initial render for instance: ${instanceName}`,
+                  );
+                }
+              } else {
+                Debug.log(
+                  Debug.levels.INFO,
+                  `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
+                );
+              }
             }
           }
         } else {
@@ -13330,7 +14254,6 @@ var FlowPlater = (function () {
 
       // Apply configuration
       Debug.level = _state.config.debug.level;
-      Debug.debugMode = _state.config.debug.enabled;
       ProcessingChain.FP_SELECTOR = _state.config.selectors.fp;
 
       // Configure HTMX defaults if needed
@@ -13450,6 +14373,13 @@ var FlowPlater = (function () {
       };
     }
     if (typeof storageConfig === "number") {
+      // Handle special cases
+      if (storageConfig === -1) {
+        return {
+          enabled: true,
+          ttl: -1, // Infinite TTL
+        };
+      }
       return {
         enabled: storageConfig > 0,
         ttl: storageConfig > 0 ? storageConfig : defaultStorageConfig.ttl,
