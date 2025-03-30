@@ -1,5 +1,15 @@
 import { Debug } from "../core/Debug";
 import { Performance } from "./Performance";
+import { _state } from "../core/State";
+import {
+  captureFormStates,
+  restoreFormStates,
+  setupFormSubmitHandlers,
+  preserveElementState,
+  updateElementAttributes,
+  setupDynamicFormObserver,
+  shouldRestoreForm,
+} from "../utils/FormPersistence";
 /**
  * Optimized children morphing with keyed element handling
  */
@@ -7,25 +17,17 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
   // Handle empty initial state
   if (!fromEl.childNodes.length) {
     fromEl.innerHTML = toEl.innerHTML;
+
+    // Setup form persistence if enabled
+    if (_state.config?.persistForm) {
+      setupFormSubmitHandlers(fromEl);
+    }
     return;
   }
 
   // Special handling for form inputs - preserve their state completely
   if (fromEl instanceof HTMLInputElement) {
-    const oldValue = fromEl.value;
-    const oldChecked = fromEl.checked;
-    const oldSelected =
-      fromEl instanceof HTMLSelectElement
-        ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
-        : null;
-
-    // Update non-state attributes from new element
-    Array.from(toEl.attributes).forEach((attr) => {
-      if (attr.name !== "value" && attr.name !== "checked") {
-        fromEl.setAttribute(attr.name, attr.value);
-      }
-    });
-
+    preserveElementState(fromEl, toEl);
     return;
   }
 
@@ -34,7 +36,14 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
 
   // Handle special elements (form inputs, iframes, scripts)
   if (isSpecialElement(fromEl)) {
-    handleSpecialElement(fromEl, toEl);
+    if (
+      fromEl instanceof HTMLIFrameElement ||
+      fromEl instanceof HTMLScriptElement
+    ) {
+      updateElementAttributes(fromEl, toEl);
+    } else {
+      preserveElementState(fromEl, toEl);
+    }
     return;
   }
 
@@ -45,6 +54,12 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
   ) {
     handleMixedContent(fromEl, toEl);
     return;
+  }
+
+  // Capture form states if persistForm is enabled
+  let formStates = null;
+  if (_state.config?.persistForm) {
+    formStates = captureFormStates(fromEl);
   }
 
   const oldNodes = Array.from(fromEl.childNodes);
@@ -129,58 +144,6 @@ function isSpecialElement(el) {
   return specialTags.includes(el.tagName);
 }
 
-function handleSpecialElement(fromEl, toEl) {
-  // Preserve form element state
-  if (
-    fromEl instanceof HTMLInputElement ||
-    fromEl instanceof HTMLSelectElement ||
-    fromEl instanceof HTMLTextAreaElement
-  ) {
-    const oldValue = fromEl.value;
-    const oldChecked = fromEl.checked;
-    const oldSelected =
-      fromEl instanceof HTMLSelectElement
-        ? Array.from(fromEl.selectedOptions).map((opt) => opt.value)
-        : null;
-
-    // Update non-state attributes from new element
-    Array.from(toEl.attributes).forEach((attr) => {
-      // Skip value, checked, and Webflow-specific attributes
-      if (
-        attr.name !== "value" &&
-        attr.name !== "checked" &&
-        !attr.name.startsWith("w-")
-      ) {
-        fromEl.setAttribute(attr.name, attr.value);
-      }
-    });
-
-    // Restore state
-    fromEl.value = oldValue;
-    fromEl.checked = oldChecked;
-
-    if (oldSelected) {
-      oldSelected.forEach((value) => {
-        const option = fromEl.querySelector(`option[value="${value}"]`);
-        if (option) option.selected = true;
-      });
-    }
-  }
-
-  // Handle iframes and scripts
-  if (
-    fromEl instanceof HTMLIFrameElement ||
-    fromEl instanceof HTMLScriptElement
-  ) {
-    // Only update non-Webflow attributes
-    Array.from(toEl.attributes).forEach((attr) => {
-      if (!attr.name.startsWith("w-")) {
-        fromEl.setAttribute(attr.name, attr.value);
-      }
-    });
-  }
-}
-
 function handleMixedContent(fromEl, toEl) {
   const oldNodes = Array.from(fromEl.childNodes);
   const newNodes = Array.from(toEl.childNodes);
@@ -252,6 +215,14 @@ function cloneWithNamespace(node) {
 async function updateDOM(element, newHTML, animate = false) {
   Performance.start("updateDOM");
 
+  // Add a flag to prevent multiple restorations
+  const isAlreadyRestoring = element.hasAttribute("fp-restoring");
+  if (isAlreadyRestoring) {
+    Debug.log(Debug.levels.DEBUG, "Already restoring, skipping");
+    return;
+  }
+  element.setAttribute("fp-restoring", "true");
+
   try {
     if (!element || !(element instanceof HTMLElement)) {
       throw new Error("Invalid target element");
@@ -261,59 +232,95 @@ async function updateDOM(element, newHTML, animate = false) {
       throw new Error("newHTML must be a string");
     }
 
-    // Check if View Transitions API is supported and if animate is true
+    Debug.log(
+      Debug.levels.DEBUG,
+      "Starting updateDOM with config:",
+      _state.config,
+    );
+
+    // Log form persistence state
+    Debug.log(
+      Debug.levels.DEBUG,
+      `Form persistence enabled: ${
+        _state.config?.persistForm
+      }, Should restore form: ${shouldRestoreForm(element)}`,
+    );
+
+    // Capture form states if form restoration is needed
+    let formStates = null;
+    if (shouldRestoreForm(element)) {
+      Debug.log(Debug.levels.DEBUG, "Capturing form states before update");
+      formStates = captureFormStates(element);
+      Debug.log(Debug.levels.DEBUG, "Captured form states:", formStates);
+    }
+
+    // Single observer setup
+    let formObserver = null;
+    if (shouldRestoreForm(element)) {
+      Debug.log(Debug.levels.DEBUG, "Setting up dynamic form observer");
+      formObserver = setupDynamicFormObserver(element);
+    }
+
+    const updateContent = () => {
+      return new Promise((resolve) => {
+        const virtualContainer = document.createElement("div");
+        virtualContainer.innerHTML = newHTML.trim();
+
+        const oldKeyedElements = new Map();
+        const newKeyedElements = new Map();
+        indexTree(element, oldKeyedElements);
+        indexTree(virtualContainer, newKeyedElements);
+
+        morphChildren(
+          element,
+          virtualContainer,
+          oldKeyedElements,
+          newKeyedElements,
+        );
+
+        // Single form restoration
+        if (shouldRestoreForm(element) && formStates) {
+          Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
+          restoreFormStates(element);
+          setupFormSubmitHandlers(element);
+        }
+
+        resolve();
+      });
+    };
+
     if (document.startViewTransition && animate) {
-      await document.startViewTransition(() => {
-        return new Promise((resolve) => {
-          // Create virtual node as a temporary container
-          const virtualContainer = document.createElement("div");
-          virtualContainer.innerHTML = newHTML.trim();
-
-          // Create indices of keyed elements for both containers
-          const oldKeyedElements = new Map();
-          const newKeyedElements = new Map();
-          indexTree(element, oldKeyedElements);
-          indexTree(virtualContainer, newKeyedElements);
-
-          // Morph the contents with keyed elements
-          morphChildren(
-            element,
-            virtualContainer,
-            oldKeyedElements,
-            newKeyedElements,
-          );
-          resolve();
-
-          Performance.end("updateDOM");
-        });
-      }).finished;
+      await document.startViewTransition(() => updateContent()).finished;
     } else {
-      // Fallback for browsers that don't support View Transitions
-      const virtualContainer = document.createElement("div");
-      virtualContainer.innerHTML = newHTML.trim();
+      await updateContent();
+    }
 
-      const oldKeyedElements = new Map();
-      const newKeyedElements = new Map();
-      indexTree(element, oldKeyedElements);
-      indexTree(virtualContainer, newKeyedElements);
-
-      morphChildren(
-        element,
-        virtualContainer,
-        oldKeyedElements,
-        newKeyedElements,
+    // Add form restoration after content update
+    if (_state.config?.persistForm && shouldRestoreForm(element)) {
+      Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
+      const persistedInputs = element.querySelectorAll('[fp-persist="true"]');
+      Debug.log(
+        Debug.levels.DEBUG,
+        `Found ${persistedInputs.length} inputs to restore`,
       );
+      restoreFormStates(element);
+    }
 
-      Performance.end("updateDOM");
+    if (formObserver) {
+      Debug.log(Debug.levels.DEBUG, "Disconnecting form observer");
+      formObserver.disconnect();
     }
   } catch (error) {
     Debug.log(Debug.levels.ERROR, "Error in updateDOM:", error);
     console.error("UpdateDOM error:", error);
     throw error;
   } finally {
+    element.removeAttribute("fp-restoring");
     Performance.end("updateDOM");
   }
 }
+
+export { updateDOM };
 
 /**
  * Enhanced tree indexing with optimized traversal
@@ -334,5 +341,3 @@ function indexTree(node, keyedElements) {
     }
   }
 }
-
-export { updateDOM };

@@ -10,6 +10,8 @@ import {
 import { _state, getInstance, getInstances } from "./State";
 import { compileTemplate, render } from "./Template";
 import { Performance } from "../utils/Performance";
+// import { updateDOM } from "../utils/UpdateDom";
+import { loadFromLocalStorage } from "../utils/LocalStorage";
 import {
   replaceCustomTags,
   setCustomTags,
@@ -47,7 +49,6 @@ const LICENSE = "Flowplater standard licence";
  * @typedef {Object} FlowPlaterConfig
  * @property {Object} debug - Debug configuration settings
  * @property {number} debug.level - Debug level (0-3, 0 = error, 1 = warning, 2 = info, 3 = debug)
- * @property {boolean} debug.enabled - Enable/disable debug mode
  * @property {Object} selectors - DOM selector configurations
  * @property {string} selectors.fp - Main FlowPlater element selector
  * @property {Object} templates - Template handling configuration
@@ -63,14 +64,18 @@ const LICENSE = "Flowplater standard licence";
  * @property {Object} storage - Storage configuration
  * @property {boolean} storage.enabled - Whether to persist instance data
  * @property {number} storage.ttl - Time to live in seconds (default: 30 days in seconds, -1 for infinite)
+ * @property {boolean} persistForm - Whether to persist form states
  */
 const defaultConfig = {
   debug: {
-    level: window.location.hostname.endsWith(".webflow.io") ? 3 : 1,
-    enabled: true,
+    level:
+      window.location.hostname.endsWith(".webflow.io") ||
+      window.location.hostname.endsWith(".canvas.webflow.com")
+        ? 3
+        : 1,
   },
   selectors: {
-    fp: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch]",
+    fp: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch], [fp-persist]",
   },
   templates: {
     cacheSize: 100,
@@ -89,7 +94,7 @@ const defaultConfig = {
     enabled: false,
     ttl: 30 * 24 * 60 * 60, // 30 days in seconds
   },
-  persistData: false,
+  persistForm: true,
 };
 
 /* -------------------------------------------------------------------------- */
@@ -171,7 +176,7 @@ const ProcessingChain = {
    * @type {string}
    * @description Selector used to identify FlowPlater elements in the DOM
    */
-  FP_SELECTOR: "[fp-template], [fp-get], [fp-post], [fp-delete], [fp-patch]",
+  FP_SELECTOR: _state.config.selectors.fp,
 
   /**
    * @function processElement
@@ -405,7 +410,8 @@ const FlowPlaterObj = {
         // template.innerHTML = template.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
         const templateElement = document.querySelector(templateId);
         if (templateElement) {
-          console.log("replacing template content", templateElement);
+          log("replacing template content", templateElement);
+
           const scriptTags = templateElement.getElementsByTagName("script");
           const scriptContents = Array.from(scriptTags).map(
             (script) => script.innerHTML,
@@ -413,7 +419,7 @@ const FlowPlaterObj = {
 
           // Temporarily replace script contents with placeholders
           Array.from(scriptTags).forEach((script, i) => {
-            script.innerHTML = `##SCRIPT_${i}##`;
+            script.innerHTML = `##FP_SCRIPT_${i}##`;
           });
 
           // Do the replacement on the template
@@ -449,10 +455,34 @@ const FlowPlaterObj = {
               target: template,
             });
           } else {
-            Debug.log(
-              Debug.levels.INFO,
-              `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
-            );
+            // Check for stored data when HTMX/FP methods are present
+            if (_state.config?.storage?.enabled) {
+              // Get instance name from attribute or fallback to template id
+              const instanceName =
+                template.getAttribute("fp-instance") || templateId;
+              const storedData = loadFromLocalStorage(instanceName, "instance");
+              if (storedData) {
+                Debug.log(
+                  Debug.levels.INFO,
+                  `Found stored data for instance: ${instanceName}, rendering with stored data`,
+                );
+                render({
+                  template: templateId,
+                  data: storedData,
+                  target: template,
+                });
+              } else {
+                Debug.log(
+                  Debug.levels.INFO,
+                  `Skipping initial render for instance: ${instanceName}`,
+                );
+              }
+            } else {
+              Debug.log(
+                Debug.levels.INFO,
+                `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
+              );
+            }
           }
         }
       } else {
@@ -547,7 +577,6 @@ const FlowPlaterObj = {
 
     // Apply configuration
     Debug.level = _state.config.debug.level;
-    Debug.debugMode = _state.config.debug.enabled;
     ProcessingChain.FP_SELECTOR = _state.config.selectors.fp;
 
     // Configure HTMX defaults if needed

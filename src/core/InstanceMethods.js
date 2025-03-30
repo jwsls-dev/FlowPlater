@@ -1,13 +1,13 @@
 import { _state } from "./State";
 import { Debug, log, errorLog } from "./Debug";
 import { EventSystem } from "./EventSystem";
-import { compileTemplate } from "./Template";
+import { compileTemplate, memoizedCompile } from "./TemplateCompiler";
 import { updateDOM } from "../utils/UpdateDom";
-import { memoizedCompile } from "./Template";
 import {
   saveToLocalStorage,
   loadFromLocalStorage,
 } from "../utils/LocalStorage";
+import { Performance } from "../utils/Performance";
 
 export function instanceMethods(instanceName) {
   // Helper function to resolve a path within the data
@@ -61,7 +61,8 @@ export function instanceMethods(instanceName) {
       }
       Object.assign(instance.data, newData);
       Object.assign(instance.proxy, newData);
-      saveToLocalStorage(instanceName, instance.data);
+      const storageId = instanceName.replace("#", "");
+      saveToLocalStorage(storageId, instance.data, "instance");
       return this._updateDOM();
     },
 
@@ -280,6 +281,12 @@ export function instanceMethods(instanceName) {
           deepMerge(this.getData(), newData);
         }
 
+        // Save to localStorage after merge
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
+
         return this._updateDOM();
       } catch (error) {
         errorLog(error.message);
@@ -304,7 +311,8 @@ export function instanceMethods(instanceName) {
 
         target[last] = value;
         Object.assign(instance.proxy, instance.data);
-        saveToLocalStorage(instanceName, instance.data);
+        const storageId = instanceName.replace("#", "");
+        saveToLocalStorage(storageId, instance.data, "instance");
         return this._updateDOM();
       } catch (error) {
         errorLog(error.message);
@@ -321,6 +329,11 @@ export function instanceMethods(instanceName) {
 
       try {
         array.push(value);
+        // Save to localStorage after push
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
         return this._updateDOM();
       } catch (error) {
         errorLog(error.message);
@@ -345,6 +358,12 @@ export function instanceMethods(instanceName) {
           }
         });
 
+        // Save to localStorage after update
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
+
         return this._updateDOM();
       } catch (error) {
         errorLog(error.message);
@@ -354,6 +373,17 @@ export function instanceMethods(instanceName) {
 
     get: function (path) {
       return !path ? this.getData() : _resolvePath.call(this, path);
+    },
+
+    refreshTemplate: function (templateId, recompile = false) {
+      Performance.start("refreshTemplate:" + templateId);
+      const compiledTemplate = compileTemplate(templateId, recompile);
+      if (!compiledTemplate) {
+        errorLog("Failed to compile template: " + templateId);
+        Performance.end("refreshTemplate:" + templateId);
+        return false;
+      }
+      // ... rest of refreshTemplate implementation ...
     },
   };
 }

@@ -4,6 +4,12 @@ import { render } from "./Template";
 import { parseXmlToJson } from "../utils/ParseXmlToJson";
 import { updateDOM } from "../utils/UpdateDom";
 import { _state } from "./State";
+import {
+  setupFormSubmitHandlers,
+  cleanupFormChangeListeners,
+  getAllRelevantForms,
+} from "../utils/FormPersistence";
+import { loadFromLocalStorage } from "../utils/LocalStorage";
 
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
@@ -53,6 +59,10 @@ export function defineHtmxExtension() {
       var templateId = elt.getAttribute("fp-template");
       log("Response received for request " + requestId + ": ", data);
 
+      // Get instance name and load stored data
+      const instanceName = elt.getAttribute("fp-instance") || elt.id;
+      const storedData = loadFromLocalStorage(instanceName, "instance");
+
       // Render template
       try {
         let rendered;
@@ -87,7 +97,6 @@ export function defineHtmxExtension() {
             "Template rendered successfully for request",
             requestId,
           );
-          // updateDOM(elt, rendered);
           return rendered;
         }
         return text;
@@ -102,6 +111,10 @@ export function defineHtmxExtension() {
     handleSwap: function (swapStyle, target, fragment, settleInfo) {
       // Skip if element doesn't have fp-template
       if (!target.hasAttribute("fp-template")) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          "No fp-template attribute, skipping handleSwap",
+        );
         return false; // Let HTMX handle the swap
       }
 
@@ -153,6 +166,13 @@ export function defineHtmxExtension() {
           return false;
         }
 
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Using updateDOM for swap with config:",
+          _state.config,
+        );
+
+        // Use updateDOM which handles all form persistence and setup internally
         updateDOM(target, fragment.innerHTML, instance.animate);
 
         Debug.log(
@@ -160,6 +180,7 @@ export function defineHtmxExtension() {
           "HTMX smart innerHTML swap completed for instance: " + instanceName,
         );
 
+        // Return true to tell HTMX we've handled the swap
         return true;
       } catch (e) {
         errorLog("Error in handleSwap:", e);
@@ -195,6 +216,22 @@ export function defineHtmxExtension() {
 
         case "htmx:afterSwap":
           RequestHandler.handleRequest(target, requestId, "cleanup");
+          // Clean up form listeners before setting up new ones
+          const formsToCleanup = getAllRelevantForms(target);
+          formsToCleanup.forEach(cleanupFormChangeListeners);
+          break;
+
+        case "htmx:afterSettle":
+          // Re-setup form handlers after the DOM has settled
+          Debug.log(
+            Debug.levels.DEBUG,
+            `Setting up form handlers after DOM settle for target: ${
+              target.id || "unknown"
+            }, ` +
+              `has fp-template: ${target.hasAttribute("fp-template")}, ` +
+              `parent form: ${target.closest("form")?.id || "none"}`,
+          );
+          setupFormSubmitHandlers(target);
           break;
       }
     },
