@@ -36,12 +36,10 @@ import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
  * @namespace FlowPlater
  * @description Core FlowPlater module that provides template processing and dynamic content management.
  * Integrates with HTMX and Handlebars to provide a seamless templating and interaction experience.
- * @version 1.4.19
  * @author JWSLS
- * @license Flowplater standard licence
  */
 
-const VERSION = "1.4.19";
+const VERSION = "1.4.21";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 
