@@ -72,72 +72,85 @@ export function defineHtmxExtension() {
       try {
         if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
           var parser = new DOMParser();
-          var doc = parser.parseFromString(text, "text/xml");
-          data = parseXmlToJson(doc);
+          var xmlDoc = parser.parseFromString(text, "text/xml");
+          data = parseXmlToJson(xmlDoc);
         } else {
           data = JSON.parse(text);
         }
-      } catch (e) {
-        errorLog("Failed to parse response:", e);
+      } catch (error) {
+        errorLog("Failed to parse response:", error);
         return text;
       }
 
-      var templateId = elt.getAttribute("fp-template");
+      const templateId = elt.getAttribute("fp-template");
       log("Response received for request " + requestId + ": ", data);
 
-      // Get instance name and load stored data
       const instanceName = elt.getAttribute("fp-instance") || elt.id;
-      // Don't load from localStorage here - we want to use fresh data
-
-      // Get or create instance
       const instance = InstanceManager.getOrCreateInstance(elt, data);
-      if (!instance) return text;
 
-      // Render template
-      try {
-        let rendered;
-        if (templateId) {
-          log("Rendering html to " + templateId + " based on htmx response");
-          rendered = render({
-            template: templateId,
-            data: data,
-            target: elt,
-            returnHtml: true,
-            instanceName: instanceName,
-          });
-        } else {
-          if (!elt.id) {
-            errorLog(
-              "No template found. If the current element is a template, it must have an id.",
-            );
-            return text;
+      if (instance) {
+        // Execute updateData hook with the new data
+        PluginManager.executeHook("updateData", instance, {
+          data: data,
+          changes: data,
+          source: "htmx",
+          requestId: requestId,
+        });
+
+        // Store data if storage is enabled
+        if (_state.config?.storage?.enabled) {
+          saveToLocalStorage(instanceName, data, "instance");
+        }
+
+        // Render template
+        try {
+          let rendered;
+          if (templateId) {
+            log("Rendering html to " + templateId + " based on htmx response");
+            rendered = render({
+              template: templateId,
+              data: data,
+              target: elt,
+              returnHtml: true,
+              instanceName: instanceName,
+            });
+          } else {
+            if (!elt.id) {
+              errorLog(
+                "No template found. If the current element is a template, it must have an id.",
+              );
+              return text;
+            }
+            log("Rendering html to current element based on htmx response");
+            var elementTemplateId = "#" + elt.id;
+            rendered = render({
+              template: elementTemplateId,
+              data: data,
+              target: elt,
+              returnHtml: true,
+              instanceName: instanceName,
+            });
           }
-          log("Rendering html to current element based on htmx response");
-          var elementTemplateId = "#" + elt.id;
-          rendered = render({
-            template: elementTemplateId,
-            data: data,
-            target: elt,
-            returnHtml: true,
-            instanceName: instanceName,
-          });
-        }
 
-        if (rendered) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Template rendered successfully for request",
-            requestId,
+          if (rendered) {
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Template rendered successfully for request",
+              requestId,
+            );
+            return rendered;
+          }
+          return text;
+        } catch (error) {
+          errorLog("Error rendering template:", error);
+          return (
+            "<div class='fp-error'>Error rendering template: " +
+            error +
+            "</div>"
           );
-          return rendered;
         }
-        return text;
-      } catch (error) {
-        errorLog("Error rendering template:", error);
-        return (
-          "<div class='fp-error'>Error rendering template: " + error + "</div>"
-        );
       }
+      return text;
     },
 
     handleSwap: function (swapStyle, target, fragment, settleInfo) {
