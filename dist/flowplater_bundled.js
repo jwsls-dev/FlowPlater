@@ -15276,13 +15276,23 @@ var FlowPlater = (function () {
           return false;
 
         case "cleanup":
-          if (currentInfo && currentInfo.requestId === requestId) {
+          if (
+            currentInfo &&
+            currentInfo.requestId === requestId &&
+            currentInfo.processed
+          ) {
             this.processingElements.delete(target);
             Debug.log(
               Debug.levels.DEBUG,
               "Cleaned up after request",
               target,
               requestId,
+            );
+          } else {
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Skipping cleanup - request mismatch or not processed",
+              { current: currentInfo?.requestId, received: requestId },
             );
           }
           break;
@@ -15644,11 +15654,11 @@ var FlowPlater = (function () {
         log("Response received for request " + requestId + ": ", data);
 
         const instanceName = elt.getAttribute("fp-instance") || elt.id;
-        const instance = InstanceManager.getOrCreateInstance(elt, data);
+        const instance = InstanceManager.getOrCreateInstance(elt);
 
         if (instance) {
           // Calculate data changes
-          const oldData = instance.getData();
+          const oldData = instance.data;
           const changes = trackChanges(oldData, data);
 
           // Execute updateData hook with the tracked changes
@@ -15664,18 +15674,16 @@ var FlowPlater = (function () {
             saveToLocalStorage(instanceName, data, "instance");
           }
 
-          // Render template
+          // Update instance data
+          Object.assign(instance.data, data);
+          Object.assign(instance.proxy, data);
+
+          // Render template without triggering a new request
           try {
             let rendered;
             if (templateId) {
               log("Rendering html to " + templateId + " based on htmx response");
-              rendered = render({
-                template: templateId,
-                data: data,
-                target: elt,
-                returnHtml: true,
-                instanceName: instanceName,
-              });
+              rendered = instance.template(instance.proxy);
             } else {
               if (!elt.id) {
                 errorLog$1(
@@ -15684,14 +15692,7 @@ var FlowPlater = (function () {
                 return text;
               }
               log("Rendering html to current element based on htmx response");
-              var elementTemplateId = "#" + elt.id;
-              rendered = render({
-                template: elementTemplateId,
-                data: data,
-                target: elt,
-                returnHtml: true,
-                instanceName: instanceName,
-              });
+              rendered = instance.template(instance.proxy);
             }
 
             if (rendered) {
