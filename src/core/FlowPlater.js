@@ -40,7 +40,7 @@ import { instanceMethods } from "./InstanceMethods";
  * @author JWSLS
  */
 
-const VERSION = "1.4.21";
+const VERSION = "1.4.22";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 

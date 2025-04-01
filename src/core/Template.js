@@ -159,12 +159,6 @@ export function render({
     }
   }
 
-  function resolveAttributeBoolean(attribute) {
-    if (attribute === "") return true;
-    if (attribute === "false") return false;
-    return true;
-  }
-
   const instance = _state.instances[instanceName];
   log("Proxy created: ", instance.proxy);
 

@@ -36,21 +36,43 @@ export function instanceMethods(instanceName) {
     return current;
   }
 
+  function _validateData(data) {
+    if (typeof data === "string" && data.trim().startsWith("<!DOCTYPE")) {
+      Debug.log(
+        Debug.levels.DEBUG,
+        "Data is HTML, skipping validation",
+        instanceName,
+      );
+      return { valid: true, isHtml: true };
+    }
+
+    if (
+      (typeof data === "object" && data !== null) ||
+      Array.isArray(data) ||
+      typeof data === "number" ||
+      typeof data === "boolean"
+    ) {
+      return { valid: true, isHtml: false };
+    }
+
+    errorLog("Invalid data type: " + typeof data);
+    return { valid: false, isHtml: false };
+  }
+
   return {
     instanceName,
     animate: _state.defaults.animation,
 
     _updateDOM: function () {
-      // Check if data is HTML
-      if (
-        typeof this.data === "string" &&
-        this.data.trim().startsWith("<!DOCTYPE")
-      ) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Data is HTML, skipping DOM update",
-          this.instanceName,
-        );
+      const instance = _state.instances[instanceName];
+      if (!instance) {
+        errorLog("Instance not found: " + instanceName);
+        return;
+      }
+
+      // Check if data is valid
+      const { valid, isHtml } = _validateData(instance.data);
+      if (!valid || isHtml) {
         return;
       }
 
@@ -98,6 +120,12 @@ export function instanceMethods(instanceName) {
         errorLog("Instance not found: " + instanceName);
         return this;
       }
+
+      const { valid, isHtml } = _validateData(newData);
+      if (!valid || isHtml) {
+        return this;
+      }
+
       Object.assign(instance.data, newData);
       Object.assign(instance.proxy, newData);
       const storageId = instanceName.replace("#", "");
@@ -259,6 +287,10 @@ export function instanceMethods(instanceName) {
       }
 
       let newData = value !== undefined ? value : path;
+      const { valid, isHtml } = _validateData(newData);
+      if (!valid || isHtml) {
+        return this;
+      }
 
       try {
         // Deep merge function
@@ -361,6 +393,11 @@ export function instanceMethods(instanceName) {
         return this;
       }
 
+      const { valid, isHtml } = _validateData(value);
+      if (!valid || isHtml) {
+        return this;
+      }
+
       try {
         const parts = path.split(/[\.\[\]'"]/g).filter(Boolean);
         const last = parts.pop();
@@ -391,6 +428,11 @@ export function instanceMethods(instanceName) {
       const instance = _state.instances[instanceName];
       if (!instance) {
         errorLog("Instance not found: " + instanceName);
+        return this;
+      }
+
+      const { valid, isHtml } = _validateData(value);
+      if (!valid || isHtml) {
         return this;
       }
 
@@ -426,6 +468,11 @@ export function instanceMethods(instanceName) {
       const instance = _state.instances[instanceName];
       if (!instance) {
         errorLog("Instance not found: " + instanceName);
+        return this;
+      }
+
+      const { valid, isHtml } = _validateData(updates);
+      if (!valid || isHtml) {
         return this;
       }
 

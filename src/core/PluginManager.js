@@ -306,7 +306,7 @@ const PluginManager = {
   },
 
   executeHook(hookName, ...args) {
-    Debug.log(Debug.levels.DEBUG, "Executing hook:", hookName, args);
+    Debug.log(Debug.levels.DEBUG, "[PLUGIN] Executing hook:", hookName, args);
 
     const plugins = this.getSortedPlugins();
     let result = args[0]; // Store initial value
