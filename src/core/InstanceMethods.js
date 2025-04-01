@@ -128,14 +128,19 @@ export function instanceMethods(instanceName) {
 
       Object.assign(instance.data, newData);
       Object.assign(instance.proxy, newData);
-      const storageId = instanceName.replace("#", "");
-      saveToLocalStorage(storageId, instance.data, "instance");
 
       // Execute updateData hook
       PluginManager.executeHook("updateData", instance, {
         data: instance.data,
         changes: newData,
+        source: "update",
       });
+
+      // Save to localStorage if enabled
+      if (_state.config?.storage?.enabled) {
+        const storageId = instanceName.replace("#", "");
+        saveToLocalStorage(storageId, instance.data, "instance");
+      }
 
       return this._updateDOM();
     },
@@ -242,6 +247,7 @@ export function instanceMethods(instanceName) {
                   PluginManager.executeHook("updateData", instance, {
                     data: instance.data,
                     changes: data,
+                    source: "refresh",
                   });
 
                   updateDOM(element, rendered, instance.animate);
@@ -366,18 +372,19 @@ export function instanceMethods(instanceName) {
           deepMerge(this.getData(), newData);
         }
 
-        // Save to localStorage after merge
-        if (_state.config?.storage?.enabled) {
-          const storageId = instanceName.replace("#", "");
-          saveToLocalStorage(storageId, instance.data, "instance");
-        }
-
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
           changes: newData,
           path: path,
+          source: "merge",
         });
+
+        // Save to localStorage if enabled
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
 
         return this._updateDOM();
       } catch (error) {
@@ -408,14 +415,20 @@ export function instanceMethods(instanceName) {
 
         target[last] = value;
         Object.assign(instance.proxy, instance.data);
-        const storageId = instanceName.replace("#", "");
-        saveToLocalStorage(storageId, instance.data, "instance");
 
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
           changes: { [path]: value },
+          path: path,
+          source: "set",
         });
+
+        // Save to localStorage if enabled
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
 
         return this._updateDOM();
       } catch (error) {
@@ -444,18 +457,20 @@ export function instanceMethods(instanceName) {
 
       try {
         array.push(value);
-        // Save to localStorage after push
-        if (_state.config?.storage?.enabled) {
-          const storageId = instanceName.replace("#", "");
-          saveToLocalStorage(storageId, instance.data, "instance");
-        }
 
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
           changes: { [arrayPath]: array },
           path: arrayPath,
+          source: "push",
         });
+
+        // Save to localStorage if enabled
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
 
         return this._updateDOM();
       } catch (error) {
@@ -492,12 +507,6 @@ export function instanceMethods(instanceName) {
           }
         });
 
-        // Save to localStorage after update
-        if (_state.config?.storage?.enabled) {
-          const storageId = instanceName.replace("#", "");
-          saveToLocalStorage(storageId, instance.data, "instance");
-        }
-
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
@@ -505,7 +514,14 @@ export function instanceMethods(instanceName) {
           path: arrayPath,
           criteria,
           updates,
+          source: "updateWhere",
         });
+
+        // Save to localStorage if enabled
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
 
         return this._updateDOM();
       } catch (error) {
