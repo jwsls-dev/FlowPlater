@@ -64,13 +64,23 @@ export const RequestHandler = {
         return false;
 
       case "cleanup":
-        if (currentInfo && currentInfo.requestId === requestId) {
+        if (
+          currentInfo &&
+          currentInfo.requestId === requestId &&
+          currentInfo.processed
+        ) {
           this.processingElements.delete(target);
           Debug.log(
             Debug.levels.DEBUG,
             "Cleaned up after request",
             target,
             requestId,
+          );
+        } else {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Skipping cleanup - request mismatch or not processed",
+            { current: currentInfo?.requestId, received: requestId },
           );
         }
         break;
