@@ -2,6 +2,7 @@ export const _state = {
   templateCache: {},
   instances: {},
   length: 0,
+  initialized: false,
   defaults: {
     animation: false,
     debug: false,

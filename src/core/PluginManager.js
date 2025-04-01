@@ -184,6 +184,22 @@ const PluginManager = {
     // Update existing instances with new plugin methods
     this.updateExistingInstances();
 
+    // If FlowPlater is already initialized, call the initComplete hook
+    if (_state.initialized && pluginInstance.hooks?.initComplete) {
+      try {
+        pluginInstance.hooks.initComplete(
+          window.FlowPlater,
+          Object.values(_state.instances),
+        );
+      } catch (error) {
+        Debug.log(
+          Debug.levels.ERROR,
+          `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
+          error,
+        );
+      }
+    }
+
     return pluginInstance;
   },
 

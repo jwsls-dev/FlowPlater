@@ -534,6 +534,9 @@ const FlowPlaterObj = {
     Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
     Performance.end("init");
 
+    // Set initialized flag
+    _state.initialized = true;
+
     // Execute initComplete hook after everything is done
     this.PluginManager.executeHook("initComplete", this, _state.instances);
     return this;
