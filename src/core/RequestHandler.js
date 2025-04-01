@@ -1,5 +1,7 @@
 import { Debug } from "./Debug";
 import { EventSystem } from "./EventSystem";
+import PluginManager from "./PluginManager";
+import { _state } from "./State";
 
 /**
  * @module RequestHandler
@@ -112,9 +114,19 @@ export const RequestHandler = {
       event.detail.requestId = requestId; // Ensure requestId is set
       this.handleRequest(target, requestId, "start");
 
-      var element = event.detail.elt;
-      if (element.hasAttribute("fp-instance")) {
-        var instanceName = element.getAttribute("fp-instance");
+      // Find instance that contains this element
+      let instance = null;
+      let instanceName = null;
+      for (const [name, inst] of Object.entries(_state.instances)) {
+        if (Array.from(inst.elements).some((el) => el.contains(target))) {
+          instance = inst;
+          instanceName = name;
+          break;
+        }
+      }
+
+      if (instance) {
+        // Execute beforeRequest hook
         EventSystem.publish("request-start", {
           instanceName,
           ...event.detail,
@@ -123,11 +135,8 @@ export const RequestHandler = {
     });
 
     document.body.addEventListener("htmx:afterRequest", (event) => {
-      var element = event.detail.elt;
-      if (element.hasAttribute("fp-instance")) {
-        var instanceName = element.getAttribute("fp-instance");
-        EventSystem.publish("request-end", { instanceName, ...event.detail });
-      }
+      const target = event.detail.elt;
+      this.handleRequest(target, event.detail.requestId, "cleanup");
     });
 
     document.body.addEventListener("htmx:beforeSwap", (event) => {

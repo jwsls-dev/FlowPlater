@@ -3,7 +3,7 @@ import { EventSystem } from "./EventSystem";
 import { _state } from "./State";
 import { Performance } from "../utils/Performance";
 import { instanceMethods } from "./InstanceMethods";
-import { currentCustomTags } from "./ReplaceCustomTags";
+
 import { updateDOM } from "../utils/UpdateDom";
 import { loadFromLocalStorage } from "../utils/LocalStorage";
 import { saveToLocalStorage } from "../utils/LocalStorage";
@@ -124,8 +124,8 @@ export function render({
         });
         return _state.instances[instanceName];
       }
-      // Otherwise merge with current data
-      data = { ...data, ...persistedData };
+      // Otherwise merge with current data, prioritizing new data
+      data = { ...persistedData, ...data };
     }
 
     var proxy = createDeepProxy(data, (target) => {

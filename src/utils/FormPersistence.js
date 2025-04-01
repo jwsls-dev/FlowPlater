@@ -1,7 +1,9 @@
 import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
 import { saveToLocalStorage, loadFromLocalStorage } from "./LocalStorage";
-import { Debug } from "../core/Debug";
+import { Debug, log, errorLog } from "../core/Debug";
+import { getInstance } from "../core/State";
+import PluginManager from "../core/PluginManager";
 
 /**
  * Helper function to collect debug information consistently
@@ -106,17 +108,8 @@ function updateCustomVisualState(element) {
  * @returns {Object} - Object containing persistence settings
  */
 function getPersistenceSettings(element) {
-  let elementInsideInstanceElement = false;
   let shouldPersist = false;
   let useLocalStorage = false;
-
-  // Check if element is part of a template instance
-  for (const [instanceName, instance] of Object.entries(_state.instances)) {
-    if (Array.from(instance.elements).some((el) => el.contains(element))) {
-      elementInsideInstanceElement = true;
-      break;
-    }
-  }
 
   // Check persistence settings
   if (element.hasAttribute("fp-persist")) {
@@ -148,7 +141,7 @@ function getPersistenceSettings(element) {
   }
 
   return {
-    shouldPersist: elementInsideInstanceElement && shouldPersist,
+    shouldPersist,
     useLocalStorage: useLocalStorage && _state.config?.storage?.enabled,
   };
 }
@@ -613,6 +606,23 @@ function handleFormElementChange(event) {
         )}`,
       );
 
+      // Find instance that contains this form
+      let instance = null;
+      for (const [instanceName, inst] of Object.entries(_state.instances)) {
+        if (Array.from(inst.elements).some((el) => el.contains(form))) {
+          instance = inst;
+          break;
+        }
+      }
+
+      // Execute updateForm hook
+      PluginManager.executeHook("updateForm", instance, {
+        element: form,
+        id: form.id,
+        data: formState,
+        changedElement: element,
+      });
+
       // Emit event
       EventSystem.publish("formState:changed", {
         formId: form.id,
@@ -775,11 +785,34 @@ export function shouldRestoreForm(element) {
     return element.getAttribute("fp-persist") !== "false";
   }
 
+  // Check parent form if exists
+  const parentForm = element.closest("form");
+  if (parentForm) {
+    // If parent form explicitly disables persistence, skip it
+    if (parentForm.getAttribute("fp-persist") === "false") {
+      return false;
+    }
+
+    // Check all form elements in parent form
+    const formElements = parentForm.elements;
+    for (const input of formElements) {
+      // Skip elements without name or file inputs
+      if (!input.name || input.type === "file") continue;
+
+      // Check if input is inside an element with fp-persist="false"
+      const persistFalseParent = input.closest('[fp-persist="false"]');
+      if (persistFalseParent) {
+        continue;
+      }
+
+      // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
+      // it should be persisted by default when persistForm is true
+      return true;
+    }
+  }
+
   // For forms or elements containing forms, check each form
-  const forms =
-    element.tagName === "FORM"
-      ? [element]
-      : element.getElementsByTagName("form");
+  const forms = element.getElementsByTagName("form");
   for (const form of forms) {
     // If form explicitly disables persistence, skip it
     if (form.getAttribute("fp-persist") === "false") {
@@ -794,13 +827,13 @@ export function shouldRestoreForm(element) {
 
       // Check if input is inside an element with fp-persist="false"
       const persistFalseParent = input.closest('[fp-persist="false"]');
-      if (!persistFalseParent) {
-        // If no parent disables persistence and input doesn't have explicit setting,
-        // use global setting
-        if (!input.hasAttribute("fp-persist") && _state.config?.persistForm) {
-          return true;
-        }
+      if (persistFalseParent) {
+        continue;
       }
+
+      // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
+      // it should be persisted by default when persistForm is true
+      return true;
     }
   }
 

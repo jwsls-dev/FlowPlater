@@ -2,7 +2,6 @@ import { RequestHandler } from "./RequestHandler";
 import { Debug, errorLog, log } from "./Debug";
 import { render } from "./Template";
 import { parseXmlToJson } from "../utils/ParseXmlToJson";
-import { updateDOM } from "../utils/UpdateDom";
 import { _state } from "./State";
 import {
   setupFormSubmitHandlers,
@@ -13,6 +12,9 @@ import {
   loadFromLocalStorage,
   saveToLocalStorage,
 } from "../utils/LocalStorage";
+import PluginManager from "./PluginManager";
+import { InstanceManager } from "./InstanceManager";
+import { EventSystem } from "./EventSystem";
 
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
@@ -61,7 +63,8 @@ export function defineHtmxExtension() {
             );
           }
         }
-        return text; // Return HTML as-is
+        // For HTML responses, let HTMX handle the swap directly
+        return text;
       }
 
       // Parse response data
@@ -84,7 +87,11 @@ export function defineHtmxExtension() {
 
       // Get instance name and load stored data
       const instanceName = elt.getAttribute("fp-instance") || elt.id;
-      const storedData = loadFromLocalStorage(instanceName, "instance");
+      // Don't load from localStorage here - we want to use fresh data
+
+      // Get or create instance
+      const instance = InstanceManager.getOrCreateInstance(elt, data);
+      if (!instance) return text;
 
       // Render template
       try {
@@ -96,6 +103,7 @@ export function defineHtmxExtension() {
             data: data,
             target: elt,
             returnHtml: true,
+            instanceName: instanceName,
           });
         } else {
           if (!elt.id) {
@@ -111,6 +119,7 @@ export function defineHtmxExtension() {
             data: data,
             target: elt,
             returnHtml: true,
+            instanceName: instanceName,
           });
         }
 
@@ -142,71 +151,27 @@ export function defineHtmxExtension() {
       }
 
       try {
-        // Get instance name from element
-        const instanceName = target.getAttribute("fp-instance") || target.id;
-        if (!instanceName) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "No instance name found for element, falling back to default swap",
-          );
-          return false;
-        }
-
-        // Get the instance from state
-        const instance = _state.instances[instanceName];
-        if (!instance) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "No instance found for name: " + instanceName,
-          );
-          return false;
-        }
+        // Get instance
+        const instance = InstanceManager.getOrCreateInstance(target);
+        if (!instance) return false;
 
         const supportedSwapStyles = ["innerHTML"];
         if (!supportedSwapStyles.includes(swapStyle)) {
           Debug.log(
             Debug.levels.DEBUG,
-            "Unsupported swap style for smart DOM swap: " +
+            "Unsupported swap style: " +
               swapStyle +
               ", falling back to default swap",
           );
-
-          const breakingSwapStyles = [
-            "outerHTML",
-            "beforebegin",
-            "afterbegin",
-            "afterend",
-          ];
-          if (breakingSwapStyles.includes(swapStyle)) {
-            Debug.log(
-              Debug.levels.WARN,
-              "Breaking swap style: " +
-                swapStyle +
-                ", instance methods will not work as expected. Target container was removed from the DOM.",
-            );
-          }
-
           return false;
         }
 
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Using updateDOM for swap with config:",
-          _state.config,
-        );
+        // Update the DOM
+        instance._updateDOM();
 
-        // Use updateDOM which handles all form persistence and setup internally
-        updateDOM(target, fragment.innerHTML, instance.animate);
-
-        Debug.log(
-          Debug.levels.DEBUG,
-          "HTMX smart innerHTML swap completed for instance: " + instanceName,
-        );
-
-        // Return true to tell HTMX we've handled the swap
         return true;
-      } catch (e) {
-        errorLog("Error in handleSwap:", e);
+      } catch (error) {
+        Debug.log(Debug.levels.ERROR, "Error in handleSwap: " + error.message);
         return false;
       }
     },
@@ -223,6 +188,14 @@ export function defineHtmxExtension() {
           evt.detail.requestId = requestId;
           evt.detail.xhr.requestId = requestId;
           RequestHandler.handleRequest(target, requestId, "start");
+
+          // Execute beforeRequest hook
+          if (target.hasAttribute("fp-template")) {
+            const instance = InstanceManager.getOrCreateInstance(target);
+            if (instance) {
+              PluginManager.executeHook("beforeRequest", instance, evt);
+            }
+          }
           break;
 
         case "htmx:beforeSwap":
@@ -235,13 +208,33 @@ export function defineHtmxExtension() {
             );
             return;
           }
+          // Execute beforeSwap hook
+          executeHtmxHook("beforeSwap", target, evt);
           break;
 
         case "htmx:afterSwap":
-          RequestHandler.handleRequest(target, requestId, "cleanup");
+          // Execute afterSwap hook
+          executeHtmxHook("afterSwap", target, evt);
+
           // Clean up form listeners before setting up new ones
           const formsToCleanup = getAllRelevantForms(target);
           formsToCleanup.forEach(cleanupFormChangeListeners);
+          break;
+
+        case "htmx:afterRequest":
+          // Execute afterRequest hook
+          if (target.hasAttribute("fp-template")) {
+            const instance = InstanceManager.getOrCreateInstance(target);
+            if (instance) {
+              PluginManager.executeHook("afterRequest", instance, evt);
+              EventSystem.publish("request-end", {
+                instanceName: instance.instanceName,
+                ...evt.detail,
+              });
+            }
+          }
+          // Handle request cleanup
+          RequestHandler.handleRequest(target, requestId, "cleanup");
           break;
 
         case "htmx:afterSettle":
@@ -259,4 +252,13 @@ export function defineHtmxExtension() {
       }
     },
   });
+}
+
+function executeHtmxHook(hookName, target, event) {
+  if (target.hasAttribute("fp-instance") || target.hasAttribute("id")) {
+    const instance = InstanceManager.getOrCreateInstance(target);
+    if (instance) {
+      PluginManager.executeHook(hookName, instance, event?.detail);
+    }
+  }
 }

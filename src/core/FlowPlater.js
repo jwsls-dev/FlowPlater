@@ -24,9 +24,10 @@ import { setupProxy } from "./SetupProxy";
 import { processPreload } from "./ProcessPreload";
 import { translateCustomHTMXAttributes } from "./TranslateHtmxAttributes";
 import { processUrlAffixes } from "./ProcessUrlAffixes";
-import { animate } from "./Animate";
 import { setupAnimation } from "./SetupAnimation";
 import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
+import PluginManager from "./PluginManager";
+import { instanceMethods } from "./InstanceMethods";
 
 /* -------------------------------------------------------------------------- */
 /* ANCHOR                      FlowPlater module                              */
@@ -86,6 +87,7 @@ const defaultConfig = {
   htmx: {
     timeout: 10000,
     swapStyle: "innerHTML",
+    selfRequestsOnly: false,
   },
   customTags: customTagList,
   storage: {
@@ -264,26 +266,12 @@ const ProcessingChain = {
  * Otherwise, finds and processes all matching child elements.
  */
 function process(element = document) {
-  // If processing document or non-matching element, find and process all matching children
   if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
     const fpElements = element.querySelectorAll(ProcessingChain.FP_SELECTOR);
-    fpElements.forEach((el) => {
-      ProcessingChain.processElement(el);
-      const templateId = el.getAttribute("fp-template");
-      if (templateId && templateId !== "self" && templateId !== "") {
-        const templateElement = document.querySelector(
-          templateId.startsWith("#") ? templateId : `#${templateId}`,
-        );
-        if (templateElement) {
-          ProcessingChain.processElement(templateElement);
-        }
-      }
-    });
-    return;
+    fpElements.forEach((el) => ProcessingChain.processElement(el));
+  } else {
+    ProcessingChain.processElement(element);
   }
-
-  // Process single matching element
-  ProcessingChain.processElement(element);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -306,6 +294,56 @@ const FlowPlaterObj = {
   render,
   getInstance,
   getInstances,
+  PluginManager,
+
+  // Logging API
+  log: function (level, ...args) {
+    // add '[PLUGIN]' before the first argument
+    args.unshift(`[PLUGIN]`);
+    Debug.log(level, ...args);
+    return this;
+  },
+
+  // Log levels for use with the log method
+  logLevels: {
+    ERROR: Debug.levels.ERROR,
+    WARN: Debug.levels.WARN,
+    INFO: Debug.levels.INFO,
+    DEBUG: Debug.levels.DEBUG,
+  },
+
+  // Plugin management methods
+  registerPlugin(plugin) {
+    return this.PluginManager.registerPlugin(plugin);
+  },
+
+  removePlugin(name) {
+    return this.PluginManager.removePlugin(name);
+  },
+
+  removeAllPlugins() {
+    return this.PluginManager.destroyAll();
+  },
+
+  getPlugin(name) {
+    return this.PluginManager.getPlugin(name);
+  },
+
+  getAllPlugins() {
+    return this.PluginManager.getSortedPlugins();
+  },
+
+  enablePlugin(name) {
+    return this.PluginManager.enablePlugin(name);
+  },
+
+  disablePlugin(name) {
+    return this.PluginManager.disablePlugin(name);
+  },
+
+  pluginConfig(name) {
+    return this.PluginManager.pluginConfig(name);
+  },
 
   on: (...args) => EventSystem.subscribe(...args),
   off: (...args) => EventSystem.unsubscribe(...args),
@@ -495,6 +533,9 @@ const FlowPlaterObj = {
     process(element);
     Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
     Performance.end("init");
+
+    // Execute initComplete hook after everything is done
+    this.PluginManager.executeHook("initComplete", this, _state.instances);
     return this;
   },
 
@@ -581,6 +622,7 @@ const FlowPlaterObj = {
     if (typeof htmx !== "undefined") {
       htmx.config.timeout = _state.config.htmx.timeout;
       htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
+      htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
     }
 
     // Set custom tags
@@ -665,6 +707,9 @@ const FlowPlaterObj = {
     if (!instance) {
       throw new FlowPlaterError(`Failed to create instance: ${instanceName}`);
     }
+
+    // Execute newInstance hook
+    this.PluginManager.executeHook("newInstance", instance);
 
     if (options.refresh) {
       instance.refresh();

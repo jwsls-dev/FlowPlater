@@ -9,7 +9,9 @@
     "concat": "node concatenate.js",
     "minify": "uglifyjs dist/flowplater_bundled.js -o dist/flowplater.min.js -m --comments",
     "prod": "uglifyjs dist/flowplater_bundled.js -o dist/flowplater.js -b -m --comments",
-    "build": "npm run update-license && npm run rollup && npm run concat && npm run minify && npm run prod"
+    "build": "npm run update-license && npm run rollup && npm run concat && npm run minify && npm run prod",
+    "buildPlugin": "node build-plugin.js",
+    "buildPlugins": "node build-plugins.js"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^15.3.1",

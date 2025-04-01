@@ -11813,6 +11813,384 @@ var FlowPlater = (function () {
     return null;
   }
 
+  // Version management utilities
+  const VersionManager = {
+    parseVersion(version) {
+      return version.split(".").map(Number);
+    },
+
+    compareVersions(v1, v2) {
+      const v1Parts = this.parseVersion(v1);
+      const v2Parts = this.parseVersion(v2);
+
+      for (let i = 0; i < 3; i++) {
+        if (v1Parts[i] > v2Parts[i]) return 1;
+        if (v1Parts[i] < v2Parts[i]) return -1;
+      }
+      return 0;
+    },
+
+    satisfiesVersion(required, actual) {
+      if (!required || !actual) return false;
+
+      // Handle @ syntax (e.g., "plugin@2.1")
+      const [pluginName, version] = required.split("@");
+      if (!version) return true; // No version requirement
+
+      return this.compareVersions(actual, version) >= 0;
+    },
+  };
+
+  const PluginManager = {
+    plugins: new Map(),
+    globalMethods: new Map(),
+    instanceMethods: new Map(),
+
+    registerPlugin(plugin) {
+      if (!plugin || typeof plugin !== "function") {
+        throw new FlowPlaterError("Plugin must be a function");
+      }
+
+      const pluginInstance = plugin();
+
+      // Validate required config fields
+      const requiredFields = ["name", "enabled", "priority", "version"];
+      for (const field of requiredFields) {
+        if (!(field in pluginInstance.config)) {
+          throw new FlowPlaterError(`Plugin config must contain '${field}'`);
+        }
+      }
+
+      // Validate version format
+      if (!/^\d+\.\d+\.\d+$/.test(pluginInstance.config.version)) {
+        throw new FlowPlaterError(
+          `Plugin version must be in format 'x.y.z' (got ${pluginInstance.config.version})`,
+        );
+      }
+
+      if (this.plugins.has(pluginInstance.config.name)) {
+        throw new FlowPlaterError(
+          `Plugin ${pluginInstance.config.name} already registered`,
+        );
+      }
+
+      // Check dependencies
+      if (pluginInstance.config.dependencies) {
+        for (const dep of pluginInstance.config.dependencies) {
+          const [depName, depVersion] = dep.split("@");
+          const depPlugin = this.getPlugin(depName);
+
+          if (!depPlugin) {
+            throw new FlowPlaterError(
+              `Required dependency '${depName}' not found for plugin ${pluginInstance.config.name}`,
+            );
+          }
+
+          if (!VersionManager.satisfiesVersion(dep, depPlugin.config.version)) {
+            throw new FlowPlaterError(
+              `Plugin ${pluginInstance.config.name} requires ${depName} version ${
+              depVersion || "any"
+            }, but found version ${depPlugin.config.version}`,
+            );
+          }
+        }
+      }
+
+      // Check optional dependencies
+      if (pluginInstance.config.optionalDependencies) {
+        for (const dep of pluginInstance.config.optionalDependencies) {
+          const [depName, depVersion] = dep.split("@");
+          const depPlugin = this.getPlugin(depName);
+
+          if (
+            depPlugin &&
+            !VersionManager.satisfiesVersion(dep, depPlugin.config.version)
+          ) {
+            Debug.log(
+              Debug.levels.WARN,
+              `Optional dependency '${depName}' version mismatch for plugin ${
+              pluginInstance.config.name
+            }. Required: ${depVersion || "any"}, Found: ${
+              depPlugin.config.version
+            }`,
+            );
+          }
+        }
+      }
+
+      // Validate hooks are functions
+      for (const hook in pluginInstance.hooks) {
+        if (typeof pluginInstance.hooks[hook] !== "function") {
+          throw new FlowPlaterError(`Hook ${hook} must be a function`);
+        }
+      }
+
+      // Register global methods if any
+      if (pluginInstance.globalMethods) {
+        for (const [methodName, method] of Object.entries(
+          pluginInstance.globalMethods,
+        )) {
+          if (typeof method !== "function") {
+            throw new FlowPlaterError(
+              `Global method ${methodName} must be a function`,
+            );
+          }
+
+          // Check for method name collisions
+          if (this.globalMethods.has(methodName)) {
+            const existing = this.globalMethods.get(methodName);
+            throw new FlowPlaterError(
+              `Global method ${methodName} already registered by plugin ${existing.plugin}`,
+            );
+          }
+
+          this.globalMethods.set(methodName, {
+            method,
+            plugin: pluginInstance.config.name,
+          });
+          // Add method to FlowPlater object
+          if (typeof window !== "undefined" && window.FlowPlater) {
+            window.FlowPlater[methodName] = (...args) =>
+              this.executeGlobalMethod(methodName, ...args);
+          }
+        }
+      }
+
+      // Register instance methods if any
+      if (pluginInstance.instanceMethods) {
+        for (const [methodName, method] of Object.entries(
+          pluginInstance.instanceMethods,
+        )) {
+          if (typeof method !== "function") {
+            throw new FlowPlaterError(
+              `Instance method ${methodName} must be a function`,
+            );
+          }
+
+          // Check for method name collisions
+          if (this.instanceMethods.has(methodName)) {
+            const existing = this.instanceMethods.get(methodName);
+            throw new FlowPlaterError(
+              `Instance method ${methodName} already registered by plugin ${existing.plugin}`,
+            );
+          }
+
+          this.instanceMethods.set(methodName, {
+            method,
+            plugin: pluginInstance.config.name,
+          });
+        }
+      }
+
+      // Initialize the plugin only if it's enabled
+      if (
+        pluginInstance.config?.enabled &&
+        typeof pluginInstance.init === "function"
+      ) {
+        pluginInstance.init();
+      }
+
+      // Store the plugin instance
+      this.plugins.set(pluginInstance.config.name, pluginInstance);
+
+      // Update existing instances with new plugin methods
+      this.updateExistingInstances();
+
+      return pluginInstance;
+    },
+
+    updateExistingInstances() {
+      // Get all instances
+      const instances = Object.values(_state.instances);
+
+      // For each instance, add any missing plugin methods
+      instances.forEach((instance) => {
+        for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
+          if (!instance[methodName]) {
+            instance[methodName] = (...args) =>
+              this.executeInstanceMethod(methodName, instance, ...args);
+          }
+        }
+      });
+    },
+
+    getPlugin(name) {
+      return this.plugins.get(name);
+    },
+
+    getAllPlugins() {
+      return Array.from(this.plugins.values());
+    },
+
+    getEnabledPlugins() {
+      return this.getAllPlugins().filter((plugin) => plugin.config?.enabled);
+    },
+
+    removePlugin(name) {
+      const plugin = this.getPlugin(name);
+      if (!plugin) return false;
+
+      // Store methods to remove before deleting from maps
+      const methodsToRemove = new Set();
+      for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
+        if (methodInfo.plugin === name) {
+          methodsToRemove.add(methodName);
+        }
+      }
+
+      // Remove global methods
+      for (const [methodName, methodInfo] of this.globalMethods.entries()) {
+        if (methodInfo.plugin === name) {
+          this.globalMethods.delete(methodName);
+          // Remove method from FlowPlater object
+          if (typeof window !== "undefined" && window.FlowPlater) {
+            delete window.FlowPlater[methodName];
+          }
+        }
+      }
+
+      // Remove instance methods from the manager
+      for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
+        if (methodInfo.plugin === name) {
+          this.instanceMethods.delete(methodName);
+        }
+      }
+
+      // Remove instance methods from all instances
+      const instances = Object.values(_state.instances);
+      instances.forEach((instance) => {
+        methodsToRemove.forEach((methodName) => {
+          delete instance[methodName];
+        });
+      });
+
+      return this.plugins.delete(name);
+    },
+
+    disablePlugin(name) {
+      const plugin = this.getPlugin(name);
+      if (!plugin) return false;
+      plugin.config.enabled = false;
+      return true;
+    },
+
+    enablePlugin(name) {
+      const plugin = this.getPlugin(name);
+      if (!plugin) return false;
+      plugin.config.enabled = true;
+      // Initialize if not already initialized
+      if (typeof plugin.init === "function" && !plugin.state.initialized) {
+        plugin.init();
+        plugin.state.initialized = true;
+      }
+      return true;
+    },
+
+    pluginConfig(name) {
+      const plugin = this.getPlugin(name);
+      if (!plugin) return null;
+      return plugin.config;
+    },
+
+    // Helper method to sort plugins by priority
+    getSortedPlugins() {
+      return this.getEnabledPlugins().sort((a, b) => {
+        const priorityA = a.config?.priority || 0;
+        const priorityB = b.config?.priority || 0;
+        return priorityB - priorityA; // Higher priority first
+      });
+    },
+
+    executeHook(hookName, ...args) {
+      Debug.log(Debug.levels.DEBUG, "Executing hook:", hookName, args);
+
+      const plugins = this.getSortedPlugins();
+      let result = args[0]; // Store initial value
+
+      for (const plugin of plugins) {
+        if (plugin.hooks?.[hookName]) {
+          try {
+            const hookResult = plugin.hooks[hookName](...args);
+            // Allow hooks to modify the value
+            if (hookResult !== undefined) {
+              result = hookResult;
+              args[0] = result; // Update for next plugin
+            } else {
+              // If hook returns undefined, use the previous result
+              Debug.log(
+                Debug.levels.WARN,
+                `Plugin ${plugin.config.name} returned undefined for ${hookName}`,
+                args[0],
+              );
+              result = args[0];
+            }
+          } catch (error) {
+            Debug.log(
+              Debug.levels.ERROR,
+              `Plugin ${plugin.config.name} failed executing ${hookName}:`,
+              error,
+            );
+            // Continue with other plugins
+          }
+        }
+      }
+
+      return result;
+    },
+
+    // Execute a global method
+    executeGlobalMethod(methodName, ...args) {
+      const methodInfo = this.globalMethods.get(methodName);
+      if (!methodInfo) {
+        throw new FlowPlaterError(`Global method ${methodName} not found`);
+      }
+
+      const plugin = this.getPlugin(methodInfo.plugin);
+      if (!plugin || !plugin.config?.enabled) {
+        throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+      }
+
+      return methodInfo.method(plugin, ...args);
+    },
+
+    // Execute an instance method
+    executeInstanceMethod(methodName, instance, ...args) {
+      const methodInfo = this.instanceMethods.get(methodName);
+      if (!methodInfo) {
+        throw new FlowPlaterError(`Instance method ${methodName} not found`);
+      }
+
+      const plugin = this.getPlugin(methodInfo.plugin);
+      if (!plugin || !plugin.config?.enabled) {
+        throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+      }
+
+      return methodInfo.method(instance, ...args);
+    },
+
+    async destroyPlugin(name) {
+      const plugin = this.getPlugin(name);
+      if (!plugin) return false;
+
+      if (typeof plugin.destroy === "function") {
+        await plugin.destroy();
+      }
+      return this.removePlugin(name);
+    },
+
+    async destroyAll() {
+      const plugins = this.getAllPlugins();
+      await Promise.all(
+        plugins.map((plugin) =>
+          typeof plugin.destroy === "function" ? plugin.destroy() : null,
+        ),
+      );
+      this.plugins.clear();
+      this.globalMethods.clear();
+      this.instanceMethods.clear();
+    },
+  };
+
   /**
    * Helper function to collect debug information consistently
    */
@@ -11916,17 +12294,8 @@ var FlowPlater = (function () {
    * @returns {Object} - Object containing persistence settings
    */
   function getPersistenceSettings(element) {
-    let elementInsideInstanceElement = false;
     let shouldPersist = false;
     let useLocalStorage = false;
-
-    // Check if element is part of a template instance
-    for (const [instanceName, instance] of Object.entries(_state.instances)) {
-      if (Array.from(instance.elements).some((el) => el.contains(element))) {
-        elementInsideInstanceElement = true;
-        break;
-      }
-    }
 
     // Check persistence settings
     if (element.hasAttribute("fp-persist")) {
@@ -11958,7 +12327,7 @@ var FlowPlater = (function () {
     }
 
     return {
-      shouldPersist: elementInsideInstanceElement && shouldPersist,
+      shouldPersist,
       useLocalStorage: useLocalStorage && _state.config?.storage?.enabled,
     };
   }
@@ -12423,6 +12792,23 @@ var FlowPlater = (function () {
         )}`,
         );
 
+        // Find instance that contains this form
+        let instance = null;
+        for (const [instanceName, inst] of Object.entries(_state.instances)) {
+          if (Array.from(inst.elements).some((el) => el.contains(form))) {
+            instance = inst;
+            break;
+          }
+        }
+
+        // Execute updateForm hook
+        PluginManager.executeHook("updateForm", instance, {
+          element: form,
+          id: form.id,
+          data: formState,
+          changedElement: element,
+        });
+
         // Emit event
         EventSystem.publish("formState:changed", {
           formId: form.id,
@@ -12585,11 +12971,34 @@ var FlowPlater = (function () {
       return element.getAttribute("fp-persist") !== "false";
     }
 
+    // Check parent form if exists
+    const parentForm = element.closest("form");
+    if (parentForm) {
+      // If parent form explicitly disables persistence, skip it
+      if (parentForm.getAttribute("fp-persist") === "false") {
+        return false;
+      }
+
+      // Check all form elements in parent form
+      const formElements = parentForm.elements;
+      for (const input of formElements) {
+        // Skip elements without name or file inputs
+        if (!input.name || input.type === "file") continue;
+
+        // Check if input is inside an element with fp-persist="false"
+        const persistFalseParent = input.closest('[fp-persist="false"]');
+        if (persistFalseParent) {
+          continue;
+        }
+
+        // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
+        // it should be persisted by default when persistForm is true
+        return true;
+      }
+    }
+
     // For forms or elements containing forms, check each form
-    const forms =
-      element.tagName === "FORM"
-        ? [element]
-        : element.getElementsByTagName("form");
+    const forms = element.getElementsByTagName("form");
     for (const form of forms) {
       // If form explicitly disables persistence, skip it
       if (form.getAttribute("fp-persist") === "false") {
@@ -12604,13 +13013,13 @@ var FlowPlater = (function () {
 
         // Check if input is inside an element with fp-persist="false"
         const persistFalseParent = input.closest('[fp-persist="false"]');
-        if (!persistFalseParent) {
-          // If no parent disables persistence and input doesn't have explicit setting,
-          // use global setting
-          if (!input.hasAttribute("fp-persist") && _state.config?.persistForm) {
-            return true;
-          }
+        if (persistFalseParent) {
+          continue;
         }
+
+        // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
+        // it should be persisted by default when persistForm is true
+        return true;
       }
     }
 
@@ -12852,7 +13261,7 @@ var FlowPlater = (function () {
 
       // Capture form states if form restoration is needed
       let formStates = null;
-      if (shouldRestoreForm(element)) {
+      if (_state.config?.persistForm && shouldRestoreForm(element)) {
         Debug.log(Debug.levels.DEBUG, "Capturing form states before update");
         formStates = captureFormStates(element);
         Debug.log(Debug.levels.DEBUG, "Captured form states:", formStates);
@@ -12860,7 +13269,7 @@ var FlowPlater = (function () {
 
       // Single observer setup
       let formObserver = null;
-      if (shouldRestoreForm(element)) {
+      if (_state.config?.persistForm && shouldRestoreForm(element)) {
         Debug.log(Debug.levels.DEBUG, "Setting up dynamic form observer");
         formObserver = setupDynamicFormObserver(element);
       }
@@ -12883,7 +13292,11 @@ var FlowPlater = (function () {
           );
 
           // Single form restoration
-          if (shouldRestoreForm(element) && formStates) {
+          if (
+            _state.config?.persistForm &&
+            shouldRestoreForm(element) &&
+            formStates
+          ) {
             Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
             restoreFormStates(element);
             setupFormSubmitHandlers(element);
@@ -12899,7 +13312,7 @@ var FlowPlater = (function () {
         await updateContent();
       }
 
-      // Add form restoration after content update
+      // Final form state restoration if needed
       if (_state.config?.persistForm && shouldRestoreForm(element)) {
         Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
         const persistedInputs = element.querySelectorAll('[fp-persist="true"]');
@@ -12908,6 +13321,7 @@ var FlowPlater = (function () {
           `Found ${persistedInputs.length} inputs to restore`,
         );
         restoreFormStates(element);
+        setupFormSubmitHandlers(element);
       }
 
       if (formObserver) {
@@ -12947,8 +13361,14 @@ var FlowPlater = (function () {
   function instanceMethods(instanceName) {
     // Helper function to resolve a path within the data
     function _resolvePath(path) {
+      const instance = _state.instances[instanceName];
+      if (!instance) {
+        errorLog$1("Instance not found: " + instanceName);
+        return undefined;
+      }
+
       const pathParts = path.split(/[\.\[\]'"]/);
-      let current = this.data;
+      let current = instance.data;
       for (let i = 0; i < pathParts.length; i++) {
         const part = pathParts[i];
         if (part === "") continue;
@@ -12965,27 +13385,59 @@ var FlowPlater = (function () {
     }
 
     return {
+      instanceName,
+      animate: _state.defaults.animation,
+
       _updateDOM: function () {
-        const instance = _state.instances[instanceName];
-        if (!instance) {
-          errorLog$1("Instance not found: " + instanceName);
-          return this;
+        // Check if data is HTML
+        if (
+          typeof this.data === "string" &&
+          this.data.trim().startsWith("<!DOCTYPE")
+        ) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Data is HTML, skipping DOM update",
+            this.instanceName,
+          );
+          return;
         }
 
-        instance.elements.forEach(function (element) {
-          try {
-            updateDOM(
-              element,
-              instance.template(instance.proxy),
-              instance.animate,
+        try {
+          let rendered;
+          if (this.templateId === "self" || this.templateId === null) {
+            // For "self" template, use the first element as the template
+            const templateElement = Array.from(this.elements)[0];
+            if (!templateElement) {
+              Debug.log(
+                Debug.levels.ERROR,
+                "No template element found for self template",
+                this.instanceName,
+              );
+              return;
+            }
+            rendered = templateElement.innerHTML;
+          } else if (!this.template) {
+            Debug.log(
+              Debug.levels.ERROR,
+              "No template found for instance",
+              this.instanceName,
             );
-          } catch (error) {
-            element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-            errorLog$1(`Failed to refresh template: ${error.message}`);
+            return;
+          } else {
+            rendered = this.template(this.data);
           }
-        });
 
-        return this;
+          this.elements.forEach((element) => {
+            updateDOM(element, rendered, this.animate);
+          });
+        } catch (error) {
+          Debug.log(
+            Debug.levels.ERROR,
+            "Error updating DOM for instance",
+            this.instanceName,
+            error,
+          );
+        }
       },
 
       update: function (newData) {
@@ -12998,6 +13450,13 @@ var FlowPlater = (function () {
         Object.assign(instance.proxy, newData);
         const storageId = instanceName.replace("#", "");
         saveToLocalStorage(storageId, instance.data, "instance");
+
+        // Execute updateData hook
+        PluginManager.executeHook("updateData", instance, {
+          data: instance.data,
+          changes: newData,
+        });
+
         return this._updateDOM();
       },
 
@@ -13098,6 +13557,13 @@ var FlowPlater = (function () {
                       data: instance.data,
                       rendered,
                     });
+
+                    // Execute updateData hook
+                    PluginManager.executeHook("updateData", instance, {
+                      data: instance.data,
+                      changes: data,
+                    });
+
                     updateDOM(element, rendered, instance.animate);
                     return data;
                   });
@@ -13222,6 +13688,13 @@ var FlowPlater = (function () {
             saveToLocalStorage(storageId, instance.data, "instance");
           }
 
+          // Execute updateData hook
+          PluginManager.executeHook("updateData", instance, {
+            data: instance.data,
+            changes: newData,
+            path: path,
+          });
+
           return this._updateDOM();
         } catch (error) {
           errorLog$1(error.message);
@@ -13248,6 +13721,13 @@ var FlowPlater = (function () {
           Object.assign(instance.proxy, instance.data);
           const storageId = instanceName.replace("#", "");
           saveToLocalStorage(storageId, instance.data, "instance");
+
+          // Execute updateData hook
+          PluginManager.executeHook("updateData", instance, {
+            data: instance.data,
+            changes: { [path]: value },
+          });
+
           return this._updateDOM();
         } catch (error) {
           errorLog$1(error.message);
@@ -13256,7 +13736,13 @@ var FlowPlater = (function () {
       },
 
       push: function (arrayPath, value) {
-        let array = _resolvePath.call(this, arrayPath);
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          errorLog$1("Instance not found: " + instanceName);
+          return this;
+        }
+
+        let array = _resolvePath(arrayPath);
         if (!Array.isArray(array)) {
           errorLog$1("Target at path is not an array: " + arrayPath);
           return this;
@@ -13269,6 +13755,14 @@ var FlowPlater = (function () {
             const storageId = instanceName.replace("#", "");
             saveToLocalStorage(storageId, instance.data, "instance");
           }
+
+          // Execute updateData hook
+          PluginManager.executeHook("updateData", instance, {
+            data: instance.data,
+            changes: { [arrayPath]: array },
+            path: arrayPath,
+          });
+
           return this._updateDOM();
         } catch (error) {
           errorLog$1(error.message);
@@ -13277,7 +13771,13 @@ var FlowPlater = (function () {
       },
 
       updateWhere: function (arrayPath, criteria, updates) {
-        let array = _resolvePath.call(this, arrayPath);
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          errorLog$1("Instance not found: " + instanceName);
+          return this;
+        }
+
+        let array = _resolvePath(arrayPath);
         if (!Array.isArray(array)) {
           errorLog$1("Target at path is not an array: " + arrayPath);
           return this;
@@ -13298,6 +13798,15 @@ var FlowPlater = (function () {
             const storageId = instanceName.replace("#", "");
             saveToLocalStorage(storageId, instance.data, "instance");
           }
+
+          // Execute updateData hook
+          PluginManager.executeHook("updateData", instance, {
+            data: instance.data,
+            changes: { [arrayPath]: array },
+            path: arrayPath,
+            criteria,
+            updates,
+          });
 
           return this._updateDOM();
         } catch (error) {
@@ -13436,8 +13945,8 @@ var FlowPlater = (function () {
           });
           return _state.instances[instanceName];
         }
-        // Otherwise merge with current data
-        data = { ...data, ...persistedData };
+        // Otherwise merge with current data, prioritizing new data
+        data = { ...persistedData, ...data };
       }
 
       var proxy = createDeepProxy(data, (target) => {
@@ -14474,9 +14983,19 @@ var FlowPlater = (function () {
         event.detail.requestId = requestId; // Ensure requestId is set
         this.handleRequest(target, requestId, "start");
 
-        var element = event.detail.elt;
-        if (element.hasAttribute("fp-instance")) {
-          var instanceName = element.getAttribute("fp-instance");
+        // Find instance that contains this element
+        let instance = null;
+        let instanceName = null;
+        for (const [name, inst] of Object.entries(_state.instances)) {
+          if (Array.from(inst.elements).some((el) => el.contains(target))) {
+            instance = inst;
+            instanceName = name;
+            break;
+          }
+        }
+
+        if (instance) {
+          // Execute beforeRequest hook
           EventSystem.publish("request-start", {
             instanceName,
             ...event.detail,
@@ -14485,11 +15004,8 @@ var FlowPlater = (function () {
       });
 
       document.body.addEventListener("htmx:afterRequest", (event) => {
-        var element = event.detail.elt;
-        if (element.hasAttribute("fp-instance")) {
-          var instanceName = element.getAttribute("fp-instance");
-          EventSystem.publish("request-end", { instanceName, ...event.detail });
-        }
+        const target = event.detail.elt;
+        this.handleRequest(target, event.detail.requestId, "cleanup");
       });
 
       document.body.addEventListener("htmx:beforeSwap", (event) => {
@@ -14563,6 +15079,158 @@ var FlowPlater = (function () {
     return xmlToJson(xml.documentElement);
   }
 
+  const InstanceManager = {
+    /**
+     * Gets an existing instance or creates a new one
+     * @param {HTMLElement} element - The DOM element
+     * @param {Object} data - Initial data for the instance
+     * @returns {Object} The instance
+     */
+    getOrCreateInstance(element, data = {}) {
+      const instanceName = element.getAttribute("fp-instance") || element.id;
+      if (!instanceName) {
+        errorLog$1("No instance name found for element");
+        return null;
+      }
+
+      let instance = _state.instances[instanceName];
+      if (!instance) {
+        instance = {
+          elements: new Set([element]),
+          template: null,
+          templateId: element.getAttribute("fp-template"),
+          proxy: null,
+          data: data,
+          cleanup: () => {
+            this.elements.clear();
+          },
+        };
+
+        // Add instance methods
+        Object.assign(instance, instanceMethods(instanceName));
+
+        // Add plugin instance methods
+        const methods = PluginManager.instanceMethods;
+        for (const [methodName, methodInfo] of methods.entries()) {
+          // Add method to instance
+          instance[methodName] = (...args) =>
+            PluginManager.executeInstanceMethod(methodName, instance, ...args);
+        }
+
+        _state.instances[instanceName] = instance;
+        // Execute newInstance hook
+        PluginManager.executeHook("newInstance", instance);
+      }
+
+      return instance;
+    },
+
+    /**
+     * Updates an instance with new data
+     * @param {Object} instance - The instance to update
+     * @param {Object} data - New data for the instance
+     */
+    updateInstance(instance, data) {
+      if (!instance) return;
+
+      instance.data = { ...instance.data, ...data };
+      instance.proxy = new Proxy(instance.data, {
+        get: (target, property) => {
+          const value = target[property];
+          return value && typeof value === "object"
+            ? new Proxy(value, this.proxyHandler)
+            : value;
+        },
+        set: (target, property, value) => {
+          target[property] = value;
+          instance._updateDOM();
+          return true;
+        },
+        deleteProperty: (target, property) => {
+          delete target[property];
+          instance._updateDOM();
+          return true;
+        },
+      });
+    },
+
+    /**
+     * Proxy handler for deep reactivity
+     */
+    proxyHandler: {
+      get(target, property) {
+        const value = target[property];
+        return value && typeof value === "object"
+          ? new Proxy(value, this)
+          : value;
+      },
+      set(target, property, value) {
+        target[property] = value;
+        return true;
+      },
+      deleteProperty(target, property) {
+        delete target[property];
+        return true;
+      },
+    },
+
+    /**
+     * Updates the DOM for an instance
+     * @param {Object} instance - The instance to update
+     */
+    _updateDOM(instance) {
+      // Check if data is HTML
+      if (
+        typeof instance.data === "string" &&
+        instance.data.trim().startsWith("<!DOCTYPE")
+      ) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Data is HTML, skipping DOM update",
+          instance.instanceName,
+        );
+        return;
+      }
+
+      try {
+        let rendered;
+        if (instance.templateId === "self" || instance.templateId === null) {
+          // For "self" template, use the first element as the template
+          const templateElement = Array.from(instance.elements)[0];
+          if (!templateElement) {
+            Debug.log(
+              Debug.levels.ERROR,
+              "No template element found for self template",
+              instance.instanceName,
+            );
+            return;
+          }
+          rendered = templateElement.innerHTML;
+        } else if (!instance.template) {
+          Debug.log(
+            Debug.levels.ERROR,
+            "No template found for instance",
+            instance.instanceName,
+          );
+          return;
+        } else {
+          rendered = instance.template(instance.data);
+        }
+
+        instance.elements.forEach((element) => {
+          updateDOM(element, rendered, instance.animate);
+        });
+      } catch (error) {
+        Debug.log(
+          Debug.levels.ERROR,
+          "Error updating DOM for instance",
+          instance.instanceName,
+          error,
+        );
+      }
+    },
+  };
+
   function defineHtmxExtension() {
     htmx.defineExtension("flowplater", {
       transformResponse: function (text, xhr, elt) {
@@ -14610,7 +15278,8 @@ var FlowPlater = (function () {
               );
             }
           }
-          return text; // Return HTML as-is
+          // For HTML responses, let HTMX handle the swap directly
+          return text;
         }
 
         // Parse response data
@@ -14633,7 +15302,11 @@ var FlowPlater = (function () {
 
         // Get instance name and load stored data
         const instanceName = elt.getAttribute("fp-instance") || elt.id;
-        loadFromLocalStorage(instanceName, "instance");
+        // Don't load from localStorage here - we want to use fresh data
+
+        // Get or create instance
+        const instance = InstanceManager.getOrCreateInstance(elt, data);
+        if (!instance) return text;
 
         // Render template
         try {
@@ -14645,6 +15318,7 @@ var FlowPlater = (function () {
               data: data,
               target: elt,
               returnHtml: true,
+              instanceName: instanceName,
             });
           } else {
             if (!elt.id) {
@@ -14660,6 +15334,7 @@ var FlowPlater = (function () {
               data: data,
               target: elt,
               returnHtml: true,
+              instanceName: instanceName,
             });
           }
 
@@ -14691,71 +15366,27 @@ var FlowPlater = (function () {
         }
 
         try {
-          // Get instance name from element
-          const instanceName = target.getAttribute("fp-instance") || target.id;
-          if (!instanceName) {
-            Debug.log(
-              Debug.levels.DEBUG,
-              "No instance name found for element, falling back to default swap",
-            );
-            return false;
-          }
-
-          // Get the instance from state
-          const instance = _state.instances[instanceName];
-          if (!instance) {
-            Debug.log(
-              Debug.levels.DEBUG,
-              "No instance found for name: " + instanceName,
-            );
-            return false;
-          }
+          // Get instance
+          const instance = InstanceManager.getOrCreateInstance(target);
+          if (!instance) return false;
 
           const supportedSwapStyles = ["innerHTML"];
           if (!supportedSwapStyles.includes(swapStyle)) {
             Debug.log(
               Debug.levels.DEBUG,
-              "Unsupported swap style for smart DOM swap: " +
+              "Unsupported swap style: " +
                 swapStyle +
                 ", falling back to default swap",
             );
-
-            const breakingSwapStyles = [
-              "outerHTML",
-              "beforebegin",
-              "afterbegin",
-              "afterend",
-            ];
-            if (breakingSwapStyles.includes(swapStyle)) {
-              Debug.log(
-                Debug.levels.WARN,
-                "Breaking swap style: " +
-                  swapStyle +
-                  ", instance methods will not work as expected. Target container was removed from the DOM.",
-              );
-            }
-
             return false;
           }
 
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Using updateDOM for swap with config:",
-            _state.config,
-          );
+          // Update the DOM
+          instance._updateDOM();
 
-          // Use updateDOM which handles all form persistence and setup internally
-          updateDOM(target, fragment.innerHTML, instance.animate);
-
-          Debug.log(
-            Debug.levels.DEBUG,
-            "HTMX smart innerHTML swap completed for instance: " + instanceName,
-          );
-
-          // Return true to tell HTMX we've handled the swap
           return true;
-        } catch (e) {
-          errorLog$1("Error in handleSwap:", e);
+        } catch (error) {
+          Debug.log(Debug.levels.ERROR, "Error in handleSwap: " + error.message);
           return false;
         }
       },
@@ -14772,6 +15403,14 @@ var FlowPlater = (function () {
             evt.detail.requestId = requestId;
             evt.detail.xhr.requestId = requestId;
             RequestHandler.handleRequest(target, requestId, "start");
+
+            // Execute beforeRequest hook
+            if (target.hasAttribute("fp-template")) {
+              const instance = InstanceManager.getOrCreateInstance(target);
+              if (instance) {
+                PluginManager.executeHook("beforeRequest", instance, evt);
+              }
+            }
             break;
 
           case "htmx:beforeSwap":
@@ -14784,13 +15423,33 @@ var FlowPlater = (function () {
               );
               return;
             }
+            // Execute beforeSwap hook
+            executeHtmxHook("beforeSwap", target, evt);
             break;
 
           case "htmx:afterSwap":
-            RequestHandler.handleRequest(target, requestId, "cleanup");
+            // Execute afterSwap hook
+            executeHtmxHook("afterSwap", target, evt);
+
             // Clean up form listeners before setting up new ones
             const formsToCleanup = getAllRelevantForms(target);
             formsToCleanup.forEach(cleanupFormChangeListeners);
+            break;
+
+          case "htmx:afterRequest":
+            // Execute afterRequest hook
+            if (target.hasAttribute("fp-template")) {
+              const instance = InstanceManager.getOrCreateInstance(target);
+              if (instance) {
+                PluginManager.executeHook("afterRequest", instance, evt);
+                EventSystem.publish("request-end", {
+                  instanceName: instance.instanceName,
+                  ...evt.detail,
+                });
+              }
+            }
+            // Handle request cleanup
+            RequestHandler.handleRequest(target, requestId, "cleanup");
             break;
 
           case "htmx:afterSettle":
@@ -14808,6 +15467,15 @@ var FlowPlater = (function () {
         }
       },
     });
+  }
+
+  function executeHtmxHook(hookName, target, event) {
+    if (target.hasAttribute("fp-instance") || target.hasAttribute("id")) {
+      const instance = InstanceManager.getOrCreateInstance(target);
+      if (instance) {
+        PluginManager.executeHook(hookName, instance, event?.detail);
+      }
+    }
   }
 
   // * For each element with an fp-proxy attribute, use a proxy for the url
@@ -15144,6 +15812,7 @@ var FlowPlater = (function () {
     htmx: {
       timeout: 10000,
       swapStyle: "innerHTML",
+      selfRequestsOnly: false,
     },
     customTags: customTagList,
     storage: {
@@ -15320,26 +15989,12 @@ var FlowPlater = (function () {
    * Otherwise, finds and processes all matching child elements.
    */
   function process(element = document) {
-    // If processing document or non-matching element, find and process all matching children
     if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
       const fpElements = element.querySelectorAll(ProcessingChain.FP_SELECTOR);
-      fpElements.forEach((el) => {
-        ProcessingChain.processElement(el);
-        const templateId = el.getAttribute("fp-template");
-        if (templateId && templateId !== "self" && templateId !== "") {
-          const templateElement = document.querySelector(
-            templateId.startsWith("#") ? templateId : `#${templateId}`,
-          );
-          if (templateElement) {
-            ProcessingChain.processElement(templateElement);
-          }
-        }
-      });
-      return;
+      fpElements.forEach((el) => ProcessingChain.processElement(el));
+    } else {
+      ProcessingChain.processElement(element);
     }
-
-    // Process single matching element
-    ProcessingChain.processElement(element);
   }
 
   /* -------------------------------------------------------------------------- */
@@ -15362,6 +16017,56 @@ var FlowPlater = (function () {
     render,
     getInstance,
     getInstances,
+    PluginManager,
+
+    // Logging API
+    log: function (level, ...args) {
+      // add '[PLUGIN]' before the first argument
+      args.unshift(`[PLUGIN]`);
+      Debug.log(level, ...args);
+      return this;
+    },
+
+    // Log levels for use with the log method
+    logLevels: {
+      ERROR: Debug.levels.ERROR,
+      WARN: Debug.levels.WARN,
+      INFO: Debug.levels.INFO,
+      DEBUG: Debug.levels.DEBUG,
+    },
+
+    // Plugin management methods
+    registerPlugin(plugin) {
+      return this.PluginManager.registerPlugin(plugin);
+    },
+
+    removePlugin(name) {
+      return this.PluginManager.removePlugin(name);
+    },
+
+    removeAllPlugins() {
+      return this.PluginManager.destroyAll();
+    },
+
+    getPlugin(name) {
+      return this.PluginManager.getPlugin(name);
+    },
+
+    getAllPlugins() {
+      return this.PluginManager.getSortedPlugins();
+    },
+
+    enablePlugin(name) {
+      return this.PluginManager.enablePlugin(name);
+    },
+
+    disablePlugin(name) {
+      return this.PluginManager.disablePlugin(name);
+    },
+
+    pluginConfig(name) {
+      return this.PluginManager.pluginConfig(name);
+    },
 
     on: (...args) => EventSystem.subscribe(...args),
     off: (...args) => EventSystem.unsubscribe(...args),
@@ -15551,6 +16256,9 @@ var FlowPlater = (function () {
       process(element);
       Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
       Performance.end("init");
+
+      // Execute initComplete hook after everything is done
+      this.PluginManager.executeHook("initComplete", this, _state.instances);
       return this;
     },
 
@@ -15637,6 +16345,7 @@ var FlowPlater = (function () {
       if (typeof htmx !== "undefined") {
         htmx.config.timeout = _state.config.htmx.timeout;
         htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
+        htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
       }
 
       // Set custom tags
@@ -15721,6 +16430,9 @@ var FlowPlater = (function () {
       if (!instance) {
         throw new FlowPlaterError(`Failed to create instance: ${instanceName}`);
       }
+
+      // Execute newInstance hook
+      this.PluginManager.executeHook("newInstance", instance);
 
       if (options.refresh) {
         instance.refresh();

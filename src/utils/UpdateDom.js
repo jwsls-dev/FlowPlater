@@ -248,7 +248,7 @@ async function updateDOM(element, newHTML, animate = false) {
 
     // Capture form states if form restoration is needed
     let formStates = null;
-    if (shouldRestoreForm(element)) {
+    if (_state.config?.persistForm && shouldRestoreForm(element)) {
       Debug.log(Debug.levels.DEBUG, "Capturing form states before update");
       formStates = captureFormStates(element);
       Debug.log(Debug.levels.DEBUG, "Captured form states:", formStates);
@@ -256,7 +256,7 @@ async function updateDOM(element, newHTML, animate = false) {
 
     // Single observer setup
     let formObserver = null;
-    if (shouldRestoreForm(element)) {
+    if (_state.config?.persistForm && shouldRestoreForm(element)) {
       Debug.log(Debug.levels.DEBUG, "Setting up dynamic form observer");
       formObserver = setupDynamicFormObserver(element);
     }
@@ -279,7 +279,11 @@ async function updateDOM(element, newHTML, animate = false) {
         );
 
         // Single form restoration
-        if (shouldRestoreForm(element) && formStates) {
+        if (
+          _state.config?.persistForm &&
+          shouldRestoreForm(element) &&
+          formStates
+        ) {
           Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
           restoreFormStates(element);
           setupFormSubmitHandlers(element);
@@ -295,7 +299,7 @@ async function updateDOM(element, newHTML, animate = false) {
       await updateContent();
     }
 
-    // Add form restoration after content update
+    // Final form state restoration if needed
     if (_state.config?.persistForm && shouldRestoreForm(element)) {
       Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
       const persistedInputs = element.querySelectorAll('[fp-persist="true"]');
@@ -304,6 +308,7 @@ async function updateDOM(element, newHTML, animate = false) {
         `Found ${persistedInputs.length} inputs to restore`,
       );
       restoreFormStates(element);
+      setupFormSubmitHandlers(element);
     }
 
     if (formObserver) {
