@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.21 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.22 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -11496,6 +11496,7 @@ var FlowPlater = (function () {
     templateCache: {},
     instances: {},
     length: 0,
+    initialized: false,
     defaults: {
       animation: false,
       debug: false,
@@ -11996,6 +11997,22 @@ var FlowPlater = (function () {
       // Update existing instances with new plugin methods
       this.updateExistingInstances();
 
+      // If FlowPlater is already initialized, call the initComplete hook
+      if (_state.initialized && pluginInstance.hooks?.initComplete) {
+        try {
+          pluginInstance.hooks.initComplete(
+            window.FlowPlater,
+            Object.values(_state.instances),
+          );
+        } catch (error) {
+          Debug.log(
+            Debug.levels.ERROR,
+            `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
+            error,
+          );
+        }
+      }
+
       return pluginInstance;
     },
 
@@ -12102,7 +12119,7 @@ var FlowPlater = (function () {
     },
 
     executeHook(hookName, ...args) {
-      Debug.log(Debug.levels.DEBUG, "Executing hook:", hookName, args);
+      Debug.log(Debug.levels.DEBUG, "[PLUGIN] Executing hook:", hookName, args);
 
       const plugins = this.getSortedPlugins();
       let result = args[0]; // Store initial value
@@ -13384,21 +13401,43 @@ var FlowPlater = (function () {
       return current;
     }
 
+    function _validateData(data) {
+      if (typeof data === "string" && data.trim().startsWith("<!DOCTYPE")) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Data is HTML, skipping validation",
+          instanceName,
+        );
+        return { valid: true, isHtml: true };
+      }
+
+      if (
+        (typeof data === "object" && data !== null) ||
+        Array.isArray(data) ||
+        typeof data === "number" ||
+        typeof data === "boolean"
+      ) {
+        return { valid: true, isHtml: false };
+      }
+
+      errorLog$1("Invalid data type: " + typeof data);
+      return { valid: false, isHtml: false };
+    }
+
     return {
       instanceName,
       animate: _state.defaults.animation,
 
       _updateDOM: function () {
-        // Check if data is HTML
-        if (
-          typeof this.data === "string" &&
-          this.data.trim().startsWith("<!DOCTYPE")
-        ) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Data is HTML, skipping DOM update",
-            this.instanceName,
-          );
+        const instance = _state.instances[instanceName];
+        if (!instance) {
+          errorLog$1("Instance not found: " + instanceName);
+          return;
+        }
+
+        // Check if data is valid
+        const { valid, isHtml } = _validateData(instance.data);
+        if (!valid || isHtml) {
           return;
         }
 
@@ -13446,6 +13485,12 @@ var FlowPlater = (function () {
           errorLog$1("Instance not found: " + instanceName);
           return this;
         }
+
+        const { valid, isHtml } = _validateData(newData);
+        if (!valid || isHtml) {
+          return this;
+        }
+
         Object.assign(instance.data, newData);
         Object.assign(instance.proxy, newData);
         const storageId = instanceName.replace("#", "");
@@ -13607,6 +13652,10 @@ var FlowPlater = (function () {
         }
 
         let newData = value !== undefined ? value : path;
+        const { valid, isHtml } = _validateData(newData);
+        if (!valid || isHtml) {
+          return this;
+        }
 
         try {
           // Deep merge function
@@ -13709,6 +13758,11 @@ var FlowPlater = (function () {
           return this;
         }
 
+        const { valid, isHtml } = _validateData(value);
+        if (!valid || isHtml) {
+          return this;
+        }
+
         try {
           const parts = path.split(/[\.\[\]'"]/g).filter(Boolean);
           const last = parts.pop();
@@ -13739,6 +13793,11 @@ var FlowPlater = (function () {
         const instance = _state.instances[instanceName];
         if (!instance) {
           errorLog$1("Instance not found: " + instanceName);
+          return this;
+        }
+
+        const { valid, isHtml } = _validateData(value);
+        if (!valid || isHtml) {
           return this;
         }
 
@@ -13774,6 +13833,11 @@ var FlowPlater = (function () {
         const instance = _state.instances[instanceName];
         if (!instance) {
           errorLog$1("Instance not found: " + instanceName);
+          return this;
+        }
+
+        const { valid, isHtml } = _validateData(updates);
+        if (!valid || isHtml) {
           return this;
         }
 
@@ -15453,6 +15517,9 @@ var FlowPlater = (function () {
             break;
 
           case "htmx:afterSettle":
+            // Execute afterSettle hook
+            executeHtmxHook("afterSettle", target, evt);
+
             // Re-setup form handlers after the DOM has settled
             Debug.log(
               Debug.levels.DEBUG,
@@ -15765,7 +15832,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.21";
+  const VERSION = "1.4.22";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
@@ -16256,6 +16323,9 @@ var FlowPlater = (function () {
       process(element);
       Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
       Performance.end("init");
+
+      // Set initialized flag
+      _state.initialized = true;
 
       // Execute initComplete hook after everything is done
       this.PluginManager.executeHook("initComplete", this, _state.instances);
