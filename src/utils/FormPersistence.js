@@ -574,9 +574,42 @@ function handleFormElementChange(event) {
       skippedElements: [],
     });
 
+    // Helper function to check if a value is a template
+    function isTemplateValue(value) {
+      if (typeof value !== "string") return false;
+      // Check for Handlebars syntax
+      if (value.includes("{{") || value.includes("}}")) return true;
+      // Check for alternative syntax
+      if (value.includes("[[") || value.includes("]]")) return true;
+      // Check for this. references which indicate template binding
+      if (value.includes("this.")) return true;
+      return false;
+    }
+
+    // Helper function to check if an input is template-bound
+    function isTemplateInput(input) {
+      // Check if the input name itself is a template
+      if (isTemplateValue(input.name)) return true;
+      // Check if the input has a template value
+      if (isTemplateValue(input.value)) return true;
+      // Check for data-binding attributes that indicate template usage
+      if (input.getAttribute("fp-bind")) return true;
+      return false;
+    }
+
     // Capture the current state of the form
     const formState = {};
     processFormElements(form, (input) => {
+      // First check if this is a template-bound input
+      if (isTemplateInput(input)) {
+        debugInfo.skippedElements.push({
+          name: input.name,
+          reason: "Template binding detected",
+          value: input.value,
+        });
+        return;
+      }
+
       const value =
         input.type === "checkbox" || input.type === "radio"
           ? input.checked
@@ -601,15 +634,21 @@ function handleFormElementChange(event) {
           shouldUseLocalStorage(form) ? "localStorage" : "sessionStorage"
         }
         - Updated values: ${JSON.stringify(debugInfo.changedValues, null, 2)}
-        - Skipped elements (persistence disabled): ${debugInfo.skippedElements.join(
-          ", ",
+        - Skipped elements: ${JSON.stringify(
+          debugInfo.skippedElements,
+          null,
+          2,
         )}`,
       );
 
-      // Find instance that contains this form
+      // Find instance that contains this form or whose elements are contained by this form
       let instance = null;
       for (const [instanceName, inst] of Object.entries(_state.instances)) {
-        if (Array.from(inst.elements).some((el) => el.contains(form))) {
+        if (
+          Array.from(inst.elements).some(
+            (el) => el.contains(form) || form.contains(el) || el === form,
+          )
+        ) {
           instance = inst;
           break;
         }
