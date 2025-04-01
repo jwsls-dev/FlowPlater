@@ -8,12 +8,19 @@ import {
   loadFromLocalStorage,
 } from "../utils/LocalStorage";
 import { Performance } from "../utils/Performance";
+import PluginManager from "./PluginManager";
 
 export function instanceMethods(instanceName) {
   // Helper function to resolve a path within the data
   function _resolvePath(path) {
+    const instance = _state.instances[instanceName];
+    if (!instance) {
+      errorLog("Instance not found: " + instanceName);
+      return undefined;
+    }
+
     const pathParts = path.split(/[\.\[\]'"]/);
-    let current = this.data;
+    let current = instance.data;
     for (let i = 0; i < pathParts.length; i++) {
       const part = pathParts[i];
       if (part === "") continue;
@@ -30,27 +37,59 @@ export function instanceMethods(instanceName) {
   }
 
   return {
+    instanceName,
+    animate: _state.defaults.animation,
+
     _updateDOM: function () {
-      const instance = _state.instances[instanceName];
-      if (!instance) {
-        errorLog("Instance not found: " + instanceName);
-        return this;
+      // Check if data is HTML
+      if (
+        typeof this.data === "string" &&
+        this.data.trim().startsWith("<!DOCTYPE")
+      ) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Data is HTML, skipping DOM update",
+          this.instanceName,
+        );
+        return;
       }
 
-      instance.elements.forEach(function (element) {
-        try {
-          updateDOM(
-            element,
-            instance.template(instance.proxy),
-            instance.animate,
+      try {
+        let rendered;
+        if (this.templateId === "self" || this.templateId === null) {
+          // For "self" template, use the first element as the template
+          const templateElement = Array.from(this.elements)[0];
+          if (!templateElement) {
+            Debug.log(
+              Debug.levels.ERROR,
+              "No template element found for self template",
+              this.instanceName,
+            );
+            return;
+          }
+          rendered = templateElement.innerHTML;
+        } else if (!this.template) {
+          Debug.log(
+            Debug.levels.ERROR,
+            "No template found for instance",
+            this.instanceName,
           );
-        } catch (error) {
-          element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-          errorLog(`Failed to refresh template: ${error.message}`);
+          return;
+        } else {
+          rendered = this.template(this.data);
         }
-      });
 
-      return this;
+        this.elements.forEach((element) => {
+          updateDOM(element, rendered, this.animate);
+        });
+      } catch (error) {
+        Debug.log(
+          Debug.levels.ERROR,
+          "Error updating DOM for instance",
+          this.instanceName,
+          error,
+        );
+      }
     },
 
     update: function (newData) {
@@ -63,6 +102,13 @@ export function instanceMethods(instanceName) {
       Object.assign(instance.proxy, newData);
       const storageId = instanceName.replace("#", "");
       saveToLocalStorage(storageId, instance.data, "instance");
+
+      // Execute updateData hook
+      PluginManager.executeHook("updateData", instance, {
+        data: instance.data,
+        changes: newData,
+      });
+
       return this._updateDOM();
     },
 
@@ -163,6 +209,13 @@ export function instanceMethods(instanceName) {
                     data: instance.data,
                     rendered,
                   });
+
+                  // Execute updateData hook
+                  PluginManager.executeHook("updateData", instance, {
+                    data: instance.data,
+                    changes: data,
+                  });
+
                   updateDOM(element, rendered, instance.animate);
                   return data;
                 });
@@ -287,6 +340,13 @@ export function instanceMethods(instanceName) {
           saveToLocalStorage(storageId, instance.data, "instance");
         }
 
+        // Execute updateData hook
+        PluginManager.executeHook("updateData", instance, {
+          data: instance.data,
+          changes: newData,
+          path: path,
+        });
+
         return this._updateDOM();
       } catch (error) {
         errorLog(error.message);
@@ -313,6 +373,13 @@ export function instanceMethods(instanceName) {
         Object.assign(instance.proxy, instance.data);
         const storageId = instanceName.replace("#", "");
         saveToLocalStorage(storageId, instance.data, "instance");
+
+        // Execute updateData hook
+        PluginManager.executeHook("updateData", instance, {
+          data: instance.data,
+          changes: { [path]: value },
+        });
+
         return this._updateDOM();
       } catch (error) {
         errorLog(error.message);
@@ -321,7 +388,13 @@ export function instanceMethods(instanceName) {
     },
 
     push: function (arrayPath, value) {
-      let array = _resolvePath.call(this, arrayPath);
+      const instance = _state.instances[instanceName];
+      if (!instance) {
+        errorLog("Instance not found: " + instanceName);
+        return this;
+      }
+
+      let array = _resolvePath(arrayPath);
       if (!Array.isArray(array)) {
         errorLog("Target at path is not an array: " + arrayPath);
         return this;
@@ -334,6 +407,14 @@ export function instanceMethods(instanceName) {
           const storageId = instanceName.replace("#", "");
           saveToLocalStorage(storageId, instance.data, "instance");
         }
+
+        // Execute updateData hook
+        PluginManager.executeHook("updateData", instance, {
+          data: instance.data,
+          changes: { [arrayPath]: array },
+          path: arrayPath,
+        });
+
         return this._updateDOM();
       } catch (error) {
         errorLog(error.message);
@@ -342,7 +423,13 @@ export function instanceMethods(instanceName) {
     },
 
     updateWhere: function (arrayPath, criteria, updates) {
-      let array = _resolvePath.call(this, arrayPath);
+      const instance = _state.instances[instanceName];
+      if (!instance) {
+        errorLog("Instance not found: " + instanceName);
+        return this;
+      }
+
+      let array = _resolvePath(arrayPath);
       if (!Array.isArray(array)) {
         errorLog("Target at path is not an array: " + arrayPath);
         return this;
@@ -363,6 +450,15 @@ export function instanceMethods(instanceName) {
           const storageId = instanceName.replace("#", "");
           saveToLocalStorage(storageId, instance.data, "instance");
         }
+
+        // Execute updateData hook
+        PluginManager.executeHook("updateData", instance, {
+          data: instance.data,
+          changes: { [arrayPath]: array },
+          path: arrayPath,
+          criteria,
+          updates,
+        });
 
         return this._updateDOM();
       } catch (error) {
@@ -387,3 +483,5 @@ export function instanceMethods(instanceName) {
     },
   };
 }
+
+export default instanceMethods;
