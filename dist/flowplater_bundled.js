@@ -12777,9 +12777,42 @@ var FlowPlater = (function () {
         skippedElements: [],
       });
 
+      // Helper function to check if a value is a template
+      function isTemplateValue(value) {
+        if (typeof value !== "string") return false;
+        // Check for Handlebars syntax
+        if (value.includes("{{") || value.includes("}}")) return true;
+        // Check for alternative syntax
+        if (value.includes("[[") || value.includes("]]")) return true;
+        // Check for this. references which indicate template binding
+        if (value.includes("this.")) return true;
+        return false;
+      }
+
+      // Helper function to check if an input is template-bound
+      function isTemplateInput(input) {
+        // Check if the input name itself is a template
+        if (isTemplateValue(input.name)) return true;
+        // Check if the input has a template value
+        if (isTemplateValue(input.value)) return true;
+        // Check for data-binding attributes that indicate template usage
+        if (input.getAttribute("fp-bind")) return true;
+        return false;
+      }
+
       // Capture the current state of the form
       const formState = {};
       processFormElements(form, (input) => {
+        // First check if this is a template-bound input
+        if (isTemplateInput(input)) {
+          debugInfo.skippedElements.push({
+            name: input.name,
+            reason: "Template binding detected",
+            value: input.value,
+          });
+          return;
+        }
+
         const value =
           input.type === "checkbox" || input.type === "radio"
             ? input.checked
@@ -12804,15 +12837,21 @@ var FlowPlater = (function () {
           shouldUseLocalStorage(form) ? "localStorage" : "sessionStorage"
         }
         - Updated values: ${JSON.stringify(debugInfo.changedValues, null, 2)}
-        - Skipped elements (persistence disabled): ${debugInfo.skippedElements.join(
-          ", ",
+        - Skipped elements: ${JSON.stringify(
+          debugInfo.skippedElements,
+          null,
+          2,
         )}`,
         );
 
-        // Find instance that contains this form
+        // Find instance that contains this form or whose elements are contained by this form
         let instance = null;
         for (const [instanceName, inst] of Object.entries(_state.instances)) {
-          if (Array.from(inst.elements).some((el) => el.contains(form))) {
+          if (
+            Array.from(inst.elements).some(
+              (el) => el.contains(form) || form.contains(el) || el === form,
+            )
+          ) {
             instance = inst;
             break;
           }
@@ -13375,6 +13414,152 @@ var FlowPlater = (function () {
     }
   }
 
+  /**
+   * Helper function to track changes between old and new data states.
+   * Supports nested objects and arrays.
+   * @param {Object} oldData - The original data state.
+   * @param {Object} newData - The new data state.
+   * @param {string} [path=''] - Optional base path for nested changes (e.g., "myObject.myArray")
+   * @returns {{added: Object, removed: Object}} Object containing added and removed changes.
+   */
+  function trackChanges(oldData, newData, path = "") {
+    const changes = {
+      added: {},
+      removed: {},
+    };
+
+    function findArrayChanges(oldArray, newArray, arrayPath) {
+      // Handle new or removed items
+      const maxLength = Math.max(oldArray?.length || 0, newArray?.length || 0);
+
+      for (let i = 0; i < maxLength; i++) {
+        const oldItem = oldArray?.[i];
+        const newItem = newArray?.[i];
+
+        if (i >= (oldArray?.length || 0)) {
+          // New item added
+          changes.added[`${arrayPath}[${i}]`] = newItem;
+        } else if (i >= (newArray?.length || 0)) {
+          // Item removed
+          changes.removed[`${arrayPath}[${i}]`] = oldItem;
+        } else if (typeof newItem === "object" && newItem !== null) {
+          // For objects in arrays, compare individual properties
+          if (typeof oldItem === "object" && oldItem !== null) {
+            // Compare each property
+            for (const key in newItem) {
+              if (oldItem[key] !== newItem[key]) {
+                changes.added[`${arrayPath}[${i}].${key}`] = newItem[key];
+                if (key in oldItem) {
+                  changes.removed[`${arrayPath}[${i}].${key}`] = oldItem[key];
+                }
+              }
+            }
+            // Check for removed properties
+            for (const key in oldItem) {
+              if (!(key in newItem)) {
+                changes.removed[`${arrayPath}[${i}].${key}`] = oldItem[key];
+              }
+            }
+          } else {
+            // Old item wasn't an object, track entire new object
+            changes.added[`${arrayPath}[${i}]`] = newItem;
+            changes.removed[`${arrayPath}[${i}]`] = oldItem;
+          }
+        } else if (oldItem !== newItem) {
+          // Value changed
+          changes.added[`${arrayPath}[${i}]`] = newItem;
+          changes.removed[`${arrayPath}[${i}]`] = oldItem;
+        }
+      }
+    }
+
+    function findChanges(oldObj, newObj, currentPath = "") {
+      if (!oldObj || typeof oldObj !== "object") oldObj = {};
+      if (!newObj || typeof newObj !== "object") newObj = {};
+
+      // Handle arrays
+      if (Array.isArray(newObj)) {
+        findArrayChanges(oldObj, newObj, currentPath);
+        return;
+      }
+
+      // Find added or modified values
+      for (const key in newObj) {
+        const fullPath = currentPath ? `${currentPath}.${key}` : key;
+
+        if (!(key in oldObj)) {
+          // New key added
+          changes.added[fullPath] = newObj[key];
+          // If it's an object or array, recursively track all its contents as new
+          if (typeof newObj[key] === "object" && newObj[key] !== null) {
+            if (Array.isArray(newObj[key])) {
+              findArrayChanges([], newObj[key], fullPath);
+            } else {
+              findChanges({}, newObj[key], fullPath);
+            }
+          }
+        } else if (typeof newObj[key] === "object" && newObj[key] !== null) {
+          // Handle nested objects and arrays
+          if (Array.isArray(newObj[key])) {
+            findArrayChanges(oldObj[key], newObj[key], fullPath);
+          } else {
+            findChanges(oldObj[key], newObj[key], fullPath);
+          }
+        } else if (oldObj[key] !== newObj[key]) {
+          // Simple value changed
+          changes.added[fullPath] = newObj[key];
+          changes.removed[fullPath] = oldObj[key];
+        }
+      }
+
+      // Find removed keys
+      for (const key in oldObj) {
+        const fullPath = currentPath ? `${currentPath}.${key}` : key;
+        if (!(key in newObj)) {
+          changes.removed[fullPath] = oldObj[key];
+          // If it's an object or array, recursively track all its contents as removed
+          if (typeof oldObj[key] === "object" && oldObj[key] !== null) {
+            if (Array.isArray(oldObj[key])) {
+              findArrayChanges(oldObj[key], [], fullPath);
+            } else {
+              findChanges(oldObj[key], {}, fullPath);
+            }
+          }
+        }
+      }
+    }
+
+    // If a specific path is provided, navigate to that path first
+    if (path) {
+      const pathParts = path.split(".");
+      let oldValue = oldData;
+      let newValue = newData;
+
+      // Navigate to the path in both old and new data
+      for (const part of pathParts) {
+        oldValue = oldValue?.[part];
+        newValue = newValue?.[part];
+      }
+
+      // Track changes at and below the specified path
+      if (Array.isArray(newValue)) {
+        findArrayChanges(oldValue, newValue, path);
+      } else if (typeof newValue === "object" && newValue !== null) {
+        findChanges(oldValue, newValue, path);
+      } else {
+        if (oldValue !== newValue) {
+          changes.added[path] = newValue;
+          changes.removed[path] = oldValue;
+        }
+      }
+    } else {
+      // No specific path, track all changes
+      findChanges(oldData, newData);
+    }
+
+    return changes;
+  }
+
   function instanceMethods(instanceName) {
     // Helper function to resolve a path within the data
     function _resolvePath(path) {
@@ -13491,16 +13676,27 @@ var FlowPlater = (function () {
           return this;
         }
 
+        // Track changes before updating data
+        const oldData = { ...instance.data };
+
         Object.assign(instance.data, newData);
         Object.assign(instance.proxy, newData);
-        const storageId = instanceName.replace("#", "");
-        saveToLocalStorage(storageId, instance.data, "instance");
+
+        // Calculate changes
+        const changes = trackChanges(oldData, instance.data);
 
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
-          changes: newData,
+          changes,
+          source: "update",
         });
+
+        // Save to localStorage if enabled
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
 
         return this._updateDOM();
       },
@@ -13607,6 +13803,7 @@ var FlowPlater = (function () {
                     PluginManager.executeHook("updateData", instance, {
                       data: instance.data,
                       changes: data,
+                      source: "refresh",
                     });
 
                     updateDOM(element, rendered, instance.animate);
@@ -13658,6 +13855,9 @@ var FlowPlater = (function () {
         }
 
         try {
+          // Track old state
+          const oldData = { ...instance.data };
+
           // Deep merge function
           function deepMerge(target, source) {
             for (const key in source) {
@@ -13731,18 +13931,22 @@ var FlowPlater = (function () {
             deepMerge(this.getData(), newData);
           }
 
-          // Save to localStorage after merge
-          if (_state.config?.storage?.enabled) {
-            const storageId = instanceName.replace("#", "");
-            saveToLocalStorage(storageId, instance.data, "instance");
-          }
+          // Calculate changes
+          const changes = trackChanges(oldData, instance.data, path);
 
           // Execute updateData hook
           PluginManager.executeHook("updateData", instance, {
             data: instance.data,
-            changes: newData,
+            changes,
             path: path,
+            source: "merge",
           });
+
+          // Save to localStorage if enabled
+          if (_state.config?.storage?.enabled) {
+            const storageId = instanceName.replace("#", "");
+            saveToLocalStorage(storageId, instance.data, "instance");
+          }
 
           return this._updateDOM();
         } catch (error) {
@@ -13764,6 +13968,9 @@ var FlowPlater = (function () {
         }
 
         try {
+          // Track old state
+          const oldData = { ...instance.data };
+
           const parts = path.split(/[\.\[\]'"]/g).filter(Boolean);
           const last = parts.pop();
           const target = parts.reduce((acc, part) => {
@@ -13773,14 +13980,23 @@ var FlowPlater = (function () {
 
           target[last] = value;
           Object.assign(instance.proxy, instance.data);
-          const storageId = instanceName.replace("#", "");
-          saveToLocalStorage(storageId, instance.data, "instance");
+
+          // Calculate changes
+          const changes = trackChanges(oldData, instance.data, path);
 
           // Execute updateData hook
           PluginManager.executeHook("updateData", instance, {
             data: instance.data,
-            changes: { [path]: value },
+            changes,
+            path: path,
+            source: "set",
           });
+
+          // Save to localStorage if enabled
+          if (_state.config?.storage?.enabled) {
+            const storageId = instanceName.replace("#", "");
+            saveToLocalStorage(storageId, instance.data, "instance");
+          }
 
           return this._updateDOM();
         } catch (error) {
@@ -13808,19 +14024,27 @@ var FlowPlater = (function () {
         }
 
         try {
+          // Track old state
+          const oldData = JSON.parse(JSON.stringify(instance.data));
+
           array.push(value);
-          // Save to localStorage after push
-          if (_state.config?.storage?.enabled) {
-            const storageId = instanceName.replace("#", "");
-            saveToLocalStorage(storageId, instance.data, "instance");
-          }
+
+          // Calculate changes
+          const changes = trackChanges(oldData, instance.data, arrayPath);
 
           // Execute updateData hook
           PluginManager.executeHook("updateData", instance, {
             data: instance.data,
-            changes: { [arrayPath]: array },
+            changes,
             path: arrayPath,
+            source: "push",
           });
+
+          // Save to localStorage if enabled
+          if (_state.config?.storage?.enabled) {
+            const storageId = instanceName.replace("#", "");
+            saveToLocalStorage(storageId, instance.data, "instance");
+          }
 
           return this._updateDOM();
         } catch (error) {
@@ -13848,6 +14072,9 @@ var FlowPlater = (function () {
         }
 
         try {
+          // Track old state
+          const oldData = JSON.parse(JSON.stringify(instance.data));
+
           array.forEach((item) => {
             const matches = Object.entries(criteria).every(
               ([key, value]) => item[key] === value,
@@ -13857,20 +14084,24 @@ var FlowPlater = (function () {
             }
           });
 
-          // Save to localStorage after update
-          if (_state.config?.storage?.enabled) {
-            const storageId = instanceName.replace("#", "");
-            saveToLocalStorage(storageId, instance.data, "instance");
-          }
+          // Calculate changes
+          const changes = trackChanges(oldData, instance.data, arrayPath);
 
           // Execute updateData hook
           PluginManager.executeHook("updateData", instance, {
             data: instance.data,
-            changes: { [arrayPath]: array },
+            changes,
             path: arrayPath,
             criteria,
             updates,
+            source: "updateWhere",
           });
+
+          // Save to localStorage if enabled
+          if (_state.config?.storage?.enabled) {
+            const storageId = instanceName.replace("#", "");
+            saveToLocalStorage(storageId, instance.data, "instance");
+          }
 
           return this._updateDOM();
         } catch (error) {
@@ -15351,72 +15582,89 @@ var FlowPlater = (function () {
         try {
           if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
             var parser = new DOMParser();
-            var doc = parser.parseFromString(text, "text/xml");
-            data = parseXmlToJson(doc);
+            var xmlDoc = parser.parseFromString(text, "text/xml");
+            data = parseXmlToJson(xmlDoc);
           } else {
             data = JSON.parse(text);
           }
-        } catch (e) {
-          errorLog$1("Failed to parse response:", e);
+        } catch (error) {
+          errorLog$1("Failed to parse response:", error);
           return text;
         }
 
-        var templateId = elt.getAttribute("fp-template");
+        const templateId = elt.getAttribute("fp-template");
         log("Response received for request " + requestId + ": ", data);
 
-        // Get instance name and load stored data
         const instanceName = elt.getAttribute("fp-instance") || elt.id;
-        // Don't load from localStorage here - we want to use fresh data
-
-        // Get or create instance
         const instance = InstanceManager.getOrCreateInstance(elt, data);
-        if (!instance) return text;
 
-        // Render template
-        try {
-          let rendered;
-          if (templateId) {
-            log("Rendering html to " + templateId + " based on htmx response");
-            rendered = render({
-              template: templateId,
-              data: data,
-              target: elt,
-              returnHtml: true,
-              instanceName: instanceName,
-            });
-          } else {
-            if (!elt.id) {
-              errorLog$1(
-                "No template found. If the current element is a template, it must have an id.",
-              );
-              return text;
+        if (instance) {
+          // Calculate data changes
+          const oldData = instance.getData();
+          const changes = trackChanges(oldData, data);
+
+          // Execute updateData hook with the tracked changes
+          PluginManager.executeHook("updateData", instance, {
+            data: data,
+            changes,
+            source: "htmx",
+            requestId: requestId,
+          });
+
+          // Store data if storage is enabled
+          if (_state.config?.storage?.enabled) {
+            saveToLocalStorage(instanceName, data, "instance");
+          }
+
+          // Render template
+          try {
+            let rendered;
+            if (templateId) {
+              log("Rendering html to " + templateId + " based on htmx response");
+              rendered = render({
+                template: templateId,
+                data: data,
+                target: elt,
+                returnHtml: true,
+                instanceName: instanceName,
+              });
+            } else {
+              if (!elt.id) {
+                errorLog$1(
+                  "No template found. If the current element is a template, it must have an id.",
+                );
+                return text;
+              }
+              log("Rendering html to current element based on htmx response");
+              var elementTemplateId = "#" + elt.id;
+              rendered = render({
+                template: elementTemplateId,
+                data: data,
+                target: elt,
+                returnHtml: true,
+                instanceName: instanceName,
+              });
             }
-            log("Rendering html to current element based on htmx response");
-            var elementTemplateId = "#" + elt.id;
-            rendered = render({
-              template: elementTemplateId,
-              data: data,
-              target: elt,
-              returnHtml: true,
-              instanceName: instanceName,
-            });
-          }
 
-          if (rendered) {
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Template rendered successfully for request",
-              requestId,
+            if (rendered) {
+              Debug.log(
+                Debug.levels.DEBUG,
+                "Template rendered successfully for request",
+                requestId,
+              );
+              return rendered;
+            }
+            return text;
+          } catch (error) {
+            errorLog$1("Error rendering template:", error);
+            return (
+              "<div class='fp-error'>Error rendering template: " +
+              error +
+              "</div>"
             );
-            return rendered;
           }
-          return text;
-        } catch (error) {
-          errorLog$1("Error rendering template:", error);
-          return (
-            "<div class='fp-error'>Error rendering template: " + error + "</div>"
-          );
         }
+        return text;
       },
 
       handleSwap: function (swapStyle, target, fragment, settleInfo) {

@@ -15,6 +15,7 @@ import {
 import PluginManager from "./PluginManager";
 import { InstanceManager } from "./InstanceManager";
 import { EventSystem } from "./EventSystem";
+import { trackChanges } from "../utils/DataChanges";
 
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
@@ -89,10 +90,14 @@ export function defineHtmxExtension() {
       const instance = InstanceManager.getOrCreateInstance(elt, data);
 
       if (instance) {
-        // Execute updateData hook with the new data
+        // Calculate data changes
+        const oldData = instance.getData();
+        const changes = trackChanges(oldData, data);
+
+        // Execute updateData hook with the tracked changes
         PluginManager.executeHook("updateData", instance, {
           data: data,
-          changes: data,
+          changes,
           source: "htmx",
           requestId: requestId,
         });

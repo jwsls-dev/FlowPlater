@@ -9,6 +9,7 @@ import {
 } from "../utils/LocalStorage";
 import { Performance } from "../utils/Performance";
 import PluginManager from "./PluginManager";
+import { trackChanges } from "../utils/DataChanges";
 
 export function instanceMethods(instanceName) {
   // Helper function to resolve a path within the data
@@ -126,13 +127,19 @@ export function instanceMethods(instanceName) {
         return this;
       }
 
+      // Track changes before updating data
+      const oldData = { ...instance.data };
+
       Object.assign(instance.data, newData);
       Object.assign(instance.proxy, newData);
+
+      // Calculate changes
+      const changes = trackChanges(oldData, instance.data);
 
       // Execute updateData hook
       PluginManager.executeHook("updateData", instance, {
         data: instance.data,
-        changes: newData,
+        changes,
         source: "update",
       });
 
@@ -299,6 +306,9 @@ export function instanceMethods(instanceName) {
       }
 
       try {
+        // Track old state
+        const oldData = { ...instance.data };
+
         // Deep merge function
         function deepMerge(target, source) {
           for (const key in source) {
@@ -372,10 +382,13 @@ export function instanceMethods(instanceName) {
           deepMerge(this.getData(), newData);
         }
 
+        // Calculate changes
+        const changes = trackChanges(oldData, instance.data, path);
+
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
-          changes: newData,
+          changes,
           path: path,
           source: "merge",
         });
@@ -406,6 +419,9 @@ export function instanceMethods(instanceName) {
       }
 
       try {
+        // Track old state
+        const oldData = { ...instance.data };
+
         const parts = path.split(/[\.\[\]'"]/g).filter(Boolean);
         const last = parts.pop();
         const target = parts.reduce((acc, part) => {
@@ -416,10 +432,13 @@ export function instanceMethods(instanceName) {
         target[last] = value;
         Object.assign(instance.proxy, instance.data);
 
+        // Calculate changes
+        const changes = trackChanges(oldData, instance.data, path);
+
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
-          changes: { [path]: value },
+          changes,
           path: path,
           source: "set",
         });
@@ -456,12 +475,18 @@ export function instanceMethods(instanceName) {
       }
 
       try {
+        // Track old state
+        const oldData = JSON.parse(JSON.stringify(instance.data));
+
         array.push(value);
+
+        // Calculate changes
+        const changes = trackChanges(oldData, instance.data, arrayPath);
 
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
-          changes: { [arrayPath]: array },
+          changes,
           path: arrayPath,
           source: "push",
         });
@@ -498,6 +523,9 @@ export function instanceMethods(instanceName) {
       }
 
       try {
+        // Track old state
+        const oldData = JSON.parse(JSON.stringify(instance.data));
+
         array.forEach((item) => {
           const matches = Object.entries(criteria).every(
             ([key, value]) => item[key] === value,
@@ -507,10 +535,13 @@ export function instanceMethods(instanceName) {
           }
         });
 
+        // Calculate changes
+        const changes = trackChanges(oldData, instance.data, arrayPath);
+
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
           data: instance.data,
-          changes: { [arrayPath]: array },
+          changes,
           path: arrayPath,
           criteria,
           updates,
