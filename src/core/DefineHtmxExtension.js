@@ -87,11 +87,11 @@ export function defineHtmxExtension() {
       log("Response received for request " + requestId + ": ", data);
 
       const instanceName = elt.getAttribute("fp-instance") || elt.id;
-      const instance = InstanceManager.getOrCreateInstance(elt, data);
+      const instance = InstanceManager.getOrCreateInstance(elt);
 
       if (instance) {
         // Calculate data changes
-        const oldData = instance.getData();
+        const oldData = instance.data;
         const changes = trackChanges(oldData, data);
 
         // Execute updateData hook with the tracked changes
@@ -107,18 +107,16 @@ export function defineHtmxExtension() {
           saveToLocalStorage(instanceName, data, "instance");
         }
 
-        // Render template
+        // Update instance data
+        Object.assign(instance.data, data);
+        Object.assign(instance.proxy, data);
+
+        // Render template without triggering a new request
         try {
           let rendered;
           if (templateId) {
             log("Rendering html to " + templateId + " based on htmx response");
-            rendered = render({
-              template: templateId,
-              data: data,
-              target: elt,
-              returnHtml: true,
-              instanceName: instanceName,
-            });
+            rendered = instance.template(instance.proxy);
           } else {
             if (!elt.id) {
               errorLog(
@@ -127,14 +125,7 @@ export function defineHtmxExtension() {
               return text;
             }
             log("Rendering html to current element based on htmx response");
-            var elementTemplateId = "#" + elt.id;
-            rendered = render({
-              template: elementTemplateId,
-              data: data,
-              target: elt,
-              returnHtml: true,
-              instanceName: instanceName,
-            });
+            rendered = instance.template(instance.proxy);
           }
 
           if (rendered) {
