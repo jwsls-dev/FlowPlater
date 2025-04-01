@@ -238,6 +238,9 @@ export function defineHtmxExtension() {
           break;
 
         case "htmx:afterSettle":
+          // Execute afterSettle hook
+          executeHtmxHook("afterSettle", target, evt);
+
           // Re-setup form handlers after the DOM has settled
           Debug.log(
             Debug.levels.DEBUG,
