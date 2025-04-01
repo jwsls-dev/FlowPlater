@@ -143,6 +143,13 @@ export function instanceMethods(instanceName) {
         source: "update",
       });
 
+      EventSystem.publish("updateData", {
+        instanceName,
+        data: instance.data,
+        changes,
+        source: "update",
+      });
+
       // Save to localStorage if enabled
       if (_state.config?.storage?.enabled) {
         const storageId = instanceName.replace("#", "");
@@ -252,6 +259,13 @@ export function instanceMethods(instanceName) {
 
                   // Execute updateData hook
                   PluginManager.executeHook("updateData", instance, {
+                    data: instance.data,
+                    changes: data,
+                    source: "refresh",
+                  });
+
+                  EventSystem.publish("updateData", {
+                    instanceName,
                     data: instance.data,
                     changes: data,
                     source: "refresh",
@@ -393,6 +407,14 @@ export function instanceMethods(instanceName) {
           source: "merge",
         });
 
+        EventSystem.publish("updateData", {
+          instanceName,
+          data: instance.data,
+          changes,
+          path: path,
+          source: "merge",
+        });
+
         // Save to localStorage if enabled
         if (_state.config?.storage?.enabled) {
           const storageId = instanceName.replace("#", "");
@@ -443,6 +465,14 @@ export function instanceMethods(instanceName) {
           source: "set",
         });
 
+        EventSystem.publish("updateData", {
+          instanceName,
+          data: instance.data,
+          changes,
+          path: path,
+          source: "set",
+        });
+
         // Save to localStorage if enabled
         if (_state.config?.storage?.enabled) {
           const storageId = instanceName.replace("#", "");
@@ -485,6 +515,14 @@ export function instanceMethods(instanceName) {
 
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
+          data: instance.data,
+          changes,
+          path: arrayPath,
+          source: "push",
+        });
+
+        EventSystem.publish("updateData", {
+          instanceName,
           data: instance.data,
           changes,
           path: arrayPath,
@@ -540,6 +578,16 @@ export function instanceMethods(instanceName) {
 
         // Execute updateData hook
         PluginManager.executeHook("updateData", instance, {
+          data: instance.data,
+          changes,
+          path: arrayPath,
+          criteria,
+          updates,
+          source: "updateWhere",
+        });
+
+        EventSystem.publish("updateData", {
+          instanceName,
           data: instance.data,
           changes,
           path: arrayPath,

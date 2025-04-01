@@ -11026,6 +11026,12 @@ var FlowPlater = function() {
                     changes: i,
                     source: "update"
                 });
+                E.publish("updateData", {
+                    instanceName: d,
+                    data: t.data,
+                    changes: i,
+                    source: "update"
+                });
                 if (x.config?.storage?.enabled) {
                     const o = d.replace("#", "");
                     k(o, t.data, "instance");
@@ -11109,6 +11115,12 @@ var FlowPlater = function() {
                                         rendered: t
                                     });
                                     P.executeHook("updateData", a, {
+                                        data: a.data,
+                                        changes: e,
+                                        source: "refresh"
+                                    });
+                                    E.publish("updateData", {
+                                        instanceName: d,
                                         data: a.data,
                                         changes: e,
                                         source: "refresh"
@@ -11226,6 +11238,13 @@ var FlowPlater = function() {
                         path: e,
                         source: "merge"
                     });
+                    E.publish("updateData", {
+                        instanceName: d,
+                        data: t.data,
+                        changes: l,
+                        path: e,
+                        source: "merge"
+                    });
                     if (x.config?.storage?.enabled) {
                         const p = d.replace("#", "");
                         k(p, t.data, "instance");
@@ -11263,6 +11282,13 @@ var FlowPlater = function() {
                     Object.assign(n.proxy, n.data);
                     const c = O(i, n.data, e);
                     P.executeHook("updateData", n, {
+                        data: n.data,
+                        changes: c,
+                        path: e,
+                        source: "set"
+                    });
+                    E.publish("updateData", {
+                        instanceName: d,
                         data: n.data,
                         changes: c,
                         path: e,
@@ -11306,6 +11332,13 @@ var FlowPlater = function() {
                         path: e,
                         source: "push"
                     });
+                    E.publish("updateData", {
+                        instanceName: d,
+                        data: n.data,
+                        changes: a,
+                        path: e,
+                        source: "push"
+                    });
                     if (x.config?.storage?.enabled) {
                         const l = d.replace("#", "");
                         k(l, n.data, "instance");
@@ -11344,6 +11377,15 @@ var FlowPlater = function() {
                     });
                     const l = O(a, n.data, e);
                     P.executeHook("updateData", n, {
+                        data: n.data,
+                        changes: l,
+                        path: e,
+                        criteria: t,
+                        updates: r,
+                        source: "updateWhere"
+                    });
+                    E.publish("updateData", {
+                        instanceName: d,
                         data: n.data,
                         changes: l,
                         path: e,
