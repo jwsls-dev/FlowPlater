@@ -1,6 +1,9 @@
 import { Debug } from "../core/Debug";
 import { Performance } from "./Performance";
 import { _state } from "../core/State";
+import { EventSystem } from "../core/EventSystem";
+import { PluginManager } from "../core/PluginManager";
+import { InstanceManager } from "../core/InstanceManager";
 import {
   captureFormStates,
   restoreFormStates,
@@ -263,6 +266,25 @@ async function updateDOM(element, newHTML, animate = false) {
 
     const updateContent = () => {
       return new Promise((resolve) => {
+        // Publish beforeDomUpdate event
+        EventSystem.publish("beforeDomUpdate", {
+          element,
+          newHTML,
+          animate,
+          formStates,
+        });
+
+        // Execute beforeDomUpdate plugin hook
+        const instance = InstanceManager.getOrCreateInstance(element);
+        if (instance) {
+          PluginManager.executeHook("beforeDomUpdate", instance, {
+            element,
+            newHTML,
+            animate,
+            formStates,
+          });
+        }
+
         const virtualContainer = document.createElement("div");
         virtualContainer.innerHTML = newHTML.trim();
 
@@ -288,6 +310,24 @@ async function updateDOM(element, newHTML, animate = false) {
           restoreFormStates(element);
           setupFormSubmitHandlers(element);
         }
+
+        // Execute afterDomUpdate plugin hook
+        if (instance) {
+          PluginManager.executeHook("afterDomUpdate", instance, {
+            element,
+            newHTML,
+            animate,
+            formStates,
+          });
+        }
+
+        // Publish afterDomUpdate event
+        EventSystem.publish("afterDomUpdate", {
+          element,
+          newHTML,
+          animate,
+          formStates,
+        });
 
         resolve();
       });
