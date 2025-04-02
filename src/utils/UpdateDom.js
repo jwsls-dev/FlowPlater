@@ -2,7 +2,7 @@ import { Debug } from "../core/Debug";
 import { Performance } from "./Performance";
 import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
-import { PluginManager } from "../core/PluginManager";
+import PluginManager from "../core/PluginManager";
 import { InstanceManager } from "../core/InstanceManager";
 import {
   captureFormStates,
