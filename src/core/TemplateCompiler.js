@@ -28,7 +28,7 @@ export const memoizedCompile = memoize(function (templateId) {
   const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
   var templateElement = document.querySelector(selector);
 
-  log("Trying to compile template: " + templateId);
+  Debug.log(Debug.levels.DEBUG, "Trying to compile template: " + templateId);
 
   if (!templateElement) {
     errorLog("Template not found: " + templateId);
@@ -42,7 +42,7 @@ export const memoizedCompile = memoize(function (templateId) {
     (templateElement.hasAttribute("fp-dynamic") &&
       templateElement.getAttribute("fp-dynamic") !== "false")
   ) {
-    log("compiling template: " + templateId);
+    Debug.log(Debug.levels.DEBUG, "compiling template: " + templateId);
 
     // Function to construct tag with attributes
     function constructTagWithAttributes(element) {
@@ -98,7 +98,8 @@ export const memoizedCompile = memoize(function (templateId) {
               result += `{{${helperName}}}${innerContent}`;
             } else if (helperName === "math") {
               if (innerContent) {
-                console.warn(
+                Debug.log(
+                  Debug.levels.WARN,
                   `FlowPlater: The <${helperName}> helper does not accept inner content.`,
                 );
               }
@@ -133,7 +134,10 @@ export const memoizedCompile = memoize(function (templateId) {
     }
 
     const handlebarsTemplate = processNode(templateElement);
-    log("Compiling Handlebars template: " + handlebarsTemplate);
+    Debug.log(
+      Debug.levels.DEBUG,
+      "Compiling Handlebars template: " + handlebarsTemplate,
+    );
 
     try {
       const compiledTemplate = Handlebars.compile(handlebarsTemplate);
@@ -144,7 +148,10 @@ export const memoizedCompile = memoize(function (templateId) {
         // Remove oldest template
         const oldestKey = Object.keys(_state.templateCache)[0];
         delete _state.templateCache[oldestKey];
-        log(`Cache limit reached. Removed template: ${oldestKey}`);
+        Debug.log(
+          Debug.levels.INFO,
+          "Cache limit reached. Removed template: " + oldestKey,
+        );
       }
 
       // Add new template to cache

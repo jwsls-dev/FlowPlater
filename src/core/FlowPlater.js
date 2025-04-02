@@ -509,13 +509,13 @@ const FlowPlaterObj = {
                 });
               } else {
                 Debug.log(
-                  Debug.levels.INFO,
+                  Debug.levels.DEBUG,
                   `Skipping initial render for instance: ${instanceName}`,
                 );
               }
             } else {
               Debug.log(
-                Debug.levels.INFO,
+                Debug.levels.DEBUG,
                 `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
               );
             }
