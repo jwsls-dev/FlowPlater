@@ -108,6 +108,38 @@ const ExamplePlugin = () => {
       FlowPlater.log(FlowPlater.logLevels.INFO, "beforeSwap", instance, evt);
       return instance;
     },
+    beforeDomUpdate: function (instance, context) {
+      // Called before a DOM update begins.
+      // instance: The FlowPlater instance being updated
+      // context: Object containing:
+      //   - element: The target element being updated
+      //   - newHTML: The new HTML content
+      //   - animate: Whether animation is enabled
+      //   - formStates: The captured form states (if any)
+      FlowPlater.log(
+        FlowPlater.logLevels.INFO,
+        "beforeDomUpdate",
+        instance,
+        context,
+      );
+      return instance;
+    },
+    afterDomUpdate: function (instance, context) {
+      // Called after a DOM update is complete.
+      // instance: The FlowPlater instance that was updated
+      // context: Object containing:
+      //   - element: The target element that was updated
+      //   - newHTML: The new HTML content
+      //   - animate: Whether animation was enabled
+      //   - formStates: The captured form states (if any)
+      FlowPlater.log(
+        FlowPlater.logLevels.INFO,
+        "afterDomUpdate",
+        instance,
+        context,
+      );
+      return instance;
+    },
     afterSwap: function (instance, evt) {
       // Called after the response is swapped into the DOM.
       // instance: The FlowPlater instance that received the swap
@@ -178,9 +210,26 @@ const ExamplePlugin = () => {
     },
   };
 
-  // Plugin methods
-  const methods = {
-    // ... existing methods ...
+  // Custom Handlebars helpers
+  // IMPORTANT: The helper name must be lowercase for Webflow compatibility!
+  // Arguments are passed in the order they are defined in the helper function.
+
+  const helpers = {
+    // Example: Custom helper that checks if a value is in an array
+    // usage: {{inarray value array}}
+    // can also be used inside an if statement: <if fp="inarray value array"> ... </if>
+    inarray(value, array) {
+      if (!Array.isArray(array)) return false;
+      return array.includes(value);
+    },
+    // You can also create block helpers by using the block helper syntax.
+    // Example: setting all text within a block to uppercase:
+    // usage: {{#uppercase}}
+    //        {{content}}
+    //        {{/uppercase}}
+    uppercase(options) {
+      return options.fn(this).toUpperCase();
+    },
   };
 
   return {
@@ -189,7 +238,7 @@ const ExamplePlugin = () => {
     globalMethods,
     instanceMethods,
     hooks,
-    ...methods,
+    helpers,
   };
 };
 
