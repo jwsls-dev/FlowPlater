@@ -3,6 +3,7 @@ import { EventSystem } from "./EventSystem";
 import { _state } from "./State";
 import { Performance } from "../utils/Performance";
 import { instanceMethods } from "./InstanceMethods";
+import { InstanceManager } from "./InstanceManager";
 
 import { updateDOM } from "../utils/UpdateDom";
 import { loadFromLocalStorage } from "../utils/LocalStorage";
@@ -138,24 +139,20 @@ export function render({
       });
     });
 
-    // Store the proxy and elements in instances for future reference
-    _state.instances[instanceName] = {
-      // Use Set instead of WeakSet to allow iteration
-      elements: new Set(elements),
-      template: compiledTemplate,
-      templateId: elements[0].getAttribute("fp-template") || template,
-      proxy: proxy,
-      data: data,
-      cleanup: () => {
-        this.elements.clear();
-      },
-      ...instanceMethods(instanceName),
-    };
+    // Create or update instance using InstanceManager
+    const instance = InstanceManager.getOrCreateInstance(elements[0], data);
+    if (instance) {
+      instance.elements = new Set(elements);
+      instance.template = compiledTemplate;
+      instance.templateId = elements[0].getAttribute("fp-template") || template;
+      instance.proxy = proxy;
+      instance.data = data;
 
-    // Save initial instance data to storage
-    if (_state.config?.storage?.enabled) {
-      const storageId = instanceName.replace("#", "");
-      saveToLocalStorage(storageId, data, "instance");
+      // Save initial instance data to storage
+      if (_state.config?.storage?.enabled) {
+        const storageId = instanceName.replace("#", "");
+        saveToLocalStorage(storageId, data, "instance");
+      }
     }
   }
 
