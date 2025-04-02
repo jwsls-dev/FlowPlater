@@ -11620,7 +11620,7 @@ var FlowPlater = (function () {
     const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
     var templateElement = document.querySelector(selector);
 
-    log("Trying to compile template: " + templateId);
+    Debug.log(Debug.levels.DEBUG, "Trying to compile template: " + templateId);
 
     if (!templateElement) {
       errorLog$1("Template not found: " + templateId);
@@ -11634,7 +11634,7 @@ var FlowPlater = (function () {
       (templateElement.hasAttribute("fp-dynamic") &&
         templateElement.getAttribute("fp-dynamic") !== "false")
     ) {
-      log("compiling template: " + templateId);
+      Debug.log(Debug.levels.DEBUG, "compiling template: " + templateId);
 
       // Function to construct tag with attributes
       function constructTagWithAttributes(element) {
@@ -11690,7 +11690,8 @@ var FlowPlater = (function () {
                 result += `{{${helperName}}}${innerContent}`;
               } else if (helperName === "math") {
                 if (innerContent) {
-                  console.warn(
+                  Debug.log(
+                    Debug.levels.WARN,
                     `FlowPlater: The <${helperName}> helper does not accept inner content.`,
                   );
                 }
@@ -11725,7 +11726,10 @@ var FlowPlater = (function () {
       }
 
       const handlebarsTemplate = processNode(templateElement);
-      log("Compiling Handlebars template: " + handlebarsTemplate);
+      Debug.log(
+        Debug.levels.DEBUG,
+        "Compiling Handlebars template: " + handlebarsTemplate,
+      );
 
       try {
         const compiledTemplate = Handlebars.compile(handlebarsTemplate);
@@ -11736,7 +11740,10 @@ var FlowPlater = (function () {
           // Remove oldest template
           const oldestKey = Object.keys(_state.templateCache)[0];
           delete _state.templateCache[oldestKey];
-          log(`Cache limit reached. Removed template: ${oldestKey}`);
+          Debug.log(
+            Debug.levels.INFO,
+            "Cache limit reached. Removed template: " + oldestKey,
+          );
         }
 
         // Add new template to cache
@@ -11754,65 +11761,6 @@ var FlowPlater = (function () {
     Performance.end("compile:" + templateId);
     return _state.templateCache[templateId];
   });
-
-  function saveToLocalStorage(instanceName, data, prefix = "") {
-    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
-    if (_state.config?.storage?.enabled) {
-      try {
-        const ttl = _state.config.storage.ttl || 30 * 24 * 60 * 60; // default 30 days in seconds
-        const storageData = {
-          data,
-          expiry: ttl === -1 ? -1 : Date.now() + ttl * 1000, // -1 for infinite TTL
-        };
-
-        const key = `fp_${prefix}${prefix ? "_" : ""}${instanceName}`;
-        Debug.log(Debug.levels.DEBUG, `Saving to localStorage:`, {
-          key,
-          data: storageData,
-        });
-        localStorage.setItem(key, JSON.stringify(storageData));
-      } catch (error) {
-        errorLog$1(`Failed to save to localStorage: ${error.message}`);
-      }
-    } else {
-      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping save`);
-    }
-  }
-
-  function loadFromLocalStorage(instanceName, prefix = "") {
-    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
-    if (_state.config?.storage?.enabled) {
-      try {
-        const key = `fp_${prefix}${prefix ? "_" : ""}${instanceName}`;
-        const storedItem = localStorage.getItem(key);
-        if (!storedItem) {
-          Debug.log(Debug.levels.DEBUG, `No stored item found for: ${key}`);
-          return null;
-        }
-
-        const storageData = JSON.parse(storedItem);
-
-        // Check if data has expired (skip check for infinite TTL)
-        if (storageData.expiry !== -1 && Date.now() > storageData.expiry) {
-          Debug.log(Debug.levels.DEBUG, `Stored item has expired: ${key}`);
-          localStorage.removeItem(key);
-          return null;
-        }
-
-        Debug.log(Debug.levels.DEBUG, `Loaded from localStorage:`, {
-          key,
-          data: storageData,
-        });
-        return storageData.data;
-      } catch (error) {
-        errorLog$1(`Failed to load from localStorage: ${error.message}`);
-        return null;
-      }
-    } else {
-      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping load`);
-    }
-    return null;
-  }
 
   // Version management utilities
   const VersionManager = {
@@ -11980,6 +11928,32 @@ var FlowPlater = (function () {
             method,
             plugin: pluginInstance.config.name,
           });
+        }
+      }
+
+      // Register custom helpers if any
+      if (pluginInstance.helpers && typeof pluginInstance.helpers === "object") {
+        for (const [helperName, helper] of Object.entries(
+          pluginInstance.helpers,
+        )) {
+          if (typeof helper !== "function") {
+            Debug.log(
+              Debug.levels.WARN,
+              `Plugin ${pluginInstance.config.name} contains invalid helper ${helperName}:`,
+              helper,
+            );
+            continue;
+          }
+          try {
+            // Register the helper with Handlebars using the lowercase name for webflow compatibility
+            Handlebars.registerHelper(helperName.toLowerCase(), helper);
+          } catch (error) {
+            Debug.log(
+              Debug.levels.ERROR,
+              `Plugin ${pluginInstance.config.name} failed registering helper ${helperName}:`,
+              error,
+            );
+          }
         }
       }
 
@@ -12205,6 +12179,390 @@ var FlowPlater = (function () {
       this.plugins.clear();
       this.globalMethods.clear();
       this.instanceMethods.clear();
+    },
+  };
+
+  const InstanceManager = {
+    /**
+     * Gets an existing instance or creates a new one
+     * @param {HTMLElement} element - The DOM element
+     * @param {Object} data - Initial data for the instance
+     * @returns {Object} The instance
+     */
+    getOrCreateInstance(element, data = {}) {
+      const instanceName = element.getAttribute("fp-instance") || element.id;
+      if (!instanceName) {
+        errorLog$1("No instance name found for element");
+        return null;
+      }
+
+      let instance = _state.instances[instanceName];
+      if (!instance) {
+        instance = {
+          elements: new Set([element]),
+          template: null,
+          templateId: element.getAttribute("fp-template"),
+          proxy: null,
+          data: data,
+          cleanup: () => {
+            this.elements.clear();
+          },
+        };
+
+        // Add instance methods
+        Object.assign(instance, instanceMethods(instanceName));
+
+        // Add plugin instance methods
+        const methods = PluginManager.instanceMethods;
+        for (const [methodName, methodInfo] of methods.entries()) {
+          // Add method to instance
+          instance[methodName] = (...args) =>
+            PluginManager.executeInstanceMethod(methodName, instance, ...args);
+        }
+
+        _state.instances[instanceName] = instance;
+        // Execute newInstance hook
+        PluginManager.executeHook("newInstance", instance);
+      }
+
+      return instance;
+    },
+
+    /**
+     * Updates an instance with new data
+     * @param {Object} instance - The instance to update
+     * @param {Object} data - New data for the instance
+     */
+    updateInstance(instance, data) {
+      if (!instance) return;
+
+      instance.data = { ...instance.data, ...data };
+      instance.proxy = new Proxy(instance.data, {
+        get: (target, property) => {
+          const value = target[property];
+          return value && typeof value === "object"
+            ? new Proxy(value, this.proxyHandler)
+            : value;
+        },
+        set: (target, property, value) => {
+          target[property] = value;
+          instance._updateDOM();
+          return true;
+        },
+        deleteProperty: (target, property) => {
+          delete target[property];
+          instance._updateDOM();
+          return true;
+        },
+      });
+    },
+
+    /**
+     * Proxy handler for deep reactivity
+     */
+    proxyHandler: {
+      get(target, property) {
+        const value = target[property];
+        return value && typeof value === "object"
+          ? new Proxy(value, this)
+          : value;
+      },
+      set(target, property, value) {
+        target[property] = value;
+        return true;
+      },
+      deleteProperty(target, property) {
+        delete target[property];
+        return true;
+      },
+    },
+
+    /**
+     * Updates the DOM for an instance
+     * @param {Object} instance - The instance to update
+     */
+    _updateDOM(instance) {
+      // Check if data is HTML
+      if (
+        typeof instance.data === "string" &&
+        instance.data.trim().startsWith("<!DOCTYPE")
+      ) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Data is HTML, skipping DOM update",
+          instance.instanceName,
+        );
+        return;
+      }
+
+      try {
+        let rendered;
+        if (instance.templateId === "self" || instance.templateId === null) {
+          // For "self" template, use the first element as the template
+          const templateElement = Array.from(instance.elements)[0];
+          if (!templateElement) {
+            Debug.log(
+              Debug.levels.ERROR,
+              "No template element found for self template",
+              instance.instanceName,
+            );
+            return;
+          }
+          rendered = templateElement.innerHTML;
+        } else if (!instance.template) {
+          Debug.log(
+            Debug.levels.ERROR,
+            "No template found for instance",
+            instance.instanceName,
+          );
+          return;
+        } else {
+          rendered = instance.template(instance.data);
+        }
+
+        instance.elements.forEach((element) => {
+          updateDOM(element, rendered, instance.animate);
+        });
+      } catch (error) {
+        Debug.log(
+          Debug.levels.ERROR,
+          "Error updating DOM for instance",
+          instance.instanceName,
+          error,
+        );
+      }
+    },
+  };
+
+  function saveToLocalStorage(instanceName, data, prefix = "") {
+    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+    if (_state.config?.storage?.enabled) {
+      try {
+        const ttl = _state.config.storage.ttl || 30 * 24 * 60 * 60; // default 30 days in seconds
+        const storageData = {
+          data,
+          expiry: ttl === -1 ? -1 : Date.now() + ttl * 1000, // -1 for infinite TTL
+        };
+
+        const key = `fp_${prefix}${prefix ? "_" : ""}${instanceName}`;
+        Debug.log(Debug.levels.DEBUG, `Saving to localStorage:`, {
+          key,
+          data: storageData,
+        });
+        localStorage.setItem(key, JSON.stringify(storageData));
+      } catch (error) {
+        errorLog$1(`Failed to save to localStorage: ${error.message}`);
+      }
+    } else {
+      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping save`);
+    }
+  }
+
+  function loadFromLocalStorage(instanceName, prefix = "") {
+    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+    if (_state.config?.storage?.enabled) {
+      try {
+        const key = `fp_${prefix}${prefix ? "_" : ""}${instanceName}`;
+        const storedItem = localStorage.getItem(key);
+        if (!storedItem) {
+          Debug.log(Debug.levels.DEBUG, `No stored item found for: ${key}`);
+          return null;
+        }
+
+        const storageData = JSON.parse(storedItem);
+
+        // Check if data has expired (skip check for infinite TTL)
+        if (storageData.expiry !== -1 && Date.now() > storageData.expiry) {
+          Debug.log(Debug.levels.DEBUG, `Stored item has expired: ${key}`);
+          localStorage.removeItem(key);
+          return null;
+        }
+
+        Debug.log(Debug.levels.DEBUG, `Loaded from localStorage:`, {
+          key,
+          data: storageData,
+        });
+        return storageData.data;
+      } catch (error) {
+        errorLog$1(`Failed to load from localStorage: ${error.message}`);
+        return null;
+      }
+    } else {
+      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping load`);
+    }
+    return null;
+  }
+
+  /**
+   * @module RequestHandler
+   * @description Manages HTMX request processing and lifecycle events for form processing elements
+   */
+  const RequestHandler = {
+    /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
+    processingElements: new Map(),
+    /** @type {number} Counter for generating unique request IDs */
+    currentRequestId: 0,
+    /** @type {boolean} Flag to prevent multiple form state restorations */
+    isRestoringFormStates: false,
+
+    /**
+     * Generates a unique request ID using timestamp and counter
+     * @returns {string} Unique request identifier
+     */
+    generateRequestId() {
+      return `fp-${Date.now()}-${this.currentRequestId++}`;
+    },
+
+    /**
+     * Handles different stages of request processing for a target element
+     * @param {HTMLElement} target - The DOM element being processed
+     * @param {string} requestId - Unique identifier for the request
+     * @param {'start'|'process'|'cleanup'} action - The action to perform
+     * @returns {boolean|void} Returns true if processing succeeded for 'process' action
+     */
+    handleRequest(target, requestId, action) {
+      if (!target || !target.hasAttribute("fp-template")) return;
+
+      const currentInfo = this.processingElements.get(target);
+      requestId = requestId || this.generateRequestId();
+
+      switch (action) {
+        case "start":
+          if (!currentInfo || currentInfo.requestId !== requestId) {
+            this.processingElements.set(target, {
+              requestId: requestId,
+              timestamp: Date.now(),
+              processed: false,
+            });
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Added element to processing set",
+              target,
+              requestId,
+            );
+          }
+          break;
+
+        case "process":
+          if (
+            currentInfo &&
+            currentInfo.requestId === requestId &&
+            !currentInfo.processed
+          ) {
+            currentInfo.processed = true;
+            this.processingElements.set(target, currentInfo);
+            return true;
+          }
+          return false;
+
+        case "cleanup":
+          if (
+            currentInfo &&
+            currentInfo.requestId === requestId &&
+            currentInfo.processed
+          ) {
+            this.processingElements.delete(target);
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Cleaned up after request",
+              target,
+              requestId,
+            );
+          } else {
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Skipping cleanup - request mismatch or not processed",
+              { current: currentInfo?.requestId, received: requestId },
+            );
+          }
+          break;
+      }
+    },
+
+    /**
+     * Removes stale processing entries that are older than the timeout threshold
+     */
+    cleanupStale() {
+      const now = Date.now();
+      const staleTimeout = 10000; // 10 seconds
+
+      for (const [target, info] of this.processingElements.entries()) {
+        if (now - info.timestamp > staleTimeout) {
+          this.processingElements.delete(target);
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Cleaned up stale processing entry",
+            target,
+            info.requestId,
+          );
+        }
+      }
+    },
+
+    /**
+     * Sets up all necessary event listeners for HTMX integration and request handling
+     */
+    setupEventListeners() {
+      document.body.addEventListener("htmx:configRequest", (event) => {
+        // event.detail.headers = "";
+        event.detail.headers["Content-Type"] =
+          "application/x-www-form-urlencoded; charset=UTF-8";
+      });
+
+      // Add consolidated event listeners
+      document.body.addEventListener("htmx:beforeRequest", (event) => {
+        const target = event.detail.elt;
+        const requestId = event.detail.requestId || this.generateRequestId();
+        event.detail.requestId = requestId; // Ensure requestId is set
+        this.handleRequest(target, requestId, "start");
+
+        // Find instance that contains this element
+        let instance = null;
+        let instanceName = null;
+        for (const [name, inst] of Object.entries(_state.instances)) {
+          if (Array.from(inst.elements).some((el) => el.contains(target))) {
+            instance = inst;
+            instanceName = name;
+            break;
+          }
+        }
+
+        if (instance) {
+          // Execute beforeRequest hook
+          EventSystem.publish("request-start", {
+            instanceName,
+            ...event.detail,
+          });
+        }
+      });
+
+      document.body.addEventListener("htmx:beforeSwap", (event) => {
+        const target = event.detail.elt;
+        const requestId = event.detail.requestId;
+        const info = this.processingElements.get(target);
+
+        // Only prevent swap if request IDs don't match
+        if (info && info.requestId !== requestId) {
+          event.preventDefault();
+          Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
+        }
+      });
+
+      // Cleanup handlers
+      document.body.addEventListener("htmx:responseError", (event) => {
+        // Only cleanup on actual errors, not on successful responses
+        if (event.detail.failed) {
+          this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
+        }
+      });
+
+      // Set up stale cleanup interval
+      setInterval(() => this.cleanupStale(), 10000);
+
+      // Clear all on unload
+      window.addEventListener("unload", () => {
+        this.processingElements.clear();
+      });
     },
   };
 
@@ -12581,9 +12939,10 @@ var FlowPlater = (function () {
   /**
    * Restores the state of a single form from storage
    * @param {HTMLFormElement} form - The form to restore state for
+   * @param {string} [source] - The source of the call to restoreSingleFormState
    * @returns {boolean} - Whether state was restored
    */
-  function restoreSingleFormState(form) {
+  function restoreSingleFormState(form, source) {
     if (!form.id) return false;
 
     // Try to get state from storage
@@ -12617,18 +12976,17 @@ var FlowPlater = (function () {
     // Single debug log with all information
     Debug.log(
       Debug.levels.DEBUG,
-      `Form state restoration summary for ${form.id}:
-    Storage type: ${debugInfo.storageType}
-    Restored elements:
-    ${debugInfo.restoredElements
-      .map((el) => `- ${el.name}: ${el.value}`)
-      .join("\n    ")}
-    
-    Updated custom visual states for:
-    ${debugInfo.customVisualUpdates.join(", ")}
-    
-    Skipped elements (persistence disabled):
-    ${debugInfo.skippedElements.join(", ")}`,
+      `Form state restoration summary for ${form.id}`,
+      {
+        storageType: debugInfo.storageType,
+        source: source || "unknown",
+        restoredElements: debugInfo.restoredElements.map((el) => ({
+          name: el.name,
+          value: el.value,
+        })),
+        updatedCustomVisualStates: debugInfo.customVisualUpdates,
+        skippedElements: debugInfo.skippedElements,
+      },
     );
 
     // Emit event after restoration
@@ -12636,6 +12994,7 @@ var FlowPlater = (function () {
       formId: form.id,
       formElement: form,
       state: formState,
+      source: source || "unknown",
     });
 
     return true;
@@ -12644,16 +13003,26 @@ var FlowPlater = (function () {
   /**
    * Restores form states within an element
    * @param {HTMLElement} element - The container element
+   * @param {string} [source] - The source of the call to restoreFormStates
    */
-  function restoreFormStates(element) {
+  function restoreFormStates(element, source) {
     try {
+      // Skip if already restoring
+      if (RequestHandler.isRestoringFormStates) {
+        Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
+        return;
+      }
+
+      RequestHandler.isRestoringFormStates = true;
       const forms = element.getElementsByTagName("form");
-      Array.from(forms).forEach(restoreSingleFormState);
+      Array.from(forms).forEach((form) => restoreSingleFormState(form, source));
     } catch (error) {
       Debug.log(
         Debug.levels.ERROR,
         `Error restoring form states: ${error.message}`,
       );
+    } finally {
+      RequestHandler.isRestoringFormStates = false;
     }
   }
 
@@ -12719,17 +13088,13 @@ var FlowPlater = (function () {
       });
 
       // Output collected debug information
-      Debug.log(
-        Debug.levels.DEBUG,
-        `Form setup summary for ${form.id}:
-      - Total form elements: ${debugInfo.formElements}
-      - Checkbox wrappers: ${debugInfo.checkboxWrappers}
-      - Form persistence: ${
-        debugInfo.persistenceEnabled ? "enabled" : "disabled"
-      }
-      - Listeners added to: ${debugInfo.listenersAdded.join(", ")}
-      - Skipped elements: ${debugInfo.skippedElements.join(", ")}`,
-      );
+      Debug.log(Debug.levels.DEBUG, `Form setup summary for ${form.id}`, {
+        totalFormElements: debugInfo.formElements,
+        checkboxWrappers: debugInfo.checkboxWrappers,
+        formPersistence: debugInfo.persistenceEnabled ? "enabled" : "disabled",
+        listenersAdded: debugInfo.listenersAdded.join(", "),
+        skippedElements: debugInfo.skippedElements.join(", "),
+      });
     } catch (error) {
       Debug.log(
         Debug.levels.ERROR,
@@ -12829,20 +13194,14 @@ var FlowPlater = (function () {
         handleFormStorage(form, formState, "save");
 
         // Output collected debug information
-        Debug.log(
-          Debug.levels.DEBUG,
-          `Form state update for ${form.id}:
-        - Changed element: ${element.name}
-        - Storage type: ${
-          shouldUseLocalStorage(form) ? "localStorage" : "sessionStorage"
-        }
-        - Updated values: ${JSON.stringify(debugInfo.changedValues, null, 2)}
-        - Skipped elements: ${JSON.stringify(
-          debugInfo.skippedElements,
-          null,
-          2,
-        )}`,
-        );
+        Debug.log(Debug.levels.DEBUG, "Form state update for " + form.id + ":", {
+          "Changed element": element.name,
+          "Storage type": shouldUseLocalStorage(form)
+            ? "localStorage"
+            : "sessionStorage",
+          "Updated values": debugInfo.changedValues,
+          "Skipped elements": debugInfo.skippedElements,
+        });
 
         // Find instance that contains this form or whose elements are contained by this form
         let instance = null;
@@ -12910,8 +13269,9 @@ var FlowPlater = (function () {
   /**
    * Sets up form submission handlers to clear state on submit
    * @param {HTMLElement} element - The container element
+   * @param {string} [source] - The source of the call to setupFormSubmitHandlers
    */
-  function setupFormSubmitHandlers(element) {
+  function setupFormSubmitHandlers(element, source) {
     try {
       Debug.log(
         Debug.levels.DEBUG,
@@ -12924,7 +13284,7 @@ var FlowPlater = (function () {
 
       Debug.log(Debug.levels.DEBUG, `Found ${forms.size} forms`);
       forms.forEach((form) => {
-        setupSingleFormHandlers(form);
+        setupSingleFormHandlers(form, source || "setupFormSubmitHandlers");
       });
     } catch (error) {
       Debug.log(
@@ -12934,7 +13294,7 @@ var FlowPlater = (function () {
     }
   }
 
-  function setupSingleFormHandlers(form) {
+  function setupSingleFormHandlers(form, source) {
     if (!form.id) {
       Debug.log(Debug.levels.DEBUG, "Skipping form without ID");
       return;
@@ -12957,7 +13317,7 @@ var FlowPlater = (function () {
     // Check if form restoration is needed
     if (shouldRestoreForm(form)) {
       Debug.log(Debug.levels.DEBUG, `Restoring state for form: ${form.id}`);
-      restoreSingleFormState(form);
+      restoreSingleFormState(form, source || "setupSingleFormHandlers");
     } else {
       Debug.log(
         Debug.levels.DEBUG,
@@ -13092,7 +13452,10 @@ var FlowPlater = (function () {
 
       // Setup form persistence if enabled
       if (_state.config?.persistForm) {
-        setupFormSubmitHandlers(fromEl);
+        setupFormSubmitHandlers(
+          fromEl,
+          "updateDOM - form state restoration - setupFormSubmitHandlers",
+        );
       }
       return;
     }
@@ -13332,6 +13695,25 @@ var FlowPlater = (function () {
 
       const updateContent = () => {
         return new Promise((resolve) => {
+          // Publish beforeDomUpdate event
+          EventSystem.publish("beforeDomUpdate", {
+            element,
+            newHTML,
+            animate,
+            formStates,
+          });
+
+          // Execute beforeDomUpdate plugin hook
+          const instance = InstanceManager.getOrCreateInstance(element);
+          if (instance) {
+            PluginManager.executeHook("beforeDomUpdate", instance, {
+              element,
+              newHTML,
+              animate,
+              formStates,
+            });
+          }
+
           const virtualContainer = document.createElement("div");
           virtualContainer.innerHTML = newHTML.trim();
 
@@ -13354,9 +13736,33 @@ var FlowPlater = (function () {
             formStates
           ) {
             Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
-            restoreFormStates(element);
-            setupFormSubmitHandlers(element);
+            restoreFormStates(
+              element,
+              "updateDOM - form state restoration - restoreFormStates",
+            );
+            setupFormSubmitHandlers(
+              element,
+              "updateDOM - form state restoration - setupFormSubmitHandlers",
+            );
           }
+
+          // Execute afterDomUpdate plugin hook
+          if (instance) {
+            PluginManager.executeHook("afterDomUpdate", instance, {
+              element,
+              newHTML,
+              animate,
+              formStates,
+            });
+          }
+
+          // Publish afterDomUpdate event
+          EventSystem.publish("afterDomUpdate", {
+            element,
+            newHTML,
+            animate,
+            formStates,
+          });
 
           resolve();
         });
@@ -13376,8 +13782,14 @@ var FlowPlater = (function () {
           Debug.levels.DEBUG,
           `Found ${persistedInputs.length} inputs to restore`,
         );
-        restoreFormStates(element);
-        setupFormSubmitHandlers(element);
+        restoreFormStates(
+          element,
+          "updateDOM - final form state restoration - restoreFormStates",
+        );
+        setupFormSubmitHandlers(
+          element,
+          "updateDOM - final form state restoration - setupFormSubmitHandlers",
+        );
       }
 
       if (formObserver) {
@@ -14302,24 +14714,20 @@ var FlowPlater = (function () {
         });
       });
 
-      // Store the proxy and elements in instances for future reference
-      _state.instances[instanceName] = {
-        // Use Set instead of WeakSet to allow iteration
-        elements: new Set(elements),
-        template: compiledTemplate,
-        templateId: elements[0].getAttribute("fp-template") || template,
-        proxy: proxy,
-        data: data,
-        cleanup: () => {
-          this.elements.clear();
-        },
-        ...instanceMethods(instanceName),
-      };
+      // Create or update instance using InstanceManager
+      const instance = InstanceManager.getOrCreateInstance(elements[0], data);
+      if (instance) {
+        instance.elements = new Set(elements);
+        instance.template = compiledTemplate;
+        instance.templateId = elements[0].getAttribute("fp-template") || template;
+        instance.proxy = proxy;
+        instance.data = data;
 
-      // Save initial instance data to storage
-      if (_state.config?.storage?.enabled) {
-        const storageId = instanceName.replace("#", "");
-        saveToLocalStorage(storageId, data, "instance");
+        // Save initial instance data to storage
+        if (_state.config?.storage?.enabled) {
+          const storageId = instanceName.replace("#", "");
+          saveToLocalStorage(storageId, data, "instance");
+        }
       }
     }
 
@@ -15215,178 +15623,6 @@ var FlowPlater = (function () {
     bunnyHelper();
   }
 
-  /**
-   * @module RequestHandler
-   * @description Manages HTMX request processing and lifecycle events for form processing elements
-   */
-  const RequestHandler = {
-    /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
-    processingElements: new Map(),
-    /** @type {number} Counter for generating unique request IDs */
-    currentRequestId: 0,
-
-    /**
-     * Generates a unique request ID using timestamp and counter
-     * @returns {string} Unique request identifier
-     */
-    generateRequestId() {
-      return `fp-${Date.now()}-${this.currentRequestId++}`;
-    },
-
-    /**
-     * Handles different stages of request processing for a target element
-     * @param {HTMLElement} target - The DOM element being processed
-     * @param {string} requestId - Unique identifier for the request
-     * @param {'start'|'process'|'cleanup'} action - The action to perform
-     * @returns {boolean|void} Returns true if processing succeeded for 'process' action
-     */
-    handleRequest(target, requestId, action) {
-      if (!target || !target.hasAttribute("fp-template")) return;
-
-      const currentInfo = this.processingElements.get(target);
-      requestId = requestId || this.generateRequestId();
-
-      switch (action) {
-        case "start":
-          if (!currentInfo || currentInfo.requestId !== requestId) {
-            this.processingElements.set(target, {
-              requestId: requestId,
-              timestamp: Date.now(),
-              processed: false,
-            });
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Added element to processing set",
-              target,
-              requestId,
-            );
-          }
-          break;
-
-        case "process":
-          if (
-            currentInfo &&
-            currentInfo.requestId === requestId &&
-            !currentInfo.processed
-          ) {
-            currentInfo.processed = true;
-            this.processingElements.set(target, currentInfo);
-            return true;
-          }
-          return false;
-
-        case "cleanup":
-          if (
-            currentInfo &&
-            currentInfo.requestId === requestId &&
-            currentInfo.processed
-          ) {
-            this.processingElements.delete(target);
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Cleaned up after request",
-              target,
-              requestId,
-            );
-          } else {
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Skipping cleanup - request mismatch or not processed",
-              { current: currentInfo?.requestId, received: requestId },
-            );
-          }
-          break;
-      }
-    },
-
-    /**
-     * Removes stale processing entries that are older than the timeout threshold
-     */
-    cleanupStale() {
-      const now = Date.now();
-      const staleTimeout = 10000; // 10 seconds
-
-      for (const [target, info] of this.processingElements.entries()) {
-        if (now - info.timestamp > staleTimeout) {
-          this.processingElements.delete(target);
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Cleaned up stale processing entry",
-            target,
-            info.requestId,
-          );
-        }
-      }
-    },
-
-    /**
-     * Sets up all necessary event listeners for HTMX integration and request handling
-     */
-    setupEventListeners() {
-      document.body.addEventListener("htmx:configRequest", (event) => {
-        // event.detail.headers = "";
-        event.detail.headers["Content-Type"] =
-          "application/x-www-form-urlencoded; charset=UTF-8";
-      });
-
-      // Add consolidated event listeners
-      document.body.addEventListener("htmx:beforeRequest", (event) => {
-        const target = event.detail.elt;
-        const requestId = event.detail.requestId || this.generateRequestId();
-        event.detail.requestId = requestId; // Ensure requestId is set
-        this.handleRequest(target, requestId, "start");
-
-        // Find instance that contains this element
-        let instance = null;
-        let instanceName = null;
-        for (const [name, inst] of Object.entries(_state.instances)) {
-          if (Array.from(inst.elements).some((el) => el.contains(target))) {
-            instance = inst;
-            instanceName = name;
-            break;
-          }
-        }
-
-        if (instance) {
-          // Execute beforeRequest hook
-          EventSystem.publish("request-start", {
-            instanceName,
-            ...event.detail,
-          });
-        }
-      });
-
-      document.body.addEventListener("htmx:afterRequest", (event) => {
-        const target = event.detail.elt;
-        this.handleRequest(target, event.detail.requestId, "cleanup");
-      });
-
-      document.body.addEventListener("htmx:beforeSwap", (event) => {
-        const target = event.detail.elt;
-        const requestId = event.detail.requestId;
-        const info = this.processingElements.get(target);
-
-        if (!info || info.requestId !== requestId) {
-          event.preventDefault();
-          Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
-        }
-      });
-
-      // Cleanup handlers
-      document.body.addEventListener("htmx:responseError", (event) => {
-        this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
-      });
-
-      // Set up stale cleanup interval
-      setInterval(() => this.cleanupStale(), 10000);
-
-      // Clear all on unload
-      window.addEventListener("unload", () => {
-        this.processingElements.clear();
-      });
-    },
-  };
-
   function parseXmlToJson(xmlString) {
     function xmlToJson(node) {
       var obj = {};
@@ -15432,161 +15668,27 @@ var FlowPlater = (function () {
     return xmlToJson(xml.documentElement);
   }
 
-  const InstanceManager = {
-    /**
-     * Gets an existing instance or creates a new one
-     * @param {HTMLElement} element - The DOM element
-     * @param {Object} data - Initial data for the instance
-     * @returns {Object} The instance
-     */
-    getOrCreateInstance(element, data = {}) {
-      const instanceName = element.getAttribute("fp-instance") || element.id;
-      if (!instanceName) {
-        errorLog$1("No instance name found for element");
-        return null;
-      }
-
-      let instance = _state.instances[instanceName];
-      if (!instance) {
-        instance = {
-          elements: new Set([element]),
-          template: null,
-          templateId: element.getAttribute("fp-template"),
-          proxy: null,
-          data: data,
-          cleanup: () => {
-            this.elements.clear();
-          },
-        };
-
-        // Add instance methods
-        Object.assign(instance, instanceMethods(instanceName));
-
-        // Add plugin instance methods
-        const methods = PluginManager.instanceMethods;
-        for (const [methodName, methodInfo] of methods.entries()) {
-          // Add method to instance
-          instance[methodName] = (...args) =>
-            PluginManager.executeInstanceMethod(methodName, instance, ...args);
-        }
-
-        _state.instances[instanceName] = instance;
-        // Execute newInstance hook
-        PluginManager.executeHook("newInstance", instance);
-      }
-
-      return instance;
-    },
-
-    /**
-     * Updates an instance with new data
-     * @param {Object} instance - The instance to update
-     * @param {Object} data - New data for the instance
-     */
-    updateInstance(instance, data) {
-      if (!instance) return;
-
-      instance.data = { ...instance.data, ...data };
-      instance.proxy = new Proxy(instance.data, {
-        get: (target, property) => {
-          const value = target[property];
-          return value && typeof value === "object"
-            ? new Proxy(value, this.proxyHandler)
-            : value;
-        },
-        set: (target, property, value) => {
-          target[property] = value;
-          instance._updateDOM();
-          return true;
-        },
-        deleteProperty: (target, property) => {
-          delete target[property];
-          instance._updateDOM();
-          return true;
-        },
-      });
-    },
-
-    /**
-     * Proxy handler for deep reactivity
-     */
-    proxyHandler: {
-      get(target, property) {
-        const value = target[property];
-        return value && typeof value === "object"
-          ? new Proxy(value, this)
-          : value;
-      },
-      set(target, property, value) {
-        target[property] = value;
-        return true;
-      },
-      deleteProperty(target, property) {
-        delete target[property];
-        return true;
-      },
-    },
-
-    /**
-     * Updates the DOM for an instance
-     * @param {Object} instance - The instance to update
-     */
-    _updateDOM(instance) {
-      // Check if data is HTML
-      if (
-        typeof instance.data === "string" &&
-        instance.data.trim().startsWith("<!DOCTYPE")
-      ) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Data is HTML, skipping DOM update",
-          instance.instanceName,
-        );
-        return;
-      }
-
-      try {
-        let rendered;
-        if (instance.templateId === "self" || instance.templateId === null) {
-          // For "self" template, use the first element as the template
-          const templateElement = Array.from(instance.elements)[0];
-          if (!templateElement) {
-            Debug.log(
-              Debug.levels.ERROR,
-              "No template element found for self template",
-              instance.instanceName,
-            );
-            return;
-          }
-          rendered = templateElement.innerHTML;
-        } else if (!instance.template) {
-          Debug.log(
-            Debug.levels.ERROR,
-            "No template found for instance",
-            instance.instanceName,
-          );
-          return;
-        } else {
-          rendered = instance.template(instance.data);
-        }
-
-        instance.elements.forEach((element) => {
-          updateDOM(element, rendered, instance.animate);
-        });
-      } catch (error) {
-        Debug.log(
-          Debug.levels.ERROR,
-          "Error updating DOM for instance",
-          instance.instanceName,
-          error,
-        );
-      }
-    },
-  };
+  // function isHTML(string) {
+  //   return Array.from(
+  //     new DOMParser().parseFromString(string, "text/html").body.childNodes,
+  //   ).some(({ nodeType }) => nodeType == 1);
+  // }
 
   function defineHtmxExtension() {
     htmx.defineExtension("flowplater", {
       transformResponse: function (text, xhr, elt) {
+        // Add debug logging for response
+
+        const isHtml = xhr
+          .getResponseHeader("Content-Type")
+          ?.startsWith("text/html");
+
+        Debug.log(Debug.levels.DEBUG, "Response received:", {
+          text: text,
+          contentType: xhr.getResponseHeader("Content-Type"),
+          isHtmlLike: isHtml,
+        });
+
         // Get request ID from either xhr or processing elements
         const requestId = xhr.requestId;
         const currentInfo = RequestHandler.processingElements.get(elt);
@@ -15614,8 +15716,13 @@ var FlowPlater = (function () {
           return text;
         }
 
-        // Check if response looks like HTML
-        if (typeof text === "string" && text.trim().startsWith("<!DOCTYPE")) {
+        // Check if response looks like HTML (more permissive check)
+        if (isHtml) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Detected HTML response, passing through",
+          );
+
           // Store HTML response if storage is enabled
           if (_state.config?.storage?.enabled) {
             const instanceName = elt.getAttribute("fp-instance") || elt.id;
@@ -15631,7 +15738,8 @@ var FlowPlater = (function () {
               );
             }
           }
-          // For HTML responses, let HTMX handle the swap directly
+          // Mark request as processed for HTML responses
+          RequestHandler.handleRequest(elt, requestId, "process");
           return text;
         }
 
@@ -15717,6 +15825,13 @@ var FlowPlater = (function () {
       },
 
       handleSwap: function (swapStyle, target, fragment, settleInfo) {
+        // Debug.log(Debug.levels.DEBUG, "handleSwap called with:", {
+        //   swapStyle,
+        //   hasTemplate: target.hasAttribute("fp-template"),
+        //   fragmentType: fragment.nodeType,
+        //   fragmentContent: fragment.textContent || fragment.innerHTML,
+        // });
+
         // Skip if element doesn't have fp-template
         if (!target.hasAttribute("fp-template")) {
           Debug.log(
@@ -15731,20 +15846,29 @@ var FlowPlater = (function () {
           const instance = InstanceManager.getOrCreateInstance(target);
           if (!instance) return false;
 
-          const supportedSwapStyles = ["innerHTML"];
-          if (!supportedSwapStyles.includes(swapStyle)) {
+          // Only handle non-HTML responses
+          const isHtmlResponse =
+            fragment.nodeType === Node.DOCUMENT_FRAGMENT_NODE ||
+            fragment.nodeType === Node.ELEMENT_NODE ||
+            (typeof fragment.textContent === "string" &&
+              (fragment.textContent.trim().startsWith("<!DOCTYPE") ||
+                fragment.textContent.trim().startsWith("<html") ||
+                fragment.textContent.trim().startsWith("<div") ||
+                fragment.textContent.trim().startsWith("<")));
+
+          if (isHtmlResponse) {
             Debug.log(
               Debug.levels.DEBUG,
-              "Unsupported swap style: " +
-                swapStyle +
-                ", falling back to default swap",
+              "HTML response detected, letting htmx handle swap",
             );
             return false;
           }
 
-          // Update the DOM
-          instance._updateDOM();
-
+          // For non-HTML responses with fp-template, we want to handle the swap
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Non-HTML response with fp-template detected, handling swap",
+          );
           return true;
         } catch (error) {
           Debug.log(Debug.levels.ERROR, "Error in handleSwap: " + error.message);
@@ -15784,6 +15908,8 @@ var FlowPlater = (function () {
               );
               return;
             }
+            // Mark request as processed
+            RequestHandler.handleRequest(target, requestId, "process");
             // Execute beforeSwap hook
             executeHtmxHook("beforeSwap", target, evt);
             break;
@@ -15809,8 +15935,12 @@ var FlowPlater = (function () {
                 });
               }
             }
+
             // Handle request cleanup
             RequestHandler.handleRequest(target, requestId, "cleanup");
+
+            // Restore form states if necessary
+            restoreFormIfNecessary(target, true, evt);
             break;
 
           case "htmx:afterSettle":
@@ -15840,6 +15970,29 @@ var FlowPlater = (function () {
         PluginManager.executeHook(hookName, instance, event?.detail);
       }
     }
+  }
+
+  /**
+   * Helper function to restore form states if necessary
+   * @param {HTMLElement} target - The target element
+   * @param {boolean} [checkFailed=true] - Whether to check if the request failed
+   * @param {Object} [event] - The event object containing failure status
+   */
+  function restoreFormIfNecessary(target, checkFailed = true, event) {
+    // Skip if already restoring
+    if (RequestHandler.isRestoringFormStates) {
+      Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
+      return;
+    }
+
+    // Skip if request failed and we're checking for failures
+    if (checkFailed && event?.detail?.failed) {
+      return;
+    }
+
+    RequestHandler.isRestoringFormStates = true;
+    restoreFormStates(target);
+    RequestHandler.isRestoringFormStates = false;
   }
 
   // * For each element with an fp-proxy attribute, use a proxy for the url
@@ -16596,13 +16749,13 @@ var FlowPlater = (function () {
                   });
                 } else {
                   Debug.log(
-                    Debug.levels.INFO,
+                    Debug.levels.DEBUG,
                     `Skipping initial render for instance: ${instanceName}`,
                   );
                 }
               } else {
                 Debug.log(
-                  Debug.levels.INFO,
+                  Debug.levels.DEBUG,
                   `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
                 );
               }

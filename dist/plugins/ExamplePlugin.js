@@ -1,6 +1,10 @@
 var ExamplePlugin = (function () {
   'use strict';
 
+  /**
+   * @module ExamplePlugin
+   * @description Example plugin demonstrating how to create a FlowPlater plugin
+   */
   const ExamplePlugin = () => {
     // Plugin configuration
     const config = {
@@ -29,6 +33,8 @@ var ExamplePlugin = (function () {
         debug: false,
         autoSave: true,
       },
+      description: "Example plugin demonstrating plugin functionality",
+      author: "Your Name",
     };
 
     // Plugin state
@@ -82,28 +88,64 @@ var ExamplePlugin = (function () {
     const hooks = {
       // hooks are functions that are called throughout the flow of the library.
       // they are called with the data object as the argument and should return the data object.
-      beforeRequest: function (instance) {
+      beforeRequest: function (instance, evt) {
         // Called before an htmx request is made.
         // instance: The FlowPlater instance making the request
-        FlowPlater.log(FlowPlater.logLevels.INFO, "beforeRequest", instance);
+        // evt: The HTMX event object
+        FlowPlater.log(FlowPlater.logLevels.INFO, "beforeRequest", instance, evt);
         return instance;
       },
-      afterRequest: function (instance) {
+      afterRequest: function (instance, evt) {
         // Called after an htmx request is made.
         // instance: The FlowPlater instance that made the request
-        FlowPlater.log(FlowPlater.logLevels.INFO, "afterRequest", instance);
+        // evt: The HTMX event object
+        FlowPlater.log(FlowPlater.logLevels.INFO, "afterRequest", instance, evt);
         return instance;
       },
-      beforeSwap: function (instance) {
+      beforeSwap: function (instance, evt) {
         // Called before the response is swapped into the DOM.
         // instance: The FlowPlater instance that will receive the swap
-        FlowPlater.log(FlowPlater.logLevels.INFO, "beforeSwap", instance);
+        // evt: The HTMX event object
+        FlowPlater.log(FlowPlater.logLevels.INFO, "beforeSwap", instance, evt);
         return instance;
       },
-      afterSwap: function (instance) {
+      beforeDomUpdate: function (instance, context) {
+        // Called before a DOM update begins.
+        // instance: The FlowPlater instance being updated
+        // context: Object containing:
+        //   - element: The target element being updated
+        //   - newHTML: The new HTML content
+        //   - animate: Whether animation is enabled
+        //   - formStates: The captured form states (if any)
+        FlowPlater.log(
+          FlowPlater.logLevels.INFO,
+          "beforeDomUpdate",
+          instance,
+          context,
+        );
+        return instance;
+      },
+      afterDomUpdate: function (instance, context) {
+        // Called after a DOM update is complete.
+        // instance: The FlowPlater instance that was updated
+        // context: Object containing:
+        //   - element: The target element that was updated
+        //   - newHTML: The new HTML content
+        //   - animate: Whether animation was enabled
+        //   - formStates: The captured form states (if any)
+        FlowPlater.log(
+          FlowPlater.logLevels.INFO,
+          "afterDomUpdate",
+          instance,
+          context,
+        );
+        return instance;
+      },
+      afterSwap: function (instance, evt) {
         // Called after the response is swapped into the DOM.
         // instance: The FlowPlater instance that received the swap
-        FlowPlater.log(FlowPlater.logLevels.INFO, "afterSwap", instance);
+        // evt: The HTMX event object
+        FlowPlater.log(FlowPlater.logLevels.INFO, "afterSwap", instance, evt);
         return instance;
       },
       newInstance: function (instance) {
@@ -129,6 +171,7 @@ var ExamplePlugin = (function () {
         // data: Object containing:
         //   - data: The updated instance data
         //   - changes: The changes made to the data
+        //   - source: The source of the update (set, merge, updateWhere)
         //   - path?: The path where the change occurred (for set/merge operations)
         //   - criteria?: The criteria used for the update (for updateWhere)
         //   - updates?: The updates applied (for updateWhere)
@@ -153,11 +196,41 @@ var ExamplePlugin = (function () {
         }
         return flowplater;
       },
+      afterSettle: function (instance, evt) {
+        // Called after HTMX settles (all animations complete)
+        // instance: The FlowPlater instance
+        // evt: The HTMX event object
+        FlowPlater.log(FlowPlater.logLevels.INFO, "afterSettle", instance, evt);
+        return instance;
+      },
+      destroy: function (instance) {
+        // Called when an instance is destroyed
+        // instance: The FlowPlater instance
+        FlowPlater.log(FlowPlater.logLevels.INFO, "destroy", instance);
+        return instance;
+      },
     };
 
-    // Plugin methods
-    const methods = {
-      // ... existing methods ...
+    // Custom Handlebars helpers
+    // IMPORTANT: The helper name must be lowercase for Webflow compatibility!
+    // Arguments are passed in the order they are defined in the helper function.
+
+    const helpers = {
+      // Example: Custom helper that checks if a value is in an array
+      // usage: {{inarray value array}}
+      // can also be used inside an if statement: <if fp="inarray value array"> ... </if>
+      inarray(value, array) {
+        if (!Array.isArray(array)) return false;
+        return array.includes(value);
+      },
+      // You can also create block helpers by using the block helper syntax.
+      // Example: setting all text within a block to uppercase:
+      // usage: {{#uppercase}}
+      //        {{content}}
+      //        {{/uppercase}}
+      uppercase(options) {
+        return options.fn(this).toUpperCase();
+      },
     };
 
     return {
@@ -166,7 +239,7 @@ var ExamplePlugin = (function () {
       globalMethods,
       instanceMethods,
       hooks,
-      ...methods,
+      helpers,
     };
   };
 
