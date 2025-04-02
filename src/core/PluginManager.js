@@ -170,6 +170,32 @@ const PluginManager = {
       }
     }
 
+    // Register custom helpers if any
+    if (pluginInstance.helpers && typeof pluginInstance.helpers === "object") {
+      for (const [helperName, helper] of Object.entries(
+        pluginInstance.helpers,
+      )) {
+        if (typeof helper !== "function") {
+          Debug.log(
+            Debug.levels.WARN,
+            `Plugin ${pluginInstance.config.name} contains invalid helper ${helperName}:`,
+            helper,
+          );
+          continue;
+        }
+        try {
+          // Register the helper with Handlebars using the lowercase name for webflow compatibility
+          Handlebars.registerHelper(helperName.toLowerCase(), helper);
+        } catch (error) {
+          Debug.log(
+            Debug.levels.ERROR,
+            `Plugin ${pluginInstance.config.name} failed registering helper ${helperName}:`,
+            error,
+          );
+        }
+      }
+    }
+
     // Initialize the plugin only if it's enabled
     if (
       pluginInstance.config?.enabled &&
