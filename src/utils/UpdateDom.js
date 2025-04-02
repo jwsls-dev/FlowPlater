@@ -23,7 +23,10 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
 
     // Setup form persistence if enabled
     if (_state.config?.persistForm) {
-      setupFormSubmitHandlers(fromEl);
+      setupFormSubmitHandlers(
+        fromEl,
+        "updateDOM - form state restoration - setupFormSubmitHandlers",
+      );
     }
     return;
   }
@@ -307,8 +310,14 @@ async function updateDOM(element, newHTML, animate = false) {
           formStates
         ) {
           Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
-          restoreFormStates(element);
-          setupFormSubmitHandlers(element);
+          restoreFormStates(
+            element,
+            "updateDOM - form state restoration - restoreFormStates",
+          );
+          setupFormSubmitHandlers(
+            element,
+            "updateDOM - form state restoration - setupFormSubmitHandlers",
+          );
         }
 
         // Execute afterDomUpdate plugin hook
@@ -347,8 +356,14 @@ async function updateDOM(element, newHTML, animate = false) {
         Debug.levels.DEBUG,
         `Found ${persistedInputs.length} inputs to restore`,
       );
-      restoreFormStates(element);
-      setupFormSubmitHandlers(element);
+      restoreFormStates(
+        element,
+        "updateDOM - final form state restoration - restoreFormStates",
+      );
+      setupFormSubmitHandlers(
+        element,
+        "updateDOM - final form state restoration - setupFormSubmitHandlers",
+      );
     }
 
     if (formObserver) {

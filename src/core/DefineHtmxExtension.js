@@ -1,12 +1,12 @@
 import { RequestHandler } from "./RequestHandler";
 import { Debug, errorLog, log } from "./Debug";
-import { render } from "./Template";
 import { parseXmlToJson } from "../utils/ParseXmlToJson";
 import { _state } from "./State";
 import {
   setupFormSubmitHandlers,
   cleanupFormChangeListeners,
   getAllRelevantForms,
+  restoreFormStates,
 } from "../utils/FormPersistence";
 import {
   loadFromLocalStorage,
@@ -17,9 +17,27 @@ import { InstanceManager } from "./InstanceManager";
 import { EventSystem } from "./EventSystem";
 import { trackChanges } from "../utils/DataChanges";
 
+// function isHTML(string) {
+//   return Array.from(
+//     new DOMParser().parseFromString(string, "text/html").body.childNodes,
+//   ).some(({ nodeType }) => nodeType == 1);
+// }
+
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
     transformResponse: function (text, xhr, elt) {
+      // Add debug logging for response
+
+      const isHtml = xhr
+        .getResponseHeader("Content-Type")
+        ?.startsWith("text/html");
+
+      Debug.log(Debug.levels.DEBUG, "Response received:", {
+        text: text,
+        contentType: xhr.getResponseHeader("Content-Type"),
+        isHtmlLike: isHtml,
+      });
+
       // Get request ID from either xhr or processing elements
       const requestId = xhr.requestId;
       const currentInfo = RequestHandler.processingElements.get(elt);
@@ -47,8 +65,13 @@ export function defineHtmxExtension() {
         return text;
       }
 
-      // Check if response looks like HTML
-      if (typeof text === "string" && text.trim().startsWith("<!DOCTYPE")) {
+      // Check if response looks like HTML (more permissive check)
+      if (isHtml) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Detected HTML response, passing through",
+        );
+
         // Store HTML response if storage is enabled
         if (_state.config?.storage?.enabled) {
           const instanceName = elt.getAttribute("fp-instance") || elt.id;
@@ -64,7 +87,8 @@ export function defineHtmxExtension() {
             );
           }
         }
-        // For HTML responses, let HTMX handle the swap directly
+        // Mark request as processed for HTML responses
+        RequestHandler.handleRequest(elt, requestId, "process");
         return text;
       }
 
@@ -150,6 +174,13 @@ export function defineHtmxExtension() {
     },
 
     handleSwap: function (swapStyle, target, fragment, settleInfo) {
+      // Debug.log(Debug.levels.DEBUG, "handleSwap called with:", {
+      //   swapStyle,
+      //   hasTemplate: target.hasAttribute("fp-template"),
+      //   fragmentType: fragment.nodeType,
+      //   fragmentContent: fragment.textContent || fragment.innerHTML,
+      // });
+
       // Skip if element doesn't have fp-template
       if (!target.hasAttribute("fp-template")) {
         Debug.log(
@@ -164,20 +195,29 @@ export function defineHtmxExtension() {
         const instance = InstanceManager.getOrCreateInstance(target);
         if (!instance) return false;
 
-        const supportedSwapStyles = ["innerHTML"];
-        if (!supportedSwapStyles.includes(swapStyle)) {
+        // Only handle non-HTML responses
+        const isHtmlResponse =
+          fragment.nodeType === Node.DOCUMENT_FRAGMENT_NODE ||
+          fragment.nodeType === Node.ELEMENT_NODE ||
+          (typeof fragment.textContent === "string" &&
+            (fragment.textContent.trim().startsWith("<!DOCTYPE") ||
+              fragment.textContent.trim().startsWith("<html") ||
+              fragment.textContent.trim().startsWith("<div") ||
+              fragment.textContent.trim().startsWith("<")));
+
+        if (isHtmlResponse) {
           Debug.log(
             Debug.levels.DEBUG,
-            "Unsupported swap style: " +
-              swapStyle +
-              ", falling back to default swap",
+            "HTML response detected, letting htmx handle swap",
           );
           return false;
         }
 
-        // Update the DOM
-        instance._updateDOM();
-
+        // For non-HTML responses with fp-template, we want to handle the swap
+        Debug.log(
+          Debug.levels.DEBUG,
+          "Non-HTML response with fp-template detected, handling swap",
+        );
         return true;
       } catch (error) {
         Debug.log(Debug.levels.ERROR, "Error in handleSwap: " + error.message);
@@ -217,6 +257,8 @@ export function defineHtmxExtension() {
             );
             return;
           }
+          // Mark request as processed
+          RequestHandler.handleRequest(target, requestId, "process");
           // Execute beforeSwap hook
           executeHtmxHook("beforeSwap", target, evt);
           break;
@@ -242,8 +284,12 @@ export function defineHtmxExtension() {
               });
             }
           }
+
           // Handle request cleanup
           RequestHandler.handleRequest(target, requestId, "cleanup");
+
+          // Restore form states if necessary
+          restoreFormIfNecessary(target, true, evt);
           break;
 
         case "htmx:afterSettle":
@@ -273,4 +319,27 @@ function executeHtmxHook(hookName, target, event) {
       PluginManager.executeHook(hookName, instance, event?.detail);
     }
   }
+}
+
+/**
+ * Helper function to restore form states if necessary
+ * @param {HTMLElement} target - The target element
+ * @param {boolean} [checkFailed=true] - Whether to check if the request failed
+ * @param {Object} [event] - The event object containing failure status
+ */
+function restoreFormIfNecessary(target, checkFailed = true, event) {
+  // Skip if already restoring
+  if (RequestHandler.isRestoringFormStates) {
+    Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
+    return;
+  }
+
+  // Skip if request failed and we're checking for failures
+  if (checkFailed && event?.detail?.failed) {
+    return;
+  }
+
+  RequestHandler.isRestoringFormStates = true;
+  restoreFormStates(target);
+  RequestHandler.isRestoringFormStates = false;
 }

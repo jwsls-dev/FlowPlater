@@ -12,6 +12,8 @@ export const RequestHandler = {
   processingElements: new Map(),
   /** @type {number} Counter for generating unique request IDs */
   currentRequestId: 0,
+  /** @type {boolean} Flag to prevent multiple form state restorations */
+  isRestoringFormStates: false,
 
   /**
    * Generates a unique request ID using timestamp and counter
@@ -144,17 +146,13 @@ export const RequestHandler = {
       }
     });
 
-    document.body.addEventListener("htmx:afterRequest", (event) => {
-      const target = event.detail.elt;
-      this.handleRequest(target, event.detail.requestId, "cleanup");
-    });
-
     document.body.addEventListener("htmx:beforeSwap", (event) => {
       const target = event.detail.elt;
       const requestId = event.detail.requestId;
       const info = this.processingElements.get(target);
 
-      if (!info || info.requestId !== requestId) {
+      // Only prevent swap if request IDs don't match
+      if (info && info.requestId !== requestId) {
         event.preventDefault();
         Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
       }
@@ -162,7 +160,10 @@ export const RequestHandler = {
 
     // Cleanup handlers
     document.body.addEventListener("htmx:responseError", (event) => {
-      this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
+      // Only cleanup on actual errors, not on successful responses
+      if (event.detail.failed) {
+        this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
+      }
     });
 
     // Set up stale cleanup interval

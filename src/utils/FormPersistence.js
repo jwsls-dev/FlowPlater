@@ -4,6 +4,7 @@ import { saveToLocalStorage, loadFromLocalStorage } from "./LocalStorage";
 import { Debug, log, errorLog } from "../core/Debug";
 import { getInstance } from "../core/State";
 import PluginManager from "../core/PluginManager";
+import { RequestHandler } from "../core/RequestHandler";
 
 /**
  * Helper function to collect debug information consistently
@@ -378,9 +379,10 @@ export function captureFormStates(element) {
 /**
  * Restores the state of a single form from storage
  * @param {HTMLFormElement} form - The form to restore state for
+ * @param {string} [source] - The source of the call to restoreSingleFormState
  * @returns {boolean} - Whether state was restored
  */
-function restoreSingleFormState(form) {
+function restoreSingleFormState(form, source) {
   if (!form.id) return false;
 
   // Try to get state from storage
@@ -414,18 +416,17 @@ function restoreSingleFormState(form) {
   // Single debug log with all information
   Debug.log(
     Debug.levels.DEBUG,
-    `Form state restoration summary for ${form.id}:
-    Storage type: ${debugInfo.storageType}
-    Restored elements:
-    ${debugInfo.restoredElements
-      .map((el) => `- ${el.name}: ${el.value}`)
-      .join("\n    ")}
-    
-    Updated custom visual states for:
-    ${debugInfo.customVisualUpdates.join(", ")}
-    
-    Skipped elements (persistence disabled):
-    ${debugInfo.skippedElements.join(", ")}`,
+    `Form state restoration summary for ${form.id}`,
+    {
+      storageType: debugInfo.storageType,
+      source: source || "unknown",
+      restoredElements: debugInfo.restoredElements.map((el) => ({
+        name: el.name,
+        value: el.value,
+      })),
+      updatedCustomVisualStates: debugInfo.customVisualUpdates,
+      skippedElements: debugInfo.skippedElements,
+    },
   );
 
   // Emit event after restoration
@@ -433,6 +434,7 @@ function restoreSingleFormState(form) {
     formId: form.id,
     formElement: form,
     state: formState,
+    source: source || "unknown",
   });
 
   return true;
@@ -441,16 +443,26 @@ function restoreSingleFormState(form) {
 /**
  * Restores form states within an element
  * @param {HTMLElement} element - The container element
+ * @param {string} [source] - The source of the call to restoreFormStates
  */
-export function restoreFormStates(element) {
+export function restoreFormStates(element, source) {
   try {
+    // Skip if already restoring
+    if (RequestHandler.isRestoringFormStates) {
+      Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
+      return;
+    }
+
+    RequestHandler.isRestoringFormStates = true;
     const forms = element.getElementsByTagName("form");
-    Array.from(forms).forEach(restoreSingleFormState);
+    Array.from(forms).forEach((form) => restoreSingleFormState(form, source));
   } catch (error) {
     Debug.log(
       Debug.levels.ERROR,
       `Error restoring form states: ${error.message}`,
     );
+  } finally {
+    RequestHandler.isRestoringFormStates = false;
   }
 }
 
@@ -516,17 +528,13 @@ function setupFormChangeListeners(form) {
     });
 
     // Output collected debug information
-    Debug.log(
-      Debug.levels.DEBUG,
-      `Form setup summary for ${form.id}:
-      - Total form elements: ${debugInfo.formElements}
-      - Checkbox wrappers: ${debugInfo.checkboxWrappers}
-      - Form persistence: ${
-        debugInfo.persistenceEnabled ? "enabled" : "disabled"
-      }
-      - Listeners added to: ${debugInfo.listenersAdded.join(", ")}
-      - Skipped elements: ${debugInfo.skippedElements.join(", ")}`,
-    );
+    Debug.log(Debug.levels.DEBUG, `Form setup summary for ${form.id}`, {
+      totalFormElements: debugInfo.formElements,
+      checkboxWrappers: debugInfo.checkboxWrappers,
+      formPersistence: debugInfo.persistenceEnabled ? "enabled" : "disabled",
+      listenersAdded: debugInfo.listenersAdded.join(", "),
+      skippedElements: debugInfo.skippedElements.join(", "),
+    });
   } catch (error) {
     Debug.log(
       Debug.levels.ERROR,
@@ -626,20 +634,14 @@ function handleFormElementChange(event) {
       handleFormStorage(form, formState, "save");
 
       // Output collected debug information
-      Debug.log(
-        Debug.levels.DEBUG,
-        `Form state update for ${form.id}:
-        - Changed element: ${element.name}
-        - Storage type: ${
-          shouldUseLocalStorage(form) ? "localStorage" : "sessionStorage"
-        }
-        - Updated values: ${JSON.stringify(debugInfo.changedValues, null, 2)}
-        - Skipped elements: ${JSON.stringify(
-          debugInfo.skippedElements,
-          null,
-          2,
-        )}`,
-      );
+      Debug.log(Debug.levels.DEBUG, "Form state update for " + form.id + ":", {
+        "Changed element": element.name,
+        "Storage type": shouldUseLocalStorage(form)
+          ? "localStorage"
+          : "sessionStorage",
+        "Updated values": debugInfo.changedValues,
+        "Skipped elements": debugInfo.skippedElements,
+      });
 
       // Find instance that contains this form or whose elements are contained by this form
       let instance = null;
@@ -707,8 +709,9 @@ export function getAllRelevantForms(element) {
 /**
  * Sets up form submission handlers to clear state on submit
  * @param {HTMLElement} element - The container element
+ * @param {string} [source] - The source of the call to setupFormSubmitHandlers
  */
-export function setupFormSubmitHandlers(element) {
+export function setupFormSubmitHandlers(element, source) {
   try {
     Debug.log(
       Debug.levels.DEBUG,
@@ -721,7 +724,7 @@ export function setupFormSubmitHandlers(element) {
 
     Debug.log(Debug.levels.DEBUG, `Found ${forms.size} forms`);
     forms.forEach((form) => {
-      setupSingleFormHandlers(form);
+      setupSingleFormHandlers(form, source || "setupFormSubmitHandlers");
     });
   } catch (error) {
     Debug.log(
@@ -731,7 +734,7 @@ export function setupFormSubmitHandlers(element) {
   }
 }
 
-function setupSingleFormHandlers(form) {
+function setupSingleFormHandlers(form, source) {
   if (!form.id) {
     Debug.log(Debug.levels.DEBUG, "Skipping form without ID");
     return;
@@ -754,7 +757,7 @@ function setupSingleFormHandlers(form) {
   // Check if form restoration is needed
   if (shouldRestoreForm(form)) {
     Debug.log(Debug.levels.DEBUG, `Restoring state for form: ${form.id}`);
-    restoreSingleFormState(form);
+    restoreSingleFormState(form, source || "setupSingleFormHandlers");
   } else {
     Debug.log(
       Debug.levels.DEBUG,
