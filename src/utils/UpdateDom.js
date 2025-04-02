@@ -3,7 +3,6 @@ import { Performance } from "./Performance";
 import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
 import PluginManager from "../core/PluginManager";
-import { InstanceManager } from "../core/InstanceManager";
 import {
   captureFormStates,
   restoreFormStates,
@@ -218,7 +217,7 @@ function cloneWithNamespace(node) {
 /**
  * Main update function with performance tracking and error handling
  */
-async function updateDOM(element, newHTML, animate = false) {
+async function updateDOM(element, newHTML, animate = false, instance = null) {
   Performance.start("updateDOM");
 
   // Add a flag to prevent multiple restorations
@@ -277,8 +276,7 @@ async function updateDOM(element, newHTML, animate = false) {
           formStates,
         });
 
-        // Execute beforeDomUpdate plugin hook
-        const instance = InstanceManager.getOrCreateInstance(element);
+        // Execute beforeDomUpdate plugin hook if instance is provided
         if (instance) {
           PluginManager.executeHook("beforeDomUpdate", instance, {
             element,
@@ -320,7 +318,7 @@ async function updateDOM(element, newHTML, animate = false) {
           );
         }
 
-        // Execute afterDomUpdate plugin hook
+        // Execute afterDomUpdate plugin hook if instance is provided
         if (instance) {
           PluginManager.executeHook("afterDomUpdate", instance, {
             element,

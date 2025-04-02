@@ -143,7 +143,7 @@ export const InstanceManager = {
       }
 
       instance.elements.forEach((element) => {
-        updateDOM(element, rendered, instance.animate);
+        updateDOM(element, rendered, instance.animate, instance);
       });
     } catch (error) {
       Debug.log(

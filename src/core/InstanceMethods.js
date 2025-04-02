@@ -103,7 +103,12 @@ export function instanceMethods(instanceName) {
         }
 
         this.elements.forEach((element) => {
-          updateDOM(element, rendered, this.animate);
+          updateDOM(
+            element,
+            rendered,
+            this.animate,
+            _state.instances[this.instanceName],
+          );
         });
       } catch (error) {
         Debug.log(
@@ -271,7 +276,7 @@ export function instanceMethods(instanceName) {
                     source: "refresh",
                   });
 
-                  updateDOM(element, rendered, instance.animate);
+                  updateDOM(element, rendered, instance.animate, instance);
                   return data;
                 });
               promises.push(promise);
@@ -281,6 +286,7 @@ export function instanceMethods(instanceName) {
               element,
               instance.template(instance.proxy),
               instance.animate,
+              instance,
             );
           }
         } catch (error) {

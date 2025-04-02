@@ -2,7 +2,6 @@ import { Debug, log, errorLog, TemplateError } from "./Debug";
 import { EventSystem } from "./EventSystem";
 import { _state } from "./State";
 import { Performance } from "../utils/Performance";
-import { instanceMethods } from "./InstanceMethods";
 import { InstanceManager } from "./InstanceManager";
 
 import { updateDOM } from "../utils/UpdateDom";
@@ -165,17 +164,11 @@ export function render({
 
   try {
     if (returnHtml) {
-      var html = instance.template(instance.proxy);
-      return html;
+      return compiledTemplate(target);
     }
 
-    elements.forEach(function (element) {
-      try {
-        updateDOM(element, instance.template(instance.proxy), instance.animate);
-      } catch (error) {
-        element.innerHTML = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
-        errorLog(`Failed to render template: ${error.message}`);
-      }
+    elements.forEach((element) => {
+      updateDOM(element, compiledTemplate(target), animate, instance);
     });
 
     return instance;
