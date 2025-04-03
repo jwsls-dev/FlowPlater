@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.24 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.25 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -12103,6 +12103,8 @@ var FlowPlater = (function () {
     // if templateId is empty or "self", use the current element
     Performance.start("compile:" + templateId);
 
+    const helpers = Handlebars.helpers;
+
     // Add # prefix if templateId doesn't start with it
     const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
     var templateElement = document.querySelector(selector);
@@ -12147,14 +12149,17 @@ var FlowPlater = (function () {
           if (child.nodeType === Node.TEXT_NODE) {
             result += child.textContent;
           } else if (child.nodeType === Node.ELEMENT_NODE) {
-            if (child.hasAttribute("fp")) {
+            let childTagName = child.tagName.toLowerCase();
+            if (child.hasAttribute("fp") || childTagName in helpers) {
               // Process as a Handlebars helper
-              const helperName = child.tagName.toLowerCase();
-              const args = child
-                .getAttribute("fp")
-                .split(" ")
-                .map((arg) => arg.replace(/&quot;/g, '"'))
-                .join(" ");
+              const helperName = childTagName;
+              const args = child.getAttribute("fp")
+                ? child
+                    .getAttribute("fp")
+                    .split(" ")
+                    .map((arg) => arg.replace(/&quot;/g, '"'))
+                    .join(" ")
+                : "";
 
               const innerContent = processNode(child);
 
@@ -12326,186 +12331,306 @@ var FlowPlater = (function () {
   }
 
   /**
-   * @module RequestHandler
-   * @description Manages HTMX request processing and lifecycle events for form processing elements
+   * @module FormStateManager
+   * @description Manages form state restoration and persistence
    */
-  const RequestHandler = {
-    /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
-    processingElements: new Map(),
-    /** @type {number} Counter for generating unique request IDs */
-    currentRequestId: 0,
+  const FormStateManager = {
     /** @type {boolean} Flag to prevent multiple form state restorations */
     isRestoringFormStates: false,
 
     /**
-     * Generates a unique request ID using timestamp and counter
-     * @returns {string} Unique request identifier
+     * Restores form states within an element
+     * @param {HTMLElement} element - The container element
+     * @param {string} [source] - The source of the call to restoreFormStates
      */
-    generateRequestId() {
-      return `fp-${Date.now()}-${this.currentRequestId++}`;
-    },
-
-    /**
-     * Handles different stages of request processing for a target element
-     * @param {HTMLElement} target - The DOM element being processed
-     * @param {string} requestId - Unique identifier for the request
-     * @param {'start'|'process'|'cleanup'} action - The action to perform
-     * @returns {boolean|void} Returns true if processing succeeded for 'process' action
-     */
-    handleRequest(target, requestId, action) {
-      if (!target || !target.hasAttribute("fp-template")) return;
-
-      const currentInfo = this.processingElements.get(target);
-      requestId = requestId || this.generateRequestId();
-
-      switch (action) {
-        case "start":
-          if (!currentInfo || currentInfo.requestId !== requestId) {
-            this.processingElements.set(target, {
-              requestId: requestId,
-              timestamp: Date.now(),
-              processed: false,
-            });
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Added element to processing set",
-              target,
-              requestId,
-            );
-          }
-          break;
-
-        case "process":
-          if (
-            currentInfo &&
-            currentInfo.requestId === requestId &&
-            !currentInfo.processed
-          ) {
-            currentInfo.processed = true;
-            this.processingElements.set(target, currentInfo);
-            return true;
-          }
-          return false;
-
-        case "cleanup":
-          if (
-            currentInfo &&
-            currentInfo.requestId === requestId &&
-            currentInfo.processed
-          ) {
-            this.processingElements.delete(target);
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Cleaned up after request",
-              target,
-              requestId,
-            );
-          } else {
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Skipping cleanup - request mismatch or not processed",
-              { current: currentInfo?.requestId, received: requestId },
-            );
-          }
-          break;
-      }
-    },
-
-    /**
-     * Removes stale processing entries that are older than the timeout threshold
-     */
-    cleanupStale() {
-      const now = Date.now();
-      const staleTimeout = 10000; // 10 seconds
-
-      for (const [target, info] of this.processingElements.entries()) {
-        if (now - info.timestamp > staleTimeout) {
-          this.processingElements.delete(target);
+    restoreFormStates(element, source) {
+      try {
+        // Skip if already restoring
+        if (this.isRestoringFormStates) {
           Debug.log(
             Debug.levels.DEBUG,
-            "Cleaned up stale processing entry",
-            target,
-            info.requestId,
+            "Already restoring form states, skipping",
           );
+          return;
         }
+
+        this.isRestoringFormStates = true;
+        const forms = element.getElementsByTagName("form");
+        Array.from(forms).forEach((form) =>
+          this.restoreSingleFormState(form, source),
+        );
+      } catch (error) {
+        Debug.log(
+          Debug.levels.ERROR,
+          `Error restoring form states: ${error.message}`,
+        );
+      } finally {
+        this.isRestoringFormStates = false;
       }
     },
 
     /**
-     * Sets up all necessary event listeners for HTMX integration and request handling
+     * Restores the state of a single form from storage
+     * @param {HTMLFormElement} form - The form to restore state for
+     * @param {string} [source] - The source of the call to restoreSingleFormState
+     * @returns {boolean} - Whether state was restored
      */
-    setupEventListeners() {
-      document.body.addEventListener("htmx:configRequest", (event) => {
-        // Apply plugin transformations to the request
-        const target = event.detail.elt;
-        const instance = InstanceManager.getOrCreateInstance(target);
-        if (instance) {
-          event = PluginManager.applyTransformations(
-            instance,
-            event,
-            "transformRequest",
-            "json",
-          );
-        }
+    restoreSingleFormState(form, source) {
+      if (!form.id) return false;
 
-        event.detail.headers["Content-Type"] =
-          "application/x-www-form-urlencoded; charset=UTF-8";
+      // Try to get state from storage
+      const formState = this.handleFormStorage(form, null, "load");
+      if (!formState) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          `No stored state found for form: ${form.id}`,
+        );
+        return false;
+      }
+
+      const debugInfo = this.collectDebugInfo(form, "restore", {
+        restoredElements: [],
+        customVisualUpdates: [],
+        skippedElements: [],
+        storageType: this.shouldUseLocalStorage(form)
+          ? "localStorage"
+          : "sessionStorage",
       });
 
-      // Add consolidated event listeners
-      document.body.addEventListener("htmx:beforeRequest", (event) => {
-        const target = event.detail.elt;
-        const requestId = event.detail.requestId || this.generateRequestId();
-        event.detail.requestId = requestId; // Ensure requestId is set
-        this.handleRequest(target, requestId, "start");
+      // Restore state directly for this form
+      this.processFormElements(form, (input) => {
+        if (!(input.name in formState)) return;
 
-        // Find instance that contains this element
-        let instance = null;
-        let instanceName = null;
-        for (const [name, inst] of Object.entries(_state.instances)) {
-          if (Array.from(inst.elements).some((el) => el.contains(target))) {
-            instance = inst;
-            instanceName = name;
-            break;
+        debugInfo.restoredElements.push({
+          name: input.name,
+          value: formState[input.name],
+        });
+
+        this.restoreElementValue(input, formState[input.name]);
+      });
+
+      // Single debug log with all information
+      Debug.log(
+        Debug.levels.DEBUG,
+        `Form state restoration summary for ${form.id}`,
+        {
+          storageType: debugInfo.storageType,
+          source: source || "unknown",
+          restoredElements: debugInfo.restoredElements.map((el) => ({
+            name: el.name,
+            value: el.value,
+          })),
+          updatedCustomVisualStates: debugInfo.customVisualUpdates,
+          skippedElements: debugInfo.skippedElements,
+        },
+      );
+
+      // Emit event after restoration
+      EventSystem.publish("formState:afterRestore", {
+        formId: form.id,
+        formElement: form,
+        state: formState,
+        source: source || "unknown",
+      });
+
+      return true;
+    },
+
+    /**
+     * Clears stored form state
+     * @param {string} formId - ID of the form to clear
+     */
+    clearFormState(formId) {
+      try {
+        const form = document.getElementById(formId);
+        if (!form) return;
+
+        this.handleFormStorage(form, null, "clear");
+
+        EventSystem.publish("formState:clear", {
+          formId,
+          formElement: form,
+        });
+      } catch (error) {
+        Debug.log(
+          Debug.levels.ERROR,
+          `Error clearing form state: ${error.message}`,
+        );
+      }
+    },
+
+    /**
+     * Helper function to collect debug information consistently
+     */
+    collectDebugInfo(form, type, details = {}) {
+      return {
+        formId: form.id,
+        type,
+        persistenceEnabled: this.isPersistenceEnabledForElement(form),
+        ...details,
+      };
+    },
+
+    /**
+     * Helper function to handle storage operations
+     */
+    handleFormStorage(form, state, operation = "save") {
+      const useLocal = this.shouldUseLocalStorage(form);
+      const key = `fp_form_${form.id}`;
+
+      if (operation === "save") {
+        if (useLocal) {
+          saveToLocalStorage(form.id, state, "form");
+        } else {
+          sessionStorage.setItem(key, JSON.stringify(state));
+        }
+      } else if (operation === "load") {
+        return useLocal
+          ? loadFromLocalStorage(form.id, "form")
+          : JSON.parse(sessionStorage.getItem(key));
+      } else if (operation === "clear") {
+        if (useLocal) localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      }
+    },
+
+    /**
+     * Helper function to process form elements consistently
+     */
+    processFormElements(form, callback) {
+      Array.from(form.elements).forEach((element) => {
+        if (!element.name || element.type === "file") return;
+        if (!this.isPersistenceEnabledForElement(element)) return;
+
+        callback(element);
+      });
+    },
+
+    /**
+     * Helper function to restore element values
+     */
+    restoreElementValue(element, value) {
+      if (element.type === "checkbox" || element.type === "radio") {
+        element.checked = value;
+        this.updateCustomVisualState(element);
+      } else if (element instanceof HTMLSelectElement && element.multiple) {
+        Array.from(element.options).forEach((option) => {
+          option.selected = value.includes(option.value);
+        });
+      } else {
+        element.value = value;
+      }
+    },
+
+    /**
+     * Helper function to update custom visual state
+     */
+    updateCustomVisualState(element) {
+      const wrapper = element.closest(
+        element.type === "checkbox" ? ".w-checkbox" : ".w-radio",
+      );
+      if (!wrapper) return;
+
+      const customInput = wrapper.querySelector(`.w-${element.type}-input`);
+      if (customInput) {
+        customInput.checked = element.checked;
+      }
+    },
+
+    /**
+     * Checks if persistence is enabled for an element
+     * @param {HTMLElement} element - The element to check
+     * @returns {boolean} - Whether persistence is enabled
+     */
+    isPersistenceEnabledForElement(element) {
+      // Check if element has explicit persistence setting
+      if (element.hasAttribute("fp-persist")) {
+        return element.getAttribute("fp-persist") !== "false";
+      }
+
+      // Check if element is inside a form with persistence setting
+      const form = element.closest("form");
+      if (form && form.hasAttribute("fp-persist")) {
+        return form.getAttribute("fp-persist") !== "false";
+      }
+
+      // Check if element is inside a container with persistence setting
+      const container = element.closest("[fp-persist]");
+      if (container) {
+        return container.getAttribute("fp-persist") !== "false";
+      }
+
+      // Default to global setting
+      return _state.config?.persistForm !== false;
+    },
+
+    /**
+     * Determines if localStorage should be used for a form
+     * @param {HTMLElement} element - The form element
+     * @returns {boolean} - Whether to use localStorage
+     */
+    shouldUseLocalStorage(element) {
+      return (
+        element.hasAttribute("fp-persist-local") ||
+        _state.config?.storage?.enabled === true
+      );
+    },
+
+    /**
+     * Checks if form restoration should be performed for a form or its elements
+     * @param {HTMLElement} element - The form or container element to check
+     * @returns {boolean} - Whether form restoration should be performed
+     */
+    shouldRestoreForm(element) {
+      // First check if there are any explicitly persistent elements
+      // These override any parent fp-persist="false" settings
+      const explicitlyPersistentInputs = element.querySelectorAll(
+        '[fp-persist="true"]',
+      );
+      if (explicitlyPersistentInputs.length > 0) {
+        return true;
+      }
+
+      // Check if element itself is a form with explicit persistence setting
+      if (element.tagName === "FORM" && element.hasAttribute("fp-persist")) {
+        return element.getAttribute("fp-persist") !== "false";
+      }
+
+      // Check parent form if exists
+      const parentForm = element.closest("form");
+      if (parentForm) {
+        // If parent form explicitly disables persistence, skip it
+        if (parentForm.getAttribute("fp-persist") === "false") {
+          return false;
+        }
+
+        // Check all form elements in parent form
+        const formElements = parentForm.elements;
+        for (const input of formElements) {
+          // Skip elements without name or file inputs
+          if (!input.name || input.type === "file") continue;
+
+          // Check if input is inside an element with fp-persist="false"
+          const persistFalseParent = input.closest('[fp-persist="false"]');
+          if (persistFalseParent) {
+            continue;
           }
+
+          // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
+          // it should be persisted by default when persistForm is true
+          return true;
         }
+      }
 
-        if (instance) {
-          // Execute beforeRequest hook
-          EventSystem.publish("request-start", {
-            instanceName,
-            ...event.detail,
-          });
+      // For forms or elements containing forms, check each form
+      const forms = element.getElementsByTagName("form");
+      for (const form of forms) {
+        if (this.shouldRestoreForm(form)) {
+          return true;
         }
-      });
+      }
 
-      document.body.addEventListener("htmx:beforeSwap", (event) => {
-        const target = event.detail.elt;
-        const requestId = event.detail.requestId;
-        const info = this.processingElements.get(target);
-
-        // Only prevent swap if request IDs don't match
-        if (info && info.requestId !== requestId) {
-          event.preventDefault();
-          Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
-        }
-      });
-
-      // Cleanup handlers
-      document.body.addEventListener("htmx:responseError", (event) => {
-        // Only cleanup on actual errors, not on successful responses
-        if (event.detail.failed) {
-          this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
-        }
-      });
-
-      // Set up stale cleanup interval
-      setInterval(() => this.cleanupStale(), 10000);
-
-      // Clear all on unload
-      window.addEventListener("unload", () => {
-        this.processingElements.clear();
-      });
+      return false;
     },
   };
 
@@ -12944,52 +13069,11 @@ var FlowPlater = (function () {
   }
 
   /**
-   * Restores form states within an element
-   * @param {HTMLElement} element - The container element
-   * @param {string} [source] - The source of the call to restoreFormStates
-   */
-  function restoreFormStates(element, source) {
-    try {
-      // Skip if already restoring
-      if (RequestHandler.isRestoringFormStates) {
-        Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
-        return;
-      }
-
-      RequestHandler.isRestoringFormStates = true;
-      const forms = element.getElementsByTagName("form");
-      Array.from(forms).forEach((form) => restoreSingleFormState(form, source));
-    } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error restoring form states: ${error.message}`,
-      );
-    } finally {
-      RequestHandler.isRestoringFormStates = false;
-    }
-  }
-
-  /**
    * Clears stored form state
    * @param {string} formId - ID of the form to clear
    */
   function clearFormState(formId) {
-    try {
-      const form = document.getElementById(formId);
-      if (!form) return;
-
-      handleFormStorage(form, null, "clear");
-
-      EventSystem.publish("formState:clear", {
-        formId,
-        formElement: form,
-      });
-    } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error clearing form state: ${error.message}`,
-      );
-    }
+    FormStateManager.clearFormState(formId);
   }
 
   /**
@@ -13316,73 +13400,7 @@ var FlowPlater = (function () {
    * @returns {boolean} - Whether form restoration should be performed
    */
   function shouldRestoreForm(element) {
-    // First check if there are any explicitly persistent elements
-    // These override any parent fp-persist="false" settings
-    const explicitlyPersistentInputs = element.querySelectorAll(
-      '[fp-persist="true"]',
-    );
-    if (explicitlyPersistentInputs.length > 0) {
-      return true;
-    }
-
-    // Check if element itself is a form with explicit persistence setting
-    if (element.tagName === "FORM" && element.hasAttribute("fp-persist")) {
-      return element.getAttribute("fp-persist") !== "false";
-    }
-
-    // Check parent form if exists
-    const parentForm = element.closest("form");
-    if (parentForm) {
-      // If parent form explicitly disables persistence, skip it
-      if (parentForm.getAttribute("fp-persist") === "false") {
-        return false;
-      }
-
-      // Check all form elements in parent form
-      const formElements = parentForm.elements;
-      for (const input of formElements) {
-        // Skip elements without name or file inputs
-        if (!input.name || input.type === "file") continue;
-
-        // Check if input is inside an element with fp-persist="false"
-        const persistFalseParent = input.closest('[fp-persist="false"]');
-        if (persistFalseParent) {
-          continue;
-        }
-
-        // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
-        // it should be persisted by default when persistForm is true
-        return true;
-      }
-    }
-
-    // For forms or elements containing forms, check each form
-    const forms = element.getElementsByTagName("form");
-    for (const form of forms) {
-      // If form explicitly disables persistence, skip it
-      if (form.getAttribute("fp-persist") === "false") {
-        continue;
-      }
-
-      // Check all form elements
-      const formElements = form.elements;
-      for (const input of formElements) {
-        // Skip elements without name or file inputs
-        if (!input.name || input.type === "file") continue;
-
-        // Check if input is inside an element with fp-persist="false"
-        const persistFalseParent = input.closest('[fp-persist="false"]');
-        if (persistFalseParent) {
-          continue;
-        }
-
-        // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
-        // it should be persisted by default when persistForm is true
-        return true;
-      }
-    }
-
-    return false;
+    return FormStateManager.shouldRestoreForm(element);
   }
 
   /**
@@ -13618,12 +13636,15 @@ var FlowPlater = (function () {
         Debug.levels.DEBUG,
         `Form persistence enabled: ${
         _state.config?.persistForm
-      }, Should restore form: ${shouldRestoreForm(element)}`,
+      }, Should restore form: ${FormStateManager.shouldRestoreForm(element)}`,
       );
 
       // Capture form states if form restoration is needed
       let formStates = null;
-      if (_state.config?.persistForm && shouldRestoreForm(element)) {
+      if (
+        _state.config?.persistForm &&
+        FormStateManager.shouldRestoreForm(element)
+      ) {
         Debug.log(Debug.levels.DEBUG, "Capturing form states before update");
         formStates = captureFormStates(element);
         Debug.log(Debug.levels.DEBUG, "Captured form states:", formStates);
@@ -13631,7 +13652,10 @@ var FlowPlater = (function () {
 
       // Single observer setup
       let formObserver = null;
-      if (_state.config?.persistForm && shouldRestoreForm(element)) {
+      if (
+        _state.config?.persistForm &&
+        FormStateManager.shouldRestoreForm(element)
+      ) {
         Debug.log(Debug.levels.DEBUG, "Setting up dynamic form observer");
         formObserver = setupDynamicFormObserver(element);
       }
@@ -13674,11 +13698,11 @@ var FlowPlater = (function () {
           // Single form restoration
           if (
             _state.config?.persistForm &&
-            shouldRestoreForm(element) &&
+            FormStateManager.shouldRestoreForm(element) &&
             formStates
           ) {
             Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
-            restoreFormStates(
+            FormStateManager.restoreFormStates(
               element,
               "updateDOM - form state restoration - restoreFormStates",
             );
@@ -13717,14 +13741,14 @@ var FlowPlater = (function () {
       }
 
       // Final form state restoration if needed
-      if (_state.config?.persistForm && shouldRestoreForm(element)) {
+      if (
+        _state.config?.persistForm &&
+        FormStateManager.shouldRestoreForm(element)
+      ) {
         Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
-        const persistedInputs = element.querySelectorAll('[fp-persist="true"]');
-        Debug.log(
-          Debug.levels.DEBUG,
-          `Found ${persistedInputs.length} inputs to restore`,
-        );
-        restoreFormStates(
+        const n = element.querySelectorAll('[fp-persist="true"]');
+        Debug.log(Debug.levels.DEBUG, `Found ${n.length} inputs to restore`);
+        FormStateManager.restoreFormStates(
           element,
           "updateDOM - final form state restoration - restoreFormStates",
         );
@@ -15462,6 +15486,188 @@ var FlowPlater = (function () {
     bunnyHelper();
   }
 
+  /**
+   * @module RequestHandler
+   * @description Manages HTMX request processing and lifecycle events for form processing elements
+   */
+  const RequestHandler = {
+    /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
+    processingElements: new Map(),
+    /** @type {number} Counter for generating unique request IDs */
+    currentRequestId: 0,
+
+    /**
+     * Generates a unique request ID using timestamp and counter
+     * @returns {string} Unique request identifier
+     */
+    generateRequestId() {
+      return `fp-${Date.now()}-${this.currentRequestId++}`;
+    },
+
+    /**
+     * Handles different stages of request processing for a target element
+     * @param {HTMLElement} target - The DOM element being processed
+     * @param {string} requestId - Unique identifier for the request
+     * @param {'start'|'process'|'cleanup'} action - The action to perform
+     * @returns {boolean|void} Returns true if processing succeeded for 'process' action
+     */
+    handleRequest(target, requestId, action) {
+      if (!target || !target.hasAttribute("fp-template")) return;
+
+      const currentInfo = this.processingElements.get(target);
+      requestId = requestId || this.generateRequestId();
+
+      switch (action) {
+        case "start":
+          if (!currentInfo || currentInfo.requestId !== requestId) {
+            this.processingElements.set(target, {
+              requestId: requestId,
+              timestamp: Date.now(),
+              processed: false,
+            });
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Added element to processing set",
+              target,
+              requestId,
+            );
+          }
+          break;
+
+        case "process":
+          if (
+            currentInfo &&
+            currentInfo.requestId === requestId &&
+            !currentInfo.processed
+          ) {
+            currentInfo.processed = true;
+            this.processingElements.set(target, currentInfo);
+            return true;
+          }
+          return false;
+
+        case "cleanup":
+          if (
+            currentInfo &&
+            currentInfo.requestId === requestId &&
+            currentInfo.processed
+          ) {
+            this.processingElements.delete(target);
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Cleaned up after request",
+              target,
+              requestId,
+            );
+          } else {
+            Debug.log(
+              Debug.levels.DEBUG,
+              "Skipping cleanup - request mismatch or not processed",
+              { current: currentInfo?.requestId, received: requestId },
+            );
+          }
+          break;
+      }
+    },
+
+    /**
+     * Removes stale processing entries that are older than the timeout threshold
+     */
+    cleanupStale() {
+      const now = Date.now();
+      const staleTimeout = 10000; // 10 seconds
+
+      for (const [target, info] of this.processingElements.entries()) {
+        if (now - info.timestamp > staleTimeout) {
+          this.processingElements.delete(target);
+          Debug.log(
+            Debug.levels.DEBUG,
+            "Cleaned up stale processing entry",
+            target,
+            info.requestId,
+          );
+        }
+      }
+    },
+
+    /**
+     * Sets up all necessary event listeners for HTMX integration and request handling
+     */
+    setupEventListeners() {
+      document.body.addEventListener("htmx:configRequest", (event) => {
+        // Apply plugin transformations to the request
+        const target = event.detail.elt;
+        const instance = InstanceManager.getOrCreateInstance(target);
+        if (instance) {
+          event = PluginManager.applyTransformations(
+            instance,
+            event,
+            "transformRequest",
+            "json",
+          );
+        }
+
+        event.detail.headers["Content-Type"] =
+          "application/x-www-form-urlencoded; charset=UTF-8";
+      });
+
+      // Add consolidated event listeners
+      document.body.addEventListener("htmx:beforeRequest", (event) => {
+        const target = event.detail.elt;
+        const requestId = event.detail.requestId || this.generateRequestId();
+        event.detail.requestId = requestId; // Ensure requestId is set
+        this.handleRequest(target, requestId, "start");
+
+        // Find instance that contains this element
+        let instance = null;
+        let instanceName = null;
+        for (const [name, inst] of Object.entries(_state.instances)) {
+          if (Array.from(inst.elements).some((el) => el.contains(target))) {
+            instance = inst;
+            instanceName = name;
+            break;
+          }
+        }
+
+        if (instance) {
+          // Execute beforeRequest hook
+          EventSystem.publish("request-start", {
+            instanceName,
+            ...event.detail,
+          });
+        }
+      });
+
+      document.body.addEventListener("htmx:beforeSwap", (event) => {
+        const target = event.detail.elt;
+        const requestId = event.detail.requestId;
+        const info = this.processingElements.get(target);
+
+        // Only prevent swap if request IDs don't match
+        if (info && info.requestId !== requestId) {
+          event.preventDefault();
+          Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
+        }
+      });
+
+      // Cleanup handlers
+      document.body.addEventListener("htmx:responseError", (event) => {
+        // Only cleanup on actual errors, not on successful responses
+        if (event.detail.failed) {
+          this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
+        }
+      });
+
+      // Set up stale cleanup interval
+      setInterval(() => this.cleanupStale(), 10000);
+
+      // Clear all on unload
+      window.addEventListener("unload", () => {
+        this.processingElements.clear();
+      });
+    },
+  };
+
   function parseXmlToJson(xmlString) {
     function xmlToJson(node) {
       var obj = {};
@@ -15727,7 +15933,7 @@ var FlowPlater = (function () {
    * @param {Object} [event] - The event object containing failure status
    */
   function restoreFormIfNecessary(target, checkFailed = true, event) {
-    if (RequestHandler.isRestoringFormStates) {
+    if (FormStateManager.isRestoringFormStates) {
       Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
       return;
     }
@@ -15736,9 +15942,7 @@ var FlowPlater = (function () {
       return;
     }
 
-    RequestHandler.isRestoringFormStates = true;
-    restoreFormStates(target);
-    RequestHandler.isRestoringFormStates = false;
+    FormStateManager.restoreFormStates(target);
   }
 
   // * For each element with an fp-proxy attribute, use a proxy for the url
@@ -16028,7 +16232,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.24";
+  const VERSION = "1.4.25";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
@@ -16663,6 +16867,36 @@ var FlowPlater = (function () {
      */
     getConfig: function () {
       return JSON.parse(JSON.stringify(_state.config));
+    },
+
+    /**
+     * Register a Handlebars helper
+     * @param {string} name - The name of the helper
+     * @param {Function} helperFn - The helper function
+     * @returns {FlowPlaterObj} The FlowPlater instance
+     * @description Registers a new Handlebars helper and clears the template cache
+     * to ensure all templates are recompiled with the new helper.
+     */
+    registerHelper: function (name, helperFn) {
+      // Register the helper with Handlebars
+      Handlebars.registerHelper(name, helperFn);
+
+      // Clear the template cache to ensure all templates are recompiled
+      this.templateCache.clear();
+
+      // Clear compiled templates stored in instances
+      Object.keys(_state.instances).forEach((instanceName) => {
+        const instance = _state.instances[instanceName];
+        if (instance.templateId) {
+          // Recompile the template for this instance
+          instance.template = compileTemplate(instance.templateId, true);
+        }
+      });
+
+      // Log the registration
+      Debug.log(Debug.levels.INFO, `Registered Handlebars helper: ${name}`);
+
+      return this;
     },
 
     /**
