@@ -12,6 +12,7 @@ import {
   setupDynamicFormObserver,
   shouldRestoreForm,
 } from "../utils/FormPersistence";
+import { FormStateManager } from "./FormStateManager";
 /**
  * Optimized children morphing with keyed element handling
  */
@@ -248,12 +249,15 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
       Debug.levels.DEBUG,
       `Form persistence enabled: ${
         _state.config?.persistForm
-      }, Should restore form: ${shouldRestoreForm(element)}`,
+      }, Should restore form: ${FormStateManager.shouldRestoreForm(element)}`,
     );
 
     // Capture form states if form restoration is needed
     let formStates = null;
-    if (_state.config?.persistForm && shouldRestoreForm(element)) {
+    if (
+      _state.config?.persistForm &&
+      FormStateManager.shouldRestoreForm(element)
+    ) {
       Debug.log(Debug.levels.DEBUG, "Capturing form states before update");
       formStates = captureFormStates(element);
       Debug.log(Debug.levels.DEBUG, "Captured form states:", formStates);
@@ -261,7 +265,10 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
 
     // Single observer setup
     let formObserver = null;
-    if (_state.config?.persistForm && shouldRestoreForm(element)) {
+    if (
+      _state.config?.persistForm &&
+      FormStateManager.shouldRestoreForm(element)
+    ) {
       Debug.log(Debug.levels.DEBUG, "Setting up dynamic form observer");
       formObserver = setupDynamicFormObserver(element);
     }
@@ -304,11 +311,11 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
         // Single form restoration
         if (
           _state.config?.persistForm &&
-          shouldRestoreForm(element) &&
+          FormStateManager.shouldRestoreForm(element) &&
           formStates
         ) {
           Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
-          restoreFormStates(
+          FormStateManager.restoreFormStates(
             element,
             "updateDOM - form state restoration - restoreFormStates",
           );
@@ -347,14 +354,14 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
     }
 
     // Final form state restoration if needed
-    if (_state.config?.persistForm && shouldRestoreForm(element)) {
+    if (
+      _state.config?.persistForm &&
+      FormStateManager.shouldRestoreForm(element)
+    ) {
       Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
-      const persistedInputs = element.querySelectorAll('[fp-persist="true"]');
-      Debug.log(
-        Debug.levels.DEBUG,
-        `Found ${persistedInputs.length} inputs to restore`,
-      );
-      restoreFormStates(
+      const n = element.querySelectorAll('[fp-persist="true"]');
+      Debug.log(Debug.levels.DEBUG, `Found ${n.length} inputs to restore`);
+      FormStateManager.restoreFormStates(
         element,
         "updateDOM - final form state restoration - restoreFormStates",
       );

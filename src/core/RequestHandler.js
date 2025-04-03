@@ -13,8 +13,6 @@ export const RequestHandler = {
   processingElements: new Map(),
   /** @type {number} Counter for generating unique request IDs */
   currentRequestId: 0,
-  /** @type {boolean} Flag to prevent multiple form state restorations */
-  isRestoringFormStates: false,
 
   /**
    * Generates a unique request ID using timestamp and counter

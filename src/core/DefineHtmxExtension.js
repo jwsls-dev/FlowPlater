@@ -12,6 +12,7 @@ import { saveToLocalStorage } from "../utils/LocalStorage";
 import PluginManager from "./PluginManager";
 import { InstanceManager } from "./InstanceManager";
 import { EventSystem } from "./EventSystem";
+import { FormStateManager } from "../utils/FormStateManager";
 
 // function isHTML(string) {
 //   return Array.from(
@@ -233,7 +234,7 @@ function executeHtmxHook(hookName, target, event) {
  * @param {Object} [event] - The event object containing failure status
  */
 function restoreFormIfNecessary(target, checkFailed = true, event) {
-  if (RequestHandler.isRestoringFormStates) {
+  if (FormStateManager.isRestoringFormStates) {
     Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
     return;
   }
@@ -242,7 +243,5 @@ function restoreFormIfNecessary(target, checkFailed = true, event) {
     return;
   }
 
-  RequestHandler.isRestoringFormStates = true;
-  restoreFormStates(target);
-  RequestHandler.isRestoringFormStates = false;
+  FormStateManager.restoreFormStates(target);
 }

@@ -2,9 +2,6 @@ import { Debug, log, errorLog } from "./Debug";
 import { _state } from "./State";
 import PluginManager from "./PluginManager";
 import { instanceMethods } from "./InstanceMethods";
-import { updateDOM } from "../utils/UpdateDom";
-import { compileTemplate } from "./TemplateCompiler";
-import { saveToLocalStorage } from "../utils/LocalStorage";
 
 export const InstanceManager = {
   /**

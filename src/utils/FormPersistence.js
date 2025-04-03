@@ -2,9 +2,8 @@ import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
 import { saveToLocalStorage, loadFromLocalStorage } from "./LocalStorage";
 import { Debug, log, errorLog } from "../core/Debug";
-import { getInstance } from "../core/State";
 import PluginManager from "../core/PluginManager";
-import { RequestHandler } from "../core/RequestHandler";
+import { FormStateManager } from "./FormStateManager";
 
 /**
  * Helper function to collect debug information consistently
@@ -446,24 +445,7 @@ function restoreSingleFormState(form, source) {
  * @param {string} [source] - The source of the call to restoreFormStates
  */
 export function restoreFormStates(element, source) {
-  try {
-    // Skip if already restoring
-    if (RequestHandler.isRestoringFormStates) {
-      Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
-      return;
-    }
-
-    RequestHandler.isRestoringFormStates = true;
-    const forms = element.getElementsByTagName("form");
-    Array.from(forms).forEach((form) => restoreSingleFormState(form, source));
-  } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error restoring form states: ${error.message}`,
-    );
-  } finally {
-    RequestHandler.isRestoringFormStates = false;
-  }
+  FormStateManager.restoreFormStates(element, source);
 }
 
 /**
@@ -471,22 +453,7 @@ export function restoreFormStates(element, source) {
  * @param {string} formId - ID of the form to clear
  */
 export function clearFormState(formId) {
-  try {
-    const form = document.getElementById(formId);
-    if (!form) return;
-
-    handleFormStorage(form, null, "clear");
-
-    EventSystem.publish("formState:clear", {
-      formId,
-      formElement: form,
-    });
-  } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error clearing form state: ${error.message}`,
-    );
-  }
+  FormStateManager.clearFormState(formId);
 }
 
 /**
@@ -813,71 +780,5 @@ export function setupDynamicFormObserver(container) {
  * @returns {boolean} - Whether form restoration should be performed
  */
 export function shouldRestoreForm(element) {
-  // First check if there are any explicitly persistent elements
-  // These override any parent fp-persist="false" settings
-  const explicitlyPersistentInputs = element.querySelectorAll(
-    '[fp-persist="true"]',
-  );
-  if (explicitlyPersistentInputs.length > 0) {
-    return true;
-  }
-
-  // Check if element itself is a form with explicit persistence setting
-  if (element.tagName === "FORM" && element.hasAttribute("fp-persist")) {
-    return element.getAttribute("fp-persist") !== "false";
-  }
-
-  // Check parent form if exists
-  const parentForm = element.closest("form");
-  if (parentForm) {
-    // If parent form explicitly disables persistence, skip it
-    if (parentForm.getAttribute("fp-persist") === "false") {
-      return false;
-    }
-
-    // Check all form elements in parent form
-    const formElements = parentForm.elements;
-    for (const input of formElements) {
-      // Skip elements without name or file inputs
-      if (!input.name || input.type === "file") continue;
-
-      // Check if input is inside an element with fp-persist="false"
-      const persistFalseParent = input.closest('[fp-persist="false"]');
-      if (persistFalseParent) {
-        continue;
-      }
-
-      // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
-      // it should be persisted by default when persistForm is true
-      return true;
-    }
-  }
-
-  // For forms or elements containing forms, check each form
-  const forms = element.getElementsByTagName("form");
-  for (const form of forms) {
-    // If form explicitly disables persistence, skip it
-    if (form.getAttribute("fp-persist") === "false") {
-      continue;
-    }
-
-    // Check all form elements
-    const formElements = form.elements;
-    for (const input of formElements) {
-      // Skip elements without name or file inputs
-      if (!input.name || input.type === "file") continue;
-
-      // Check if input is inside an element with fp-persist="false"
-      const persistFalseParent = input.closest('[fp-persist="false"]');
-      if (persistFalseParent) {
-        continue;
-      }
-
-      // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
-      // it should be persisted by default when persistForm is true
-      return true;
-    }
-  }
-
-  return false;
+  return FormStateManager.shouldRestoreForm(element);
 }
