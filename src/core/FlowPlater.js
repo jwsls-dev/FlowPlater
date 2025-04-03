@@ -20,14 +20,12 @@ import {
 import { registerHelpers } from "../helpers/index";
 import { RequestHandler } from "./RequestHandler";
 import { defineHtmxExtension } from "./DefineHtmxExtension";
-import { setupProxy } from "./SetupProxy";
 import { processPreload } from "./ProcessPreload";
 import { translateCustomHTMXAttributes } from "./TranslateHtmxAttributes";
 import { processUrlAffixes } from "./ProcessUrlAffixes";
 import { setupAnimation } from "./SetupAnimation";
 import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
 import PluginManager from "./PluginManager";
-import { instanceMethods } from "./InstanceMethods";
 
 /* -------------------------------------------------------------------------- */
 /* ANCHOR                      FlowPlater module                              */
@@ -154,10 +152,6 @@ const ProcessingChain = {
     {
       name: "animation",
       process: setupAnimation,
-    },
-    {
-      name: "proxy",
-      process: setupProxy,
     },
     {
       name: "preload",

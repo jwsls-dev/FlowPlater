@@ -1,40 +1,22 @@
 import { Debug } from "./Debug";
 
-// * For each element with an fp-proxy attribute, use a proxy for the url
-//use const url = 'https://corsproxy.io/?' + encodeURIComponent([hx-get/post/put/patch/delete] attribute value)]);
+/**
+ * @deprecated This functionality has been moved to the ProxyPlugin.
+ * Please use the ProxyPlugin instead.
+ *
+ * To use the proxy functionality:
+ * 1. Include the ProxyPlugin.js file in your HTML
+ * 2. Register the plugin with FlowPlater.registerPlugin(ProxyPlugin)
+ * 3. Add the fp-proxy attribute to elements that need proxying
+ *
+ * See the plugins/README.md file for more information.
+ */
 export function setupProxy(element) {
-  try {
-    // Skip if already processed or if fp-proxy is false/not present
-    if (
-      element.hasAttribute("data-fp-proxy-processed") ||
-      !element.hasAttribute("fp-proxy") ||
-      element.getAttribute("fp-proxy") === "false"
-    ) {
-      return element;
-    }
+  Debug.log(
+    Debug.levels.WARN,
+    "setupProxy is deprecated. Please use the ProxyPlugin instead.",
+  );
 
-    // Get proxy URL
-    const proxyUrl = element.getAttribute("fp-proxy").startsWith("http")
-      ? element.getAttribute("fp-proxy")
-      : "https://corsproxy.io/?";
-
-    // Process htmx methods
-    const methods = ["get", "post", "put", "patch", "delete"];
-    methods.forEach(function (method) {
-      if (element.hasAttribute("hx-" + method)) {
-        const url = element.getAttribute("hx-" + method);
-        element.setAttribute(
-          "hx-" + method,
-          proxyUrl + encodeURIComponent(url),
-        );
-      }
-    });
-
-    // Mark as processed
-    element.setAttribute("data-fp-proxy-processed", "true");
-    return element;
-  } catch (error) {
-    Debug.log(Debug.levels.ERROR, `Error in setupProxy: ${error.message}`);
-    return element;
-  }
+  // Return the element without modification
+  return element;
 }
