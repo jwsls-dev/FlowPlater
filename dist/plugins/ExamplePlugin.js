@@ -171,10 +171,7 @@ var ExamplePlugin = (function () {
         // data: Object containing:
         //   - data: The updated instance data
         //   - changes: The changes made to the data
-        //   - source: The source of the update (set, merge, updateWhere)
-        //   - path?: The path where the change occurred (for set/merge operations)
-        //   - criteria?: The criteria used for the update (for updateWhere)
-        //   - updates?: The updates applied (for updateWhere)
+        //   - source: The source of the update
         FlowPlater.log(FlowPlater.logLevels.INFO, "updateData", instance, data);
         return instance;
       },

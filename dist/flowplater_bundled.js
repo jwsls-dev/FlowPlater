@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.22 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.23 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -11528,240 +11528,6 @@ var FlowPlater = (function () {
     },
   };
 
-  class Memoized {
-    constructor(fn) {
-      this.cache = new Map();
-      this.original = fn;
-    }
-
-    apply(...args) {
-      const key = JSON.stringify(args);
-      if (this.cache.has(key)) {
-        Debug.log(Debug.levels.DEBUG, "Cache hit:", key);
-        return this.cache.get(key);
-      }
-      Debug.log(Debug.levels.DEBUG, "Cache miss:", key);
-      const result = this.original.apply(this, args);
-      this.cache.set(key, result);
-      return result;
-    }
-  }
-
-  function memoize(fn) {
-    const memoized = new Memoized(fn);
-    const wrapper = (...args) => memoized.apply(...args);
-    wrapper.original = memoized.original;
-    wrapper.cache = memoized.cache;
-    return wrapper;
-  }
-
-  // Default customTags - can be overridden via meta config in init()
-  const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
-  let currentCustomTags = customTagList; // Use default list initially - override in init()
-
-  function setCustomTags(tags) {
-    currentCustomTags = tags;
-  }
-
-  function replaceCustomTags(element) {
-    let replaced = false;
-
-    // Replace all custom tags in a single pass
-    for (const tag of currentCustomTags) {
-      const elements = element.getElementsByTagName(tag.tag);
-      if (elements.length > 0) {
-        replaced = true;
-
-        // Convert to array since the live HTMLCollection will change as we replace elements
-        const elementsArray = Array.from(elements);
-        for (const customElement of elementsArray) {
-          const newElement = document.createElement(tag.replaceWith);
-          newElement.innerHTML = customElement.innerHTML;
-
-          // Copy all attributes from the custom element to the new element
-          for (const attr of customElement.attributes) {
-            newElement.setAttribute(attr.name, attr.value);
-          }
-
-          // Replace the custom element with the new element
-          customElement.parentNode.replaceChild(newElement, customElement);
-        }
-      }
-    }
-
-    if (replaced) {
-      log("replaced custom tags", element);
-    }
-
-    return element;
-  }
-
-  function compileTemplate(templateId, recompile = false) {
-    if (!recompile) {
-      return memoizedCompile(templateId);
-    }
-
-    // For recompile=true:
-    // 1. Clear template cache
-    delete _state.templateCache[templateId];
-    // 2. Compile without memoization
-    const compiledTemplate = memoizedCompile.original(templateId);
-    // 3. Update the memoized cache with the new template
-    memoizedCompile.cache.set(JSON.stringify([templateId]), compiledTemplate);
-
-    return compiledTemplate;
-  }
-
-  const memoizedCompile = memoize(function (templateId) {
-    // if templateId is empty or "self", use the current element
-    Performance.start("compile:" + templateId);
-
-    // Add # prefix if templateId doesn't start with it
-    const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
-    var templateElement = document.querySelector(selector);
-
-    Debug.log(Debug.levels.DEBUG, "Trying to compile template: " + templateId);
-
-    if (!templateElement) {
-      errorLog$1("Template not found: " + templateId);
-      Performance.end("compile:" + templateId);
-      return null;
-    }
-
-    // Check if template needs compilation
-    if (
-      !_state.templateCache[templateId] ||
-      (templateElement.hasAttribute("fp-dynamic") &&
-        templateElement.getAttribute("fp-dynamic") !== "false")
-    ) {
-      Debug.log(Debug.levels.DEBUG, "compiling template: " + templateId);
-
-      // Function to construct tag with attributes
-      function constructTagWithAttributes(element) {
-        let tagName = element.tagName.toLowerCase();
-        // Replace all custom tags
-        currentCustomTags.forEach((tag) => {
-          if (tagName === tag.tag) {
-            tagName = tag.replaceWith;
-          }
-        });
-        let attributes = "";
-        for (let attr of element.attributes) {
-          attributes += ` ${attr.name}="${attr.value}"`;
-        }
-        return `<${tagName}${attributes}>`;
-      }
-
-      function processNode(node) {
-        let result = "";
-
-        // Loop through each child node
-        node.childNodes.forEach((child) => {
-          if (child.nodeType === Node.TEXT_NODE) {
-            result += child.textContent;
-          } else if (child.nodeType === Node.ELEMENT_NODE) {
-            if (child.hasAttribute("fp")) {
-              // Process as a Handlebars helper
-              const helperName = child.tagName.toLowerCase();
-              const args = child
-                .getAttribute("fp")
-                .split(" ")
-                .map((arg) => arg.replace(/&quot;/g, '"'))
-                .join(" ");
-
-              const innerContent = processNode(child);
-
-              if (
-                helperName === "log" ||
-                helperName === "lookup" ||
-                helperName === "execute"
-              ) {
-                if (innerContent) {
-                  result += `{{${helperName} ${innerContent} ${args}}}`;
-                } else {
-                  result += `{{${helperName} ${args}}}`;
-                }
-              } else if (helperName === "comment") {
-                result += `{{!-- ${args} --}}`;
-              } else if (helperName === "if") {
-                const escapedArgs = args.replace(/"/g, '\\"');
-                result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
-              } else if (helperName === "else") {
-                result += `{{${helperName}}}${innerContent}`;
-              } else if (helperName === "math") {
-                if (innerContent) {
-                  Debug.log(
-                    Debug.levels.WARN,
-                    `FlowPlater: The <${helperName}> helper does not accept inner content.`,
-                  );
-                }
-                result += `{{#${helperName} "${args}"}}`;
-              } else {
-                result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
-              }
-            } else if (child.tagName === "else") {
-              const innerContent = processNode(child);
-              result += `{{${child.tagName.toLowerCase()}}}${innerContent}`;
-            } else if (
-              child.tagName === "template" ||
-              child.tagName === "fptemplate" ||
-              child.hasAttribute("fp-template")
-            ) {
-              result += child.outerHTML;
-            } else {
-              const childContent = processNode(child);
-              const startTag = constructTagWithAttributes(child);
-              let endTagName = child.tagName.toLowerCase();
-              currentCustomTags.forEach((tag) => {
-                if (endTagName === tag.tag) {
-                  endTagName = tag.replaceWith;
-                }
-              });
-              const endTag = `</${endTagName}>`;
-              result += `${startTag}${childContent}${endTag}`;
-            }
-          }
-        });
-        return result;
-      }
-
-      const handlebarsTemplate = processNode(templateElement);
-      Debug.log(
-        Debug.levels.DEBUG,
-        "Compiling Handlebars template: " + handlebarsTemplate,
-      );
-
-      try {
-        const compiledTemplate = Handlebars.compile(handlebarsTemplate);
-
-        // Check cache size limit before adding new template
-        const cacheSize = _state.config?.templates?.cacheSize || 100; // Default to 100 if not configured
-        if (Object.keys(_state.templateCache).length >= cacheSize) {
-          // Remove oldest template
-          const oldestKey = Object.keys(_state.templateCache)[0];
-          delete _state.templateCache[oldestKey];
-          Debug.log(
-            Debug.levels.INFO,
-            "Cache limit reached. Removed template: " + oldestKey,
-          );
-        }
-
-        // Add new template to cache
-        _state.templateCache[templateId] = compiledTemplate;
-        Performance.end("compile:" + templateId);
-        return compiledTemplate;
-      } catch (e) {
-        errorLog$1(
-          "Template not valid: " + handlebarsTemplate + " | Error: " + e.message,
-        );
-        Performance.end("compile:" + templateId);
-        return null;
-      }
-    }
-    Performance.end("compile:" + templateId);
-    return _state.templateCache[templateId];
-  });
-
   // Version management utilities
   const VersionManager = {
     parseVersion(version) {
@@ -12182,215 +11948,314 @@ var FlowPlater = (function () {
     },
   };
 
-  const InstanceManager = {
-    /**
-     * Gets an existing instance or creates a new one
-     * @param {HTMLElement} element - The DOM element
-     * @param {Object} data - Initial data for the instance
-     * @returns {Object} The instance
-     */
-    getOrCreateInstance(element, data = {}) {
-      const instanceName = element.getAttribute("fp-instance") || element.id;
-      if (!instanceName) {
-        errorLog$1("No instance name found for element");
-        return null;
+  class Memoized {
+    constructor(fn) {
+      this.cache = new Map();
+      this.original = fn;
+    }
+
+    apply(...args) {
+      const key = JSON.stringify(args);
+      if (this.cache.has(key)) {
+        Debug.log(Debug.levels.DEBUG, "Cache hit:", key);
+        return this.cache.get(key);
       }
-
-      let instance = _state.instances[instanceName];
-      if (!instance) {
-        instance = {
-          elements: new Set([element]),
-          template: null,
-          templateId: element.getAttribute("fp-template"),
-          proxy: null,
-          data: data,
-          cleanup: () => {
-            this.elements.clear();
-          },
-        };
-
-        // Add instance methods
-        Object.assign(instance, instanceMethods(instanceName));
-
-        // Add plugin instance methods
-        const methods = PluginManager.instanceMethods;
-        for (const [methodName, methodInfo] of methods.entries()) {
-          // Add method to instance
-          instance[methodName] = (...args) =>
-            PluginManager.executeInstanceMethod(methodName, instance, ...args);
-        }
-
-        _state.instances[instanceName] = instance;
-        // Execute newInstance hook
-        PluginManager.executeHook("newInstance", instance);
-      }
-
-      return instance;
-    },
-
-    /**
-     * Updates an instance with new data
-     * @param {Object} instance - The instance to update
-     * @param {Object} data - New data for the instance
-     */
-    updateInstance(instance, data) {
-      if (!instance) return;
-
-      instance.data = { ...instance.data, ...data };
-      instance.proxy = new Proxy(instance.data, {
-        get: (target, property) => {
-          const value = target[property];
-          return value && typeof value === "object"
-            ? new Proxy(value, this.proxyHandler)
-            : value;
-        },
-        set: (target, property, value) => {
-          target[property] = value;
-          instance._updateDOM();
-          return true;
-        },
-        deleteProperty: (target, property) => {
-          delete target[property];
-          instance._updateDOM();
-          return true;
-        },
-      });
-    },
-
-    /**
-     * Proxy handler for deep reactivity
-     */
-    proxyHandler: {
-      get(target, property) {
-        const value = target[property];
-        return value && typeof value === "object"
-          ? new Proxy(value, this)
-          : value;
-      },
-      set(target, property, value) {
-        target[property] = value;
-        return true;
-      },
-      deleteProperty(target, property) {
-        delete target[property];
-        return true;
-      },
-    },
-
-    /**
-     * Updates the DOM for an instance
-     * @param {Object} instance - The instance to update
-     */
-    _updateDOM(instance) {
-      // Check if data is HTML
-      if (
-        typeof instance.data === "string" &&
-        instance.data.trim().startsWith("<!DOCTYPE")
-      ) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Data is HTML, skipping DOM update",
-          instance.instanceName,
-        );
-        return;
-      }
-
-      try {
-        let rendered;
-        if (instance.templateId === "self" || instance.templateId === null) {
-          // For "self" template, use the first element as the template
-          const templateElement = Array.from(instance.elements)[0];
-          if (!templateElement) {
-            Debug.log(
-              Debug.levels.ERROR,
-              "No template element found for self template",
-              instance.instanceName,
-            );
-            return;
-          }
-          rendered = templateElement.innerHTML;
-        } else if (!instance.template) {
-          Debug.log(
-            Debug.levels.ERROR,
-            "No template found for instance",
-            instance.instanceName,
-          );
-          return;
-        } else {
-          rendered = instance.template(instance.data);
-        }
-
-        instance.elements.forEach((element) => {
-          updateDOM(element, rendered, instance.animate);
-        });
-      } catch (error) {
-        Debug.log(
-          Debug.levels.ERROR,
-          "Error updating DOM for instance",
-          instance.instanceName,
-          error,
-        );
-      }
-    },
-  };
-
-  function saveToLocalStorage(instanceName, data, prefix = "") {
-    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
-    if (_state.config?.storage?.enabled) {
-      try {
-        const ttl = _state.config.storage.ttl || 30 * 24 * 60 * 60; // default 30 days in seconds
-        const storageData = {
-          data,
-          expiry: ttl === -1 ? -1 : Date.now() + ttl * 1000, // -1 for infinite TTL
-        };
-
-        const key = `fp_${prefix}${prefix ? "_" : ""}${instanceName}`;
-        Debug.log(Debug.levels.DEBUG, `Saving to localStorage:`, {
-          key,
-          data: storageData,
-        });
-        localStorage.setItem(key, JSON.stringify(storageData));
-      } catch (error) {
-        errorLog$1(`Failed to save to localStorage: ${error.message}`);
-      }
-    } else {
-      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping save`);
+      Debug.log(Debug.levels.DEBUG, "Cache miss:", key);
+      const result = this.original.apply(this, args);
+      this.cache.set(key, result);
+      return result;
     }
   }
 
-  function loadFromLocalStorage(instanceName, prefix = "") {
-    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
-    if (_state.config?.storage?.enabled) {
-      try {
-        const key = `fp_${prefix}${prefix ? "_" : ""}${instanceName}`;
-        const storedItem = localStorage.getItem(key);
-        if (!storedItem) {
-          Debug.log(Debug.levels.DEBUG, `No stored item found for: ${key}`);
-          return null;
+  function memoize(fn) {
+    const memoized = new Memoized(fn);
+    const wrapper = (...args) => memoized.apply(...args);
+    wrapper.original = memoized.original;
+    wrapper.cache = memoized.cache;
+    return wrapper;
+  }
+
+  // Default customTags - can be overridden via meta config in init()
+  const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
+  let currentCustomTags = customTagList; // Use default list initially - override in init()
+
+  function setCustomTags(tags) {
+    currentCustomTags = tags;
+  }
+
+  function replaceCustomTags(element) {
+    let replaced = false;
+
+    // Replace all custom tags in a single pass
+    for (const tag of currentCustomTags) {
+      const elements = element.getElementsByTagName(tag.tag);
+      if (elements.length > 0) {
+        replaced = true;
+
+        // Convert to array since the live HTMLCollection will change as we replace elements
+        const elementsArray = Array.from(elements);
+        for (const customElement of elementsArray) {
+          const newElement = document.createElement(tag.replaceWith);
+          newElement.innerHTML = customElement.innerHTML;
+
+          // Copy all attributes from the custom element to the new element
+          for (const attr of customElement.attributes) {
+            newElement.setAttribute(attr.name, attr.value);
+          }
+
+          // Replace the custom element with the new element
+          customElement.parentNode.replaceChild(newElement, customElement);
         }
+      }
+    }
 
-        const storageData = JSON.parse(storedItem);
+    if (replaced) {
+      log("replaced custom tags", element);
+    }
 
-        // Check if data has expired (skip check for infinite TTL)
-        if (storageData.expiry !== -1 && Date.now() > storageData.expiry) {
-          Debug.log(Debug.levels.DEBUG, `Stored item has expired: ${key}`);
-          localStorage.removeItem(key);
-          return null;
-        }
+    return element;
+  }
 
-        Debug.log(Debug.levels.DEBUG, `Loaded from localStorage:`, {
-          key,
-          data: storageData,
+  function compileTemplate(templateId, recompile = false) {
+    if (!recompile) {
+      return memoizedCompile(templateId);
+    }
+
+    // For recompile=true:
+    // 1. Clear template cache
+    delete _state.templateCache[templateId];
+    // 2. Compile without memoization
+    const compiledTemplate = memoizedCompile.original(templateId);
+    // 3. Update the memoized cache with the new template
+    memoizedCompile.cache.set(JSON.stringify([templateId]), compiledTemplate);
+
+    return compiledTemplate;
+  }
+
+  const memoizedCompile = memoize(function (templateId) {
+    // if templateId is empty or "self", use the current element
+    Performance.start("compile:" + templateId);
+
+    // Add # prefix if templateId doesn't start with it
+    const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
+    var templateElement = document.querySelector(selector);
+
+    Debug.log(Debug.levels.DEBUG, "Trying to compile template: " + templateId);
+
+    if (!templateElement) {
+      errorLog$1("Template not found: " + templateId);
+      Performance.end("compile:" + templateId);
+      return null;
+    }
+
+    // Check if template needs compilation
+    if (
+      !_state.templateCache[templateId] ||
+      (templateElement.hasAttribute("fp-dynamic") &&
+        templateElement.getAttribute("fp-dynamic") !== "false")
+    ) {
+      Debug.log(Debug.levels.DEBUG, "compiling template: " + templateId);
+
+      // Function to construct tag with attributes
+      function constructTagWithAttributes(element) {
+        let tagName = element.tagName.toLowerCase();
+        // Replace all custom tags
+        currentCustomTags.forEach((tag) => {
+          if (tagName === tag.tag) {
+            tagName = tag.replaceWith;
+          }
         });
-        return storageData.data;
-      } catch (error) {
-        errorLog$1(`Failed to load from localStorage: ${error.message}`);
+        let attributes = "";
+        for (let attr of element.attributes) {
+          attributes += ` ${attr.name}="${attr.value}"`;
+        }
+        return `<${tagName}${attributes}>`;
+      }
+
+      function processNode(node) {
+        let result = "";
+
+        // Loop through each child node
+        node.childNodes.forEach((child) => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            result += child.textContent;
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            if (child.hasAttribute("fp")) {
+              // Process as a Handlebars helper
+              const helperName = child.tagName.toLowerCase();
+              const args = child
+                .getAttribute("fp")
+                .split(" ")
+                .map((arg) => arg.replace(/&quot;/g, '"'))
+                .join(" ");
+
+              const innerContent = processNode(child);
+
+              if (
+                helperName === "log" ||
+                helperName === "lookup" ||
+                helperName === "execute"
+              ) {
+                if (innerContent) {
+                  result += `{{${helperName} ${innerContent} ${args}}}`;
+                } else {
+                  result += `{{${helperName} ${args}}}`;
+                }
+              } else if (helperName === "comment") {
+                result += `{{!-- ${args} --}}`;
+              } else if (helperName === "if") {
+                const escapedArgs = args.replace(/"/g, '\\"');
+                result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
+              } else if (helperName === "else") {
+                result += `{{${helperName}}}${innerContent}`;
+              } else if (helperName === "math") {
+                if (innerContent) {
+                  Debug.log(
+                    Debug.levels.WARN,
+                    `FlowPlater: The <${helperName}> helper does not accept inner content.`,
+                  );
+                }
+                result += `{{#${helperName} "${args}"}}`;
+              } else {
+                result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
+              }
+            } else if (child.tagName === "else") {
+              const innerContent = processNode(child);
+              result += `{{${child.tagName.toLowerCase()}}}${innerContent}`;
+            } else if (
+              child.tagName === "template" ||
+              child.tagName === "fptemplate" ||
+              child.hasAttribute("fp-template")
+            ) {
+              result += child.outerHTML;
+            } else {
+              const childContent = processNode(child);
+              const startTag = constructTagWithAttributes(child);
+              let endTagName = child.tagName.toLowerCase();
+              currentCustomTags.forEach((tag) => {
+                if (endTagName === tag.tag) {
+                  endTagName = tag.replaceWith;
+                }
+              });
+              const endTag = `</${endTagName}>`;
+              result += `${startTag}${childContent}${endTag}`;
+            }
+          }
+        });
+        return result;
+      }
+
+      const handlebarsTemplate = processNode(templateElement);
+      Debug.log(
+        Debug.levels.DEBUG,
+        "Compiling Handlebars template: " + handlebarsTemplate,
+      );
+
+      try {
+        const compiledTemplate = Handlebars.compile(handlebarsTemplate);
+
+        // Check cache size limit before adding new template
+        const cacheSize = _state.config?.templates?.cacheSize || 100; // Default to 100 if not configured
+        if (Object.keys(_state.templateCache).length >= cacheSize) {
+          // Remove oldest template
+          const oldestKey = Object.keys(_state.templateCache)[0];
+          delete _state.templateCache[oldestKey];
+          Debug.log(
+            Debug.levels.INFO,
+            "Cache limit reached. Removed template: " + oldestKey,
+          );
+        }
+
+        // Add new template to cache
+        _state.templateCache[templateId] = compiledTemplate;
+        Performance.end("compile:" + templateId);
+        return compiledTemplate;
+      } catch (e) {
+        errorLog$1(
+          "Template not valid: " + handlebarsTemplate + " | Error: " + e.message,
+        );
+        Performance.end("compile:" + templateId);
         return null;
       }
-    } else {
-      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping load`);
     }
-    return null;
+    Performance.end("compile:" + templateId);
+    return _state.templateCache[templateId];
+  });
+
+  function saveToLocalStorage(key, data, prefix = "") {
+    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+    if (!_state.config?.storage?.enabled) {
+      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping save`);
+      return false;
+    }
+
+    try {
+      const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
+
+      // Always serialize/deserialize to ensure we have raw, deep-cloned data (removes Proxies)
+      let rawData;
+      try {
+        // This effectively deep clones the target data, removing any proxy wrappers
+        rawData = JSON.parse(JSON.stringify(data));
+      } catch (e) {
+        errorLog$1(`Failed to serialize data for localStorage: ${e.message}`);
+        // Fallback or decide how to handle non-serializable data
+        rawData = {}; // Save empty object as fallback?
+      }
+
+      const storageData = {
+        data: rawData,
+        expiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
+      };
+
+      Debug.log(Debug.levels.DEBUG, `Saving to localStorage:`, {
+        key: storageKey,
+        data: storageData,
+      });
+
+      localStorage.setItem(storageKey, JSON.stringify(storageData));
+      return true;
+    } catch (error) {
+      errorLog$1(`Failed to save to localStorage: ${error.message}`);
+      return false;
+    }
+  }
+
+  function loadFromLocalStorage(key, prefix = "") {
+    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+    if (!_state.config?.storage?.enabled) {
+      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping load`);
+      return null;
+    }
+
+    try {
+      const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
+      const storedItem = localStorage.getItem(storageKey);
+      if (!storedItem) {
+        Debug.log(Debug.levels.DEBUG, `No stored item found for: ${storageKey}`);
+        return null;
+      }
+
+      const storageData = JSON.parse(storedItem);
+
+      // Check if data has expired
+      if (storageData.expiry && storageData.expiry < Date.now()) {
+        Debug.log(Debug.levels.DEBUG, `Stored item has expired: ${storageKey}`);
+        localStorage.removeItem(storageKey);
+        return null;
+      }
+
+      Debug.log(Debug.levels.DEBUG, `Loaded from localStorage:`, {
+        key: storageKey,
+        data: storageData,
+      });
+
+      // Return just the data portion, not the wrapper object
+      return storageData.data;
+    } catch (error) {
+      errorLog$1(`Failed to load from localStorage: ${error.message}`);
+      return null;
+    }
   }
 
   /**
@@ -13644,7 +13509,7 @@ var FlowPlater = (function () {
   /**
    * Main update function with performance tracking and error handling
    */
-  async function updateDOM(element, newHTML, animate = false) {
+  async function updateDOM(element, newHTML, animate = false, instance = null) {
     Performance.start("updateDOM");
 
     // Add a flag to prevent multiple restorations
@@ -13703,8 +13568,7 @@ var FlowPlater = (function () {
             formStates,
           });
 
-          // Execute beforeDomUpdate plugin hook
-          const instance = InstanceManager.getOrCreateInstance(element);
+          // Execute beforeDomUpdate plugin hook if instance is provided
           if (instance) {
             PluginManager.executeHook("beforeDomUpdate", instance, {
               element,
@@ -13746,7 +13610,7 @@ var FlowPlater = (function () {
             );
           }
 
-          // Execute afterDomUpdate plugin hook
+          // Execute afterDomUpdate plugin hook if instance is provided
           if (instance) {
             PluginManager.executeHook("afterDomUpdate", instance, {
               element,
@@ -13826,152 +13690,6 @@ var FlowPlater = (function () {
     }
   }
 
-  /**
-   * Helper function to track changes between old and new data states.
-   * Supports nested objects and arrays.
-   * @param {Object} oldData - The original data state.
-   * @param {Object} newData - The new data state.
-   * @param {string} [path=''] - Optional base path for nested changes (e.g., "myObject.myArray")
-   * @returns {{added: Object, removed: Object}} Object containing added and removed changes.
-   */
-  function trackChanges(oldData, newData, path = "") {
-    const changes = {
-      added: {},
-      removed: {},
-    };
-
-    function findArrayChanges(oldArray, newArray, arrayPath) {
-      // Handle new or removed items
-      const maxLength = Math.max(oldArray?.length || 0, newArray?.length || 0);
-
-      for (let i = 0; i < maxLength; i++) {
-        const oldItem = oldArray?.[i];
-        const newItem = newArray?.[i];
-
-        if (i >= (oldArray?.length || 0)) {
-          // New item added
-          changes.added[`${arrayPath}[${i}]`] = newItem;
-        } else if (i >= (newArray?.length || 0)) {
-          // Item removed
-          changes.removed[`${arrayPath}[${i}]`] = oldItem;
-        } else if (typeof newItem === "object" && newItem !== null) {
-          // For objects in arrays, compare individual properties
-          if (typeof oldItem === "object" && oldItem !== null) {
-            // Compare each property
-            for (const key in newItem) {
-              if (oldItem[key] !== newItem[key]) {
-                changes.added[`${arrayPath}[${i}].${key}`] = newItem[key];
-                if (key in oldItem) {
-                  changes.removed[`${arrayPath}[${i}].${key}`] = oldItem[key];
-                }
-              }
-            }
-            // Check for removed properties
-            for (const key in oldItem) {
-              if (!(key in newItem)) {
-                changes.removed[`${arrayPath}[${i}].${key}`] = oldItem[key];
-              }
-            }
-          } else {
-            // Old item wasn't an object, track entire new object
-            changes.added[`${arrayPath}[${i}]`] = newItem;
-            changes.removed[`${arrayPath}[${i}]`] = oldItem;
-          }
-        } else if (oldItem !== newItem) {
-          // Value changed
-          changes.added[`${arrayPath}[${i}]`] = newItem;
-          changes.removed[`${arrayPath}[${i}]`] = oldItem;
-        }
-      }
-    }
-
-    function findChanges(oldObj, newObj, currentPath = "") {
-      if (!oldObj || typeof oldObj !== "object") oldObj = {};
-      if (!newObj || typeof newObj !== "object") newObj = {};
-
-      // Handle arrays
-      if (Array.isArray(newObj)) {
-        findArrayChanges(oldObj, newObj, currentPath);
-        return;
-      }
-
-      // Find added or modified values
-      for (const key in newObj) {
-        const fullPath = currentPath ? `${currentPath}.${key}` : key;
-
-        if (!(key in oldObj)) {
-          // New key added
-          changes.added[fullPath] = newObj[key];
-          // If it's an object or array, recursively track all its contents as new
-          if (typeof newObj[key] === "object" && newObj[key] !== null) {
-            if (Array.isArray(newObj[key])) {
-              findArrayChanges([], newObj[key], fullPath);
-            } else {
-              findChanges({}, newObj[key], fullPath);
-            }
-          }
-        } else if (typeof newObj[key] === "object" && newObj[key] !== null) {
-          // Handle nested objects and arrays
-          if (Array.isArray(newObj[key])) {
-            findArrayChanges(oldObj[key], newObj[key], fullPath);
-          } else {
-            findChanges(oldObj[key], newObj[key], fullPath);
-          }
-        } else if (oldObj[key] !== newObj[key]) {
-          // Simple value changed
-          changes.added[fullPath] = newObj[key];
-          changes.removed[fullPath] = oldObj[key];
-        }
-      }
-
-      // Find removed keys
-      for (const key in oldObj) {
-        const fullPath = currentPath ? `${currentPath}.${key}` : key;
-        if (!(key in newObj)) {
-          changes.removed[fullPath] = oldObj[key];
-          // If it's an object or array, recursively track all its contents as removed
-          if (typeof oldObj[key] === "object" && oldObj[key] !== null) {
-            if (Array.isArray(oldObj[key])) {
-              findArrayChanges(oldObj[key], [], fullPath);
-            } else {
-              findChanges(oldObj[key], {}, fullPath);
-            }
-          }
-        }
-      }
-    }
-
-    // If a specific path is provided, navigate to that path first
-    if (path) {
-      const pathParts = path.split(".");
-      let oldValue = oldData;
-      let newValue = newData;
-
-      // Navigate to the path in both old and new data
-      for (const part of pathParts) {
-        oldValue = oldValue?.[part];
-        newValue = newValue?.[part];
-      }
-
-      // Track changes at and below the specified path
-      if (Array.isArray(newValue)) {
-        findArrayChanges(oldValue, newValue, path);
-      } else if (typeof newValue === "object" && newValue !== null) {
-        findChanges(oldValue, newValue, path);
-      } else {
-        if (oldValue !== newValue) {
-          changes.added[path] = newValue;
-          changes.removed[path] = oldValue;
-        }
-      }
-    } else {
-      // No specific path, track all changes
-      findChanges(oldData, newData);
-    }
-
-    return changes;
-  }
-
   function instanceMethods(instanceName) {
     // Helper function to resolve a path within the data
     function _resolvePath(path) {
@@ -14040,84 +13758,126 @@ var FlowPlater = (function () {
 
         try {
           let rendered;
-          if (this.templateId === "self" || this.templateId === null) {
+          if (instance.templateId === "self" || instance.templateId === null) {
             // For "self" template, use the first element as the template
-            const templateElement = Array.from(this.elements)[0];
+            const templateElement = Array.from(instance.elements)[0];
             if (!templateElement) {
               Debug.log(
                 Debug.levels.ERROR,
                 "No template element found for self template",
-                this.instanceName,
+                instance.instanceName,
               );
               return;
             }
             rendered = templateElement.innerHTML;
-          } else if (!this.template) {
+          } else if (!instance.template) {
             Debug.log(
               Debug.levels.ERROR,
               "No template found for instance",
-              this.instanceName,
+              instance.instanceName,
             );
             return;
           } else {
-            rendered = this.template(this.data);
+            // Use data for reactive rendering
+            rendered = instance.template(instance.data);
+            Debug.log(Debug.levels.DEBUG, "Rendered template with data:", {
+              template: instance.templateId,
+              data: instance.data,
+              rendered: rendered,
+            });
           }
 
-          this.elements.forEach((element) => {
-            updateDOM(element, rendered, this.animate);
+          // Filter out elements that are no longer in the DOM
+          const activeElements = Array.from(instance.elements).filter((el) =>
+            document.body.contains(el),
+          );
+
+          if (activeElements.length === 0) {
+            Debug.log(
+              Debug.levels.ERROR,
+              "No active elements found for instance",
+              instance.instanceName,
+            );
+            return;
+          }
+
+          activeElements.forEach((element) => {
+            updateDOM(element, rendered, instance.animate, instance);
           });
         } catch (error) {
           Debug.log(
             Debug.levels.ERROR,
             "Error updating DOM for instance",
-            this.instanceName,
+            instance.instanceName,
             error,
           );
         }
       },
 
-      update: function (newData) {
+      /**
+       * Replaces the entire instance data with newData,
+       * removing keys not present in newData.
+       * Triggers reactive updates via the proxy.
+       * @param {Object} newData The new data object.
+       */
+      setData: function (newData) {
         const instance = _state.instances[instanceName];
         if (!instance) {
           errorLog$1("Instance not found: " + instanceName);
+          return this; // Return instance for chaining?
+        }
+
+        // Validate newData type (allow empty objects)
+        if (
+          typeof newData !== "object" ||
+          newData === null ||
+          Array.isArray(newData)
+        ) {
+          errorLog$1("Invalid newData type provided to setData: " + typeof newData);
           return this;
         }
 
-        const { valid, isHtml } = _validateData(newData);
-        if (!valid || isHtml) {
-          return this;
+        const currentData = instance.data; // The proxy's target
+
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[setData] Replacing data for ${instanceName}. Current keys: ${Object.keys(
+          currentData,
+        ).join(", ")}, New keys: ${Object.keys(newData).join(", ")}`,
+        );
+
+        // --- Reconciliation Logic ---
+        // 1. Delete keys
+        let deletedKeys = [];
+        for (const key in currentData) {
+          if (
+            Object.hasOwnProperty.call(currentData, key) &&
+            !Object.hasOwnProperty.call(newData, key)
+          ) {
+            deletedKeys.push(key);
+            delete currentData[key]; // Triggers proxy delete trap
+          }
+        }
+        if (deletedKeys.length > 0) {
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[setData] Deleted stale keys for ${instanceName}: ${deletedKeys.join(
+            ", ",
+          )}`,
+          );
         }
 
-        // Track changes before updating data
-        const oldData = { ...instance.data };
+        // 2. Assign/update properties
+        Object.assign(currentData, newData); // Triggers proxy set traps
+        // --- End Reconciliation Logic ---
 
-        Object.assign(instance.data, newData);
-        Object.assign(instance.proxy, newData);
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[setData] Data replacement processing complete for ${instanceName}.`,
+        );
 
-        // Calculate changes
-        const changes = trackChanges(oldData, instance.data);
-
-        // Execute updateData hook
-        PluginManager.executeHook("updateData", instance, {
-          data: instance.data,
-          changes,
-          source: "update",
-        });
-
-        EventSystem.publish("updateData", {
-          instanceName,
-          data: instance.data,
-          changes,
-          source: "update",
-        });
-
-        // Save to localStorage if enabled
-        if (_state.config?.storage?.enabled) {
-          const storageId = instanceName.replace("#", "");
-          saveToLocalStorage(storageId, instance.data, "instance");
-        }
-
-        return this._updateDOM();
+        // Return raw data
+        return this;
       },
 
       remove: function () {
@@ -14210,29 +13970,14 @@ var FlowPlater = (function () {
                     return response.json();
                   })
                   .then((data) => {
+                    // Update data which will trigger render
                     Object.assign(instance.data, data);
-                    Object.assign(instance.proxy, data);
-                    const rendered = instance.template(instance.proxy);
-                    Debug.log(Debug.levels.DEBUG, "Refresh - Template render:", {
-                      data: instance.data,
-                      rendered,
-                    });
 
-                    // Execute updateData hook
-                    PluginManager.executeHook("updateData", instance, {
-                      data: instance.data,
-                      changes: data,
-                      source: "refresh",
-                    });
+                    // Store data if storage is enabled
+                    if (_state.config?.storage?.enabled) {
+                      saveToLocalStorage(instanceName, instance.data, "instance");
+                    }
 
-                    EventSystem.publish("updateData", {
-                      instanceName,
-                      data: instance.data,
-                      changes: data,
-                      source: "refresh",
-                    });
-
-                    updateDOM(element, rendered, instance.animate);
                     return data;
                   });
                 promises.push(promise);
@@ -14240,8 +13985,9 @@ var FlowPlater = (function () {
             } else {
               updateDOM(
                 element,
-                instance.template(instance.proxy),
+                instance.template(instance.data),
                 instance.animate,
+                instance,
               );
             }
           } catch (error) {
@@ -14256,318 +14002,12 @@ var FlowPlater = (function () {
       },
 
       getData: function () {
-        return _state.instances[instanceName].data;
-      },
-
-      getProxy: function () {
-        return _state.instances[instanceName].proxy;
+        const proxy = _state.instances[instanceName].data;
+        return JSON.parse(JSON.stringify(proxy));
       },
 
       getElements: function () {
         return _state.instances[instanceName].elements;
-      },
-
-      merge: function (path, value) {
-        const instance = _state.instances[instanceName];
-        if (!instance) {
-          errorLog$1("Instance not found: " + instanceName);
-          return this;
-        }
-
-        let newData = value !== undefined ? value : path;
-        const { valid, isHtml } = _validateData(newData);
-        if (!valid || isHtml) {
-          return this;
-        }
-
-        try {
-          // Track old state
-          const oldData = { ...instance.data };
-
-          // Deep merge function
-          function deepMerge(target, source) {
-            for (const key in source) {
-              if (source.hasOwnProperty(key)) {
-                if (Array.isArray(source[key]) && Array.isArray(target[key])) {
-                  const targetMap = new Map(
-                    target[key].map((item) => [item.id, item]),
-                  );
-                  source[key].forEach((sourceItem) => {
-                    if (sourceItem.id && targetMap.has(sourceItem.id)) {
-                      deepMerge(targetMap.get(sourceItem.id), sourceItem);
-                    } else {
-                      target[key].push(sourceItem);
-                    }
-                  });
-                } else if (
-                  source[key] &&
-                  typeof source[key] === "object" &&
-                  !Array.isArray(source[key])
-                ) {
-                  target[key] = target[key] || {};
-                  deepMerge(target[key], source[key]);
-                } else {
-                  target[key] = source[key];
-                }
-              }
-            }
-            return target;
-          }
-
-          if (path && value !== undefined) {
-            let target = this.getData();
-            const pathParts = path.split(/[\.\[\]'"]/);
-            for (let i = 0; i < pathParts.length - 1; i++) {
-              const part = pathParts[i];
-              if (part === "") continue;
-              if (!target[part]) target[part] = {};
-              target = target[part];
-            }
-            const lastPart = pathParts[pathParts.length - 1];
-            if (lastPart !== "") {
-              if (!target[lastPart]) {
-                target[lastPart] = Array.isArray(value) ? [] : {};
-              }
-              if (Array.isArray(value)) {
-                if (!Array.isArray(target[lastPart])) {
-                  target[lastPart] = [];
-                }
-                const targetArray = target[lastPart];
-                value.forEach((item) => {
-                  if (item.id) {
-                    const existingIndex = targetArray.findIndex(
-                      (existing) => existing.id === item.id,
-                    );
-                    if (existingIndex >= 0) {
-                      deepMerge(targetArray[existingIndex], item);
-                    } else {
-                      targetArray.push(item);
-                    }
-                  } else {
-                    targetArray.push(item);
-                  }
-                });
-              } else if (typeof value === "object") {
-                deepMerge(target[lastPart], value);
-              } else {
-                target[lastPart] = value;
-              }
-            }
-          } else {
-            deepMerge(this.getData(), newData);
-          }
-
-          // Calculate changes
-          const changes = trackChanges(oldData, instance.data, path);
-
-          // Execute updateData hook
-          PluginManager.executeHook("updateData", instance, {
-            data: instance.data,
-            changes,
-            path: path,
-            source: "merge",
-          });
-
-          EventSystem.publish("updateData", {
-            instanceName,
-            data: instance.data,
-            changes,
-            path: path,
-            source: "merge",
-          });
-
-          // Save to localStorage if enabled
-          if (_state.config?.storage?.enabled) {
-            const storageId = instanceName.replace("#", "");
-            saveToLocalStorage(storageId, instance.data, "instance");
-          }
-
-          return this._updateDOM();
-        } catch (error) {
-          errorLog$1(error.message);
-          return this;
-        }
-      },
-
-      set: function (path, value) {
-        const instance = _state.instances[instanceName];
-        if (!instance) {
-          errorLog$1("Instance not found: " + instanceName);
-          return this;
-        }
-
-        const { valid, isHtml } = _validateData(value);
-        if (!valid || isHtml) {
-          return this;
-        }
-
-        try {
-          // Track old state
-          const oldData = { ...instance.data };
-
-          const parts = path.split(/[\.\[\]'"]/g).filter(Boolean);
-          const last = parts.pop();
-          const target = parts.reduce((acc, part) => {
-            if (!acc[part]) acc[part] = {};
-            return acc[part];
-          }, instance.data);
-
-          target[last] = value;
-          Object.assign(instance.proxy, instance.data);
-
-          // Calculate changes
-          const changes = trackChanges(oldData, instance.data, path);
-
-          // Execute updateData hook
-          PluginManager.executeHook("updateData", instance, {
-            data: instance.data,
-            changes,
-            path: path,
-            source: "set",
-          });
-
-          EventSystem.publish("updateData", {
-            instanceName,
-            data: instance.data,
-            changes,
-            path: path,
-            source: "set",
-          });
-
-          // Save to localStorage if enabled
-          if (_state.config?.storage?.enabled) {
-            const storageId = instanceName.replace("#", "");
-            saveToLocalStorage(storageId, instance.data, "instance");
-          }
-
-          return this._updateDOM();
-        } catch (error) {
-          errorLog$1(error.message);
-          return this;
-        }
-      },
-
-      push: function (arrayPath, value) {
-        const instance = _state.instances[instanceName];
-        if (!instance) {
-          errorLog$1("Instance not found: " + instanceName);
-          return this;
-        }
-
-        const { valid, isHtml } = _validateData(value);
-        if (!valid || isHtml) {
-          return this;
-        }
-
-        let array = _resolvePath(arrayPath);
-        if (!Array.isArray(array)) {
-          errorLog$1("Target at path is not an array: " + arrayPath);
-          return this;
-        }
-
-        try {
-          // Track old state
-          const oldData = JSON.parse(JSON.stringify(instance.data));
-
-          array.push(value);
-
-          // Calculate changes
-          const changes = trackChanges(oldData, instance.data, arrayPath);
-
-          // Execute updateData hook
-          PluginManager.executeHook("updateData", instance, {
-            data: instance.data,
-            changes,
-            path: arrayPath,
-            source: "push",
-          });
-
-          EventSystem.publish("updateData", {
-            instanceName,
-            data: instance.data,
-            changes,
-            path: arrayPath,
-            source: "push",
-          });
-
-          // Save to localStorage if enabled
-          if (_state.config?.storage?.enabled) {
-            const storageId = instanceName.replace("#", "");
-            saveToLocalStorage(storageId, instance.data, "instance");
-          }
-
-          return this._updateDOM();
-        } catch (error) {
-          errorLog$1(error.message);
-          return this;
-        }
-      },
-
-      updateWhere: function (arrayPath, criteria, updates) {
-        const instance = _state.instances[instanceName];
-        if (!instance) {
-          errorLog$1("Instance not found: " + instanceName);
-          return this;
-        }
-
-        const { valid, isHtml } = _validateData(updates);
-        if (!valid || isHtml) {
-          return this;
-        }
-
-        let array = _resolvePath(arrayPath);
-        if (!Array.isArray(array)) {
-          errorLog$1("Target at path is not an array: " + arrayPath);
-          return this;
-        }
-
-        try {
-          // Track old state
-          const oldData = JSON.parse(JSON.stringify(instance.data));
-
-          array.forEach((item) => {
-            const matches = Object.entries(criteria).every(
-              ([key, value]) => item[key] === value,
-            );
-            if (matches) {
-              Object.assign(item, updates);
-            }
-          });
-
-          // Calculate changes
-          const changes = trackChanges(oldData, instance.data, arrayPath);
-
-          // Execute updateData hook
-          PluginManager.executeHook("updateData", instance, {
-            data: instance.data,
-            changes,
-            path: arrayPath,
-            criteria,
-            updates,
-            source: "updateWhere",
-          });
-
-          EventSystem.publish("updateData", {
-            instanceName,
-            data: instance.data,
-            changes,
-            path: arrayPath,
-            criteria,
-            updates,
-            source: "updateWhere",
-          });
-
-          // Save to localStorage if enabled
-          if (_state.config?.storage?.enabled) {
-            const storageId = instanceName.replace("#", "");
-            saveToLocalStorage(storageId, instance.data, "instance");
-          }
-
-          return this._updateDOM();
-        } catch (error) {
-          errorLog$1(error.message);
-          return this;
-        }
       },
 
       get: function (path) {
@@ -14587,6 +14027,108 @@ var FlowPlater = (function () {
     };
   }
 
+  const InstanceManager = {
+    /**
+     * Gets an existing instance or creates a new one.
+     * The data proxy should be assigned by the caller AFTER getting the instance.
+     * @param {HTMLElement} element - The DOM element
+     * @param {Object} initialData - Initial data object (will be replaced by proxy later)
+     * @returns {Object} The instance
+     */
+    getOrCreateInstance(element, initialData = {}) {
+      const instanceName = element.getAttribute("fp-instance") || element.id;
+      if (!instanceName) {
+        errorLog$1("No instance name found for element");
+        return null;
+      }
+
+      let instance = _state.instances[instanceName];
+      if (!instance) {
+        instance = {
+          elements: new Set([element]),
+          template: null, // Template will be assigned by caller
+          templateId: element.getAttribute("fp-template"),
+          data: initialData, // Assign initial data, caller MUST replace with Proxy
+          cleanup: () => {
+            instance.elements.clear(); // Use instance scope
+          },
+        };
+
+        // Add instance methods
+        Object.assign(instance, instanceMethods(instanceName));
+
+        // Add plugin instance methods
+        const methods = PluginManager.instanceMethods;
+        for (const [methodName] of methods.entries()) {
+          // Add method to instance
+          instance[methodName] = (...args) =>
+            PluginManager.executeInstanceMethod(methodName, instance, ...args);
+        }
+
+        _state.instances[instanceName] = instance;
+        // Execute newInstance hook
+        PluginManager.executeHook("newInstance", instance);
+        Debug.log(Debug.levels.INFO, `Created new instance: ${instanceName}`);
+      } else {
+        // If instance exists, add the new element to its set
+        instance.elements.add(element);
+        Debug.log(
+          Debug.levels.DEBUG,
+          `Added element to existing instance: ${instanceName}`,
+        );
+      }
+
+      // REMOVED internal proxy creation and assignment
+      // REMOVED localStorage saving here (should be handled by proxy setter)
+
+      return instance;
+    },
+
+    /**
+     * Updates an instance's data via the proxy. USE WITH CAUTION.
+     * Prefer direct proxy manipulation.
+     * @param {Object} instance - The instance to update
+     * @param {Object} newData - New data for the instance
+     */
+    updateInstanceData(instance, newData) {
+      if (!instance || !instance.data) {
+        errorLog$1("Cannot update data: Instance or instance.data is invalid.");
+        return;
+      }
+      // Update data through the proxy to trigger reactivity
+      Object.assign(instance.data, newData);
+      // No explicit re-render needed here, proxy handler should trigger _updateDOM
+      // No explicit save needed here, proxy handler should save
+    },
+  };
+
+  function createDeepProxy(target, handler) {
+    if (typeof target !== "object" || target === null) {
+      return target;
+    }
+
+    const proxyHandler = {
+      get(target, property) {
+        const value = target[property];
+        return value && typeof value === "object"
+          ? createDeepProxy(value, handler)
+          : value;
+      },
+      set(target, property, value) {
+        target[property] = value;
+        handler(target);
+        return true;
+      },
+      deleteProperty(target, property) {
+        delete target[property];
+        handler(target);
+        return true;
+      },
+    };
+
+    return new Proxy(target, proxyHandler);
+  }
+
   function render({
     template,
     data,
@@ -14595,8 +14137,46 @@ var FlowPlater = (function () {
     instanceName,
     animate = _state.defaults.animation,
     recompile = false,
+    skipLocalStorageLoad = false,
   }) {
     Performance.start("render:" + (instanceName || "anonymous"));
+
+    // Track initialization to prevent redundant initialization of the same instance
+    if (!_state._initTracking) {
+      _state._initTracking = {};
+    }
+
+    // Derive instance name early to use for tracking
+    let derivedInstanceName;
+    if (instanceName) {
+      derivedInstanceName = instanceName;
+    } else if (target instanceof Element && target.hasAttribute("fp-instance")) {
+      derivedInstanceName = target.getAttribute("fp-instance");
+    } else if (target instanceof Element && target.id) {
+      derivedInstanceName = target.id;
+    } else if (typeof target === "string" && target.startsWith("#")) {
+      derivedInstanceName = target.substring(1);
+    }
+
+    // If this instance was recently initialized (within 100ms), skip
+    if (derivedInstanceName && _state._initTracking[derivedInstanceName]) {
+      const timeSinceLastInit =
+        Date.now() - _state._initTracking[derivedInstanceName];
+      if (timeSinceLastInit < 100) {
+        // 100ms window to prevent duplicate initializations
+        Debug.log(
+          Debug.levels.WARN,
+          `[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`,
+        );
+        // Still return the existing instance
+        return _state.instances[derivedInstanceName] || null;
+      }
+    }
+
+    // Update tracking timestamp
+    if (derivedInstanceName) {
+      _state._initTracking[derivedInstanceName] = Date.now();
+    }
 
     EventSystem.publish("beforeRender", {
       instanceName,
@@ -14671,68 +14251,212 @@ var FlowPlater = (function () {
     /*                               Proxy creation                               */
     /* -------------------------------------------------------------------------- */
 
-    if (
-      !_state.instances[instanceName] ||
-      _state.instances[instanceName].data !== data
-    ) {
-      // Load persisted data if available
-      const persistedData = loadFromLocalStorage(instanceName, "instance");
-      if (persistedData) {
-        // Check if stored data is HTML
-        if (persistedData.isHtml) {
-          // Get swap specification from element
-          const swapSpec = {
-            swapStyle:
-              elements[0].getAttribute("hx-swap")?.split(" ")[0] || "innerHTML",
-            swapDelay: 0,
-            settleDelay: 0,
-            transition:
-              elements[0].getAttribute("hx-swap")?.includes("transition:true") ||
-              false,
-          };
+    if (!_state.instances[instanceName] || !_state.instances[instanceName].data) {
+      // Load persisted data if available and not skipped
+      let finalInitialData = data || {};
+      let persistedData = null; // Initialize persistedData to null
 
-          // Use htmx.swap with proper swap specification
-          if (returnHtml) {
-            return persistedData.data;
+      if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
+        persistedData = loadFromLocalStorage(instanceName, "instance");
+        if (persistedData) {
+          // Check if stored data is HTML
+          if (
+            persistedData.isHtml === true ||
+            (typeof persistedData === "string" &&
+              typeof persistedData.trim === "function" &&
+              (persistedData.trim().startsWith("<!DOCTYPE html") ||
+                persistedData.trim().startsWith("<html")))
+          ) {
+            // Get swap specification from element
+            const swapSpec = {
+              swapStyle:
+                elements[0].getAttribute("hx-swap")?.split(" ")[0] || "innerHTML",
+              swapDelay: 0,
+              settleDelay: 0,
+              transition:
+                elements[0]
+                  .getAttribute("hx-swap")
+                  ?.includes("transition:true") || false,
+            };
+
+            // Use htmx.swap with proper swap specification
+            if (returnHtml) {
+              return persistedData; // HTML string is now stored directly
+            }
+            elements.forEach((element) => {
+              htmx.swap(element, persistedData, swapSpec);
+            });
+            return _state.instances[instanceName];
           }
-          elements.forEach((element) => {
-            htmx.swap(element, persistedData.data, swapSpec);
-          });
-          return _state.instances[instanceName];
+          // Extract actual data - if persistedData has a 'data' property, use that
+          const actualData = persistedData?.data || persistedData;
+          finalInitialData = { ...actualData, ...finalInitialData };
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[Template] Merged persisted data for ${instanceName}:`,
+            finalInitialData,
+          );
         }
-        // Otherwise merge with current data, prioritizing new data
-        data = { ...persistedData, ...data };
       }
 
-      var proxy = createDeepProxy(data, (target) => {
-        // Use WeakRef or maintain a Set of weak references to elements
-        const activeElements = elements.filter((el) =>
-          document.body.contains(el),
-        );
-        activeElements.forEach((element) => {
-          updateDOM(element, compiledTemplate(target));
-        });
+      // 1. Get or create the instance shell
+      const instance = InstanceManager.getOrCreateInstance(
+        elements[0],
+        finalInitialData,
+      );
+
+      // If instance couldn't be created, exit
+      if (!instance) {
+        errorLog$1("Failed to get or create instance: " + instanceName);
+        return null;
+      }
+
+      // --- Debounce and Change Tracking Setup ---
+      // Store the timer ID on the instance
+      if (!instance._updateTimer) {
+        instance._updateTimer = null;
+      }
+      // Store the 'state before changes' within the current debounce cycle
+      if (!instance._stateBeforeDebounce) {
+        instance._stateBeforeDebounce = null;
+      }
+      // --- End Setup ---
+
+      // 2. Create the proxy with the final merged data and DEBOUNCED update handler
+      const DEBOUNCE_DELAY = 50; // ms - slightly longer to avoid duplicate updates
+      const proxy = createDeepProxy(finalInitialData, (target) => {
+        if (instance) {
+          // -- Debounce Logic --
+          // Capture state *before* the first change in this debounce cycle
+          // This is crucial for comparing changes accurately after the debounce.
+          if (instance._updateTimer === null) {
+            // Only capture if no timer is currently set
+            try {
+              // Use a deep clone to prevent the captured state from being mutated
+              // before the setTimeout callback runs.
+              instance._stateBeforeDebounce = JSON.parse(JSON.stringify(proxy));
+              Debug.log(
+                Debug.levels.DEBUG,
+                `[Debounce Start] Captured pre-debounce state for ${instanceName}:`,
+                instance._stateBeforeDebounce, // Log the actual captured object
+              );
+            } catch (e) {
+              errorLog$1(
+                `[Debounce Start] Failed to capture pre-debounce state for ${instanceName}:`,
+                e,
+              );
+              // If cloning fails, set to null to potentially prevent errors in trackChanges
+              // though trackChanges might still fail if it receives null.
+              instance._stateBeforeDebounce = null;
+            }
+          }
+
+          // Clear existing timer
+          clearTimeout(instance._updateTimer);
+
+          // Schedule the update
+          instance._updateTimer = setTimeout(() => {
+            // ** USE STATE CAPTURED BEFORE DEBOUNCE **
+            const stateBefore = instance._stateBeforeDebounce;
+            const stateAfter = proxy;
+
+            const jsonStateBefore = JSON.parse(JSON.stringify(stateBefore));
+            const jsonStateAfter = JSON.parse(JSON.stringify(stateAfter));
+
+            // 1. Basic Change Check (Optional but Recommended)
+            // Avoid firing hooks if state hasn't actually changed.
+            // Using simple stringify comparison - replace with deepEqual if needed & imported.
+            const stateChanged =
+              JSON.stringify(jsonStateBefore) !== JSON.stringify(jsonStateAfter);
+
+            // 2. Execute Hooks/Events with Full States
+            if (stateChanged) {
+              Debug.log(
+                Debug.levels.INFO,
+                `[Debounced Update] State changed for ${instanceName}. Firing updateData hook.`,
+              );
+              // Pass the full old and new states
+              PluginManager.executeHook("updateData", instance, {
+                newData: jsonStateAfter, // Current state
+                oldData: jsonStateBefore, // State before changes
+                source: "proxy",
+              });
+              EventSystem.publish("updateData", {
+                instanceName,
+                newData: jsonStateAfter,
+                oldData: jsonStateBefore,
+                source: "proxy",
+              });
+            } else {
+              Debug.log(
+                Debug.levels.DEBUG,
+                `[Debounced Update] No state change detected for ${instanceName}. Skipping updateData hook.`,
+              );
+            }
+
+            // 3. Update DOM
+            Debug.log(
+              Debug.levels.DEBUG,
+              `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
+            );
+
+            instance._updateDOM();
+
+            // 4. Save to storage
+            // Get the correct instance name and sanitize it for the key
+            const storageId = instance.instanceName.replace("#", "");
+            Debug.log(
+              Debug.levels.DEBUG,
+              `[Debounced Update] Saving root proxy object for ${storageId}.`,
+            );
+            if (_state.config?.storage?.enabled) {
+              saveToLocalStorage(
+                storageId,
+                stateAfter, // Save the data directly, not wrapped in an object
+                "instance",
+              );
+            }
+
+            // Clear timer and pre-debounce state reference after execution
+            instance._updateTimer = null;
+            instance._stateBeforeDebounce = null;
+          }, DEBOUNCE_DELAY);
+          // -- End Debounce Logic --
+        }
       });
 
-      // Create or update instance using InstanceManager
-      const instance = InstanceManager.getOrCreateInstance(elements[0], data);
-      if (instance) {
-        instance.elements = new Set(elements);
-        instance.template = compiledTemplate;
-        instance.templateId = elements[0].getAttribute("fp-template") || template;
-        instance.proxy = proxy;
-        instance.data = data;
+      // 3. Assign the proxy and template to the instance
+      instance.elements = new Set(elements);
+      instance.template = compiledTemplate;
+      instance.templateId = elements[0].getAttribute("fp-template") || template;
+      instance.data = proxy; // Assign the proxy!
 
-        // Save initial instance data to storage
-        if (_state.config?.storage?.enabled) {
-          const storageId = instanceName.replace("#", "");
-          saveToLocalStorage(storageId, data, "instance");
-        }
+      // 4. Trigger initial render - This should be OUTSIDE the debounce logic
+      Debug.log(
+        Debug.levels.DEBUG,
+        `[Initial Render] Triggering _updateDOM for ${instanceName}`,
+      );
+      instance._updateDOM();
+
+      // Optional: Initial save if needed, OUTSIDE debounce
+      if (_state.config?.storage?.enabled && !persistedData) {
+        // Only save if not loaded
+        const storageId = instanceName.replace("#", "");
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[Initial Save] Saving initial data for ${storageId}`,
+        );
+        saveToLocalStorage(
+          storageId,
+          finalInitialData, // Save the data directly, not wrapped in an object
+          "instance",
+        ); // Save the raw initial merged data
       }
     }
 
-    const instance = _state.instances[instanceName];
-    log("Proxy created: ", instance.proxy);
+    // Return the instance from the state (might be the one just created or an existing one)
+    const finalInstance = _state.instances[instanceName];
+    log("Final instance data: ", finalInstance.data);
 
     /* -------------------------------------------------------------------------- */
     /*                               Render template                              */
@@ -14740,20 +14464,19 @@ var FlowPlater = (function () {
 
     try {
       if (returnHtml) {
-        var html = instance.template(instance.proxy);
-        return html;
+        return compiledTemplate(finalInstance.data);
       }
 
-      elements.forEach(function (element) {
-        try {
-          updateDOM(element, instance.template(instance.proxy), instance.animate);
-        } catch (error) {
-          element.innerHTML = `<div class="fp-error">Error rendering template: ${error.message}</div>`;
-          errorLog$1(`Failed to render template: ${error.message}`);
-        }
+      elements.forEach((element) => {
+        updateDOM(
+          element,
+          compiledTemplate(finalInstance.data),
+          animate,
+          finalInstance,
+        );
       });
 
-      return instance;
+      return finalInstance;
     } catch (error) {
       if (!(error instanceof TemplateError)) {
         errorLog$1(`Failed to render template: ${error.message}`);
@@ -14771,33 +14494,6 @@ var FlowPlater = (function () {
       log("Rendered instance: " + instanceName, template, data, target);
       Performance.end("render:" + (instanceName || "anonymous"));
     }
-  }
-
-  function createDeepProxy(target, handler) {
-    if (typeof target !== "object" || target === null) {
-      return target;
-    }
-
-    const proxyHandler = {
-      get(target, property) {
-        const value = target[property];
-        return value && typeof value === "object"
-          ? createDeepProxy(value, handler)
-          : value;
-      },
-      set(target, property, value) {
-        target[property] = value;
-        handler(target);
-        return true;
-      },
-      deleteProperty(target, property) {
-        delete target[property];
-        handler(target);
-        return true;
-      },
-    };
-
-    return new Proxy(target, proxyHandler);
   }
 
   function compare(left, operator, right) {
@@ -15677,53 +15373,18 @@ var FlowPlater = (function () {
   function defineHtmxExtension() {
     htmx.defineExtension("flowplater", {
       transformResponse: function (text, xhr, elt) {
-        // Add debug logging for response
-
         const isHtml = xhr
           .getResponseHeader("Content-Type")
           ?.startsWith("text/html");
 
-        Debug.log(Debug.levels.DEBUG, "Response received:", {
-          text: text,
-          contentType: xhr.getResponseHeader("Content-Type"),
-          isHtmlLike: isHtml,
-        });
-
-        // Get request ID from either xhr or processing elements
         const requestId = xhr.requestId;
         const currentInfo = RequestHandler.processingElements.get(elt);
 
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Transform response for request",
-          requestId,
-          "current info:",
-          currentInfo,
-        );
-
-        // Skip if element is not in processing set
         if (!currentInfo || currentInfo.requestId !== requestId) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Skipping transformation - request ID mismatch",
-            { current: currentInfo?.requestId, received: requestId },
-          );
           return text;
         }
 
-        // Only process if fp-template is present
-        if (!elt.hasAttribute("fp-template")) {
-          return text;
-        }
-
-        // Check if response looks like HTML (more permissive check)
         if (isHtml) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Detected HTML response, passing through",
-          );
-
-          // Store HTML response if storage is enabled
           if (_state.config?.storage?.enabled) {
             const instanceName = elt.getAttribute("fp-instance") || elt.id;
             if (instanceName) {
@@ -15738,160 +15399,105 @@ var FlowPlater = (function () {
               );
             }
           }
-          // Mark request as processed for HTML responses
-          RequestHandler.handleRequest(elt, requestId, "process");
           return text;
         }
 
-        // Parse response data
-        let data;
+        let newData;
         try {
           if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
             var parser = new DOMParser();
             var xmlDoc = parser.parseFromString(text, "text/xml");
-            data = parseXmlToJson(xmlDoc);
+            newData = parseXmlToJson(xmlDoc);
           } else {
-            data = JSON.parse(text);
+            newData = JSON.parse(text);
           }
         } catch (error) {
           errorLog$1("Failed to parse response:", error);
           return text;
         }
+        if (!newData) return text;
 
-        const templateId = elt.getAttribute("fp-template");
-        log("Response received for request " + requestId + ": ", data);
-
-        const instanceName = elt.getAttribute("fp-instance") || elt.id;
         const instance = InstanceManager.getOrCreateInstance(elt);
 
         if (instance) {
-          // Calculate data changes
-          const oldData = instance.data;
-          const changes = trackChanges(oldData, data);
+          const instanceName = instance.instanceName;
 
-          // Execute updateData hook with the tracked changes
+          // Use setData for Reconciliation
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[transformResponse] Calling instance.setData for ${instanceName} with new data.`,
+          );
+          instance.setData(newData); // This handles delete/assign and triggers proxy handler (debounced)
+
+          // Execute Hooks/Events - REMOVED - Handled by proxy debounce
+          /*
           PluginManager.executeHook("updateData", instance, {
-            data: data,
-            changes,
+            data: instance.data,
+            changes: null,
             source: "htmx",
-            requestId: requestId,
           });
+          EventSystem.publish("updateData", {
+            instanceName,
+            data: instance.data,
+            changes: null,
+            source: "htmx",
+          });
+          */
 
-          // Store data if storage is enabled
-          if (_state.config?.storage?.enabled) {
-            saveToLocalStorage(instanceName, data, "instance");
-          }
-
-          // Update instance data
-          Object.assign(instance.data, data);
-          Object.assign(instance.proxy, data);
-
-          // Render template without triggering a new request
-          try {
-            let rendered;
-            if (templateId) {
-              log("Rendering html to " + templateId + " based on htmx response");
-              rendered = instance.template(instance.proxy);
-            } else {
-              if (!elt.id) {
-                errorLog$1(
-                  "No template found. If the current element is a template, it must have an id.",
-                );
-                return text;
-              }
-              log("Rendering html to current element based on htmx response");
-              rendered = instance.template(instance.proxy);
-            }
-
-            if (rendered) {
-              Debug.log(
-                Debug.levels.DEBUG,
-                "Template rendered successfully for request",
-                requestId,
-              );
-              return rendered;
-            }
-            return text;
-          } catch (error) {
-            errorLog$1("Error rendering template:", error);
-            return (
-              "<div class='fp-error'>Error rendering template: " +
-              error +
-              "</div>"
-            );
-          }
+          // Signal completion by returning empty string
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[transformResponse] setData called for request ${requestId} on elt ${elt.id}. Returning empty string.`,
+          );
+          return "";
         }
         return text;
       },
 
       handleSwap: function (swapStyle, target, fragment, settleInfo) {
-        // Debug.log(Debug.levels.DEBUG, "handleSwap called with:", {
-        //   swapStyle,
-        //   hasTemplate: target.hasAttribute("fp-template"),
-        //   fragmentType: fragment.nodeType,
-        //   fragmentContent: fragment.textContent || fragment.innerHTML,
-        // });
+        const isEmptySignal = fragment.textContent?.trim() === "";
 
-        // Skip if element doesn't have fp-template
-        if (!target.hasAttribute("fp-template")) {
+        if (isEmptySignal) {
           Debug.log(
             Debug.levels.DEBUG,
-            "No fp-template attribute, skipping handleSwap",
-          );
-          return false; // Let HTMX handle the swap
-        }
-
-        try {
-          // Get instance
-          const instance = InstanceManager.getOrCreateInstance(target);
-          if (!instance) return false;
-
-          // Only handle non-HTML responses
-          const isHtmlResponse =
-            fragment.nodeType === Node.DOCUMENT_FRAGMENT_NODE ||
-            fragment.nodeType === Node.ELEMENT_NODE ||
-            (typeof fragment.textContent === "string" &&
-              (fragment.textContent.trim().startsWith("<!DOCTYPE") ||
-                fragment.textContent.trim().startsWith("<html") ||
-                fragment.textContent.trim().startsWith("<div") ||
-                fragment.textContent.trim().startsWith("<")));
-
-          if (isHtmlResponse) {
-            Debug.log(
-              Debug.levels.DEBUG,
-              "HTML response detected, letting htmx handle swap",
-            );
-            return false;
-          }
-
-          // For non-HTML responses with fp-template, we want to handle the swap
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Non-HTML response with fp-template detected, handling swap",
+            `[handleSwap] Detected empty string signal for target ${
+            target.id || "[no id]"
+          }. Preventing htmx default swap.`,
           );
           return true;
-        } catch (error) {
-          Debug.log(Debug.levels.ERROR, "Error in handleSwap: " + error.message);
+        } else {
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[handleSwap] Fragment is not empty signal for target ${
+            target.id || "[no id]"
+          }. Letting htmx swap.`,
+          );
           return false;
         }
       },
 
       onEvent: function (name, evt) {
-        if (evt.detail.handled) return;
+        const triggeringElt = evt.detail.elt;
+        if (!triggeringElt) {
+          Debug.log(
+            Debug.levels.WARN,
+            `[onEvent] Event ${name} has no triggering element (evt.detail.elt). Skipping.`,
+          );
+          return;
+        }
 
-        const target = evt.detail.elt;
         const requestId =
           evt.detail.requestId || RequestHandler.generateRequestId();
+        if (!evt.detail.requestId) evt.detail.requestId = requestId;
 
         switch (name) {
           case "htmx:beforeRequest":
-            evt.detail.requestId = requestId;
-            evt.detail.xhr.requestId = requestId;
-            RequestHandler.handleRequest(target, requestId, "start");
-
-            // Execute beforeRequest hook
-            if (target.hasAttribute("fp-template")) {
-              const instance = InstanceManager.getOrCreateInstance(target);
+            if (!evt.detail.xhr.requestId) {
+              evt.detail.xhr.requestId = requestId;
+            }
+            RequestHandler.handleRequest(triggeringElt, requestId, "start");
+            if (triggeringElt.hasAttribute("fp-template")) {
+              const instance = InstanceManager.getOrCreateInstance(triggeringElt);
               if (instance) {
                 PluginManager.executeHook("beforeRequest", instance, evt);
               }
@@ -15899,34 +15505,18 @@ var FlowPlater = (function () {
             break;
 
           case "htmx:beforeSwap":
-            const info = RequestHandler.processingElements.get(target);
-            if (!info || info.requestId !== requestId) {
-              evt.preventDefault();
-              Debug.log(
-                Debug.levels.DEBUG,
-                "Prevented swap - request ID mismatch",
-              );
-              return;
-            }
-            // Mark request as processed
-            RequestHandler.handleRequest(target, requestId, "process");
-            // Execute beforeSwap hook
-            executeHtmxHook("beforeSwap", target, evt);
+            executeHtmxHook("beforeSwap", triggeringElt, evt);
             break;
 
           case "htmx:afterSwap":
-            // Execute afterSwap hook
-            executeHtmxHook("afterSwap", target, evt);
-
-            // Clean up form listeners before setting up new ones
-            const formsToCleanup = getAllRelevantForms(target);
+            executeHtmxHook("afterSwap", triggeringElt, evt);
+            const formsToCleanup = getAllRelevantForms(triggeringElt);
             formsToCleanup.forEach(cleanupFormChangeListeners);
             break;
 
           case "htmx:afterRequest":
-            // Execute afterRequest hook
-            if (target.hasAttribute("fp-template")) {
-              const instance = InstanceManager.getOrCreateInstance(target);
+            if (triggeringElt.hasAttribute("fp-template")) {
+              const instance = InstanceManager.getOrCreateInstance(triggeringElt);
               if (instance) {
                 PluginManager.executeHook("afterRequest", instance, evt);
                 EventSystem.publish("request-end", {
@@ -15935,28 +15525,23 @@ var FlowPlater = (function () {
                 });
               }
             }
-
-            // Handle request cleanup
-            RequestHandler.handleRequest(target, requestId, "cleanup");
-
-            // Restore form states if necessary
-            restoreFormIfNecessary(target, true, evt);
+            RequestHandler.handleRequest(triggeringElt, requestId, "cleanup");
+            restoreFormIfNecessary(triggeringElt, true, evt);
             break;
 
           case "htmx:afterSettle":
-            // Execute afterSettle hook
-            executeHtmxHook("afterSettle", target, evt);
-
-            // Re-setup form handlers after the DOM has settled
+            executeHtmxHook("afterSettle", triggeringElt, evt);
             Debug.log(
               Debug.levels.DEBUG,
               `Setting up form handlers after DOM settle for target: ${
-              target.id || "unknown"
+              triggeringElt.id || "unknown"
             }, ` +
-                `has fp-template: ${target.hasAttribute("fp-template")}, ` +
-                `parent form: ${target.closest("form")?.id || "none"}`,
+                `has fp-template: ${triggeringElt.hasAttribute(
+                "fp-template",
+              )}, ` +
+                `parent form: ${triggeringElt.closest("form")?.id || "none"}`,
             );
-            setupFormSubmitHandlers(target);
+            setupFormSubmitHandlers(triggeringElt);
             break;
         }
       },
@@ -15979,13 +15564,11 @@ var FlowPlater = (function () {
    * @param {Object} [event] - The event object containing failure status
    */
   function restoreFormIfNecessary(target, checkFailed = true, event) {
-    // Skip if already restoring
     if (RequestHandler.isRestoringFormStates) {
       Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
       return;
     }
 
-    // Skip if request failed and we're checking for failures
     if (checkFailed && event?.detail?.failed) {
       return;
     }
@@ -16282,7 +15865,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.22";
+  const VERSION = "1.4.23";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
@@ -16731,7 +16314,7 @@ var FlowPlater = (function () {
                 target: template,
               });
             } else {
-              // Check for stored data when HTMX/FP methods are present
+              // Find stored data when HTMX/FP methods are present
               if (_state.config?.storage?.enabled) {
                 // Get instance name from attribute or fallback to template id
                 const instanceName =
@@ -16746,6 +16329,7 @@ var FlowPlater = (function () {
                     template: templateId,
                     data: storedData,
                     target: template,
+                    skipLocalStorageLoad: true, // Skip localStorage loading in render since we just loaded it
                   });
                 } else {
                   Debug.log(
@@ -16776,6 +16360,8 @@ var FlowPlater = (function () {
 
       // Set initialized flag
       _state.initialized = true;
+
+      EventSystem.publish("initialized");
 
       // Execute initComplete hook after everything is done
       this.PluginManager.executeHook("initComplete", this, _state.instances);
@@ -17025,6 +16611,8 @@ var FlowPlater = (function () {
     }
   }
   FlowPlaterObj.config(finalConfig);
+
+  EventSystem.publish("loaded");
 
   /* -------------------------------------------------------------------------- */
   /* ANCHOR                          Auto init                                  */
