@@ -22,6 +22,8 @@ export function render({
   animate = _state.defaults.animation,
   recompile = false,
   skipLocalStorageLoad = false,
+  skipRender = false,
+  isStoredDataRender = false,
 }) {
   Performance.start("render:" + (instanceName || "anonymous"));
 
@@ -43,7 +45,12 @@ export function render({
   }
 
   // If this instance was recently initialized (within 100ms), skip
-  if (derivedInstanceName && _state._initTracking[derivedInstanceName]) {
+  // BUT ONLY if this is not an explicit render with stored data
+  if (
+    derivedInstanceName &&
+    _state._initTracking[derivedInstanceName] &&
+    !isStoredDataRender
+  ) {
     const timeSinceLastInit =
       Date.now() - _state._initTracking[derivedInstanceName];
     if (timeSinceLastInit < 100) {
@@ -135,11 +142,13 @@ export function render({
   /*                               Proxy creation                               */
   /* -------------------------------------------------------------------------- */
 
+  // Initialize finalInitialData outside the if block so it's available throughout the function
+  let finalInitialData = data || {};
+  let persistedData = null;
+  let proxy = null; // Initialize proxy at function level
+
   if (!_state.instances[instanceName] || !_state.instances[instanceName].data) {
     // Load persisted data if available and not skipped
-    let finalInitialData = data || {};
-    let persistedData = null; // Initialize persistedData to null
-
     if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
       persistedData = loadFromLocalStorage(instanceName, "instance");
       if (persistedData) {
@@ -208,7 +217,7 @@ export function render({
 
     // 2. Create the proxy with the final merged data and DEBOUNCED update handler
     const DEBOUNCE_DELAY = 50; // ms - slightly longer to avoid duplicate updates
-    const proxy = createDeepProxy(finalInitialData, (target) => {
+    proxy = createDeepProxy(finalInitialData, (target) => {
       if (instance) {
         // -- Debounce Logic --
         // Capture state *before* the first change in this debounce cycle
@@ -318,9 +327,15 @@ export function render({
     // 4. Trigger initial render - This should be OUTSIDE the debounce logic
     Debug.log(
       Debug.levels.DEBUG,
-      `[Initial Render] Triggering _updateDOM for ${instanceName}`,
+      `[Initial Render] ${
+        skipRender ? "Skipping" : "Triggering"
+      } _updateDOM for ${instanceName}`,
     );
-    instance._updateDOM();
+
+    // Only call _updateDOM if not skipRender
+    if (!skipRender) {
+      instance._updateDOM();
+    }
 
     // Optional: Initial save if needed, OUTSIDE debounce
     if (_state.config?.storage?.enabled && !persistedData) {
@@ -336,6 +351,9 @@ export function render({
         "instance",
       ); // Save the raw initial merged data
     }
+  } else {
+    // If the instance already exists, get its proxy
+    proxy = _state.instances[instanceName].data;
   }
 
   // Return the instance from the state (might be the one just created or an existing one)
@@ -346,36 +364,61 @@ export function render({
   /*                               Render template                              */
   /* -------------------------------------------------------------------------- */
 
-  try {
-    if (returnHtml) {
-      return compiledTemplate(finalInstance.data);
-    }
+  // Only create/setup instance if proxy is defined
+  if (proxy) {
+    // Create/get instance and set up proxy regardless of skipRender
+    const instance = InstanceManager.getOrCreateInstance(
+      elements[0],
+      finalInitialData,
+    );
 
-    elements.forEach((element) => {
-      updateDOM(
-        element,
-        compiledTemplate(finalInstance.data),
-        animate,
-        finalInstance,
+    // Set up the instance but don't render automatically
+    instance.elements = new Set(elements);
+    instance.template = compiledTemplate; // Always store the template
+    instance.templateId = elements[0].getAttribute("fp-template") || template;
+    instance.data = proxy;
+
+    // At this point do NOT call instance._updateDOM() to avoid automatic rendering
+
+    // Only perform actual rendering if explicitly requested
+    if (!skipRender) {
+      Debug.log(
+        Debug.levels.DEBUG,
+        `[Render Template] Executing render for ${instanceName}`,
       );
-    });
 
-    return finalInstance;
-  } catch (error) {
-    if (!(error instanceof TemplateError)) {
-      errorLog(`Failed to render template: ${error.message}`);
+      try {
+        if (returnHtml) {
+          return compiledTemplate(finalInstance.data);
+        }
+
+        elements.forEach((element) => {
+          updateDOM(
+            element,
+            compiledTemplate(finalInstance.data),
+            animate,
+            finalInstance,
+          );
+        });
+      } catch (error) {
+        if (!(error instanceof TemplateError)) {
+          errorLog(`Failed to render template: ${error.message}`);
+        }
+        throw error;
+      }
+    } else {
+      Debug.log(
+        Debug.levels.DEBUG,
+        `[Render Template] Skipping render for ${instanceName} as requested`,
+      );
     }
-    throw error;
-  } finally {
-    EventSystem.publish("afterRender", {
-      instanceName,
-      template,
-      data,
-      target,
-      elements,
-      returnHtml,
-    });
-    log("Rendered instance: " + instanceName, template, data, target);
-    Performance.end("render:" + (instanceName || "anonymous"));
+  } else if (!skipRender) {
+    // Log a debug message that we're skipping render due to no data
+    Debug.log(
+      Debug.levels.DEBUG,
+      `[Template] Skipping render for ${instanceName} because no data is available yet.`,
+    );
   }
+
+  return finalInstance || null;
 }

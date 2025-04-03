@@ -473,51 +473,81 @@ const FlowPlaterObj = {
         }
 
         // Compile the template using the templateId from the attribute
-        compileTemplate(templateId, true);
+        const compiledTemplate = compileTemplate(templateId, true);
 
         // Only render if options.render is true AND element doesn't have HTMX/FP methods
         if (options.render) {
+          // Enhanced method detection - check for any fp- or hx- attribute that would trigger requests
           const methods = ["get", "post", "put", "patch", "delete"];
-          const hasHtmxMethod = methods.some(
+
+          // More comprehensive check for request-triggering attributes
+          let hasRequestMethod = false;
+
+          // Check for specific HTTP method attributes
+          hasRequestMethod = methods.some(
             (method) =>
               template.hasAttribute(`hx-${method}`) ||
               template.hasAttribute(`fp-${method}`),
           );
 
-          if (!hasHtmxMethod) {
-            render({
-              template: templateId,
-              data: {},
-              target: template,
-            });
-          } else {
-            // Find stored data when HTMX/FP methods are present
-            if (_state.config?.storage?.enabled) {
-              // Get instance name from attribute or fallback to template id
-              const instanceName =
-                template.getAttribute("fp-instance") || templateId;
-              const storedData = loadFromLocalStorage(instanceName, "instance");
-              if (storedData) {
-                Debug.log(
-                  Debug.levels.INFO,
-                  `Found stored data for instance: ${instanceName}, rendering with stored data`,
-                );
-                render({
-                  template: templateId,
-                  data: storedData,
-                  target: template,
-                  skipLocalStorageLoad: true, // Skip localStorage loading in render since we just loaded it
-                });
-              } else {
-                Debug.log(
-                  Debug.levels.DEBUG,
-                  `Skipping initial render for instance: ${instanceName}`,
-                );
-              }
+          // Also check for other trigger attributes that would cause loading
+          if (!hasRequestMethod) {
+            // Check for any attribute that would trigger an HTTP request
+            const httpTriggerAttributes = [
+              "hx-trigger",
+              "fp-trigger",
+              "hx-boost",
+              "fp-boost",
+              "hx-ws",
+              "fp-ws",
+              "hx-sse",
+              "fp-sse",
+            ];
+
+            hasRequestMethod = httpTriggerAttributes.some((attr) =>
+              template.hasAttribute(attr),
+            );
+          }
+
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[Template ${templateId}] Has request method: ${hasRequestMethod}`,
+            template,
+          );
+
+          // Create/update instance with template regardless of render decision
+          // Important: skipRender should be true when hasRequestMethod is true
+          const instance = render({
+            template: templateId,
+            data: {},
+            target: template,
+            skipRender: hasRequestMethod, // Skip render if has HTMX/FP methods
+          });
+
+          // If has HTMX methods, check for stored data
+          if (hasRequestMethod && _state.config?.storage?.enabled) {
+            const instanceName =
+              template.getAttribute("fp-instance") || template.id || templateId;
+            const storedData = loadFromLocalStorage(instanceName, "instance");
+            if (storedData) {
+              Debug.log(
+                Debug.levels.INFO,
+                `Found stored data for instance: ${instanceName}, rendering with stored data`,
+              );
+              // Instead of directly setting data, use render with the stored data
+              // This ensures proper rendering with the stored data
+              render({
+                template: templateId,
+                data: storedData,
+                target: template,
+                instanceName: instanceName,
+                skipRender: false, // Explicitly render with stored data
+                isStoredDataRender: true, // Flag to bypass redundant init check
+              });
             } else {
               Debug.log(
                 Debug.levels.DEBUG,
-                `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
+                `Skipping initial render for instance: ${instanceName} - no stored data found`,
               );
             }
           }
