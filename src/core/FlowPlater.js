@@ -38,7 +38,7 @@ import PluginManager from "./PluginManager";
  * @author JWSLS
  */
 
-const VERSION = "1.4.25";
+const VERSION = "1.4.26";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 

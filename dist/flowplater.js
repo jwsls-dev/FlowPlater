@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.25 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.26 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -614,7 +614,7 @@ THE SOFTWARE.
     }, function(L, M, e) {
         "use strict";
         var t = e(9), n = e(16), o = e(17), r = e(18), s = e(20), i = e(24), a = e(19), l = e(27), c = e(28), F = e(30), u = e(29), $ = e(31), f = e(36), B = e(37), q = e(38), U = e(39), h = e(32), p = e(26), d = t.getDesc, m = t.setDesc, g = t.create, v = f.get, y = n.Symbol, b = n.JSON, E = b && b.stringify, x = false, S = u("_hidden"), j = t.isEnum, w = l("symbol-registry"), k = l("symbols"), A = typeof y == "function", P = Object.prototype;
-        var C = r && a(function() {
+        var O = r && a(function() {
             return g(m({}, "a", {
                 get: function() {
                     return m(this, "a", {
@@ -628,14 +628,14 @@ THE SOFTWARE.
             m(e, t, n);
             if (r && e !== P) m(P, t, r);
         } : m;
-        var O = function(t) {
+        var C = function(t) {
             var e = k[t] = g(y.prototype);
             e._k = t;
-            r && x && C(P, t, {
+            r && x && O(P, t, {
                 configurable: true,
                 set: function(e) {
                     if (o(this, S) && o(this[S], t)) this[S][t] = false;
-                    C(this, t, p(1, e));
+                    O(this, t, p(1, e));
                 }
             });
             return e;
@@ -654,7 +654,7 @@ THE SOFTWARE.
                         enumerable: p(0, false)
                     });
                 }
-                return C(t, n, r);
+                return O(t, n, r);
             }
             return m(t, n, r);
         };
@@ -708,7 +708,7 @@ THE SOFTWARE.
         if (!A) {
             y = function e() {
                 if (_(this)) throw TypeError("Symbol is not a constructor");
-                return O(F(arguments.length > 0 ? arguments[0] : undefined));
+                return C(F(arguments.length > 0 ? arguments[0] : undefined));
             };
             i(y.prototype, "toString", function e() {
                 return this._k;
@@ -743,7 +743,7 @@ THE SOFTWARE.
         };
         t.each.call(("hasInstance,isConcatSpreadable,iterator,match,replace,search," + "species,split,toPrimitive,toStringTag,unscopables").split(","), function(e) {
             var t = u(e);
-            J[e] = A ? t : O(t);
+            J[e] = A ? t : C(t);
         });
         x = true;
         s(s.G + s.W, {
@@ -1003,14 +1003,14 @@ THE SOFTWARE.
         };
     }, function(e, t, n) {
         "use strict";
-        var v = n(41), y = n(20), b = n(24), E = n(25), x = n(17), S = n(49), w = n(50), k = n(28), A = n(9).getProto, P = n(29)("iterator"), C = !([].keys && "next" in [].keys()), O = "@@iterator", _ = "keys", I = "values";
+        var v = n(41), y = n(20), b = n(24), E = n(25), x = n(17), S = n(49), w = n(50), k = n(28), A = n(9).getProto, P = n(29)("iterator"), O = !([].keys && "next" in [].keys()), C = "@@iterator", _ = "keys", I = "values";
         var N = function() {
             return this;
         };
         e.exports = function(e, t, n, r, s, i, o) {
             w(n, t, r);
             var a = function(t) {
-                if (!C && t in f) return f[t];
+                if (!O && t in f) return f[t];
                 switch (t) {
                   case _:
                     return function e() {
@@ -1026,11 +1026,11 @@ THE SOFTWARE.
                     return new n(this, t);
                 };
             };
-            var l = t + " Iterator", c = s == I, u = false, f = e.prototype, h = f[P] || f[O] || s && f[s], p = h || a(s), d, m;
+            var l = t + " Iterator", c = s == I, u = false, f = e.prototype, h = f[P] || f[C] || s && f[s], p = h || a(s), d, m;
             if (h) {
                 var g = A(p.call(new e()));
                 k(g, l, true);
-                if (!v && x(f, O)) E(g, P, N);
+                if (!v && x(f, C)) E(g, P, N);
                 if (c && h.name !== I) {
                     u = true;
                     p = function e() {
@@ -1038,7 +1038,7 @@ THE SOFTWARE.
                     };
                 }
             }
-            if ((!v || o) && (C || u || !f[P])) {
+            if ((!v || o) && (O || u || !f[P])) {
                 E(f, P, p);
             }
             S[t] = p;
@@ -1051,7 +1051,7 @@ THE SOFTWARE.
                 };
                 if (o) for (m in d) {
                     if (!(m in f)) b(f, m, d[m]);
-                } else y(y.P + y.F * (C || u), t, d);
+                } else y(y.P + y.F * (O || u), t, d);
             }
             return d;
         };
@@ -3725,7 +3725,7 @@ THE SOFTWARE.
                         }
                         return e;
                     }
-                    var v, y, b, E, x, S, w = {}, k, A, P, C;
+                    var v, y, b, E, x, S, w = {}, k, A, P, O;
                     while (true) {
                         b = r[r.length - 1];
                         if (this.defaultActions[b]) {
@@ -3737,23 +3737,23 @@ THE SOFTWARE.
                             E = o[b] && o[b][v];
                         }
                         if (typeof E === "undefined" || !E.length || !E[0]) {
-                            var O = "";
+                            var C = "";
                             if (!u) {
-                                C = [];
+                                O = [];
                                 for (k in o[b]) if (this.terminals_[k] && k > 2) {
-                                    C.push("'" + this.terminals_[k] + "'");
+                                    O.push("'" + this.terminals_[k] + "'");
                                 }
                                 if (this.lexer.showPosition) {
-                                    O = "Parse error on line " + (l + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + C.join(", ") + ", got '" + (this.terminals_[v] || v) + "'";
+                                    C = "Parse error on line " + (l + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + O.join(", ") + ", got '" + (this.terminals_[v] || v) + "'";
                                 } else {
-                                    O = "Parse error on line " + (l + 1) + ": Unexpected " + (v == 1 ? "end of input" : "'" + (this.terminals_[v] || v) + "'");
+                                    C = "Parse error on line " + (l + 1) + ": Unexpected " + (v == 1 ? "end of input" : "'" + (this.terminals_[v] || v) + "'");
                                 }
-                                this.parseError(O, {
+                                this.parseError(C, {
                                     text: this.lexer.match,
                                     token: this.terminals_[v] || v,
                                     line: this.lexer.yylineno,
                                     loc: p,
-                                    expected: C
+                                    expected: O
                                 });
                             }
                         }
@@ -9004,7 +9004,7 @@ var htmx = function() {
                 }
             }
         }
-        const C = {
+        const O = {
             xhr: m,
             target: l,
             requestConfig: k,
@@ -9021,13 +9021,13 @@ var htmx = function() {
         m.onload = function() {
             try {
                 const t = hierarchyForElt(r);
-                C.pathInfo.responsePath = getPathFromResponse(m);
-                M(r, C);
-                if (C.keepIndicators !== true) {
-                    removeRequestIndicators(O, _);
+                O.pathInfo.responsePath = getPathFromResponse(m);
+                M(r, O);
+                if (O.keepIndicators !== true) {
+                    removeRequestIndicators(C, _);
                 }
-                triggerEvent(r, "htmx:afterRequest", C);
-                triggerEvent(r, "htmx:afterOnLoad", C);
+                triggerEvent(r, "htmx:afterRequest", O);
+                triggerEvent(r, "htmx:afterOnLoad", O);
                 if (!bodyContains(r)) {
                     let e = null;
                     while (t.length > 0 && e == null) {
@@ -9037,8 +9037,8 @@ var htmx = function() {
                         }
                     }
                     if (e) {
-                        triggerEvent(e, "htmx:afterRequest", C);
-                        triggerEvent(e, "htmx:afterOnLoad", C);
+                        triggerEvent(e, "htmx:afterRequest", O);
+                        triggerEvent(e, "htmx:afterOnLoad", O);
                     }
                 }
                 maybeCall(o);
@@ -9046,37 +9046,37 @@ var htmx = function() {
             } catch (e) {
                 triggerErrorEvent(r, "htmx:onLoadError", mergeObjects({
                     error: e
-                }, C));
+                }, O));
                 throw e;
             }
         };
         m.onerror = function() {
-            removeRequestIndicators(O, _);
-            triggerErrorEvent(r, "htmx:afterRequest", C);
-            triggerErrorEvent(r, "htmx:sendError", C);
+            removeRequestIndicators(C, _);
+            triggerErrorEvent(r, "htmx:afterRequest", O);
+            triggerErrorEvent(r, "htmx:sendError", O);
             maybeCall(a);
             g();
         };
         m.onabort = function() {
-            removeRequestIndicators(O, _);
-            triggerErrorEvent(r, "htmx:afterRequest", C);
-            triggerErrorEvent(r, "htmx:sendAbort", C);
+            removeRequestIndicators(C, _);
+            triggerErrorEvent(r, "htmx:afterRequest", O);
+            triggerErrorEvent(r, "htmx:sendAbort", O);
             maybeCall(a);
             g();
         };
         m.ontimeout = function() {
-            removeRequestIndicators(O, _);
-            triggerErrorEvent(r, "htmx:afterRequest", C);
-            triggerErrorEvent(r, "htmx:timeout", C);
+            removeRequestIndicators(C, _);
+            triggerErrorEvent(r, "htmx:afterRequest", O);
+            triggerErrorEvent(r, "htmx:timeout", O);
             maybeCall(a);
             g();
         };
-        if (!triggerEvent(r, "htmx:beforeRequest", C)) {
+        if (!triggerEvent(r, "htmx:beforeRequest", O)) {
             maybeCall(o);
             g();
             return e;
         }
-        var O = addRequestIndicatorClasses(r);
+        var C = addRequestIndicatorClasses(r);
         var _ = disableElements(r);
         forEach([ "loadstart", "loadend", "progress", "abort" ], function(t) {
             forEach([ m, m.upload ], function(e) {
@@ -9089,7 +9089,7 @@ var htmx = function() {
                 });
             });
         });
-        triggerEvent(r, "htmx:beforeSend", C);
+        triggerEvent(r, "htmx:beforeSend", O);
         const J = w ? null : encodeParamsForBody(m, r, x);
         m.send(J);
         return e;
@@ -9538,7 +9538,7 @@ var FlowPlater = function() {
     function P(...e) {
         A.log(A.levels.INFO, ...e);
     }
-    function C(...e) {
+    function O(...e) {
         A.log(A.levels.ERROR, ...e);
     }
     class d extends Error {
@@ -9548,7 +9548,7 @@ var FlowPlater = function() {
             this.stack = t;
         }
     }
-    class O extends d {
+    class C extends d {
         constructor(e, t) {
             super(e);
             this.name = "TemplateError";
@@ -9596,7 +9596,7 @@ var FlowPlater = function() {
                     try {
                         e.call(t, r);
                     } catch (e) {
-                        C(`Error in event subscriber for ${n}:`, e);
+                        O(`Error in event subscriber for ${n}:`, e);
                     }
                 });
                 if (r && r.instanceName) {
@@ -9609,7 +9609,7 @@ var FlowPlater = function() {
                             try {
                                 e.call(t, r);
                             } catch (e) {
-                                C(`Error in instance event subscriber for ${s}:`, e);
+                                O(`Error in instance event subscriber for ${s}:`, e);
                             }
                         });
                     }
@@ -9671,8 +9671,14 @@ var FlowPlater = function() {
         globalMethods: new Map(),
         instanceMethods: new Map(),
         registerPlugin(e) {
-            if (!e || typeof e !== "function") {
-                throw new d("Plugin must be a function");
+            if (typeof e === "string") {
+                e = window[e];
+            }
+            if (!e) {
+                throw new d(`Plugin not found: ${e}`);
+            }
+            if (typeof e !== "function") {
+                throw new d("Plugin must be a valid function");
             }
             const t = e();
             const n = [ "name", "enabled", "priority", "version" ];
@@ -9864,19 +9870,23 @@ var FlowPlater = function() {
             }
             return "json";
         },
-        applyTransformations(s, e, i, o = "json") {
+        applyTransformations(r, e, s, i = "json") {
             const t = this.getSortedPlugins();
             return t.reduce((t, n) => {
-                if (n.transformers && typeof n.transformers[i] === "function") {
+                if (n.transformers && typeof n.transformers[s] === "function") {
                     try {
-                        const e = n.transformers[i](s, t, o);
-                        const r = this._determineDataType(e);
-                        if (r !== o) {
-                            A.log(A.levels.DEBUG, `Plugin ${n.config.name} changed data type from ${o} to ${r} in ${i} transformation`);
+                        const e = n.transformers[s](r, t, i);
+                        if (e === undefined || e === null) {
+                            A.log(A.levels.WARN, `Plugin ${n.config.name} returned undefined/null for ${s}, using original data`);
+                            return t;
+                        }
+                        if (t instanceof Event && e instanceof Event) {
+                            Object.assign(t.detail, e.detail);
+                            return t;
                         }
                         return e;
                     } catch (e) {
-                        A.log(A.levels.ERROR, `Plugin ${n.config.name} failed executing ${i} transformation:`, e);
+                        A.log(A.levels.ERROR, `Plugin ${n.config.name} failed executing ${s} transformation:`, e);
                         return t;
                     }
                 }
@@ -10013,7 +10023,7 @@ var FlowPlater = function() {
         var n = document.querySelector(e);
         A.log(A.levels.DEBUG, "Trying to compile template: " + t);
         if (!n) {
-            C("Template not found: " + t);
+            O("Template not found: " + t);
             N.end("compile:" + t);
             return null;
         }
@@ -10099,7 +10109,7 @@ var FlowPlater = function() {
                 N.end("compile:" + t);
                 return s;
             } catch (e) {
-                C("Template not valid: " + r + " | Error: " + e.message);
+                O("Template not valid: " + r + " | Error: " + e.message);
                 N.end("compile:" + t);
                 return null;
             }
@@ -10119,7 +10129,7 @@ var FlowPlater = function() {
             try {
                 t = JSON.parse(JSON.stringify(n));
             } catch (e) {
-                C(`Failed to serialize data for localStorage: ${e.message}`);
+                O(`Failed to serialize data for localStorage: ${e.message}`);
                 t = {};
             }
             const i = {
@@ -10133,7 +10143,7 @@ var FlowPlater = function() {
             localStorage.setItem(s, JSON.stringify(i));
             return true;
         } catch (e) {
-            C(`Failed to save to localStorage: ${e.message}`);
+            O(`Failed to save to localStorage: ${e.message}`);
             return false;
         }
     }
@@ -10162,7 +10172,7 @@ var FlowPlater = function() {
             });
             return s.data;
         } catch (e) {
-            C(`Failed to load from localStorage: ${e.message}`);
+            O(`Failed to load from localStorage: ${e.message}`);
             return null;
         }
     }
@@ -11024,7 +11034,7 @@ var FlowPlater = function() {
         function t(e) {
             const t = I.instances[c];
             if (!t) {
-                C("Instance not found: " + c);
+                O("Instance not found: " + c);
                 return undefined;
             }
             const n = e.split(/[\.\[\]'"]/);
@@ -11053,7 +11063,7 @@ var FlowPlater = function() {
                     isHtml: false
                 };
             }
-            C("Invalid data type: " + typeof e);
+            O("Invalid data type: " + typeof e);
             return {
                 valid: false,
                 isHtml: false
@@ -11065,7 +11075,7 @@ var FlowPlater = function() {
             _updateDOM: function() {
                 const n = I.instances[c];
                 if (!n) {
-                    C("Instance not found: " + c);
+                    O("Instance not found: " + c);
                     return;
                 }
                 const {
@@ -11111,11 +11121,11 @@ var FlowPlater = function() {
             setData: function(e) {
                 const t = I.instances[c];
                 if (!t) {
-                    C("Instance not found: " + c);
+                    O("Instance not found: " + c);
                     return this;
                 }
                 if (typeof e !== "object" || e === null || Array.isArray(e)) {
-                    C("Invalid newData type provided to setData: " + typeof e);
+                    O("Invalid newData type provided to setData: " + typeof e);
                     return this;
                 }
                 const n = t.data;
@@ -11151,7 +11161,7 @@ var FlowPlater = function() {
                         try {
                             e.innerHTML = "";
                         } catch (e) {
-                            C("Error removing instance: " + e.message);
+                            O("Error removing instance: " + e.message);
                         }
                     });
                     e.elements = [];
@@ -11173,7 +11183,7 @@ var FlowPlater = function() {
             }) {
                 const a = I.instances[c];
                 if (!a) {
-                    C("Instance not found: " + c);
+                    O("Instance not found: " + c);
                     return Promise.reject(new Error("Instance not found: " + c));
                 }
                 const e = a.template(a.data);
@@ -11216,7 +11226,7 @@ var FlowPlater = function() {
                         }
                     } catch (e) {
                         t.innerHTML = `<div class="fp-error">Error refreshing template: ${e.message}</div>`;
-                        C(`Failed to refresh template: ${e.message}`);
+                        O(`Failed to refresh template: ${e.message}`);
                         l.push(Promise.reject(e));
                     }
                 });
@@ -11237,7 +11247,7 @@ var FlowPlater = function() {
                 N.start("refreshTemplate:" + e);
                 const n = T(e, t);
                 if (!n) {
-                    C("Failed to compile template: " + e);
+                    O("Failed to compile template: " + e);
                     N.end("refreshTemplate:" + e);
                     return false;
                 }
@@ -11248,7 +11258,7 @@ var FlowPlater = function() {
         getOrCreateInstance(e, t = {}) {
             const n = e.getAttribute("fp-instance") || e.id;
             if (!n) {
-                C("No instance name found for element");
+                O("No instance name found for element");
                 return null;
             }
             let r = I.instances[n];
@@ -11278,7 +11288,7 @@ var FlowPlater = function() {
         },
         updateInstanceData(e, t) {
             if (!e || !e.data) {
-                C("Cannot update data: Instance or instance.data is invalid.");
+                O("Cannot update data: Instance or instance.data is invalid.");
                 return;
             }
             Object.assign(e.data, t);
@@ -11363,7 +11373,7 @@ var FlowPlater = function() {
             f = [ n ];
         }
         if (f.length === 0) {
-            C("No target elements found");
+            O("No target elements found");
             return;
         }
         if (f.length === undefined) {
@@ -11382,11 +11392,11 @@ var FlowPlater = function() {
         var h = T(e, i);
         I.length++;
         if (!h) {
-            C("Template not found: " + e);
+            O("Template not found: " + e);
             return;
         }
         if (f.length === 0) {
-            C("Target not found: " + n);
+            O("Target not found: " + n);
             return;
         }
         let p = t || {};
@@ -11421,7 +11431,7 @@ var FlowPlater = function() {
             }
             const b = M.getOrCreateInstance(f[0], p);
             if (!b) {
-                C("Failed to get or create instance: " + o);
+                O("Failed to get or create instance: " + o);
                 return null;
             }
             if (!b._updateTimer) {
@@ -11438,7 +11448,7 @@ var FlowPlater = function() {
                             b._stateBeforeDebounce = JSON.parse(JSON.stringify(m));
                             A.log(A.levels.DEBUG, `[Debounce Start] Captured pre-debounce state for ${o}:`, b._stateBeforeDebounce);
                         } catch (e) {
-                            C(`[Debounce Start] Failed to capture pre-debounce state for ${o}:`, e);
+                            O(`[Debounce Start] Failed to capture pre-debounce state for ${o}:`, e);
                             b._stateBeforeDebounce = null;
                         }
                     }
@@ -11513,8 +11523,8 @@ var FlowPlater = function() {
                         L(e, h(t), s, g);
                     });
                 } catch (e) {
-                    if (!(e instanceof O)) {
-                        C(`Failed to render template: ${e.message}`);
+                    if (!(e instanceof C)) {
+                        O(`Failed to render template: ${e.message}`);
                     }
                     throw e;
                 }
@@ -11571,7 +11581,7 @@ var FlowPlater = function() {
                 return e.localeCompare(n) >= 0;
 
               default:
-                throw new O("Unsupported operator for strings: " + t);
+                throw new C("Unsupported operator for strings: " + t);
             }
         }
         switch (t) {
@@ -11603,7 +11613,7 @@ var FlowPlater = function() {
             return new RegExp(n).test(e);
 
           default:
-            throw new O("Unsupported operator: " + t);
+            throw new C("Unsupported operator: " + t);
         }
     }
     function me() {
@@ -11645,7 +11655,7 @@ var FlowPlater = function() {
                 const r = e.trim();
                 const [ s, i, o ] = r.split(/\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/);
                 if (!s || !i || !o) {
-                    throw new O(`Invalid expression format: ${r}`);
+                    throw new C(`Invalid expression format: ${r}`);
                 }
                 const a = n(s, t.data.root, this);
                 const l = n(o, t.data.root, this);
@@ -11662,7 +11672,7 @@ var FlowPlater = function() {
                     return t.inverse(this);
                 }
             } catch (e) {
-                if (!(e instanceof O)) {
+                if (!(e instanceof C)) {
                     A.log(A.levels.ERROR, "Error evaluating if condition:", e.stack);
                 }
                 throw e;
@@ -11999,8 +12009,8 @@ var FlowPlater = function() {
                 const o = i.exec(s);
                 return o;
             } catch (e) {
-                if (!(e instanceof O)) {
-                    throw new O(`Error evaluating expression: ${e.message}`, e.stack);
+                if (!(e instanceof C)) {
+                    throw new C(`Error evaluating expression: ${e.message}`, e.stack);
                 }
                 throw e;
             }
@@ -12084,18 +12094,18 @@ var FlowPlater = function() {
             if (typeof r === "function") {
                 return r(...t);
             } else {
-                C("Function not found or is not a function: " + e);
+                O("Function not found or is not a function: " + e);
             }
         });
     }
     function xe() {
         Handlebars.registerHelper("set", function(e, t, n) {
             if (!e || !t) {
-                C("setHelper: varName and varValue are required");
+                O("setHelper: varName and varValue are required");
                 return "";
             }
             if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(e)) {
-                C(`setHelper: varName ${e} is not a valid variable name`);
+                O(`setHelper: varName ${e} is not a valid variable name`);
                 return "";
             }
             n.data.root[e] = t;
@@ -12311,7 +12321,7 @@ var FlowPlater = function() {
                         a = JSON.stringify(ke(u));
                         l = true;
                     } catch (e) {
-                        C("Failed to parse XML response:", e);
+                        O("Failed to parse XML response:", e);
                     }
                 } else if (!o) {
                     l = true;
@@ -12344,7 +12354,7 @@ var FlowPlater = function() {
                 try {
                     d = JSON.parse(a);
                 } catch (e) {
-                    C("Failed to parse JSON response:", e);
+                    O("Failed to parse JSON response:", e);
                     return a;
                 }
                 if (!d) return a;
@@ -12376,16 +12386,26 @@ var FlowPlater = function() {
                 const r = t.detail.requestId || y.generateRequestId();
                 if (!t.detail.requestId) t.detail.requestId = r;
                 switch (e) {
+                  case "htmx:confirm":
+                    if (n.hasAttribute("fp-template")) {
+                        const s = M.getOrCreateInstance(n);
+                        t = R.applyTransformations(s || null, t, "confirm", "json");
+                    }
+                    break;
+
+                  case "htmx:configRequest":
+                    const s = M.getOrCreateInstance(n);
+                    t = R.applyTransformations(s || null, t, "configRequest", "json");
+                    break;
+
                   case "htmx:beforeRequest":
                     if (!t.detail.xhr.requestId) {
                         t.detail.xhr.requestId = r;
                     }
                     y.handleRequest(n, r, "start");
                     if (n.hasAttribute("fp-template")) {
-                        const i = M.getOrCreateInstance(n);
-                        if (i) {
-                            R.executeHook("beforeRequest", i, t);
-                        }
+                        const s = M.getOrCreateInstance(n);
+                        R.executeHook("beforeRequest", s || null, t);
                     }
                     break;
 
@@ -12395,17 +12415,17 @@ var FlowPlater = function() {
 
                   case "htmx:afterSwap":
                     l("afterSwap", n, t);
-                    const s = te(n);
-                    s.forEach(Q);
+                    const i = te(n);
+                    i.forEach(Q);
                     break;
 
                   case "htmx:afterRequest":
                     if (n.hasAttribute("fp-template")) {
-                        const i = M.getOrCreateInstance(n);
-                        if (i) {
-                            R.executeHook("afterRequest", i, t);
+                        const s = M.getOrCreateInstance(n);
+                        if (s) {
+                            R.executeHook("afterRequest", s, t);
                             _.publish("request-end", {
-                                instanceName: i.instanceName,
+                                instanceName: s.instanceName,
                                 ...t.detail
                             });
                         }
@@ -12441,26 +12461,6 @@ var FlowPlater = function() {
         }
         c.restoreFormStates(e);
     }
-    function Ce(n) {
-        try {
-            if (n.hasAttribute("data-fp-proxy-processed") || !n.hasAttribute("fp-proxy") || n.getAttribute("fp-proxy") === "false") {
-                return n;
-            }
-            const r = n.getAttribute("fp-proxy").startsWith("http") ? n.getAttribute("fp-proxy") : "https://corsproxy.io/?";
-            const e = [ "get", "post", "put", "patch", "delete" ];
-            e.forEach(function(e) {
-                if (n.hasAttribute("hx-" + e)) {
-                    const t = n.getAttribute("hx-" + e);
-                    n.setAttribute("hx-" + e, r + encodeURIComponent(t));
-                }
-            });
-            n.setAttribute("data-fp-proxy-processed", "true");
-            return n;
-        } catch (e) {
-            A.log(A.levels.ERROR, `Error in setupProxy: ${e.message}`);
-            return n;
-        }
-    }
     function Oe(t) {
         if (!t) {
             errorLog("No URL provided for preloading");
@@ -12487,7 +12487,7 @@ var FlowPlater = function() {
             timeoutId: r
         };
     }
-    function _e(r) {
+    function Ce(r) {
         const e = r.getAttribute("fp-preload") || "mouseover";
         if (e === "mouseover") {
             let t = true;
@@ -12530,13 +12530,13 @@ var FlowPlater = function() {
             };
         }
     }
-    function Ie(t) {
+    function _e(t) {
         try {
             if (t.hasAttribute("data-fp-preload-processed")) {
                 return t;
             }
             if (t.hasAttribute("fp-preload")) {
-                _e(t);
+                Ce(t);
                 t.setAttribute("data-fp-preload-processed", "true");
             }
             return t;
@@ -12545,12 +12545,12 @@ var FlowPlater = function() {
             return t;
         }
     }
-    const Ne = [ "boost", "get", "post", "on", "push-url", "select", "select-oob", "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable", "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt", "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url", "request", "sync", "validate", "vars" ];
-    function Re(r) {
+    const Ie = [ "boost", "get", "post", "on", "push-url", "select", "select-oob", "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable", "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt", "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url", "request", "sync", "validate", "vars" ];
+    function Ne(r) {
         try {
             const s = "fp-";
             const i = "hx-";
-            Ne.forEach(e => {
+            Ie.forEach(e => {
                 const t = s + e;
                 if (r.hasAttribute(t)) {
                     const n = r.getAttribute(t);
@@ -12564,7 +12564,7 @@ var FlowPlater = function() {
             return r;
         }
     }
-    function Te(t) {
+    function Re(t) {
         try {
             const n = [ "get", "post", "put", "patch", "delete" ];
             function a(e, t) {
@@ -12596,7 +12596,7 @@ var FlowPlater = function() {
                         if (i !== n) {
                             P("Modification successful for", e, "on element", o);
                         } else {
-                            C("Modification failed for", e, "on element", o);
+                            O("Modification failed for", e, "on element", o);
                         }
                     }
                 });
@@ -12606,11 +12606,11 @@ var FlowPlater = function() {
             }
             return t;
         } catch (e) {
-            C(`Error in processUrlAffixes: ${e.message}`);
+            O(`Error in processUrlAffixes: ${e.message}`);
             return t;
         }
     }
-    function De(t) {
+    function Te(t) {
         try {
             var e = t.getAttribute("fp-animation") || I.defaults.animation;
             if (e === "true") {
@@ -12627,7 +12627,7 @@ var FlowPlater = function() {
             return t;
         }
     }
-    function He(t) {
+    function De(t) {
         try {
             var e = t.getAttribute("hx-ext") || "";
             if (!e.includes("flowplater")) {
@@ -12641,9 +12641,9 @@ var FlowPlater = function() {
             return t;
         }
     }
-    const Le = "1.4.25";
-    const Me = "JWSLS";
-    const Fe = "Flowplater standard licence";
+    const He = "1.4.26";
+    const Le = "JWSLS";
+    const Me = "Flowplater standard licence";
     const n = {
         debug: {
             level: window.location.hostname.endsWith(".webflow.io") || window.location.hostname.endsWith(".canvas.webflow.com") ? 3 : 1
@@ -12686,22 +12686,19 @@ var FlowPlater = function() {
             process: $
         }, {
             name: "htmxAttributes",
-            process: Re
+            process: Ne
         }, {
             name: "htmxExtensionAttribute",
-            process: He
-        }, {
-            name: "urlAffixes",
-            process: Te
-        }, {
-            name: "animation",
             process: De
         }, {
-            name: "proxy",
-            process: Ce
+            name: "urlAffixes",
+            process: Re
+        }, {
+            name: "animation",
+            process: Te
         }, {
             name: "preload",
-            process: Ie
+            process: _e
         }, {
             name: "htmxProcess",
             process: e => {
@@ -12740,7 +12737,7 @@ var FlowPlater = function() {
                         stack: e.stack
                     });
                     A.log(A.levels.ERROR, `Error in processor ${n.name}: ${e.message}`, e);
-                    if (e instanceof O) {
+                    if (e instanceof C) {
                         i.warnings.push({
                             phase: n.name,
                             message: "Falling back to original template"
@@ -12759,7 +12756,7 @@ var FlowPlater = function() {
             return i.finalElement;
         }
     };
-    function $e(e = document) {
+    function Fe(e = document) {
         if (e === document || !e.matches(b.FP_SELECTOR)) {
             const t = e.querySelectorAll(b.FP_SELECTOR);
             t.forEach(e => b.processElement(e));
@@ -12770,7 +12767,7 @@ var FlowPlater = function() {
     Handlebars.unregisterHelper("each");
     Handlebars.unregisterHelper("if");
     we(Handlebars);
-    const Be = {
+    const $e = {
         compileTemplate: T,
         render: v,
         getInstance: i,
@@ -12912,10 +12909,10 @@ var FlowPlater = function() {
                         }
                     }
                 } else {
-                    C(`No template ID found for element: ${t.id}`, t, "Make sure your template has an ID attribute");
+                    O(`No template ID found for element: ${t.id}`, t, "Make sure your template has an ID attribute");
                 }
             });
-            $e(e);
+            Fe(e);
             A.log(A.levels.INFO, "FlowPlater initialized successfully");
             N.end("init");
             I.initialized = true;
@@ -12944,13 +12941,13 @@ var FlowPlater = function() {
             }
             return this;
         },
-        version: Le,
-        author: Me,
-        license: Fe,
+        version: He,
+        author: Le,
+        license: Me,
         setCustomTags: t,
         config: function(e = {}) {
             if ("storage" in e) {
-                e.storage = qe(e.storage, n.storage);
+                e.storage = Be(e.storage, n.storage);
             }
             function r(e, t) {
                 for (const n in t) {
@@ -13032,7 +13029,7 @@ var FlowPlater = function() {
             return s;
         }
     };
-    function qe(e, t) {
+    function Be(e, t) {
         if (typeof e === "boolean") {
             return {
                 enabled: e,
@@ -13059,24 +13056,24 @@ var FlowPlater = function() {
         try {
             const S = JSON.parse(x.content);
             if ("storage" in S) {
-                S.storage = qe(S.storage, n.storage);
+                S.storage = Be(S.storage, n.storage);
             }
             E = {
                 ...E,
                 ...S
             };
         } catch (e) {
-            C("Error parsing fp-config meta tag:", x, "Make sure your meta tag is valid");
+            O("Error parsing fp-config meta tag:", x, "Make sure your meta tag is valid");
         }
     }
-    Be.config(E);
+    $e.config(E);
     _.publish("loaded");
     if (document.readyState === "complete" || document.readyState !== "loading") {
         setTimeout(() => {
             try {
                 FlowPlater.init();
             } catch (e) {
-                C("FlowPlater initialization failed:", e);
+                O("FlowPlater initialization failed:", e);
             }
         }, 1);
     } else {
@@ -13085,10 +13082,10 @@ var FlowPlater = function() {
                 try {
                     FlowPlater.init();
                 } catch (e) {
-                    C("FlowPlater initialization failed:", e);
+                    O("FlowPlater initialization failed:", e);
                 }
             }, 1);
         });
     }
-    return Be;
+    return $e;
 }();

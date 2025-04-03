@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.25 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.26 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -11562,8 +11562,16 @@ var FlowPlater = (function () {
     instanceMethods: new Map(),
 
     registerPlugin(plugin) {
-      if (!plugin || typeof plugin !== "function") {
-        throw new FlowPlaterError("Plugin must be a function");
+      if (typeof plugin === "string") {
+        plugin = window[plugin];
+      }
+
+      if (!plugin) {
+        throw new FlowPlaterError(`Plugin not found: ${plugin}`);
+      }
+
+      if (typeof plugin !== "function") {
+        throw new FlowPlaterError("Plugin must be a valid function");
       }
 
       const pluginInstance = plugin();
@@ -11900,15 +11908,20 @@ var FlowPlater = (function () {
               dataType,
             );
 
-            // Check the data type after transformation
-            const newDataType = this._determineDataType(result);
-
-            // Log if the data type changed
-            if (newDataType !== dataType) {
+            // If the result is undefined or null, return the original data
+            if (result === undefined || result === null) {
               Debug.log(
-                Debug.levels.DEBUG,
-                `Plugin ${plugin.config.name} changed data type from ${dataType} to ${newDataType} in ${transformationType} transformation`,
+                Debug.levels.WARN,
+                `Plugin ${plugin.config.name} returned undefined/null for ${transformationType}, using original data`,
               );
+              return transformedData;
+            }
+
+            // For event transformations, ensure we preserve the event object structure
+            if (transformedData instanceof Event && result instanceof Event) {
+              // For events, we want to preserve the event object but update its properties
+              Object.assign(transformedData.detail, result.detail);
+              return transformedData;
             }
 
             return result;
@@ -15860,16 +15873,40 @@ var FlowPlater = (function () {
         if (!evt.detail.requestId) evt.detail.requestId = requestId;
 
         switch (name) {
+          case "htmx:confirm":
+            if (triggeringElt.hasAttribute("fp-template")) {
+              const instance = InstanceManager.getOrCreateInstance(triggeringElt);
+              // Apply plugin transformations to the confirm event
+              evt = PluginManager.applyTransformations(
+                instance || null,
+                evt,
+                "confirm",
+                "json",
+              );
+            }
+            break;
+
+          case "htmx:configRequest":
+            // Apply transformations regardless of fp-template attribute
+            const instance = InstanceManager.getOrCreateInstance(triggeringElt);
+            evt = PluginManager.applyTransformations(
+              instance || null,
+              evt,
+              "configRequest",
+              "json",
+            );
+            break;
+
           case "htmx:beforeRequest":
             if (!evt.detail.xhr.requestId) {
               evt.detail.xhr.requestId = requestId;
             }
             RequestHandler.handleRequest(triggeringElt, requestId, "start");
+
+            // Execute hooks if it's a template element
             if (triggeringElt.hasAttribute("fp-template")) {
               const instance = InstanceManager.getOrCreateInstance(triggeringElt);
-              if (instance) {
-                PluginManager.executeHook("beforeRequest", instance, evt);
-              }
+              PluginManager.executeHook("beforeRequest", instance || null, evt);
             }
             break;
 
@@ -15943,45 +15980,6 @@ var FlowPlater = (function () {
     }
 
     FormStateManager.restoreFormStates(target);
-  }
-
-  // * For each element with an fp-proxy attribute, use a proxy for the url
-  //use const url = 'https://corsproxy.io/?' + encodeURIComponent([hx-get/post/put/patch/delete] attribute value)]);
-  function setupProxy(element) {
-    try {
-      // Skip if already processed or if fp-proxy is false/not present
-      if (
-        element.hasAttribute("data-fp-proxy-processed") ||
-        !element.hasAttribute("fp-proxy") ||
-        element.getAttribute("fp-proxy") === "false"
-      ) {
-        return element;
-      }
-
-      // Get proxy URL
-      const proxyUrl = element.getAttribute("fp-proxy").startsWith("http")
-        ? element.getAttribute("fp-proxy")
-        : "https://corsproxy.io/?";
-
-      // Process htmx methods
-      const methods = ["get", "post", "put", "patch", "delete"];
-      methods.forEach(function (method) {
-        if (element.hasAttribute("hx-" + method)) {
-          const url = element.getAttribute("hx-" + method);
-          element.setAttribute(
-            "hx-" + method,
-            proxyUrl + encodeURIComponent(url),
-          );
-        }
-      });
-
-      // Mark as processed
-      element.setAttribute("data-fp-proxy-processed", "true");
-      return element;
-    } catch (error) {
-      Debug.log(Debug.levels.ERROR, `Error in setupProxy: ${error.message}`);
-      return element;
-    }
   }
 
   function preloadUrl(url) {
@@ -16232,7 +16230,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.25";
+  const VERSION = "1.4.26";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
@@ -16346,10 +16344,6 @@ var FlowPlater = (function () {
       {
         name: "animation",
         process: setupAnimation,
-      },
-      {
-        name: "proxy",
-        process: setupProxy,
       },
       {
         name: "preload",
