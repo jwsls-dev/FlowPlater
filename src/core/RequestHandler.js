@@ -2,6 +2,7 @@ import { Debug } from "./Debug";
 import { EventSystem } from "./EventSystem";
 import PluginManager from "./PluginManager";
 import { _state } from "./State";
+import { InstanceManager } from "./InstanceManager";
 
 /**
  * @module RequestHandler
@@ -114,7 +115,18 @@ export const RequestHandler = {
    */
   setupEventListeners() {
     document.body.addEventListener("htmx:configRequest", (event) => {
-      // event.detail.headers = "";
+      // Apply plugin transformations to the request
+      const target = event.detail.elt;
+      const instance = InstanceManager.getOrCreateInstance(target);
+      if (instance) {
+        event = PluginManager.applyTransformations(
+          instance,
+          event,
+          "transformRequest",
+          "json",
+        );
+      }
+
       event.detail.headers["Content-Type"] =
         "application/x-www-form-urlencoded; charset=UTF-8";
     });

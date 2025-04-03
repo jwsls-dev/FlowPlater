@@ -22,25 +22,68 @@ import { EventSystem } from "./EventSystem";
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
     transformResponse: function (text, xhr, elt) {
-      const isHtml = xhr
-        .getResponseHeader("Content-Type")
-        ?.startsWith("text/html");
+      // Get the instance first to apply transformations
+      const instance = InstanceManager.getOrCreateInstance(elt);
+
+      // First, check if the data is XML and transform it to JSON if needed
+      const contentType = xhr.getResponseHeader("Content-Type") || "";
+      const isXml = contentType.startsWith("text/xml");
+      const isHtml = contentType.startsWith("text/html");
+
+      let processedText = text;
+      let isJson = false;
+
+      if (isXml) {
+        try {
+          var parser = new DOMParser();
+          var xmlDoc = parser.parseFromString(text, "text/xml");
+          processedText = JSON.stringify(parseXmlToJson(xmlDoc));
+          isJson = true;
+        } catch (error) {
+          errorLog("Failed to parse XML response:", error);
+          // Keep the original text if XML parsing fails
+        }
+      } else if (!isHtml) {
+        // If not HTML and not XML, assume it's JSON
+        isJson = true;
+      }
+
+      // Determine the dataType for transformations
+      const dataType = isHtml ? "html" : "json";
+
+      // Apply plugin transformations to the response text
+      if (instance) {
+        processedText = PluginManager.applyTransformations(
+          instance,
+          processedText,
+          "transformResponse",
+          dataType,
+        );
+      } else {
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[transformResponse] No instance found for elt ${elt.id}. Skipping transformations.`,
+        );
+      }
 
       const requestId = xhr.requestId;
       const currentInfo = RequestHandler.processingElements.get(elt);
 
       if (!currentInfo || currentInfo.requestId !== requestId) {
-        return text;
+        return processedText;
       }
 
-      if (isHtml) {
+      // If the transformed data is HTML, handle it accordingly
+      if (!isJson) {
         if (_state.config?.storage?.enabled) {
-          const instanceName = elt.getAttribute("fp-instance") || elt.id;
+          const instanceName = instance
+            ? instance.instanceName
+            : elt.getAttribute("fp-instance") || elt.id;
           if (instanceName) {
             saveToLocalStorage(
               instanceName,
               {
-                data: text,
+                data: processedText,
                 isHtml: true,
                 timestamp: Date.now(),
               },
@@ -48,59 +91,36 @@ export function defineHtmxExtension() {
             );
           }
         }
-        return text;
+        return processedText;
       }
 
+      // Process JSON data
       let newData;
       try {
-        if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
-          var parser = new DOMParser();
-          var xmlDoc = parser.parseFromString(text, "text/xml");
-          newData = parseXmlToJson(xmlDoc);
-        } else {
-          newData = JSON.parse(text);
-        }
+        newData = JSON.parse(processedText);
       } catch (error) {
-        errorLog("Failed to parse response:", error);
-        return text;
+        errorLog("Failed to parse JSON response:", error);
+        return processedText;
       }
-      if (!newData) return text;
 
-      const instance = InstanceManager.getOrCreateInstance(elt);
+      if (!newData) return processedText;
 
       if (instance) {
         const instanceName = instance.instanceName;
-
-        // Use setData for Reconciliation
         Debug.log(
           Debug.levels.DEBUG,
           `[transformResponse] Calling instance.setData for ${instanceName} with new data.`,
         );
-        instance.setData(newData); // This handles delete/assign and triggers proxy handler (debounced)
 
-        // Execute Hooks/Events - REMOVED - Handled by proxy debounce
-        /*
-        PluginManager.executeHook("updateData", instance, {
-          data: instance.data,
-          changes: null,
-          source: "htmx",
-        });
-        EventSystem.publish("updateData", {
-          instanceName,
-          data: instance.data,
-          changes: null,
-          source: "htmx",
-        });
-        */
-
-        // Signal completion by returning empty string
+        // Store the raw data in the instance
+        instance.setData(newData);
         Debug.log(
           Debug.levels.DEBUG,
           `[transformResponse] setData called for request ${requestId} on elt ${elt.id}. Returning empty string.`,
         );
         return "";
       }
-      return text;
+      return processedText;
     },
 
     handleSwap: function (swapStyle, target, fragment, settleInfo) {

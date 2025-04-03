@@ -389,13 +389,27 @@ export function render({
 
       try {
         if (returnHtml) {
-          return compiledTemplate(finalInstance.data);
+          // Apply plugin transformations to the data before rendering
+          const transformedData = PluginManager.applyTransformations(
+            finalInstance,
+            finalInstance.data,
+            "transformDataBeforeRender",
+            "json",
+          );
+          return compiledTemplate(transformedData);
         }
 
         elements.forEach((element) => {
+          // Apply plugin transformations to the data before rendering
+          const transformedData = PluginManager.applyTransformations(
+            finalInstance,
+            finalInstance.data,
+            "transformDataBeforeRender",
+            "json",
+          );
           updateDOM(
             element,
-            compiledTemplate(finalInstance.data),
+            compiledTemplate(transformedData),
             animate,
             finalInstance,
           );

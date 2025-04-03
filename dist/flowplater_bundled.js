@@ -11858,6 +11858,73 @@ var FlowPlater = (function () {
       });
     },
 
+    // Helper function to determine if data is JSON or HTML
+    _determineDataType(data) {
+      // If it's already an object, it's JSON
+      if (typeof data === "object" && data !== null) {
+        return "json";
+      }
+
+      // If it's a string, try to parse it as JSON
+      if (typeof data === "string") {
+        try {
+          JSON.parse(data);
+          return "json";
+        } catch (e) {
+          // If it's not parseable as JSON, assume it's HTML
+          return "html";
+        }
+      }
+
+      // For any other type, assume it's JSON
+      return "json";
+    },
+
+    // Apply transformations from all enabled plugins in priority order
+    applyTransformations(instance, data, transformationType, dataType = "json") {
+      // Get plugins in priority order
+      const plugins = this.getSortedPlugins();
+
+      // Apply each plugin's transformation if it exists
+      return plugins.reduce((transformedData, plugin) => {
+        // Check if plugin has transformers and the specific transformation type
+        if (
+          plugin.transformers &&
+          typeof plugin.transformers[transformationType] === "function"
+        ) {
+          try {
+            // Apply the transformation
+            const result = plugin.transformers[transformationType](
+              instance,
+              transformedData,
+              dataType,
+            );
+
+            // Check the data type after transformation
+            const newDataType = this._determineDataType(result);
+
+            // Log if the data type changed
+            if (newDataType !== dataType) {
+              Debug.log(
+                Debug.levels.DEBUG,
+                `Plugin ${plugin.config.name} changed data type from ${dataType} to ${newDataType} in ${transformationType} transformation`,
+              );
+            }
+
+            return result;
+          } catch (error) {
+            Debug.log(
+              Debug.levels.ERROR,
+              `Plugin ${plugin.config.name} failed executing ${transformationType} transformation:`,
+              error,
+            );
+            return transformedData; // Return unmodified data if transformation fails
+          }
+        }
+        return transformedData;
+      }, data);
+    },
+
     executeHook(hookName, ...args) {
       Debug.log(Debug.levels.DEBUG, "[PLUGIN] Executing hook:", hookName, args);
 
@@ -12369,7 +12436,18 @@ var FlowPlater = (function () {
      */
     setupEventListeners() {
       document.body.addEventListener("htmx:configRequest", (event) => {
-        // event.detail.headers = "";
+        // Apply plugin transformations to the request
+        const target = event.detail.elt;
+        const instance = InstanceManager.getOrCreateInstance(target);
+        if (instance) {
+          event = PluginManager.applyTransformations(
+            instance,
+            event,
+            "transformRequest",
+            "json",
+          );
+        }
+
         event.detail.headers["Content-Type"] =
           "application/x-www-form-urlencoded; charset=UTF-8";
       });
@@ -13778,11 +13856,19 @@ var FlowPlater = (function () {
             );
             return;
           } else {
-            // Use data for reactive rendering
-            rendered = instance.template(instance.data);
+            // Apply plugin transformations to the data before rendering
+            const transformedData = PluginManager.applyTransformations(
+              instance,
+              instance.data,
+              "transformDataBeforeRender",
+              "json",
+            );
+
+            // Use transformed data for reactive rendering
+            rendered = instance.template(transformedData);
             Debug.log(Debug.levels.DEBUG, "Rendered template with data:", {
               template: instance.templateId,
-              data: instance.data,
+              data: transformedData,
               rendered: rendered,
             });
           }
@@ -14505,13 +14591,27 @@ var FlowPlater = (function () {
 
         try {
           if (returnHtml) {
-            return compiledTemplate(finalInstance.data);
+            // Apply plugin transformations to the data before rendering
+            const transformedData = PluginManager.applyTransformations(
+              finalInstance,
+              finalInstance.data,
+              "transformDataBeforeRender",
+              "json",
+            );
+            return compiledTemplate(transformedData);
           }
 
           elements.forEach((element) => {
+            // Apply plugin transformations to the data before rendering
+            const transformedData = PluginManager.applyTransformations(
+              finalInstance,
+              finalInstance.data,
+              "transformDataBeforeRender",
+              "json",
+            );
             updateDOM(
               element,
-              compiledTemplate(finalInstance.data),
+              compiledTemplate(transformedData),
               animate,
               finalInstance,
             );
@@ -15416,25 +15516,68 @@ var FlowPlater = (function () {
   function defineHtmxExtension() {
     htmx.defineExtension("flowplater", {
       transformResponse: function (text, xhr, elt) {
-        const isHtml = xhr
-          .getResponseHeader("Content-Type")
-          ?.startsWith("text/html");
+        // Get the instance first to apply transformations
+        const instance = InstanceManager.getOrCreateInstance(elt);
+
+        // First, check if the data is XML and transform it to JSON if needed
+        const contentType = xhr.getResponseHeader("Content-Type") || "";
+        const isXml = contentType.startsWith("text/xml");
+        const isHtml = contentType.startsWith("text/html");
+
+        let processedText = text;
+        let isJson = false;
+
+        if (isXml) {
+          try {
+            var parser = new DOMParser();
+            var xmlDoc = parser.parseFromString(text, "text/xml");
+            processedText = JSON.stringify(parseXmlToJson(xmlDoc));
+            isJson = true;
+          } catch (error) {
+            errorLog$1("Failed to parse XML response:", error);
+            // Keep the original text if XML parsing fails
+          }
+        } else if (!isHtml) {
+          // If not HTML and not XML, assume it's JSON
+          isJson = true;
+        }
+
+        // Determine the dataType for transformations
+        const dataType = isHtml ? "html" : "json";
+
+        // Apply plugin transformations to the response text
+        if (instance) {
+          processedText = PluginManager.applyTransformations(
+            instance,
+            processedText,
+            "transformResponse",
+            dataType,
+          );
+        } else {
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[transformResponse] No instance found for elt ${elt.id}. Skipping transformations.`,
+          );
+        }
 
         const requestId = xhr.requestId;
         const currentInfo = RequestHandler.processingElements.get(elt);
 
         if (!currentInfo || currentInfo.requestId !== requestId) {
-          return text;
+          return processedText;
         }
 
-        if (isHtml) {
+        // If the transformed data is HTML, handle it accordingly
+        if (!isJson) {
           if (_state.config?.storage?.enabled) {
-            const instanceName = elt.getAttribute("fp-instance") || elt.id;
+            const instanceName = instance
+              ? instance.instanceName
+              : elt.getAttribute("fp-instance") || elt.id;
             if (instanceName) {
               saveToLocalStorage(
                 instanceName,
                 {
-                  data: text,
+                  data: processedText,
                   isHtml: true,
                   timestamp: Date.now(),
                 },
@@ -15442,59 +15585,36 @@ var FlowPlater = (function () {
               );
             }
           }
-          return text;
+          return processedText;
         }
 
+        // Process JSON data
         let newData;
         try {
-          if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
-            var parser = new DOMParser();
-            var xmlDoc = parser.parseFromString(text, "text/xml");
-            newData = parseXmlToJson(xmlDoc);
-          } else {
-            newData = JSON.parse(text);
-          }
+          newData = JSON.parse(processedText);
         } catch (error) {
-          errorLog$1("Failed to parse response:", error);
-          return text;
+          errorLog$1("Failed to parse JSON response:", error);
+          return processedText;
         }
-        if (!newData) return text;
 
-        const instance = InstanceManager.getOrCreateInstance(elt);
+        if (!newData) return processedText;
 
         if (instance) {
           const instanceName = instance.instanceName;
-
-          // Use setData for Reconciliation
           Debug.log(
             Debug.levels.DEBUG,
             `[transformResponse] Calling instance.setData for ${instanceName} with new data.`,
           );
-          instance.setData(newData); // This handles delete/assign and triggers proxy handler (debounced)
 
-          // Execute Hooks/Events - REMOVED - Handled by proxy debounce
-          /*
-          PluginManager.executeHook("updateData", instance, {
-            data: instance.data,
-            changes: null,
-            source: "htmx",
-          });
-          EventSystem.publish("updateData", {
-            instanceName,
-            data: instance.data,
-            changes: null,
-            source: "htmx",
-          });
-          */
-
-          // Signal completion by returning empty string
+          // Store the raw data in the instance
+          instance.setData(newData);
           Debug.log(
             Debug.levels.DEBUG,
             `[transformResponse] setData called for request ${requestId} on elt ${elt.id}. Returning empty string.`,
           );
           return "";
         }
-        return text;
+        return processedText;
       },
 
       handleSwap: function (swapStyle, target, fragment, settleInfo) {

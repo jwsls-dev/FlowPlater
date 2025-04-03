@@ -8,6 +8,7 @@ import {
   loadFromLocalStorage,
 } from "../utils/LocalStorage";
 import { Performance } from "../utils/Performance";
+import PluginManager from "./PluginManager";
 
 export function instanceMethods(instanceName) {
   // Helper function to resolve a path within the data
@@ -97,11 +98,19 @@ export function instanceMethods(instanceName) {
           );
           return;
         } else {
-          // Use data for reactive rendering
-          rendered = instance.template(instance.data);
+          // Apply plugin transformations to the data before rendering
+          const transformedData = PluginManager.applyTransformations(
+            instance,
+            instance.data,
+            "transformDataBeforeRender",
+            "json",
+          );
+
+          // Use transformed data for reactive rendering
+          rendered = instance.template(transformedData);
           Debug.log(Debug.levels.DEBUG, "Rendered template with data:", {
             template: instance.templateId,
-            data: instance.data,
+            data: transformedData,
             rendered: rendered,
           });
         }

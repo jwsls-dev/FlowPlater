@@ -207,6 +207,73 @@ const ExamplePlugin = () => {
     },
   };
 
+  // apply changes to data in various points in the FlowPlater lifecycle
+  const transformers = {
+    /**
+     * Transform an HTMX request before it's made
+     * This runs during the htmx:configRequest event
+     *
+     * @param {Object} instance - The FlowPlater instance making the request
+     * @param {Object} evt - The HTMX event object containing:
+     *   - detail.parameters - The parameters that will be submitted in the request
+     *   - detail.unfilteredParameters - The parameters before filtering by hx-params
+     *   - detail.headers - The request headers
+     *   - detail.elt - The element that triggered the request
+     *   - detail.target - The target of the request
+     *   - detail.verb - The HTTP verb in use
+     * @returns {Object} The modified event object
+     */
+    transformRequest: function (instance, evt) {
+      // Example: Add a timestamp to every request
+      if (evt && evt.detail && evt.detail.parameters) {
+        evt.detail.parameters["request_timestamp"] = Date.now();
+      }
+      return evt;
+    },
+
+    /**
+     * Transform an HTMX response after it's received
+     * This runs at the start of the transformResponse in the HTMX extension
+     *
+     * @param {Object} instance - The FlowPlater instance that made the request
+     * @param {Object} response - The HTMX response object
+     * @param {string} dataType - The type of data being transformed ("html", "xml", or "json")
+     * @returns {Object} The modified response object
+     */
+    transformResponse: function (instance, response, dataType) {
+      // Example: Add processing metadata to the response
+      if (response) {
+        response.metadata = {
+          processedAt: Date.now(),
+          instanceId: instance.id,
+          dataType: dataType,
+        };
+      }
+      return response;
+    },
+
+    /**
+     * Transform data before it's passed to the instance for rendering
+     * This allows you to modify the data structure before it's used in templates
+     *
+     * @param {Object} instance - The FlowPlater instance that made the request
+     * @param {Object} data - The data object to be rendered
+     * @param {string} dataType - The type of data being transformed (always "json" for this transformation)
+     * @returns {Object} The modified data object
+     */
+    transformDataBeforeRender: function (instance, data, dataType) {
+      // Example: Add a timestamp to the data
+      if (data) {
+        return {
+          ...data,
+          renderedAt: new Date().toISOString(),
+          dataType: dataType,
+        };
+      }
+      return data;
+    },
+  };
+
   // Custom Handlebars helpers
   // IMPORTANT: The helper name must be lowercase for Webflow compatibility!
   // Arguments are passed in the order they are defined in the helper function.
@@ -235,6 +302,7 @@ const ExamplePlugin = () => {
     globalMethods,
     instanceMethods,
     hooks,
+    transformers,
     helpers,
   };
 };

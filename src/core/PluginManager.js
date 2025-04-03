@@ -331,6 +331,73 @@ const PluginManager = {
     });
   },
 
+  // Helper function to determine if data is JSON or HTML
+  _determineDataType(data) {
+    // If it's already an object, it's JSON
+    if (typeof data === "object" && data !== null) {
+      return "json";
+    }
+
+    // If it's a string, try to parse it as JSON
+    if (typeof data === "string") {
+      try {
+        JSON.parse(data);
+        return "json";
+      } catch (e) {
+        // If it's not parseable as JSON, assume it's HTML
+        return "html";
+      }
+    }
+
+    // For any other type, assume it's JSON
+    return "json";
+  },
+
+  // Apply transformations from all enabled plugins in priority order
+  applyTransformations(instance, data, transformationType, dataType = "json") {
+    // Get plugins in priority order
+    const plugins = this.getSortedPlugins();
+
+    // Apply each plugin's transformation if it exists
+    return plugins.reduce((transformedData, plugin) => {
+      // Check if plugin has transformers and the specific transformation type
+      if (
+        plugin.transformers &&
+        typeof plugin.transformers[transformationType] === "function"
+      ) {
+        try {
+          // Apply the transformation
+          const result = plugin.transformers[transformationType](
+            instance,
+            transformedData,
+            dataType,
+          );
+
+          // Check the data type after transformation
+          const newDataType = this._determineDataType(result);
+
+          // Log if the data type changed
+          if (newDataType !== dataType) {
+            Debug.log(
+              Debug.levels.DEBUG,
+              `Plugin ${plugin.config.name} changed data type from ${dataType} to ${newDataType} in ${transformationType} transformation`,
+            );
+          }
+
+          return result;
+        } catch (error) {
+          Debug.log(
+            Debug.levels.ERROR,
+            `Plugin ${plugin.config.name} failed executing ${transformationType} transformation:`,
+            error,
+          );
+          return transformedData; // Return unmodified data if transformation fails
+        }
+      }
+      return transformedData;
+    }, data);
+  },
+
   executeHook(hookName, ...args) {
     Debug.log(Debug.levels.DEBUG, "[PLUGIN] Executing hook:", hookName, args);
 
