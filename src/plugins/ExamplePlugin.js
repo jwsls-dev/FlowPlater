@@ -1,11 +1,29 @@
-import { Debug } from "../core/Debug";
-
 /**
  * @module ExamplePlugin
  * @description Example plugin demonstrating how to create a FlowPlater plugin
  */
+
+/**
+ * Example plugin for FlowPlater demonstrating plugin architecture and functionality
+ * FlowPlater expects an immediately-invoked function expression (IIFE) to be returned from the plugin function.
+ *
+ * @function ExamplePlugin
+ * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, and helpers
+ */
 const ExamplePlugin = () => {
-  // Plugin configuration
+  /**
+   * Plugin configuration object
+   * @type {Object}
+   * @property {string} name - Name of the plugin. No special characters or spaces.
+   * @property {boolean} enabled - If false, the plugin will not be loaded when FlowPlater is initialized.
+   * @property {number} priority - The priority of the plugin. The higher the number, the earlier the plugin will be initialized.
+   * @property {string} version - The version of the plugin.
+   * @property {Array<string>} dependencies - The dependencies of the plugin.
+   * @property {Array<string>} optionalDependencies - Optional dependencies of the plugin.
+   * @property {Object} settings - Plugin-specific settings.
+   * @property {string} description - Description of the plugin.
+   * @property {string} author - Author of the plugin.
+   */
   const config = {
     // Name of the plugin. No special characters or spaces.
     name: "example",
@@ -36,22 +54,36 @@ const ExamplePlugin = () => {
     author: "Your Name",
   };
 
-  // Plugin state
+  /**
+   * Plugin state object
+   * @type {Object}
+   * @property {boolean} initialized - Whether the plugin has been initialized
+   * @property {Object} data - Plugin-specific data
+   */
   let state = {
     initialized: false,
     data: {},
   };
 
-  // Global methods that can be called from FlowPlater
+  /**
+   * Global methods that can be called from FlowPlater
+   * @type {Object}
+   */
   const globalMethods = {
-    // Example: Get all instances using this plugin
-    // usage: FlowPlater.exampleGetInstances(plugin)
+    /**
+     * Get all instances using this plugin
+     * @param {Object} plugin - The plugin instance
+     * @returns {Array} Array of all instances using this plugin
+     */
     exampleGetInstances(plugin) {
       return Object.values(plugin.state.data);
     },
 
-    // Example: Get plugin statistics
-    // usage: FlowPlater.exampleGetStats(plugin)
+    /**
+     * Get plugin statistics
+     * @param {Object} plugin - The plugin instance
+     * @returns {Object} Statistics about the plugin
+     */
     exampleGetStats(plugin) {
       return {
         totalInstances: Object.keys(plugin.state.data).length,
@@ -61,16 +93,26 @@ const ExamplePlugin = () => {
     },
   };
 
-  // Instance methods that can be called from instances
+  /**
+   * Instance methods that can be called from instances
+   * @type {Object}
+   */
   const instanceMethods = {
-    // Example: Get instance-specific data
-    // usage: FlowPlater.getInstance("example").exampleGetData()
+    /**
+     * Get instance-specific data
+     * @param {Object} instance - The FlowPlater instance
+     * @returns {Object} Instance data
+     */
     exampleGetData(instance) {
       return instance.data;
     },
 
-    // Example: Update instance with plugin-specific data
-    // usage: FlowPlater.getInstance("example").exampleUpdateData(newData)
+    /**
+     * Update instance with plugin-specific data
+     * @param {Object} instance - The FlowPlater instance
+     * @param {Object} newData - New data to update the instance with
+     * @returns {Object} Updated instance
+     */
     exampleUpdateData(instance, newData) {
       instance.update({
         ...instance.data,
@@ -83,10 +125,17 @@ const ExamplePlugin = () => {
     },
   };
 
-  // Plugin hooks
+  /**
+   * Plugin hooks that are called throughout the FlowPlater lifecycle
+   * @type {Object}
+   */
   const hooks = {
-    // hooks are functions that are called throughout the flow of the library.
-    // they are called with the data object as the argument and should return the data object.
+    /**
+     * Called before an htmx request is made
+     * @param {Object} instance - The FlowPlater instance making the request
+     * @param {Object} evt - The HTMX event object
+     * @returns {Object} The instance
+     */
     beforeRequest: function (instance, evt) {
       // Called before an htmx request is made.
       // instance: The FlowPlater instance making the request
@@ -94,6 +143,13 @@ const ExamplePlugin = () => {
       FlowPlater.log(FlowPlater.logLevels.INFO, "beforeRequest", instance, evt);
       return instance;
     },
+
+    /**
+     * Called after an htmx request is made
+     * @param {Object} instance - The FlowPlater instance that made the request
+     * @param {Object} evt - The HTMX event object
+     * @returns {Object} The instance
+     */
     afterRequest: function (instance, evt) {
       // Called after an htmx request is made.
       // instance: The FlowPlater instance that made the request
@@ -101,6 +157,13 @@ const ExamplePlugin = () => {
       FlowPlater.log(FlowPlater.logLevels.INFO, "afterRequest", instance, evt);
       return instance;
     },
+
+    /**
+     * Called before the response is swapped into the DOM
+     * @param {Object} instance - The FlowPlater instance that will receive the swap
+     * @param {Object} evt - The HTMX event object
+     * @returns {Object} The instance
+     */
     beforeSwap: function (instance, evt) {
       // Called before the response is swapped into the DOM.
       // instance: The FlowPlater instance that will receive the swap
@@ -108,6 +171,17 @@ const ExamplePlugin = () => {
       FlowPlater.log(FlowPlater.logLevels.INFO, "beforeSwap", instance, evt);
       return instance;
     },
+
+    /**
+     * Called before a DOM update begins
+     * @param {Object} instance - The FlowPlater instance being updated
+     * @param {Object} context - Object containing update context
+     * @param {HTMLElement} context.element - The target element being updated
+     * @param {string} context.newHTML - The new HTML content
+     * @param {boolean} context.animate - Whether animation is enabled
+     * @param {Object} context.formStates - The captured form states (if any)
+     * @returns {Object} The instance
+     */
     beforeDomUpdate: function (instance, context) {
       // Called before a DOM update begins.
       // instance: The FlowPlater instance being updated
@@ -124,6 +198,17 @@ const ExamplePlugin = () => {
       );
       return instance;
     },
+
+    /**
+     * Called after a DOM update is complete
+     * @param {Object} instance - The FlowPlater instance that was updated
+     * @param {Object} context - Object containing update context
+     * @param {HTMLElement} context.element - The target element that was updated
+     * @param {string} context.newHTML - The new HTML content
+     * @param {boolean} context.animate - Whether animation was enabled
+     * @param {Object} context.formStates - The captured form states (if any)
+     * @returns {Object} The instance
+     */
     afterDomUpdate: function (instance, context) {
       // Called after a DOM update is complete.
       // instance: The FlowPlater instance that was updated
@@ -140,6 +225,13 @@ const ExamplePlugin = () => {
       );
       return instance;
     },
+
+    /**
+     * Called after the response is swapped into the DOM
+     * @param {Object} instance - The FlowPlater instance that received the swap
+     * @param {Object} evt - The HTMX event object
+     * @returns {Object} The instance
+     */
     afterSwap: function (instance, evt) {
       // Called after the response is swapped into the DOM.
       // instance: The FlowPlater instance that received the swap
@@ -147,12 +239,29 @@ const ExamplePlugin = () => {
       FlowPlater.log(FlowPlater.logLevels.INFO, "afterSwap", instance, evt);
       return instance;
     },
+
+    /**
+     * Called when a new instance is created
+     * @param {Object} instance - The newly created FlowPlater instance
+     * @returns {Object} The instance
+     */
     newInstance: function (instance) {
       // Called when a new instance is created.
       // instance: The newly created FlowPlater instance
       FlowPlater.log(FlowPlater.logLevels.INFO, "newInstance", instance);
       return instance;
     },
+
+    /**
+     * Called when a form is updated
+     * @param {Object} instance - The FlowPlater instance containing the form
+     * @param {Object} form - Object containing form information
+     * @param {HTMLElement} form.element - The form DOM element
+     * @param {string} form.id - The form's ID
+     * @param {Object} form.data - The form's state data
+     * @param {HTMLElement} form.changedElement - The element that triggered the change
+     * @returns {Object} The instance
+     */
     updateForm: function (instance, form) {
       // Called when a form is updated.
       // instance: The FlowPlater instance containing the form
@@ -164,6 +273,16 @@ const ExamplePlugin = () => {
       FlowPlater.log(FlowPlater.logLevels.INFO, "updateForm", instance, form);
       return instance;
     },
+
+    /**
+     * Called when the instance data is updated
+     * @param {Object} instance - The FlowPlater instance being updated
+     * @param {Object} data - Object containing update information
+     * @param {Object} data.data - The updated instance data
+     * @param {Object} data.changes - The changes made to the data
+     * @param {string} data.source - The source of the update
+     * @returns {Object} The instance
+     */
     updateData: function (instance, data) {
       // Called when the instance data is updated.
       // instance: The FlowPlater instance being updated
@@ -174,6 +293,13 @@ const ExamplePlugin = () => {
       FlowPlater.log(FlowPlater.logLevels.INFO, "updateData", instance, data);
       return instance;
     },
+
+    /**
+     * Called after FlowPlater has fully initialized
+     * @param {Object} flowplater - The full FlowPlater object
+     * @param {Array} instances - An array of all instances that were created
+     * @returns {Object} The FlowPlater object
+     */
     initComplete: function (flowplater, instances) {
       // Called after FlowPlater has fully initialized
       // flowplater: The full FlowPlater object
@@ -192,6 +318,13 @@ const ExamplePlugin = () => {
       }
       return flowplater;
     },
+
+    /**
+     * Called after HTMX settles (all animations complete)
+     * @param {Object} instance - The FlowPlater instance
+     * @param {Object} evt - The HTMX event object
+     * @returns {Object} The instance
+     */
     afterSettle: function (instance, evt) {
       // Called after HTMX settles (all animations complete)
       // instance: The FlowPlater instance
@@ -199,6 +332,12 @@ const ExamplePlugin = () => {
       FlowPlater.log(FlowPlater.logLevels.INFO, "afterSettle", instance, evt);
       return instance;
     },
+
+    /**
+     * Called when an instance is destroyed
+     * @param {Object} instance - The FlowPlater instance
+     * @returns {Object} The instance
+     */
     destroy: function (instance) {
       // Called when an instance is destroyed
       // instance: The FlowPlater instance
@@ -207,7 +346,10 @@ const ExamplePlugin = () => {
     },
   };
 
-  // apply changes to data in various points in the FlowPlater lifecycle
+  /**
+   * Transformers that apply changes to data in various points in the FlowPlater lifecycle
+   * @type {Object}
+   */
   const transformers = {
     /**
      * Transform an HTMX request before it's made
@@ -274,28 +416,38 @@ const ExamplePlugin = () => {
     },
   };
 
-  // Custom Handlebars helpers
-  // IMPORTANT: The helper name must be lowercase for Webflow compatibility!
-  // Arguments are passed in the order they are defined in the helper function.
-
+  /**
+   * Custom Handlebars helpers
+   * IMPORTANT: The helper name must be lowercase for Webflow compatibility!
+   * Arguments are passed in the order they are defined in the helper function.
+   * @type {Object}
+   */
   const helpers = {
-    // Example: Custom helper that checks if a value is in an array
-    // usage: {{inarray value array}}
-    // can also be used inside an if statement: <if fp="inarray value array"> ... </if>
+    /**
+     * Custom helper that checks if a value is in an array
+     * @param {*} value - The value to check
+     * @param {Array} array - The array to check against
+     * @returns {boolean} True if the value is in the array, false otherwise
+     */
     inarray(value, array) {
       if (!Array.isArray(array)) return false;
       return array.includes(value);
     },
-    // You can also create block helpers by using the block helper syntax.
-    // Example: setting all text within a block to uppercase:
-    // usage: {{#uppercase}}
-    //        {{content}}
-    //        {{/uppercase}}
+
+    /**
+     * Block helper that converts text to uppercase
+     * @param {Object} options - Handlebars options object
+     * @returns {string} The uppercase text
+     */
     uppercase(options) {
       return options.fn(this).toUpperCase();
     },
   };
 
+  /**
+   * Return the plugin object
+   * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, and helpers
+   */
   return {
     config,
     state,
