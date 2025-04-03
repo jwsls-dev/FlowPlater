@@ -8,14 +8,10 @@ import {
   getAllRelevantForms,
   restoreFormStates,
 } from "../utils/FormPersistence";
-import {
-  loadFromLocalStorage,
-  saveToLocalStorage,
-} from "../utils/LocalStorage";
+import { saveToLocalStorage } from "../utils/LocalStorage";
 import PluginManager from "./PluginManager";
 import { InstanceManager } from "./InstanceManager";
 import { EventSystem } from "./EventSystem";
-import { trackChanges } from "../utils/DataChanges";
 
 // function isHTML(string) {
 //   return Array.from(
@@ -26,53 +22,18 @@ import { trackChanges } from "../utils/DataChanges";
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
     transformResponse: function (text, xhr, elt) {
-      // Add debug logging for response
-
       const isHtml = xhr
         .getResponseHeader("Content-Type")
         ?.startsWith("text/html");
 
-      Debug.log(Debug.levels.DEBUG, "Response received:", {
-        text: text,
-        contentType: xhr.getResponseHeader("Content-Type"),
-        isHtmlLike: isHtml,
-      });
-
-      // Get request ID from either xhr or processing elements
       const requestId = xhr.requestId;
       const currentInfo = RequestHandler.processingElements.get(elt);
 
-      Debug.log(
-        Debug.levels.DEBUG,
-        "Transform response for request",
-        requestId,
-        "current info:",
-        currentInfo,
-      );
-
-      // Skip if element is not in processing set
       if (!currentInfo || currentInfo.requestId !== requestId) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Skipping transformation - request ID mismatch",
-          { current: currentInfo?.requestId, received: requestId },
-        );
         return text;
       }
 
-      // Only process if fp-template is present
-      if (!elt.hasAttribute("fp-template")) {
-        return text;
-      }
-
-      // Check if response looks like HTML (more permissive check)
       if (isHtml) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Detected HTML response, passing through",
-        );
-
-        // Store HTML response if storage is enabled
         if (_state.config?.storage?.enabled) {
           const instanceName = elt.getAttribute("fp-instance") || elt.id;
           if (instanceName) {
@@ -87,160 +48,105 @@ export function defineHtmxExtension() {
             );
           }
         }
-        // Mark request as processed for HTML responses
-        RequestHandler.handleRequest(elt, requestId, "process");
         return text;
       }
 
-      // Parse response data
-      let data;
+      let newData;
       try {
         if (xhr.getResponseHeader("Content-Type")?.startsWith("text/xml")) {
           var parser = new DOMParser();
           var xmlDoc = parser.parseFromString(text, "text/xml");
-          data = parseXmlToJson(xmlDoc);
+          newData = parseXmlToJson(xmlDoc);
         } else {
-          data = JSON.parse(text);
+          newData = JSON.parse(text);
         }
       } catch (error) {
         errorLog("Failed to parse response:", error);
         return text;
       }
+      if (!newData) return text;
 
-      const templateId = elt.getAttribute("fp-template");
-      log("Response received for request " + requestId + ": ", data);
-
-      const instanceName = elt.getAttribute("fp-instance") || elt.id;
       const instance = InstanceManager.getOrCreateInstance(elt);
 
       if (instance) {
-        // Calculate data changes
-        const oldData = instance.data;
-        const changes = trackChanges(oldData, data);
+        const instanceName = instance.instanceName;
 
-        // Execute updateData hook with the tracked changes
+        // Use setData for Reconciliation
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[transformResponse] Calling instance.setData for ${instanceName} with new data.`,
+        );
+        instance.setData(newData); // This handles delete/assign and triggers proxy handler (debounced)
+
+        // Execute Hooks/Events - REMOVED - Handled by proxy debounce
+        /*
         PluginManager.executeHook("updateData", instance, {
-          data: data,
-          changes,
+          data: instance.data,
+          changes: null,
           source: "htmx",
-          requestId: requestId,
         });
+        EventSystem.publish("updateData", {
+          instanceName,
+          data: instance.data,
+          changes: null,
+          source: "htmx",
+        });
+        */
 
-        // Store data if storage is enabled
-        if (_state.config?.storage?.enabled) {
-          saveToLocalStorage(instanceName, data, "instance");
-        }
-
-        // Update instance data
-        Object.assign(instance.data, data);
-        Object.assign(instance.proxy, data);
-
-        // Render template without triggering a new request
-        try {
-          let rendered;
-          if (templateId) {
-            log("Rendering html to " + templateId + " based on htmx response");
-            rendered = instance.template(instance.proxy);
-          } else {
-            if (!elt.id) {
-              errorLog(
-                "No template found. If the current element is a template, it must have an id.",
-              );
-              return text;
-            }
-            log("Rendering html to current element based on htmx response");
-            rendered = instance.template(instance.proxy);
-          }
-
-          if (rendered) {
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Template rendered successfully for request",
-              requestId,
-            );
-            return rendered;
-          }
-          return text;
-        } catch (error) {
-          errorLog("Error rendering template:", error);
-          return (
-            "<div class='fp-error'>Error rendering template: " +
-            error +
-            "</div>"
-          );
-        }
+        // Signal completion by returning empty string
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[transformResponse] setData called for request ${requestId} on elt ${elt.id}. Returning empty string.`,
+        );
+        return "";
       }
       return text;
     },
 
     handleSwap: function (swapStyle, target, fragment, settleInfo) {
-      // Debug.log(Debug.levels.DEBUG, "handleSwap called with:", {
-      //   swapStyle,
-      //   hasTemplate: target.hasAttribute("fp-template"),
-      //   fragmentType: fragment.nodeType,
-      //   fragmentContent: fragment.textContent || fragment.innerHTML,
-      // });
+      const isEmptySignal = fragment.textContent?.trim() === "";
 
-      // Skip if element doesn't have fp-template
-      if (!target.hasAttribute("fp-template")) {
+      if (isEmptySignal) {
         Debug.log(
           Debug.levels.DEBUG,
-          "No fp-template attribute, skipping handleSwap",
-        );
-        return false; // Let HTMX handle the swap
-      }
-
-      try {
-        // Get instance
-        const instance = InstanceManager.getOrCreateInstance(target);
-        if (!instance) return false;
-
-        // Only handle non-HTML responses
-        const isHtmlResponse =
-          fragment.nodeType === Node.DOCUMENT_FRAGMENT_NODE ||
-          fragment.nodeType === Node.ELEMENT_NODE ||
-          (typeof fragment.textContent === "string" &&
-            (fragment.textContent.trim().startsWith("<!DOCTYPE") ||
-              fragment.textContent.trim().startsWith("<html") ||
-              fragment.textContent.trim().startsWith("<div") ||
-              fragment.textContent.trim().startsWith("<")));
-
-        if (isHtmlResponse) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "HTML response detected, letting htmx handle swap",
-          );
-          return false;
-        }
-
-        // For non-HTML responses with fp-template, we want to handle the swap
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Non-HTML response with fp-template detected, handling swap",
+          `[handleSwap] Detected empty string signal for target ${
+            target.id || "[no id]"
+          }. Preventing htmx default swap.`,
         );
         return true;
-      } catch (error) {
-        Debug.log(Debug.levels.ERROR, "Error in handleSwap: " + error.message);
+      } else {
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[handleSwap] Fragment is not empty signal for target ${
+            target.id || "[no id]"
+          }. Letting htmx swap.`,
+        );
         return false;
       }
     },
 
     onEvent: function (name, evt) {
-      if (evt.detail.handled) return;
+      const triggeringElt = evt.detail.elt;
+      if (!triggeringElt) {
+        Debug.log(
+          Debug.levels.WARN,
+          `[onEvent] Event ${name} has no triggering element (evt.detail.elt). Skipping.`,
+        );
+        return;
+      }
 
-      const target = evt.detail.elt;
       const requestId =
         evt.detail.requestId || RequestHandler.generateRequestId();
+      if (!evt.detail.requestId) evt.detail.requestId = requestId;
 
       switch (name) {
         case "htmx:beforeRequest":
-          evt.detail.requestId = requestId;
-          evt.detail.xhr.requestId = requestId;
-          RequestHandler.handleRequest(target, requestId, "start");
-
-          // Execute beforeRequest hook
-          if (target.hasAttribute("fp-template")) {
-            const instance = InstanceManager.getOrCreateInstance(target);
+          if (!evt.detail.xhr.requestId) {
+            evt.detail.xhr.requestId = requestId;
+          }
+          RequestHandler.handleRequest(triggeringElt, requestId, "start");
+          if (triggeringElt.hasAttribute("fp-template")) {
+            const instance = InstanceManager.getOrCreateInstance(triggeringElt);
             if (instance) {
               PluginManager.executeHook("beforeRequest", instance, evt);
             }
@@ -248,34 +154,18 @@ export function defineHtmxExtension() {
           break;
 
         case "htmx:beforeSwap":
-          const info = RequestHandler.processingElements.get(target);
-          if (!info || info.requestId !== requestId) {
-            evt.preventDefault();
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Prevented swap - request ID mismatch",
-            );
-            return;
-          }
-          // Mark request as processed
-          RequestHandler.handleRequest(target, requestId, "process");
-          // Execute beforeSwap hook
-          executeHtmxHook("beforeSwap", target, evt);
+          executeHtmxHook("beforeSwap", triggeringElt, evt);
           break;
 
         case "htmx:afterSwap":
-          // Execute afterSwap hook
-          executeHtmxHook("afterSwap", target, evt);
-
-          // Clean up form listeners before setting up new ones
-          const formsToCleanup = getAllRelevantForms(target);
+          executeHtmxHook("afterSwap", triggeringElt, evt);
+          const formsToCleanup = getAllRelevantForms(triggeringElt);
           formsToCleanup.forEach(cleanupFormChangeListeners);
           break;
 
         case "htmx:afterRequest":
-          // Execute afterRequest hook
-          if (target.hasAttribute("fp-template")) {
-            const instance = InstanceManager.getOrCreateInstance(target);
+          if (triggeringElt.hasAttribute("fp-template")) {
+            const instance = InstanceManager.getOrCreateInstance(triggeringElt);
             if (instance) {
               PluginManager.executeHook("afterRequest", instance, evt);
               EventSystem.publish("request-end", {
@@ -284,28 +174,23 @@ export function defineHtmxExtension() {
               });
             }
           }
-
-          // Handle request cleanup
-          RequestHandler.handleRequest(target, requestId, "cleanup");
-
-          // Restore form states if necessary
-          restoreFormIfNecessary(target, true, evt);
+          RequestHandler.handleRequest(triggeringElt, requestId, "cleanup");
+          restoreFormIfNecessary(triggeringElt, true, evt);
           break;
 
         case "htmx:afterSettle":
-          // Execute afterSettle hook
-          executeHtmxHook("afterSettle", target, evt);
-
-          // Re-setup form handlers after the DOM has settled
+          executeHtmxHook("afterSettle", triggeringElt, evt);
           Debug.log(
             Debug.levels.DEBUG,
             `Setting up form handlers after DOM settle for target: ${
-              target.id || "unknown"
+              triggeringElt.id || "unknown"
             }, ` +
-              `has fp-template: ${target.hasAttribute("fp-template")}, ` +
-              `parent form: ${target.closest("form")?.id || "none"}`,
+              `has fp-template: ${triggeringElt.hasAttribute(
+                "fp-template",
+              )}, ` +
+              `parent form: ${triggeringElt.closest("form")?.id || "none"}`,
           );
-          setupFormSubmitHandlers(target);
+          setupFormSubmitHandlers(triggeringElt);
           break;
       }
     },
@@ -328,13 +213,11 @@ function executeHtmxHook(hookName, target, event) {
  * @param {Object} [event] - The event object containing failure status
  */
 function restoreFormIfNecessary(target, checkFailed = true, event) {
-  // Skip if already restoring
   if (RequestHandler.isRestoringFormStates) {
     Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
     return;
   }
 
-  // Skip if request failed and we're checking for failures
   if (checkFailed && event?.detail?.failed) {
     return;
   }

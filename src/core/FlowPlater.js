@@ -40,7 +40,7 @@ import { instanceMethods } from "./InstanceMethods";
  * @author JWSLS
  */
 
-const VERSION = "1.4.22";
+const VERSION = "1.4.23";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 
@@ -491,7 +491,7 @@ const FlowPlaterObj = {
               target: template,
             });
           } else {
-            // Check for stored data when HTMX/FP methods are present
+            // Find stored data when HTMX/FP methods are present
             if (_state.config?.storage?.enabled) {
               // Get instance name from attribute or fallback to template id
               const instanceName =
@@ -506,6 +506,7 @@ const FlowPlaterObj = {
                   template: templateId,
                   data: storedData,
                   target: template,
+                  skipLocalStorageLoad: true, // Skip localStorage loading in render since we just loaded it
                 });
               } else {
                 Debug.log(
@@ -536,6 +537,8 @@ const FlowPlaterObj = {
 
     // Set initialized flag
     _state.initialized = true;
+
+    EventSystem.publish("initialized");
 
     // Execute initComplete hook after everything is done
     this.PluginManager.executeHook("initComplete", this, _state.instances);
@@ -785,6 +788,8 @@ if (metaElement) {
   }
 }
 FlowPlaterObj.config(finalConfig);
+
+EventSystem.publish("loaded");
 
 /* -------------------------------------------------------------------------- */
 /* ANCHOR                          Auto init                                  */

@@ -8,6 +8,8 @@ import { updateDOM } from "../utils/UpdateDom";
 import { loadFromLocalStorage } from "../utils/LocalStorage";
 import { saveToLocalStorage } from "../utils/LocalStorage";
 import { compileTemplate, memoizedCompile } from "./TemplateCompiler";
+import { createDeepProxy } from "../utils/CreateDeepProxy";
+import PluginManager from "./PluginManager";
 
 export { compileTemplate, memoizedCompile };
 
@@ -19,8 +21,46 @@ export function render({
   instanceName,
   animate = _state.defaults.animation,
   recompile = false,
+  skipLocalStorageLoad = false,
 }) {
   Performance.start("render:" + (instanceName || "anonymous"));
+
+  // Track initialization to prevent redundant initialization of the same instance
+  if (!_state._initTracking) {
+    _state._initTracking = {};
+  }
+
+  // Derive instance name early to use for tracking
+  let derivedInstanceName;
+  if (instanceName) {
+    derivedInstanceName = instanceName;
+  } else if (target instanceof Element && target.hasAttribute("fp-instance")) {
+    derivedInstanceName = target.getAttribute("fp-instance");
+  } else if (target instanceof Element && target.id) {
+    derivedInstanceName = target.id;
+  } else if (typeof target === "string" && target.startsWith("#")) {
+    derivedInstanceName = target.substring(1);
+  }
+
+  // If this instance was recently initialized (within 100ms), skip
+  if (derivedInstanceName && _state._initTracking[derivedInstanceName]) {
+    const timeSinceLastInit =
+      Date.now() - _state._initTracking[derivedInstanceName];
+    if (timeSinceLastInit < 100) {
+      // 100ms window to prevent duplicate initializations
+      Debug.log(
+        Debug.levels.WARN,
+        `[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`,
+      );
+      // Still return the existing instance
+      return _state.instances[derivedInstanceName] || null;
+    }
+  }
+
+  // Update tracking timestamp
+  if (derivedInstanceName) {
+    _state._initTracking[derivedInstanceName] = Date.now();
+  }
 
   EventSystem.publish("beforeRender", {
     instanceName,
@@ -95,68 +135,212 @@ export function render({
   /*                               Proxy creation                               */
   /* -------------------------------------------------------------------------- */
 
-  if (
-    !_state.instances[instanceName] ||
-    _state.instances[instanceName].data !== data
-  ) {
-    // Load persisted data if available
-    const persistedData = loadFromLocalStorage(instanceName, "instance");
-    if (persistedData) {
-      // Check if stored data is HTML
-      if (persistedData.isHtml) {
-        // Get swap specification from element
-        const swapSpec = {
-          swapStyle:
-            elements[0].getAttribute("hx-swap")?.split(" ")[0] || "innerHTML",
-          swapDelay: 0,
-          settleDelay: 0,
-          transition:
-            elements[0].getAttribute("hx-swap")?.includes("transition:true") ||
-            false,
-        };
+  if (!_state.instances[instanceName] || !_state.instances[instanceName].data) {
+    // Load persisted data if available and not skipped
+    let finalInitialData = data || {};
+    let persistedData = null; // Initialize persistedData to null
 
-        // Use htmx.swap with proper swap specification
-        if (returnHtml) {
-          return persistedData.data;
+    if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
+      persistedData = loadFromLocalStorage(instanceName, "instance");
+      if (persistedData) {
+        // Check if stored data is HTML
+        if (
+          persistedData.isHtml === true ||
+          (typeof persistedData === "string" &&
+            typeof persistedData.trim === "function" &&
+            (persistedData.trim().startsWith("<!DOCTYPE html") ||
+              persistedData.trim().startsWith("<html")))
+        ) {
+          // Get swap specification from element
+          const swapSpec = {
+            swapStyle:
+              elements[0].getAttribute("hx-swap")?.split(" ")[0] || "innerHTML",
+            swapDelay: 0,
+            settleDelay: 0,
+            transition:
+              elements[0]
+                .getAttribute("hx-swap")
+                ?.includes("transition:true") || false,
+          };
+
+          // Use htmx.swap with proper swap specification
+          if (returnHtml) {
+            return persistedData; // HTML string is now stored directly
+          }
+          elements.forEach((element) => {
+            htmx.swap(element, persistedData, swapSpec);
+          });
+          return _state.instances[instanceName];
         }
-        elements.forEach((element) => {
-          htmx.swap(element, persistedData.data, swapSpec);
-        });
-        return _state.instances[instanceName];
+        // Extract actual data - if persistedData has a 'data' property, use that
+        const actualData = persistedData?.data || persistedData;
+        finalInitialData = { ...actualData, ...finalInitialData };
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[Template] Merged persisted data for ${instanceName}:`,
+          finalInitialData,
+        );
       }
-      // Otherwise merge with current data, prioritizing new data
-      data = { ...persistedData, ...data };
     }
 
-    var proxy = createDeepProxy(data, (target) => {
-      // Use WeakRef or maintain a Set of weak references to elements
-      const activeElements = elements.filter((el) =>
-        document.body.contains(el),
-      );
-      activeElements.forEach((element) => {
-        updateDOM(element, compiledTemplate(target));
-      });
+    // 1. Get or create the instance shell
+    const instance = InstanceManager.getOrCreateInstance(
+      elements[0],
+      finalInitialData,
+    );
+
+    // If instance couldn't be created, exit
+    if (!instance) {
+      errorLog("Failed to get or create instance: " + instanceName);
+      return null;
+    }
+
+    // --- Debounce and Change Tracking Setup ---
+    // Store the timer ID on the instance
+    if (!instance._updateTimer) {
+      instance._updateTimer = null;
+    }
+    // Store the 'state before changes' within the current debounce cycle
+    if (!instance._stateBeforeDebounce) {
+      instance._stateBeforeDebounce = null;
+    }
+    // --- End Setup ---
+
+    // 2. Create the proxy with the final merged data and DEBOUNCED update handler
+    const DEBOUNCE_DELAY = 50; // ms - slightly longer to avoid duplicate updates
+    const proxy = createDeepProxy(finalInitialData, (target) => {
+      if (instance) {
+        // -- Debounce Logic --
+        // Capture state *before* the first change in this debounce cycle
+        // This is crucial for comparing changes accurately after the debounce.
+        if (instance._updateTimer === null) {
+          // Only capture if no timer is currently set
+          try {
+            // Use a deep clone to prevent the captured state from being mutated
+            // before the setTimeout callback runs.
+            instance._stateBeforeDebounce = JSON.parse(JSON.stringify(proxy));
+            Debug.log(
+              Debug.levels.DEBUG,
+              `[Debounce Start] Captured pre-debounce state for ${instanceName}:`,
+              instance._stateBeforeDebounce, // Log the actual captured object
+            );
+          } catch (e) {
+            errorLog(
+              `[Debounce Start] Failed to capture pre-debounce state for ${instanceName}:`,
+              e,
+            );
+            // If cloning fails, set to null to potentially prevent errors in trackChanges
+            // though trackChanges might still fail if it receives null.
+            instance._stateBeforeDebounce = null;
+          }
+        }
+
+        // Clear existing timer
+        clearTimeout(instance._updateTimer);
+
+        // Schedule the update
+        instance._updateTimer = setTimeout(() => {
+          // ** USE STATE CAPTURED BEFORE DEBOUNCE **
+          const stateBefore = instance._stateBeforeDebounce;
+          const stateAfter = proxy;
+
+          const jsonStateBefore = JSON.parse(JSON.stringify(stateBefore));
+          const jsonStateAfter = JSON.parse(JSON.stringify(stateAfter));
+
+          // 1. Basic Change Check (Optional but Recommended)
+          // Avoid firing hooks if state hasn't actually changed.
+          // Using simple stringify comparison - replace with deepEqual if needed & imported.
+          const stateChanged =
+            JSON.stringify(jsonStateBefore) !== JSON.stringify(jsonStateAfter);
+
+          // 2. Execute Hooks/Events with Full States
+          if (stateChanged) {
+            Debug.log(
+              Debug.levels.INFO,
+              `[Debounced Update] State changed for ${instanceName}. Firing updateData hook.`,
+            );
+            // Pass the full old and new states
+            PluginManager.executeHook("updateData", instance, {
+              newData: jsonStateAfter, // Current state
+              oldData: jsonStateBefore, // State before changes
+              source: "proxy",
+            });
+            EventSystem.publish("updateData", {
+              instanceName,
+              newData: jsonStateAfter,
+              oldData: jsonStateBefore,
+              source: "proxy",
+            });
+          } else {
+            Debug.log(
+              Debug.levels.DEBUG,
+              `[Debounced Update] No state change detected for ${instanceName}. Skipping updateData hook.`,
+            );
+          }
+
+          // 3. Update DOM
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
+          );
+
+          instance._updateDOM();
+
+          // 4. Save to storage
+          // Get the correct instance name and sanitize it for the key
+          const storageId = instance.instanceName.replace("#", "");
+          Debug.log(
+            Debug.levels.DEBUG,
+            `[Debounced Update] Saving root proxy object for ${storageId}.`,
+          );
+          if (_state.config?.storage?.enabled) {
+            saveToLocalStorage(
+              storageId,
+              stateAfter, // Save the data directly, not wrapped in an object
+              "instance",
+            );
+          }
+
+          // Clear timer and pre-debounce state reference after execution
+          instance._updateTimer = null;
+          instance._stateBeforeDebounce = null;
+        }, DEBOUNCE_DELAY);
+        // -- End Debounce Logic --
+      }
     });
 
-    // Create or update instance using InstanceManager
-    const instance = InstanceManager.getOrCreateInstance(elements[0], data);
-    if (instance) {
-      instance.elements = new Set(elements);
-      instance.template = compiledTemplate;
-      instance.templateId = elements[0].getAttribute("fp-template") || template;
-      instance.proxy = proxy;
-      instance.data = data;
+    // 3. Assign the proxy and template to the instance
+    instance.elements = new Set(elements);
+    instance.template = compiledTemplate;
+    instance.templateId = elements[0].getAttribute("fp-template") || template;
+    instance.data = proxy; // Assign the proxy!
 
-      // Save initial instance data to storage
-      if (_state.config?.storage?.enabled) {
-        const storageId = instanceName.replace("#", "");
-        saveToLocalStorage(storageId, data, "instance");
-      }
+    // 4. Trigger initial render - This should be OUTSIDE the debounce logic
+    Debug.log(
+      Debug.levels.DEBUG,
+      `[Initial Render] Triggering _updateDOM for ${instanceName}`,
+    );
+    instance._updateDOM();
+
+    // Optional: Initial save if needed, OUTSIDE debounce
+    if (_state.config?.storage?.enabled && !persistedData) {
+      // Only save if not loaded
+      const storageId = instanceName.replace("#", "");
+      Debug.log(
+        Debug.levels.DEBUG,
+        `[Initial Save] Saving initial data for ${storageId}`,
+      );
+      saveToLocalStorage(
+        storageId,
+        finalInitialData, // Save the data directly, not wrapped in an object
+        "instance",
+      ); // Save the raw initial merged data
     }
   }
 
-  const instance = _state.instances[instanceName];
-  log("Proxy created: ", instance.proxy);
+  // Return the instance from the state (might be the one just created or an existing one)
+  const finalInstance = _state.instances[instanceName];
+  log("Final instance data: ", finalInstance.data);
 
   /* -------------------------------------------------------------------------- */
   /*                               Render template                              */
@@ -164,14 +348,19 @@ export function render({
 
   try {
     if (returnHtml) {
-      return compiledTemplate(target);
+      return compiledTemplate(finalInstance.data);
     }
 
     elements.forEach((element) => {
-      updateDOM(element, compiledTemplate(target), animate, instance);
+      updateDOM(
+        element,
+        compiledTemplate(finalInstance.data),
+        animate,
+        finalInstance,
+      );
     });
 
-    return instance;
+    return finalInstance;
   } catch (error) {
     if (!(error instanceof TemplateError)) {
       errorLog(`Failed to render template: ${error.message}`);
@@ -189,31 +378,4 @@ export function render({
     log("Rendered instance: " + instanceName, template, data, target);
     Performance.end("render:" + (instanceName || "anonymous"));
   }
-}
-
-function createDeepProxy(target, handler) {
-  if (typeof target !== "object" || target === null) {
-    return target;
-  }
-
-  const proxyHandler = {
-    get(target, property) {
-      const value = target[property];
-      return value && typeof value === "object"
-        ? createDeepProxy(value, handler)
-        : value;
-    },
-    set(target, property, value) {
-      target[property] = value;
-      handler(target);
-      return true;
-    },
-    deleteProperty(target, property) {
-      delete target[property];
-      handler(target);
-      return true;
-    },
-  };
-
-  return new Proxy(target, proxyHandler);
 }
