@@ -35,8 +35,16 @@ const PluginManager = {
   instanceMethods: new Map(),
 
   registerPlugin(plugin) {
-    if (!plugin || typeof plugin !== "function") {
-      throw new FlowPlaterError("Plugin must be a function");
+    if (typeof plugin === "string") {
+      plugin = window[plugin];
+    }
+
+    if (!plugin) {
+      throw new FlowPlaterError(`Plugin not found: ${plugin}`);
+    }
+
+    if (typeof plugin !== "function") {
+      throw new FlowPlaterError("Plugin must be a valid function");
     }
 
     const pluginInstance = plugin();
@@ -373,15 +381,20 @@ const PluginManager = {
             dataType,
           );
 
-          // Check the data type after transformation
-          const newDataType = this._determineDataType(result);
-
-          // Log if the data type changed
-          if (newDataType !== dataType) {
+          // If the result is undefined or null, return the original data
+          if (result === undefined || result === null) {
             Debug.log(
-              Debug.levels.DEBUG,
-              `Plugin ${plugin.config.name} changed data type from ${dataType} to ${newDataType} in ${transformationType} transformation`,
+              Debug.levels.WARN,
+              `Plugin ${plugin.config.name} returned undefined/null for ${transformationType}, using original data`,
             );
+            return transformedData;
+          }
+
+          // For event transformations, ensure we preserve the event object structure
+          if (transformedData instanceof Event && result instanceof Event) {
+            // For events, we want to preserve the event object but update its properties
+            Object.assign(transformedData.detail, result.detail);
+            return transformedData;
           }
 
           return result;

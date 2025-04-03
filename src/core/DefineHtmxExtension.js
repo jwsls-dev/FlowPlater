@@ -161,16 +161,40 @@ export function defineHtmxExtension() {
       if (!evt.detail.requestId) evt.detail.requestId = requestId;
 
       switch (name) {
+        case "htmx:confirm":
+          if (triggeringElt.hasAttribute("fp-template")) {
+            const instance = InstanceManager.getOrCreateInstance(triggeringElt);
+            // Apply plugin transformations to the confirm event
+            evt = PluginManager.applyTransformations(
+              instance || null,
+              evt,
+              "confirm",
+              "json",
+            );
+          }
+          break;
+
+        case "htmx:configRequest":
+          // Apply transformations regardless of fp-template attribute
+          const instance = InstanceManager.getOrCreateInstance(triggeringElt);
+          evt = PluginManager.applyTransformations(
+            instance || null,
+            evt,
+            "configRequest",
+            "json",
+          );
+          break;
+
         case "htmx:beforeRequest":
           if (!evt.detail.xhr.requestId) {
             evt.detail.xhr.requestId = requestId;
           }
           RequestHandler.handleRequest(triggeringElt, requestId, "start");
+
+          // Execute hooks if it's a template element
           if (triggeringElt.hasAttribute("fp-template")) {
             const instance = InstanceManager.getOrCreateInstance(triggeringElt);
-            if (instance) {
-              PluginManager.executeHook("beforeRequest", instance, evt);
-            }
+            PluginManager.executeHook("beforeRequest", instance || null, evt);
           }
           break;
 
