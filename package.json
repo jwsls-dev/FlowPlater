@@ -1,6 +1,6 @@
 {
   "name": "flowplater",
-  "version": "1.4.23",
+  "version": "1.4.24",
   "homepage": "https://flowplater.io",
   "main": "dist/flowplater.min.js",
   "scripts": {

@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.23 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.24 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -14138,6 +14138,8 @@ var FlowPlater = (function () {
     animate = _state.defaults.animation,
     recompile = false,
     skipLocalStorageLoad = false,
+    skipRender = false,
+    isStoredDataRender = false,
   }) {
     Performance.start("render:" + (instanceName || "anonymous"));
 
@@ -14159,7 +14161,12 @@ var FlowPlater = (function () {
     }
 
     // If this instance was recently initialized (within 100ms), skip
-    if (derivedInstanceName && _state._initTracking[derivedInstanceName]) {
+    // BUT ONLY if this is not an explicit render with stored data
+    if (
+      derivedInstanceName &&
+      _state._initTracking[derivedInstanceName] &&
+      !isStoredDataRender
+    ) {
       const timeSinceLastInit =
         Date.now() - _state._initTracking[derivedInstanceName];
       if (timeSinceLastInit < 100) {
@@ -14251,11 +14258,13 @@ var FlowPlater = (function () {
     /*                               Proxy creation                               */
     /* -------------------------------------------------------------------------- */
 
+    // Initialize finalInitialData outside the if block so it's available throughout the function
+    let finalInitialData = data || {};
+    let persistedData = null;
+    let proxy = null; // Initialize proxy at function level
+
     if (!_state.instances[instanceName] || !_state.instances[instanceName].data) {
       // Load persisted data if available and not skipped
-      let finalInitialData = data || {};
-      let persistedData = null; // Initialize persistedData to null
-
       if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
         persistedData = loadFromLocalStorage(instanceName, "instance");
         if (persistedData) {
@@ -14324,7 +14333,7 @@ var FlowPlater = (function () {
 
       // 2. Create the proxy with the final merged data and DEBOUNCED update handler
       const DEBOUNCE_DELAY = 50; // ms - slightly longer to avoid duplicate updates
-      const proxy = createDeepProxy(finalInitialData, (target) => {
+      proxy = createDeepProxy(finalInitialData, (target) => {
         if (instance) {
           // -- Debounce Logic --
           // Capture state *before* the first change in this debounce cycle
@@ -14434,9 +14443,15 @@ var FlowPlater = (function () {
       // 4. Trigger initial render - This should be OUTSIDE the debounce logic
       Debug.log(
         Debug.levels.DEBUG,
-        `[Initial Render] Triggering _updateDOM for ${instanceName}`,
+        `[Initial Render] ${
+        skipRender ? "Skipping" : "Triggering"
+      } _updateDOM for ${instanceName}`,
       );
-      instance._updateDOM();
+
+      // Only call _updateDOM if not skipRender
+      if (!skipRender) {
+        instance._updateDOM();
+      }
 
       // Optional: Initial save if needed, OUTSIDE debounce
       if (_state.config?.storage?.enabled && !persistedData) {
@@ -14452,6 +14467,9 @@ var FlowPlater = (function () {
           "instance",
         ); // Save the raw initial merged data
       }
+    } else {
+      // If the instance already exists, get its proxy
+      proxy = _state.instances[instanceName].data;
     }
 
     // Return the instance from the state (might be the one just created or an existing one)
@@ -14462,38 +14480,63 @@ var FlowPlater = (function () {
     /*                               Render template                              */
     /* -------------------------------------------------------------------------- */
 
-    try {
-      if (returnHtml) {
-        return compiledTemplate(finalInstance.data);
-      }
+    // Only create/setup instance if proxy is defined
+    if (proxy) {
+      // Create/get instance and set up proxy regardless of skipRender
+      const instance = InstanceManager.getOrCreateInstance(
+        elements[0],
+        finalInitialData,
+      );
 
-      elements.forEach((element) => {
-        updateDOM(
-          element,
-          compiledTemplate(finalInstance.data),
-          animate,
-          finalInstance,
+      // Set up the instance but don't render automatically
+      instance.elements = new Set(elements);
+      instance.template = compiledTemplate; // Always store the template
+      instance.templateId = elements[0].getAttribute("fp-template") || template;
+      instance.data = proxy;
+
+      // At this point do NOT call instance._updateDOM() to avoid automatic rendering
+
+      // Only perform actual rendering if explicitly requested
+      if (!skipRender) {
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[Render Template] Executing render for ${instanceName}`,
         );
-      });
 
-      return finalInstance;
-    } catch (error) {
-      if (!(error instanceof TemplateError)) {
-        errorLog$1(`Failed to render template: ${error.message}`);
+        try {
+          if (returnHtml) {
+            return compiledTemplate(finalInstance.data);
+          }
+
+          elements.forEach((element) => {
+            updateDOM(
+              element,
+              compiledTemplate(finalInstance.data),
+              animate,
+              finalInstance,
+            );
+          });
+        } catch (error) {
+          if (!(error instanceof TemplateError)) {
+            errorLog$1(`Failed to render template: ${error.message}`);
+          }
+          throw error;
+        }
+      } else {
+        Debug.log(
+          Debug.levels.DEBUG,
+          `[Render Template] Skipping render for ${instanceName} as requested`,
+        );
       }
-      throw error;
-    } finally {
-      EventSystem.publish("afterRender", {
-        instanceName,
-        template,
-        data,
-        target,
-        elements,
-        returnHtml,
-      });
-      log("Rendered instance: " + instanceName, template, data, target);
-      Performance.end("render:" + (instanceName || "anonymous"));
+    } else if (!skipRender) {
+      // Log a debug message that we're skipping render due to no data
+      Debug.log(
+        Debug.levels.DEBUG,
+        `[Template] Skipping render for ${instanceName} because no data is available yet.`,
+      );
     }
+
+    return finalInstance || null;
   }
 
   function compare(left, operator, right) {
@@ -15865,7 +15908,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.23";
+  const VERSION = "1.4.24";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
@@ -16300,47 +16343,77 @@ var FlowPlater = (function () {
 
           // Only render if options.render is true AND element doesn't have HTMX/FP methods
           if (options.render) {
+            // Enhanced method detection - check for any fp- or hx- attribute that would trigger requests
             const methods = ["get", "post", "put", "patch", "delete"];
-            const hasHtmxMethod = methods.some(
+
+            // More comprehensive check for request-triggering attributes
+            let hasRequestMethod = false;
+
+            // Check for specific HTTP method attributes
+            hasRequestMethod = methods.some(
               (method) =>
                 template.hasAttribute(`hx-${method}`) ||
                 template.hasAttribute(`fp-${method}`),
             );
 
-            if (!hasHtmxMethod) {
-              render({
-                template: templateId,
-                data: {},
-                target: template,
-              });
-            } else {
-              // Find stored data when HTMX/FP methods are present
-              if (_state.config?.storage?.enabled) {
-                // Get instance name from attribute or fallback to template id
-                const instanceName =
-                  template.getAttribute("fp-instance") || templateId;
-                const storedData = loadFromLocalStorage(instanceName, "instance");
-                if (storedData) {
-                  Debug.log(
-                    Debug.levels.INFO,
-                    `Found stored data for instance: ${instanceName}, rendering with stored data`,
-                  );
-                  render({
-                    template: templateId,
-                    data: storedData,
-                    target: template,
-                    skipLocalStorageLoad: true, // Skip localStorage loading in render since we just loaded it
-                  });
-                } else {
-                  Debug.log(
-                    Debug.levels.DEBUG,
-                    `Skipping initial render for instance: ${instanceName}`,
-                  );
-                }
+            // Also check for other trigger attributes that would cause loading
+            if (!hasRequestMethod) {
+              // Check for any attribute that would trigger an HTTP request
+              const httpTriggerAttributes = [
+                "hx-trigger",
+                "fp-trigger",
+                "hx-boost",
+                "fp-boost",
+                "hx-ws",
+                "fp-ws",
+                "hx-sse",
+                "fp-sse",
+              ];
+
+              hasRequestMethod = httpTriggerAttributes.some((attr) =>
+                template.hasAttribute(attr),
+              );
+            }
+
+            Debug.log(
+              Debug.levels.DEBUG,
+              `[Template ${templateId}] Has request method: ${hasRequestMethod}`,
+              template,
+            );
+
+            // Create/update instance with template regardless of render decision
+            // Important: skipRender should be true when hasRequestMethod is true
+            render({
+              template: templateId,
+              data: {},
+              target: template,
+              skipRender: hasRequestMethod, // Skip render if has HTMX/FP methods
+            });
+
+            // If has HTMX methods, check for stored data
+            if (hasRequestMethod && _state.config?.storage?.enabled) {
+              const instanceName =
+                template.getAttribute("fp-instance") || template.id || templateId;
+              const storedData = loadFromLocalStorage(instanceName, "instance");
+              if (storedData) {
+                Debug.log(
+                  Debug.levels.INFO,
+                  `Found stored data for instance: ${instanceName}, rendering with stored data`,
+                );
+                // Instead of directly setting data, use render with the stored data
+                // This ensures proper rendering with the stored data
+                render({
+                  template: templateId,
+                  data: storedData,
+                  target: template,
+                  instanceName: instanceName,
+                  skipRender: false, // Explicitly render with stored data
+                  isStoredDataRender: true, // Flag to bypass redundant init check
+                });
               } else {
                 Debug.log(
                   Debug.levels.DEBUG,
-                  `Skipping initial render for template with HTMX/FP methods: ${templateId}`,
+                  `Skipping initial render for instance: ${instanceName} - no stored data found`,
                 );
               }
             }
