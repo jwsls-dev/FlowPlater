@@ -680,6 +680,36 @@ const FlowPlaterObj = {
   },
 
   /**
+   * Register a Handlebars helper
+   * @param {string} name - The name of the helper
+   * @param {Function} helperFn - The helper function
+   * @returns {FlowPlaterObj} The FlowPlater instance
+   * @description Registers a new Handlebars helper and clears the template cache
+   * to ensure all templates are recompiled with the new helper.
+   */
+  registerHelper: function (name, helperFn) {
+    // Register the helper with Handlebars
+    Handlebars.registerHelper(name, helperFn);
+
+    // Clear the template cache to ensure all templates are recompiled
+    this.templateCache.clear();
+
+    // Clear compiled templates stored in instances
+    Object.keys(_state.instances).forEach((instanceName) => {
+      const instance = _state.instances[instanceName];
+      if (instance.templateId) {
+        // Recompile the template for this instance
+        instance.template = compileTemplate(instance.templateId, true);
+      }
+    });
+
+    // Log the registration
+    Debug.log(Debug.levels.INFO, `Registered Handlebars helper: ${name}`);
+
+    return this;
+  },
+
+  /**
    * Destroy the FlowPlater instance
    * @description Cleans up all instances and their associated resources.
    * Also clears the template cache and event listeners.

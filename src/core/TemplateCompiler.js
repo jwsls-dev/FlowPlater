@@ -24,6 +24,8 @@ export const memoizedCompile = memoize(function (templateId) {
   // if templateId is empty or "self", use the current element
   Performance.start("compile:" + templateId);
 
+  const helpers = Handlebars.helpers;
+
   // Add # prefix if templateId doesn't start with it
   const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
   var templateElement = document.querySelector(selector);
@@ -68,14 +70,17 @@ export const memoizedCompile = memoize(function (templateId) {
         if (child.nodeType === Node.TEXT_NODE) {
           result += child.textContent;
         } else if (child.nodeType === Node.ELEMENT_NODE) {
-          if (child.hasAttribute("fp")) {
+          let childTagName = child.tagName.toLowerCase();
+          if (child.hasAttribute("fp") || childTagName in helpers) {
             // Process as a Handlebars helper
-            const helperName = child.tagName.toLowerCase();
-            const args = child
-              .getAttribute("fp")
-              .split(" ")
-              .map((arg) => arg.replace(/&quot;/g, '"'))
-              .join(" ");
+            const helperName = childTagName;
+            const args = child.getAttribute("fp")
+              ? child
+                  .getAttribute("fp")
+                  .split(" ")
+                  .map((arg) => arg.replace(/&quot;/g, '"'))
+                  .join(" ")
+              : "";
 
             const innerContent = processNode(child);
 
