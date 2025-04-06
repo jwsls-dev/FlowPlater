@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Local Data Test</title>
+    <style>
+        .test-case {
+            margin: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        .data-source {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .result {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Local Data Test Cases</h1>
+
+    <!-- Test Case 1: JavaScript Variable -->
+    <div class="test-case">
+        <h2>Case 1: JavaScript Variable</h2>
+        <div class="data-source">
+            <pre>
+window.testUser = {
+    name: "John Doe",
+    email: "john@example.com",
+    role: "admin"
+};
+            </pre>
+        </div>
+        
+        <div fp-template fp-local="testUser" id="js-var-test">
+            <div class="result">
+                <h3>User Details</h3>
+                <p><strong>Name:</strong> <span fp-val="name">No Name</span></p>
+                <p><strong>Email:</strong> <span fp-val="email">No Email</span></p>
+                <p><strong>Role:</strong> <span fp-val="role">No Role</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Case 2: DataExtractor Plugin -->
+    <div class="test-case">
+        <h2>Case 2: DataExtractor Plugin</h2>
+        <div id="source-data" class="data-source">
+            <div>
+                <h4>Source Element with Data Attributes</h4>
+                <p>This element contains fp-data attributes that will be extracted by the DataExtractor plugin.</p>
+                <div fp-data="user">
+                    <span fp-data="name">Jane Smith</span>
+                    <span fp-data="email">jane@example.com</span>
+                    <span fp-data="role">editor</span>
+                </div>
+            </div>
+        </div>
+
+        <div fp-template fp-local="#source-data" id="extractor-test">
+            <div class="result">
+                <h3>Extracted User Details</h3>
+                <p><strong>Name:</strong> <span fp-val="user.name">No Name</span></p>
+                <p><strong>Email:</strong> <span fp-val="user.email">No Email</span></p>
+                <p><strong>Role:</strong> <span fp-val="user.role">No Role</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set up test data for JavaScript variable test
+        window.testUser = {
+            name: "John Doe",
+            email: "john@example.com",
+            role: "admin"
+        };
+    </script>
+    <script src="/flowplater"></script>
+    <script src="/plugins/DataExtractorPlugin"></script>
+    <script>FlowPlater.registerPlugin("DataExtractorPlugin");</script>
+</body>
+</html> 
