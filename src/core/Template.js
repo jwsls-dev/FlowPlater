@@ -230,34 +230,6 @@ export function render({
     // 2. Create the proxy with the final merged data and DEBOUNCED update handler
     const DEBOUNCE_DELAY = 50;
 
-    // Helper function to filter out temporary calculation results
-    function filterTemporaryState(state) {
-      // Return early if state is null, undefined, or not an object
-      if (!state || typeof state !== "object") return {};
-
-      // Handle arrays separately
-      if (Array.isArray(state)) {
-        return state.map((item) => filterTemporaryState(item));
-      }
-
-      // Create a shallow copy of the state
-      const filtered = { ...state };
-
-      // Remove any temporary calculation results and internal properties
-      delete filtered._calc;
-      delete filtered._temp;
-      delete filtered._stateBeforeDebounce;
-      delete filtered._updateTimer;
-
-      // Recursively filter nested objects
-      for (const key in filtered) {
-        if (filtered[key] && typeof filtered[key] === "object") {
-          filtered[key] = filterTemporaryState(filtered[key]);
-        }
-      }
-      return filtered;
-    }
-
     proxy = createDeepProxy(finalInitialData, (target) => {
       if (instance) {
         // Skip if we're currently evaluating a template
