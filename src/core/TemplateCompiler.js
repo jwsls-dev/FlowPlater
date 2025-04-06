@@ -124,6 +124,14 @@ export const memoizedCompile = memoize(function (templateId) {
           } else {
             const childContent = processNode(child);
             const startTag = constructTagWithAttributes(child);
+            const fpValAttribute = child.getAttribute("fp-val");
+            let processedContent = childContent;
+            if (fpValAttribute) {
+              processedContent = `{{{default ${fpValAttribute} "${childContent.replace(
+                /"/g,
+                '\\"',
+              )}"}}}`;
+            }
             let endTagName = child.tagName.toLowerCase();
             currentCustomTags.forEach((tag) => {
               if (endTagName === tag.tag) {
@@ -131,7 +139,7 @@ export const memoizedCompile = memoize(function (templateId) {
               }
             });
             const endTag = `</${endTagName}>`;
-            result += `${startTag}${childContent}${endTag}`;
+            result += `${startTag}${processedContent}${endTag}`;
           }
         }
       });
