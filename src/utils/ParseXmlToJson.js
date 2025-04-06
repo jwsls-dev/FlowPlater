@@ -35,6 +35,8 @@ export function parseXmlToJson(xmlString) {
       }
     }
 
+    // If the object is empty, return an empty string
+    obj = Object.keys(obj).length > 0 ? obj : "";
     return obj;
   }
 
