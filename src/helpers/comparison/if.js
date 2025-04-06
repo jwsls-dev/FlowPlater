@@ -53,17 +53,21 @@ export function ifHelper() {
     try {
       // Parse expression
       const expression = expressionString.trim();
-      const [leftToken, operator, rightToken] = expression.split(
+      let [leftToken, operator, rightToken] = expression.split(
         /\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/,
       );
 
-      if (!leftToken || !operator || !rightToken) {
+      if (!leftToken || (operator && !rightToken) || (!leftToken && operator)) {
         throw new TemplateError(`Invalid expression format: ${expression}`);
       }
 
       // Resolve values
       const leftValue = resolveValue(leftToken, options.data.root, this);
-      const rightValue = resolveValue(rightToken, options.data.root, this);
+      const rightValue = rightToken
+        ? resolveValue(rightToken, options.data.root, this)
+        : true;
+
+      operator = operator || "==";
 
       // Log resolved values for debugging
       Debug.info("Evaluating expression:", {
