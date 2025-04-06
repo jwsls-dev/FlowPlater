@@ -26,6 +26,7 @@ import { processUrlAffixes } from "./ProcessUrlAffixes";
 import { setupAnimation } from "./SetupAnimation";
 import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
 import PluginManager from "./PluginManager";
+import { _readyState } from "./ReadyState";
 
 /* -------------------------------------------------------------------------- */
 /* ANCHOR                      FlowPlater module                              */
@@ -67,7 +68,8 @@ const defaultConfig = {
   debug: {
     level:
       window.location.hostname.endsWith(".webflow.io") ||
-      window.location.hostname.endsWith(".canvas.webflow.com")
+      window.location.hostname.endsWith(".canvas.webflow.com") ||
+      window.location.hostname.endsWith("localhost")
         ? 3
         : 1,
   },
@@ -424,10 +426,18 @@ const FlowPlaterObj = {
    * Processes templates, loads configuration, and sets up event handling.
    */
   init: function (element = document, options = { render: true }) {
+    // If already initialized, just process the element
+    if (_state.initialized) {
+      if (element !== document) {
+        process(element);
+      }
+      return this;
+    }
+
     Performance.start("init");
     Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
 
-    // Process any templates on the page
+    // Process templates and set up initial state
     const templates = document.querySelectorAll("[fp-template]");
     templates.forEach((template) => {
       let templateId = template.getAttribute("fp-template");
@@ -556,16 +566,34 @@ const FlowPlaterObj = {
     });
 
     process(element);
+
+    // Mark as initialized and ready
+    _state.initialized = true;
+    _readyState.isReady = true;
+
     Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
     Performance.end("init");
 
-    // Set initialized flag
-    _state.initialized = true;
+    // Process any queued operations
+    _readyState.processQueue();
 
     EventSystem.publish("initialized");
-
-    // Execute initComplete hook after everything is done
     this.PluginManager.executeHook("initComplete", this, _state.instances);
+
+    return this;
+  },
+
+  /**
+   * @function ready
+   * @param {Function} callback - Function to execute when FlowPlater is ready
+   * @returns {FlowPlaterObj} The FlowPlater instance
+   */
+  ready: function (callback) {
+    if (_readyState.isReady) {
+      callback(this);
+    } else {
+      _readyState.queue.push(() => callback(this));
+    }
     return this;
   },
 
@@ -598,6 +626,7 @@ const FlowPlaterObj = {
       Object.keys(_state.instances).forEach((name) => {
         this.cleanup(name);
       });
+      _state.initialized = false;
       log("Cleaned up all instances");
     }
     return this;
@@ -851,26 +880,12 @@ EventSystem.publish("loaded");
 
 /**
  * @description Automatically initializes FlowPlater when the DOM is ready.
- * Uses a small timeout to ensure proper initialization after other scripts.
+ * Uses the ready state system to ensure proper initialization order.
  */
 if (document.readyState === "complete" || document.readyState !== "loading") {
-  setTimeout(() => {
-    try {
-      FlowPlater.init();
-    } catch (error) {
-      errorLog("FlowPlater initialization failed:", error);
-    }
-  }, 1);
+  FlowPlaterObj.init();
 } else {
-  document.addEventListener("DOMContentLoaded", function () {
-    setTimeout(() => {
-      try {
-        FlowPlater.init();
-      } catch (error) {
-        errorLog("FlowPlater initialization failed:", error);
-      }
-    }, 1);
-  });
+  document.addEventListener("DOMContentLoaded", () => FlowPlaterObj.init());
 }
 
 export default FlowPlaterObj;

@@ -1,5 +1,6 @@
 import { Debug, FlowPlaterError } from "./Debug";
 import { _state } from "./State";
+import { _readyState } from "./ReadyState";
 
 // Version management utilities
 const VersionManager = {
@@ -114,14 +115,10 @@ const PluginManager = {
       }
     }
 
-    // Validate hooks are functions
-    for (const hook in pluginInstance.hooks) {
-      if (typeof pluginInstance.hooks[hook] !== "function") {
-        throw new FlowPlaterError(`Hook ${hook} must be a function`);
-      }
-    }
+    // Add to ready state tracking
+    _readyState.registerPlugin(pluginInstance.config.name);
 
-    // Register global methods if any
+    // Register methods and helpers immediately
     if (pluginInstance.globalMethods) {
       for (const [methodName, method] of Object.entries(
         pluginInstance.globalMethods,
@@ -131,20 +128,16 @@ const PluginManager = {
             `Global method ${methodName} must be a function`,
           );
         }
-
-        // Check for method name collisions
         if (this.globalMethods.has(methodName)) {
           const existing = this.globalMethods.get(methodName);
           throw new FlowPlaterError(
             `Global method ${methodName} already registered by plugin ${existing.plugin}`,
           );
         }
-
         this.globalMethods.set(methodName, {
           method,
           plugin: pluginInstance.config.name,
         });
-        // Add method to FlowPlater object
         if (typeof window !== "undefined" && window.FlowPlater) {
           window.FlowPlater[methodName] = (...args) =>
             this.executeGlobalMethod(methodName, ...args);
@@ -152,7 +145,6 @@ const PluginManager = {
       }
     }
 
-    // Register instance methods if any
     if (pluginInstance.instanceMethods) {
       for (const [methodName, method] of Object.entries(
         pluginInstance.instanceMethods,
@@ -162,15 +154,12 @@ const PluginManager = {
             `Instance method ${methodName} must be a function`,
           );
         }
-
-        // Check for method name collisions
         if (this.instanceMethods.has(methodName)) {
           const existing = this.instanceMethods.get(methodName);
           throw new FlowPlaterError(
             `Instance method ${methodName} already registered by plugin ${existing.plugin}`,
           );
         }
-
         this.instanceMethods.set(methodName, {
           method,
           plugin: pluginInstance.config.name,
@@ -178,7 +167,6 @@ const PluginManager = {
       }
     }
 
-    // Register custom helpers if any
     if (pluginInstance.helpers && typeof pluginInstance.helpers === "object") {
       for (const [helperName, helper] of Object.entries(
         pluginInstance.helpers,
@@ -192,7 +180,6 @@ const PluginManager = {
           continue;
         }
         try {
-          // Register the helper with Handlebars using the lowercase name for webflow compatibility
           Handlebars.registerHelper(helperName.toLowerCase(), helper);
         } catch (error) {
           Debug.log(
@@ -204,33 +191,58 @@ const PluginManager = {
       }
     }
 
-    // Initialize the plugin only if it's enabled
-    if (
-      pluginInstance.config?.enabled &&
-      typeof pluginInstance.init === "function"
-    ) {
-      pluginInstance.init();
-    }
-
     // Store the plugin instance
     this.plugins.set(pluginInstance.config.name, pluginInstance);
 
-    // Update existing instances with new plugin methods
-    this.updateExistingInstances();
-
-    // If FlowPlater is already initialized, call the initComplete hook
-    if (_state.initialized && pluginInstance.hooks?.initComplete) {
-      try {
-        pluginInstance.hooks.initComplete(
-          window.FlowPlater,
-          Object.values(_state.instances),
-        );
-      } catch (error) {
-        Debug.log(
-          Debug.levels.ERROR,
-          `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
-          error,
-        );
+    // Queue initialization if FlowPlater isn't ready yet
+    if (!_readyState.isReady) {
+      _readyState.queue.push(() => {
+        if (
+          pluginInstance.config?.enabled &&
+          typeof pluginInstance.init === "function"
+        ) {
+          pluginInstance.init();
+        }
+        // Update existing instances with new plugin methods
+        this.updateExistingInstances();
+        // Execute initComplete hook
+        if (pluginInstance.hooks?.initComplete) {
+          try {
+            pluginInstance.hooks.initComplete(
+              window.FlowPlater,
+              Object.values(_state.instances),
+            );
+          } catch (error) {
+            Debug.log(
+              Debug.levels.ERROR,
+              `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
+              error,
+            );
+          }
+        }
+      });
+    } else {
+      // Initialize immediately if FlowPlater is ready
+      if (
+        pluginInstance.config?.enabled &&
+        typeof pluginInstance.init === "function"
+      ) {
+        pluginInstance.init();
+      }
+      this.updateExistingInstances();
+      if (pluginInstance.hooks?.initComplete) {
+        try {
+          pluginInstance.hooks.initComplete(
+            window.FlowPlater,
+            Object.values(_state.instances),
+          );
+        } catch (error) {
+          Debug.log(
+            Debug.levels.ERROR,
+            `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
+            error,
+          );
+        }
       }
     }
 
@@ -301,6 +313,9 @@ const PluginManager = {
         delete instance[methodName];
       });
     });
+
+    // Unregister from ready state
+    _readyState.unregisterPlugin(name);
 
     return this.plugins.delete(name);
   },
@@ -495,9 +510,20 @@ const PluginManager = {
         typeof plugin.destroy === "function" ? plugin.destroy() : null,
       ),
     );
+
+    plugins.forEach((plugin) =>
+      _readyState.unregisterPlugin(plugin.config.name),
+    );
+
+    // Clear plugin manager state
     this.plugins.clear();
     this.globalMethods.clear();
     this.instanceMethods.clear();
+
+    Debug.log(
+      Debug.levels.INFO,
+      "All plugins destroyed, FlowPlater remains ready for new plugins",
+    );
   },
 };
 
