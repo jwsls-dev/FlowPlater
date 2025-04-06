@@ -3,6 +3,7 @@ import { EventSystem } from "./EventSystem";
 import { _state } from "./State";
 import { Performance } from "../utils/Performance";
 import { InstanceManager } from "./InstanceManager";
+import { extractLocalData } from "../utils/LocalVariableExtractor";
 
 import { updateDOM } from "../utils/UpdateDom";
 import { loadFromLocalStorage } from "../utils/LocalStorage";
@@ -119,8 +120,6 @@ export function render({
     instanceName = _state.length;
   }
 
-  log("Rendering instance: " + instanceName, template, data, target);
-
   /* -------------------------------------------------------------------------- */
   /*                              Compile template                              */
   /* -------------------------------------------------------------------------- */
@@ -146,6 +145,16 @@ export function render({
   let finalInitialData = data || {};
   let persistedData = null;
   let proxy = null; // Initialize proxy at function level
+
+  // Check for local variable at instance level first
+  const localVarName = elements[0].getAttribute("fp-local");
+  let localData = null;
+  if (localVarName) {
+    localData = extractLocalData(localVarName);
+    if (localData) {
+      finalInitialData = { ...finalInitialData, ...localData };
+    }
+  }
 
   if (!_state.instances[instanceName] || !_state.instances[instanceName].data) {
     // Load persisted data if available and not skipped
@@ -197,6 +206,11 @@ export function render({
       elements[0],
       finalInitialData,
     );
+
+    // Store local variable name if present
+    if (localVarName) {
+      instance.localVarName = localVarName;
+    }
 
     // If instance couldn't be created, exit
     if (!instance) {
