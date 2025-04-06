@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>fp-val Test</title>
+    <style>
+        .test-case {
+            margin: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        .user-section {
+            margin-bottom: 40px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>fp-val Test Cases</h1>
+
+    <div fp-template fp-get="/users" fp-trigger="load" id="fp-val-test">
+        <each fp="data">
+            <div class="user-section">
+                <h2>User {{id}}</h2>
+                <!-- Test Case 1: Truthy value -->
+                <div class="test-case">
+                    <h3>Case 1: Truthy value (name exists)</h3>
+                    <div fp-val="name">Default Name</div>
+                </div>
+
+                <!-- Test Case 2: Falsy value -->
+                <div class="test-case">
+                    <h3>Case 2: Falsy value (email is null)</h3>
+                    <div fp-val="email">no-email@example.com</div>
+                </div>
+
+                <!-- Test Case 3: Nested content -->
+                <div class="test-case">
+                    <h3>Case 3: Nested content with truthy value</h3>
+                    <div fp-val="role">
+                        <span class="role-badge">No Role</span>
+                    </div>
+                </div>
+
+                <!-- Test Case 4: Complex nested content -->
+                <div class="test-case">
+                    <h3>Case 4: Complex nested content with falsy value</h3>
+                    <div fp-val="status">
+                        <div class="status-indicator">
+                            <span class="dot"></span>
+                            <span>Offline</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </each>
+    </div>
+
+    <script src="/flowplater"></script>
+</body>
+</html> 
