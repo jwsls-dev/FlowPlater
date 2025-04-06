@@ -8,6 +8,7 @@ import {
   loadFromLocalStorage,
 } from "../utils/LocalStorage";
 import { Performance } from "../utils/Performance";
+import { extractLocalData } from "../utils/LocalVariableExtractor";
 import PluginManager from "./PluginManager";
 
 export function instanceMethods(instanceName) {
@@ -262,7 +263,9 @@ export function instanceMethods(instanceName) {
       }
     },
 
-    refresh: async function (options = { remote: true, recompile: false }) {
+    refresh: async function (
+      options = { remote: true, recompile: false, ignoreLocalVar: false },
+    ) {
       const instance = _state.instances[instanceName];
       if (!instance) {
         errorLog("Instance not found: " + instanceName);
@@ -284,11 +287,25 @@ export function instanceMethods(instanceName) {
         compiledTemplate: instance.template(instance.data),
       });
 
+      // Check for local variable at instance level first
+      let hasLocalVarUpdate = false;
+      if (instance.localVarName && !options.ignoreLocalVar) {
+        const localData = extractLocalData(instance.localVarName);
+        if (localData) {
+          Object.assign(instance.data, localData);
+          hasLocalVarUpdate = true;
+          Debug.log(
+            Debug.levels.DEBUG,
+            `Refreshed data from local variable "${instance.localVarName}"`,
+          );
+        }
+      }
+
       const promises = [];
 
       instance.elements.forEach(function (element) {
         try {
-          if (options.remote) {
+          if (options.remote && !hasLocalVarUpdate) {
             const htmxMethods = ["get", "post", "put", "patch", "delete"];
             const hasHtmxMethod = htmxMethods.some((method) =>
               element.getAttribute(`hx-${method}`),
