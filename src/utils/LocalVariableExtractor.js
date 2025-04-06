@@ -64,9 +64,15 @@ export function extractLocalData(varName, wrapPrimitive = true) {
     const value = window[varName];
     if (value !== undefined) {
       // If value is not an object and wrapping is enabled, wrap it
-      if (wrapPrimitive && (typeof value !== "object" || value === null)) {
-        return { [varName]: value };
+      if (
+        wrapPrimitive &&
+        (typeof value !== "object" || value === null || Array.isArray(value))
+      ) {
+        let wrappedValue = { [varName]: value };
+        Debug.info(`Wrapped primitive value "${varName}":`, wrappedValue);
+        return wrappedValue;
       }
+      Debug.info(`Extracted value "${varName}":`, value);
       return value;
     }
 
