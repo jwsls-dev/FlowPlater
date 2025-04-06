@@ -43,12 +43,7 @@ export const RequestHandler = {
             timestamp: Date.now(),
             processed: false,
           });
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Added element to processing set",
-            target,
-            requestId,
-          );
+          Debug.debug("Added element to processing set", target, requestId);
         }
         break;
 
@@ -71,18 +66,12 @@ export const RequestHandler = {
           currentInfo.processed
         ) {
           this.processingElements.delete(target);
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Cleaned up after request",
-            target,
-            requestId,
-          );
+          Debug.debug("Cleaned up after request", target, requestId);
         } else {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Skipping cleanup - request mismatch or not processed",
-            { current: currentInfo?.requestId, received: requestId },
-          );
+          Debug.debug("Skipping cleanup - request mismatch or not processed", {
+            current: currentInfo?.requestId,
+            received: requestId,
+          });
         }
         break;
     }
@@ -98,8 +87,7 @@ export const RequestHandler = {
     for (const [target, info] of this.processingElements.entries()) {
       if (now - info.timestamp > staleTimeout) {
         this.processingElements.delete(target);
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           "Cleaned up stale processing entry",
           target,
           info.requestId,
@@ -164,7 +152,7 @@ export const RequestHandler = {
       // Only prevent swap if request IDs don't match
       if (info && info.requestId !== requestId) {
         event.preventDefault();
-        Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
+        Debug.debug("Prevented swap - request ID mismatch");
       }
     });
 

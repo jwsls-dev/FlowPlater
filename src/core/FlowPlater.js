@@ -1,12 +1,5 @@
 import { EventSystem } from "./EventSystem";
-import {
-  Debug,
-  log,
-  errorLog,
-  FlowPlaterError,
-  RenderError,
-  TemplateError,
-} from "./Debug";
+import { Debug, FlowPlaterError, TemplateError } from "./Debug";
 import { _state, getInstance, getInstances } from "./State";
 import { compileTemplate, render } from "./Template";
 import { Performance } from "../utils/Performance";
@@ -219,8 +212,7 @@ const ProcessingChain = {
           });
 
           // Log the error
-          Debug.log(
-            Debug.levels.ERROR,
+          Debug.error(
             `Error in processor ${processor.name}: ${error.message}`,
             error,
           );
@@ -301,12 +293,7 @@ const FlowPlaterObj = {
   },
 
   // Log levels for use with the log method
-  logLevels: {
-    ERROR: Debug.levels.ERROR,
-    WARN: Debug.levels.WARN,
-    INFO: Debug.levels.INFO,
-    DEBUG: Debug.levels.DEBUG,
-  },
+  logLevels: Debug.levels,
 
   // Plugin management methods
   registerPlugin(plugin) {
@@ -359,10 +346,7 @@ const FlowPlaterObj = {
       if (Object.keys(cache).length >= cacheSize) {
         const oldestKey = Object.keys(cache)[0];
         delete cache[oldestKey];
-        Debug.log(
-          Debug.levels.INFO,
-          `Cache limit reached. Removed template: ${oldestKey}`,
-        );
+        Debug.info(`Cache limit reached. Removed template: ${oldestKey}`);
       }
 
       // Add new template to cache
@@ -398,13 +382,10 @@ const FlowPlaterObj = {
     clear: function (templateId) {
       if (templateId) {
         delete _state.templateCache[templateId];
-        Debug.log(
-          Debug.levels.INFO,
-          `Cleared template cache for: ${templateId}`,
-        );
+        Debug.info(`Cleared template cache for: ${templateId}`);
       } else {
         _state.templateCache = {};
-        Debug.log(Debug.levels.INFO, "Cleared entire template cache");
+        Debug.info("Cleared entire template cache");
       }
     },
 
@@ -435,7 +416,7 @@ const FlowPlaterObj = {
     }
 
     Performance.start("init");
-    Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
+    Debug.info("Initializing FlowPlater...");
 
     // Process templates and set up initial state
     const templates = document.querySelectorAll("[fp-template]");
@@ -450,7 +431,7 @@ const FlowPlaterObj = {
         // template.innerHTML = template.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
         const templateElement = document.querySelector(templateId);
         if (templateElement) {
-          log("replacing template content", templateElement);
+          Debug.info("replacing template content", templateElement);
 
           const scriptTags = templateElement.getElementsByTagName("script");
           const scriptContents = Array.from(scriptTags).map(
@@ -513,8 +494,7 @@ const FlowPlaterObj = {
             );
           }
 
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[Template ${templateId}] Has request method: ${hasRequestMethod}`,
             template,
           );
@@ -534,8 +514,7 @@ const FlowPlaterObj = {
               template.getAttribute("fp-instance") || template.id || templateId;
             const storedData = loadFromLocalStorage(instanceName, "instance");
             if (storedData) {
-              Debug.log(
-                Debug.levels.INFO,
+              Debug.info(
                 `Found stored data for instance: ${instanceName}, rendering with stored data`,
               );
               // Instead of directly setting data, use render with the stored data
@@ -549,15 +528,14 @@ const FlowPlaterObj = {
                 isStoredDataRender: true, // Flag to bypass redundant init check
               });
             } else {
-              Debug.log(
-                Debug.levels.DEBUG,
+              Debug.debug(
                 `Skipping initial render for instance: ${instanceName} - no stored data found`,
               );
             }
           }
         }
       } else {
-        errorLog(
+        Debug.error(
           `No template ID found for element: ${template.id}`,
           template,
           "Make sure your template has an ID attribute",
@@ -571,7 +549,7 @@ const FlowPlaterObj = {
     _state.initialized = true;
     _readyState.isReady = true;
 
-    Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
+    Debug.info("FlowPlater initialized successfully");
     Performance.end("init");
 
     // Process any queued operations
@@ -619,7 +597,7 @@ const FlowPlaterObj = {
 
         // Remove instance
         delete _state.instances[instanceName];
-        log(`Cleaned up instance: ${instanceName}`);
+        Debug.info(`Cleaned up instance: ${instanceName}`);
       }
     } else {
       // Clean up all instances
@@ -627,7 +605,7 @@ const FlowPlaterObj = {
         this.cleanup(name);
       });
       _state.initialized = false;
-      log("Cleaned up all instances");
+      Debug.info("Cleaned up all instances");
     }
     return this;
   },
@@ -689,7 +667,7 @@ const FlowPlaterObj = {
       setCustomTags(newConfig.customTags);
     }
 
-    Debug.log(Debug.levels.INFO, "FlowPlater configured with:", _state.config);
+    Debug.info("FlowPlater configured with:", _state.config);
 
     return this;
   },
@@ -727,7 +705,7 @@ const FlowPlaterObj = {
     });
 
     // Log the registration
-    Debug.log(Debug.levels.INFO, `Registered Handlebars helper: ${name}`);
+    Debug.info(`Registered Handlebars helper: ${name}`);
 
     return this;
   },
@@ -750,7 +728,7 @@ const FlowPlaterObj = {
     // Clean up event listeners
     EventSystem.unsubscribeAll();
 
-    log("Cleaned up all instances");
+    Debug.info("Cleaned up all instances");
   },
 
   /**
@@ -763,10 +741,7 @@ const FlowPlaterObj = {
    */
   create: function (instanceName, options = { refresh: true }) {
     Performance.start(`createInstance:${instanceName}`);
-    Debug.log(
-      Debug.levels.INFO,
-      `Creating FlowPlater instance: ${instanceName}`,
-    );
+    Debug.info(`Creating FlowPlater instance: ${instanceName}`);
 
     // Find the element
     let element;
@@ -804,10 +779,7 @@ const FlowPlaterObj = {
       instance.refresh();
     }
 
-    Debug.log(
-      Debug.levels.INFO,
-      `Instance created successfully: ${instanceName}`,
-    );
+    Debug.info(`Instance created successfully: ${instanceName}`);
     Performance.end(`createInstance:${instanceName}`);
 
     return instance;
@@ -863,7 +835,7 @@ if (metaElement) {
       ...metaConfig,
     };
   } catch (e) {
-    errorLog(
+    Debug.error(
       "Error parsing fp-config meta tag:",
       metaElement,
       "Make sure your meta tag is valid",

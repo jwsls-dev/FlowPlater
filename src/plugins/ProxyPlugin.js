@@ -78,19 +78,14 @@ const ProxyPlugin = () => {
         evt.detail.path = proxiedUrl;
 
         if (config.settings.debug) {
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[ProxyPlugin] Proxying request from ${originalPath} to ${proxiedUrl}`,
           );
         }
 
         return evt;
       } catch (error) {
-        Debug.log(
-          Debug.levels.ERROR,
-          "[ProxyPlugin] Error in configRequest transformer:",
-          error,
-        );
+        Debug.error("[ProxyPlugin] Error in configRequest transformer:", error);
         return evt;
       }
     },
@@ -109,7 +104,7 @@ const ProxyPlugin = () => {
      */
     initComplete: function (flowplater, instances) {
       if (config.enabled) {
-        Debug.log(Debug.levels.INFO, `${config.name} plugin initialized`);
+        Debug.info(`${config.name} plugin initialized`);
       }
       return flowplater;
     },

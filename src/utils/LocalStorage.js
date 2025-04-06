@@ -1,10 +1,10 @@
 import { _state } from "../core/State";
-import { errorLog, log, Debug } from "../core/Debug";
+import { Debug } from "../core/Debug";
 
 export function saveToLocalStorage(key, data, prefix = "") {
-  Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+  Debug.debug(`Storage config:`, _state.config?.storage);
   if (!_state.config?.storage?.enabled) {
-    Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping save`);
+    Debug.debug(`Storage is disabled, skipping save`);
     return false;
   }
 
@@ -17,7 +17,7 @@ export function saveToLocalStorage(key, data, prefix = "") {
       // This effectively deep clones the target data, removing any proxy wrappers
       rawData = JSON.parse(JSON.stringify(data));
     } catch (e) {
-      errorLog(`Failed to serialize data for localStorage: ${e.message}`);
+      Debug.error(`Failed to serialize data for localStorage: ${e.message}`);
       // Fallback or decide how to handle non-serializable data
       rawData = {}; // Save empty object as fallback?
     }
@@ -27,7 +27,7 @@ export function saveToLocalStorage(key, data, prefix = "") {
       expiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
     };
 
-    Debug.log(Debug.levels.DEBUG, `Saving to localStorage:`, {
+    Debug.debug(`Saving to localStorage:`, {
       key: storageKey,
       data: storageData,
     });
@@ -35,15 +35,15 @@ export function saveToLocalStorage(key, data, prefix = "") {
     localStorage.setItem(storageKey, JSON.stringify(storageData));
     return true;
   } catch (error) {
-    errorLog(`Failed to save to localStorage: ${error.message}`);
+    Debug.error(`Failed to save to localStorage: ${error.message}`);
     return false;
   }
 }
 
 export function loadFromLocalStorage(key, prefix = "") {
-  Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+  Debug.debug(`Storage config:`, _state.config?.storage);
   if (!_state.config?.storage?.enabled) {
-    Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping load`);
+    Debug.debug(`Storage is disabled, skipping load`);
     return null;
   }
 
@@ -51,7 +51,7 @@ export function loadFromLocalStorage(key, prefix = "") {
     const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
     const storedItem = localStorage.getItem(storageKey);
     if (!storedItem) {
-      Debug.log(Debug.levels.DEBUG, `No stored item found for: ${storageKey}`);
+      Debug.debug(`No stored item found for: ${storageKey}`);
       return null;
     }
 
@@ -59,12 +59,12 @@ export function loadFromLocalStorage(key, prefix = "") {
 
     // Check if data has expired
     if (storageData.expiry && storageData.expiry < Date.now()) {
-      Debug.log(Debug.levels.DEBUG, `Stored item has expired: ${storageKey}`);
+      Debug.debug(`Stored item has expired: ${storageKey}`);
       localStorage.removeItem(storageKey);
       return null;
     }
 
-    Debug.log(Debug.levels.DEBUG, `Loaded from localStorage:`, {
+    Debug.debug(`Loaded from localStorage:`, {
       key: storageKey,
       data: storageData,
     });
@@ -72,7 +72,7 @@ export function loadFromLocalStorage(key, prefix = "") {
     // Return just the data portion, not the wrapper object
     return storageData.data;
   } catch (error) {
-    errorLog(`Failed to load from localStorage: ${error.message}`);
+    Debug.error(`Failed to load from localStorage: ${error.message}`);
     return null;
   }
 }
@@ -97,6 +97,6 @@ export function clearExpiredData() {
       }
     }
   } catch (error) {
-    errorLog(`Failed to clear expired data: ${error.message}`);
+    Debug.error(`Failed to clear expired data: ${error.message}`);
   }
 }

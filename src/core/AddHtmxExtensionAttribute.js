@@ -9,14 +9,11 @@ export function addHtmxExtensionAttribute(element) {
       // Add flowplater to hx-ext
       var newExt = currentExt ? currentExt + ", flowplater" : "flowplater";
       element.setAttribute("hx-ext", newExt);
-      Debug.log(Debug.levels.INFO, "Added hx-ext attribute to " + element.id);
+      Debug.info("Added hx-ext attribute to " + element.id);
     }
     return element;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error in addHtmxExtensionAttribute: ${error.message}`,
-    );
+    Debug.info(`Error in addHtmxExtensionAttribute: ${error.message}`);
     return element;
   }
 }

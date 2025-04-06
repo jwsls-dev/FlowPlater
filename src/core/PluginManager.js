@@ -103,8 +103,7 @@ const PluginManager = {
           depPlugin &&
           !VersionManager.satisfiesVersion(dep, depPlugin.config.version)
         ) {
-          Debug.log(
-            Debug.levels.WARN,
+          Debug.warn(
             `Optional dependency '${depName}' version mismatch for plugin ${
               pluginInstance.config.name
             }. Required: ${depVersion || "any"}, Found: ${
@@ -172,8 +171,7 @@ const PluginManager = {
         pluginInstance.helpers,
       )) {
         if (typeof helper !== "function") {
-          Debug.log(
-            Debug.levels.WARN,
+          Debug.warn(
             `Plugin ${pluginInstance.config.name} contains invalid helper ${helperName}:`,
             helper,
           );
@@ -182,8 +180,7 @@ const PluginManager = {
         try {
           Handlebars.registerHelper(helperName.toLowerCase(), helper);
         } catch (error) {
-          Debug.log(
-            Debug.levels.ERROR,
+          Debug.error(
             `Plugin ${pluginInstance.config.name} failed registering helper ${helperName}:`,
             error,
           );
@@ -213,8 +210,7 @@ const PluginManager = {
               Object.values(_state.instances),
             );
           } catch (error) {
-            Debug.log(
-              Debug.levels.ERROR,
+            Debug.error(
               `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
               error,
             );
@@ -237,8 +233,7 @@ const PluginManager = {
             Object.values(_state.instances),
           );
         } catch (error) {
-          Debug.log(
-            Debug.levels.ERROR,
+          Debug.error(
             `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
             error,
           );
@@ -398,8 +393,7 @@ const PluginManager = {
 
           // If the result is undefined or null, return the original data
           if (result === undefined || result === null) {
-            Debug.log(
-              Debug.levels.WARN,
+            Debug.warn(
               `Plugin ${plugin.config.name} returned undefined/null for ${transformationType}, using original data`,
             );
             return transformedData;
@@ -414,8 +408,7 @@ const PluginManager = {
 
           return result;
         } catch (error) {
-          Debug.log(
-            Debug.levels.ERROR,
+          Debug.error(
             `Plugin ${plugin.config.name} failed executing ${transformationType} transformation:`,
             error,
           );
@@ -427,7 +420,7 @@ const PluginManager = {
   },
 
   executeHook(hookName, ...args) {
-    Debug.log(Debug.levels.DEBUG, "[PLUGIN] Executing hook:", hookName, args);
+    Debug.debug("[PLUGIN] Executing hook:", hookName, args);
 
     const plugins = this.getSortedPlugins();
     let result = args[0]; // Store initial value
@@ -442,16 +435,14 @@ const PluginManager = {
             args[0] = result; // Update for next plugin
           } else {
             // If hook returns undefined, use the previous result
-            Debug.log(
-              Debug.levels.WARN,
+            Debug.warn(
               `Plugin ${plugin.config.name} returned undefined for ${hookName}`,
               args[0],
             );
             result = args[0];
           }
         } catch (error) {
-          Debug.log(
-            Debug.levels.ERROR,
+          Debug.error(
             `Plugin ${plugin.config.name} failed executing ${hookName}:`,
             error,
           );
@@ -520,8 +511,7 @@ const PluginManager = {
     this.globalMethods.clear();
     this.instanceMethods.clear();
 
-    Debug.log(
-      Debug.levels.INFO,
+    Debug.info(
       "All plugins destroyed, FlowPlater remains ready for new plugins",
     );
   },

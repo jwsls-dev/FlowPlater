@@ -2,7 +2,7 @@ import { Debug } from "./Debug";
 
 function preloadUrl(url) {
   if (!url) {
-    errorLog("No URL provided for preloading");
+    Debug.error("No URL provided for preloading");
     return;
   }
 
@@ -19,7 +19,7 @@ function preloadUrl(url) {
   };
 
   link.onerror = (e) => {
-    errorLog(`Failed to preload URL: ${url}`, e);
+    Debug.error(`Failed to preload URL: ${url}`, e);
     cleanup();
   };
 
@@ -100,7 +100,7 @@ export function processPreload(element) {
 
     return element;
   } catch (error) {
-    Debug.log(Debug.levels.ERROR, `Error in processPreload: ${error.message}`);
+    Debug.error(`Error in processPreload: ${error.message}`);
     return element;
   }
 }

@@ -224,7 +224,7 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
   // Add a flag to prevent multiple restorations
   const isAlreadyRestoring = element.hasAttribute("fp-restoring");
   if (isAlreadyRestoring) {
-    Debug.log(Debug.levels.DEBUG, "Already restoring, skipping");
+    Debug.debug("Already restoring, skipping");
     return;
   }
   element.setAttribute("fp-restoring", "true");
@@ -238,15 +238,10 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
       throw new Error("newHTML must be a string");
     }
 
-    Debug.log(
-      Debug.levels.DEBUG,
-      "Starting updateDOM with config:",
-      _state.config,
-    );
+    Debug.debug("Starting updateDOM with config:", _state.config);
 
     // Log form persistence state
-    Debug.log(
-      Debug.levels.DEBUG,
+    Debug.debug(
       `Form persistence enabled: ${
         _state.config?.persistForm
       }, Should restore form: ${FormStateManager.shouldRestoreForm(element)}`,
@@ -258,9 +253,9 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
       _state.config?.persistForm &&
       FormStateManager.shouldRestoreForm(element)
     ) {
-      Debug.log(Debug.levels.DEBUG, "Capturing form states before update");
+      Debug.debug("Capturing form states before update");
       formStates = captureFormStates(element);
-      Debug.log(Debug.levels.DEBUG, "Captured form states:", formStates);
+      Debug.debug("Captured form states:", formStates);
     }
 
     // Single observer setup
@@ -269,7 +264,7 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
       _state.config?.persistForm &&
       FormStateManager.shouldRestoreForm(element)
     ) {
-      Debug.log(Debug.levels.DEBUG, "Setting up dynamic form observer");
+      Debug.debug("Setting up dynamic form observer");
       formObserver = setupDynamicFormObserver(element);
     }
 
@@ -314,7 +309,7 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
           FormStateManager.shouldRestoreForm(element) &&
           formStates
         ) {
-          Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
+          Debug.debug("Restoring form states after update");
           FormStateManager.restoreFormStates(
             element,
             "updateDOM - form state restoration - restoreFormStates",
@@ -358,9 +353,9 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
       _state.config?.persistForm &&
       FormStateManager.shouldRestoreForm(element)
     ) {
-      Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
+      Debug.debug("Restoring form states after update");
       const n = element.querySelectorAll('[fp-persist="true"]');
-      Debug.log(Debug.levels.DEBUG, `Found ${n.length} inputs to restore`);
+      Debug.debug(`Found ${n.length} inputs to restore`);
       FormStateManager.restoreFormStates(
         element,
         "updateDOM - final form state restoration - restoreFormStates",
@@ -372,11 +367,11 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
     }
 
     if (formObserver) {
-      Debug.log(Debug.levels.DEBUG, "Disconnecting form observer");
+      Debug.debug("Disconnecting form observer");
       formObserver.disconnect();
     }
   } catch (error) {
-    Debug.log(Debug.levels.ERROR, "Error in updateDOM:", error);
+    Debug.error("Error in updateDOM:", error);
     console.error("UpdateDOM error:", error);
     throw error;
   } finally {

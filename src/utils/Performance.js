@@ -11,7 +11,7 @@ const Performance = {
     if (!this.marks[label]) return;
     const duration = performance.now() - this.marks[label];
     delete this.marks[label];
-    Debug.log(Debug.levels.DEBUG, `${label} took ${duration.toFixed(2)}ms`);
+    Debug.debug(`${label} took ${duration.toFixed(2)}ms`);
     return duration;
   },
 };

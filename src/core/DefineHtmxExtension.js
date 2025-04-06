@@ -1,5 +1,5 @@
 import { RequestHandler } from "./RequestHandler";
-import { Debug, errorLog, log } from "./Debug";
+import { Debug } from "./Debug";
 import { parseXmlToJson } from "../utils/ParseXmlToJson";
 import { _state } from "./State";
 import {
@@ -41,7 +41,7 @@ export function defineHtmxExtension() {
           processedText = JSON.stringify(parseXmlToJson(xmlDoc));
           isJson = true;
         } catch (error) {
-          errorLog("Failed to parse XML response:", error);
+          Debug.error("Failed to parse XML response:", error);
           // Keep the original text if XML parsing fails
         }
       } else if (!isHtml) {
@@ -61,8 +61,7 @@ export function defineHtmxExtension() {
           dataType,
         );
       } else {
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[transformResponse] No instance found for elt ${elt.id}. Skipping transformations.`,
         );
       }
@@ -100,7 +99,7 @@ export function defineHtmxExtension() {
       try {
         newData = JSON.parse(processedText);
       } catch (error) {
-        errorLog("Failed to parse JSON response:", error);
+        Debug.error("Failed to parse JSON response:", error);
         return processedText;
       }
 
@@ -108,15 +107,13 @@ export function defineHtmxExtension() {
 
       if (instance) {
         const instanceName = instance.instanceName;
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[transformResponse] Calling instance.setData for ${instanceName} with new data.`,
         );
 
         // Store the raw data in the instance
         instance.setData(newData);
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[transformResponse] setData called for request ${requestId} on elt ${elt.id}. Returning empty string.`,
         );
         return "";
@@ -128,16 +125,14 @@ export function defineHtmxExtension() {
       const isEmptySignal = fragment.textContent?.trim() === "";
 
       if (isEmptySignal) {
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[handleSwap] Detected empty string signal for target ${
             target.id || "[no id]"
           }. Preventing htmx default swap.`,
         );
         return true;
       } else {
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[handleSwap] Fragment is not empty signal for target ${
             target.id || "[no id]"
           }. Letting htmx swap.`,
@@ -149,8 +144,7 @@ export function defineHtmxExtension() {
     onEvent: function (name, evt) {
       const triggeringElt = evt.detail.elt;
       if (!triggeringElt) {
-        Debug.log(
-          Debug.levels.WARN,
+        Debug.warn(
           `[onEvent] Event ${name} has no triggering element (evt.detail.elt). Skipping.`,
         );
         return;
@@ -225,8 +219,7 @@ export function defineHtmxExtension() {
 
         case "htmx:afterSettle":
           executeHtmxHook("afterSettle", triggeringElt, evt);
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `Setting up form handlers after DOM settle for target: ${
               triggeringElt.id || "unknown"
             }, ` +
@@ -259,7 +252,7 @@ function executeHtmxHook(hookName, target, event) {
  */
 function restoreFormIfNecessary(target, checkFailed = true, event) {
   if (FormStateManager.isRestoringFormStates) {
-    Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
+    Debug.debug("Already restoring form states, skipping");
     return;
   }
 

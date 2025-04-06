@@ -1,7 +1,7 @@
 import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
 import { saveToLocalStorage, loadFromLocalStorage } from "./LocalStorage";
-import { Debug, log, errorLog } from "../core/Debug";
+import { Debug } from "../core/Debug";
 import PluginManager from "../core/PluginManager";
 import { FormStateManager } from "./FormStateManager";
 
@@ -201,10 +201,7 @@ function captureElementState(element) {
     }
     return null;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error capturing element state: ${error.message}`,
-    );
+    Debug.error(`Error capturing element state: ${error.message}`);
     return null;
   }
 }
@@ -249,10 +246,7 @@ function restoreElementState(element, state) {
       element.checked = state.checked;
     }
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error restoring element state: ${error.message}`,
-    );
+    Debug.error(`Error restoring element state: ${error.message}`);
   }
 }
 
@@ -274,10 +268,7 @@ export function updateElementAttributes(fromEl, toEl) {
       }
     });
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error updating element attributes: ${error.message}`,
-    );
+    Debug.error(`Error updating element attributes: ${error.message}`);
   }
 }
 
@@ -298,10 +289,7 @@ export function preserveElementState(fromEl, toEl) {
       restoreElementState(fromEl, state);
     }
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error preserving element state: ${error.message}`,
-    );
+    Debug.error(`Error preserving element state: ${error.message}`);
   }
 }
 
@@ -367,10 +355,7 @@ export function captureFormStates(element) {
 
     return formStates;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error capturing form states: ${error.message}`,
-    );
+    Debug.error(`Error capturing form states: ${error.message}`);
     return {};
   }
 }
@@ -387,7 +372,7 @@ function restoreSingleFormState(form, source) {
   // Try to get state from storage
   const formState = handleFormStorage(form, null, "load");
   if (!formState) {
-    Debug.log(Debug.levels.DEBUG, `No stored state found for form: ${form.id}`);
+    Debug.debug(`No stored state found for form: ${form.id}`);
     return false;
   }
 
@@ -413,20 +398,16 @@ function restoreSingleFormState(form, source) {
   });
 
   // Single debug log with all information
-  Debug.log(
-    Debug.levels.DEBUG,
-    `Form state restoration summary for ${form.id}`,
-    {
-      storageType: debugInfo.storageType,
-      source: source || "unknown",
-      restoredElements: debugInfo.restoredElements.map((el) => ({
-        name: el.name,
-        value: el.value,
-      })),
-      updatedCustomVisualStates: debugInfo.customVisualUpdates,
-      skippedElements: debugInfo.skippedElements,
-    },
-  );
+  Debug.debug(`Form state restoration summary for ${form.id}`, {
+    storageType: debugInfo.storageType,
+    source: source || "unknown",
+    restoredElements: debugInfo.restoredElements.map((el) => ({
+      name: el.name,
+      value: el.value,
+    })),
+    updatedCustomVisualStates: debugInfo.customVisualUpdates,
+    skippedElements: debugInfo.skippedElements,
+  });
 
   // Emit event after restoration
   EventSystem.publish("formState:afterRestore", {
@@ -463,7 +444,7 @@ export function clearFormState(formId) {
 function setupFormChangeListeners(form) {
   try {
     if (!form.id) {
-      Debug.log(Debug.levels.DEBUG, "Skipping form without ID");
+      Debug.debug("Skipping form without ID");
       return;
     }
 
@@ -495,7 +476,7 @@ function setupFormChangeListeners(form) {
     });
 
     // Output collected debug information
-    Debug.log(Debug.levels.DEBUG, `Form setup summary for ${form.id}`, {
+    Debug.debug(`Form setup summary for ${form.id}`, {
       totalFormElements: debugInfo.formElements,
       checkboxWrappers: debugInfo.checkboxWrappers,
       formPersistence: debugInfo.persistenceEnabled ? "enabled" : "disabled",
@@ -503,10 +484,7 @@ function setupFormChangeListeners(form) {
       skippedElements: debugInfo.skippedElements.join(", "),
     });
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error setting up form change listeners: ${error.message}`,
-    );
+    Debug.error(`Error setting up form change listeners: ${error.message}`);
   }
 }
 
@@ -525,10 +503,7 @@ export function cleanupFormChangeListeners(form) {
 
     form._fpChangeListeners = [];
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error cleaning up form change listeners: ${error.message}`,
-    );
+    Debug.error(`Error cleaning up form change listeners: ${error.message}`);
   }
 }
 
@@ -537,10 +512,7 @@ function handleFormElementChange(event) {
     const element = event.target;
     const form = element.form;
     if (!form || !form.id) {
-      Debug.log(
-        Debug.levels.DEBUG,
-        "Skipping change handler - no form or form ID",
-      );
+      Debug.debug("Skipping change handler - no form or form ID");
       return;
     }
 
@@ -601,7 +573,7 @@ function handleFormElementChange(event) {
       handleFormStorage(form, formState, "save");
 
       // Output collected debug information
-      Debug.log(Debug.levels.DEBUG, "Form state update for " + form.id + ":", {
+      Debug.debug("Form state update for " + form.id + ":", {
         "Changed element": element.name,
         "Storage type": shouldUseLocalStorage(form)
           ? "localStorage"
@@ -640,10 +612,7 @@ function handleFormElementChange(event) {
       });
     }
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error handling form element change: ${error.message}`,
-    );
+    Debug.error(`Error handling form element change: ${error.message}`);
   }
 }
 
@@ -680,35 +649,28 @@ export function getAllRelevantForms(element) {
  */
 export function setupFormSubmitHandlers(element, source) {
   try {
-    Debug.log(
-      Debug.levels.DEBUG,
-      "Setting up form submit handlers for element:",
-      element,
-    );
+    Debug.debug("Setting up form submit handlers for element:", element);
 
     // Get all relevant forms
     const forms = getAllRelevantForms(element);
 
-    Debug.log(Debug.levels.DEBUG, `Found ${forms.size} forms`);
+    Debug.debug(`Found ${forms.size} forms`);
     forms.forEach((form) => {
       setupSingleFormHandlers(form, source || "setupFormSubmitHandlers");
     });
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error setting up form submit handlers: ${error.message}`,
-    );
+    Debug.error(`Error setting up form submit handlers: ${error.message}`);
   }
 }
 
 function setupSingleFormHandlers(form, source) {
   if (!form.id) {
-    Debug.log(Debug.levels.DEBUG, "Skipping form without ID");
+    Debug.debug("Skipping form without ID");
     return;
   }
 
   // Always set up handlers for forms that have been updated by HTMX
-  Debug.log(Debug.levels.DEBUG, `Setting up handlers for form: ${form.id}`);
+  Debug.debug(`Setting up handlers for form: ${form.id}`);
 
   // Remove existing listener if any
   form.removeEventListener("submit", handleFormSubmit);
@@ -723,11 +685,10 @@ function setupSingleFormHandlers(form, source) {
 
   // Check if form restoration is needed
   if (shouldRestoreForm(form)) {
-    Debug.log(Debug.levels.DEBUG, `Restoring state for form: ${form.id}`);
+    Debug.debug(`Restoring state for form: ${form.id}`);
     restoreSingleFormState(form, source || "setupSingleFormHandlers");
   } else {
-    Debug.log(
-      Debug.levels.DEBUG,
+    Debug.debug(
       `Skipping form restoration - no persistent elements: ${form.id}`,
     );
   }
@@ -740,10 +701,7 @@ function handleFormSubmit(event) {
       clearFormState(form.id);
     }
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error handling form submit: ${error.message}`,
-    );
+    Debug.error(`Error handling form submit: ${error.message}`);
   }
 }
 
@@ -766,10 +724,7 @@ export function setupDynamicFormObserver(container) {
 
     return observer;
   } catch (error) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error setting up dynamic form observer: ${error.message}`,
-    );
+    Debug.error(`Error setting up dynamic form observer: ${error.message}`);
     return null;
   }
 }

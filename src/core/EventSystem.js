@@ -1,4 +1,4 @@
-import { Debug, log, errorLog, FlowPlaterError } from "./Debug";
+import { Debug, FlowPlaterError } from "./Debug";
 
 /**
  * @module EventSystem
@@ -36,7 +36,7 @@ export const EventSystem = (function () {
         subscribers.set(event, []);
       }
       subscribers.get(event).push({ callback, context });
-      Debug.log(Debug.levels.DEBUG, `Subscribed to event: ${event}`);
+      Debug.debug(`Subscribed to event: ${event}`);
       return () => this.unsubscribe(event, callback);
     },
 
@@ -67,7 +67,7 @@ export const EventSystem = (function () {
     unsubscribeAll() {
       subscribers.clear();
 
-      Debug.log(Debug.levels.INFO, "Cleared all event subscribers");
+      Debug.info("Cleared all event subscribers");
     },
 
     /**
@@ -83,7 +83,7 @@ export const EventSystem = (function () {
         try {
           callback.call(context, data);
         } catch (error) {
-          errorLog(`Error in event subscriber for ${event}:`, error);
+          Debug.error(`Error in event subscriber for ${event}:`, error);
         }
       });
 
@@ -95,7 +95,7 @@ export const EventSystem = (function () {
             try {
               callback.call(context, data);
             } catch (error) {
-              errorLog(
+              Debug.error(
                 `Error in instance event subscriber for ${instanceEvent}:`,
                 error,
               );

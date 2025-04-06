@@ -12,10 +12,7 @@ import { Debug } from "./Debug";
  * See the plugins/README.md file for more information.
  */
 export function setupProxy(element) {
-  Debug.log(
-    Debug.levels.WARN,
-    "setupProxy is deprecated. Please use the ProxyPlugin instead.",
-  );
+  Debug.warn("setupProxy is deprecated. Please use the ProxyPlugin instead.");
 
   // Return the element without modification
   return element;

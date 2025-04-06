@@ -29,6 +29,22 @@ var ProxyPlugin = (function () {
           }
         }
       },
+
+      error: function (...args) {
+        this.log(this.levels.ERROR, ...args);
+      },
+
+      warn: function (...args) {
+        this.log(this.levels.WARN, ...args);
+      },
+
+      info: function (...args) {
+        this.log(this.levels.INFO, ...args);
+      },
+
+      debug: function (...args) {
+        this.log(this.levels.DEBUG, ...args);
+      },
     };
   })();
 
@@ -110,19 +126,14 @@ var ProxyPlugin = (function () {
           evt.detail.path = proxiedUrl;
 
           if (config.settings.debug) {
-            Debug.log(
-              Debug.levels.DEBUG,
+            Debug.debug(
               `[ProxyPlugin] Proxying request from ${originalPath} to ${proxiedUrl}`,
             );
           }
 
           return evt;
         } catch (error) {
-          Debug.log(
-            Debug.levels.ERROR,
-            "[ProxyPlugin] Error in configRequest transformer:",
-            error,
-          );
+          Debug.error("[ProxyPlugin] Error in configRequest transformer:", error);
           return evt;
         }
       },
@@ -141,7 +152,7 @@ var ProxyPlugin = (function () {
        */
       initComplete: function (flowplater, instances) {
         if (config.enabled) {
-          Debug.log(Debug.levels.INFO, `${config.name} plugin initialized`);
+          Debug.info(`${config.name} plugin initialized`);
         }
         return flowplater;
       },

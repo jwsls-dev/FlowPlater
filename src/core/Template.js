@@ -1,4 +1,4 @@
-import { Debug, log, errorLog, TemplateError } from "./Debug";
+import { Debug, TemplateError } from "./Debug";
 import { EventSystem } from "./EventSystem";
 import { _state } from "./State";
 import { Performance } from "../utils/Performance";
@@ -56,8 +56,7 @@ export function render({
       Date.now() - _state._initTracking[derivedInstanceName];
     if (timeSinceLastInit < 100) {
       // 100ms window to prevent duplicate initializations
-      Debug.log(
-        Debug.levels.WARN,
+      Debug.warn(
         `[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`,
       );
       // Still return the existing instance
@@ -101,7 +100,7 @@ export function render({
   }
 
   if (elements.length === 0) {
-    errorLog("No target elements found");
+    Debug.error("No target elements found");
     return;
   }
 
@@ -128,12 +127,12 @@ export function render({
   _state.length++;
 
   if (!compiledTemplate) {
-    errorLog("Template not found: " + template);
+    Debug.error("Template not found: " + template);
     return;
   }
 
   if (elements.length === 0) {
-    errorLog("Target not found: " + target);
+    Debug.error("Target not found: " + target);
     return;
   }
 
@@ -193,8 +192,7 @@ export function render({
         // Extract actual data - if persistedData has a 'data' property, use that
         const actualData = persistedData?.data || persistedData;
         finalInitialData = { ...actualData, ...finalInitialData };
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[Template] Merged persisted data for ${instanceName}:`,
           finalInitialData,
         );
@@ -214,7 +212,7 @@ export function render({
 
     // If instance couldn't be created, exit
     if (!instance) {
-      errorLog("Failed to get or create instance: " + instanceName);
+      Debug.error("Failed to get or create instance: " + instanceName);
       return null;
     }
 
@@ -242,13 +240,12 @@ export function render({
             // Use a deep clone to prevent the captured state from being mutated
             // before the setTimeout callback runs.
             instance._stateBeforeDebounce = JSON.parse(JSON.stringify(proxy));
-            Debug.log(
-              Debug.levels.DEBUG,
+            Debug.debug(
               `[Debounce Start] Captured pre-debounce state for ${instanceName}:`,
               instance._stateBeforeDebounce, // Log the actual captured object
             );
           } catch (e) {
-            errorLog(
+            Debug.error(
               `[Debounce Start] Failed to capture pre-debounce state for ${instanceName}:`,
               e,
             );
@@ -278,8 +275,7 @@ export function render({
 
           // 2. Execute Hooks/Events with Full States
           if (stateChanged) {
-            Debug.log(
-              Debug.levels.INFO,
+            Debug.info(
               `[Debounced Update] State changed for ${instanceName}. Firing updateData hook.`,
             );
             // Pass the full old and new states
@@ -295,15 +291,13 @@ export function render({
               source: "proxy",
             });
           } else {
-            Debug.log(
-              Debug.levels.DEBUG,
+            Debug.debug(
               `[Debounced Update] No state change detected for ${instanceName}. Skipping updateData hook.`,
             );
           }
 
           // 3. Update DOM
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
           );
 
@@ -312,8 +306,7 @@ export function render({
           // 4. Save to storage
           // Get the correct instance name and sanitize it for the key
           const storageId = instance.instanceName.replace("#", "");
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[Debounced Update] Saving root proxy object for ${storageId}.`,
           );
           if (_state.config?.storage?.enabled) {
@@ -339,8 +332,7 @@ export function render({
     instance.data = proxy; // Assign the proxy!
 
     // 4. Trigger initial render - This should be OUTSIDE the debounce logic
-    Debug.log(
-      Debug.levels.DEBUG,
+    Debug.debug(
       `[Initial Render] ${
         skipRender ? "Skipping" : "Triggering"
       } _updateDOM for ${instanceName}`,
@@ -355,10 +347,7 @@ export function render({
     if (_state.config?.storage?.enabled && !persistedData) {
       // Only save if not loaded
       const storageId = instanceName.replace("#", "");
-      Debug.log(
-        Debug.levels.DEBUG,
-        `[Initial Save] Saving initial data for ${storageId}`,
-      );
+      Debug.debug(`[Initial Save] Saving initial data for ${storageId}`);
       saveToLocalStorage(
         storageId,
         finalInitialData, // Save the data directly, not wrapped in an object
@@ -372,7 +361,7 @@ export function render({
 
   // Return the instance from the state (might be the one just created or an existing one)
   const finalInstance = _state.instances[instanceName];
-  log("Final instance data: ", finalInstance.data);
+  Debug.info("Final instance data: ", finalInstance.data);
 
   /* -------------------------------------------------------------------------- */
   /*                               Render template                              */
@@ -396,10 +385,7 @@ export function render({
 
     // Only perform actual rendering if explicitly requested
     if (!skipRender) {
-      Debug.log(
-        Debug.levels.DEBUG,
-        `[Render Template] Executing render for ${instanceName}`,
-      );
+      Debug.debug(`[Render Template] Executing render for ${instanceName}`);
 
       try {
         if (returnHtml) {
@@ -430,20 +416,18 @@ export function render({
         });
       } catch (error) {
         if (!(error instanceof TemplateError)) {
-          errorLog(`Failed to render template: ${error.message}`);
+          Debug.error(`Failed to render template: ${error.message}`);
         }
         throw error;
       }
     } else {
-      Debug.log(
-        Debug.levels.DEBUG,
+      Debug.debug(
         `[Render Template] Skipping render for ${instanceName} as requested`,
       );
     }
   } else if (!skipRender) {
     // Log a debug message that we're skipping render due to no data
-    Debug.log(
-      Debug.levels.DEBUG,
+    Debug.debug(
       `[Template] Skipping render for ${instanceName} because no data is available yet.`,
     );
   }

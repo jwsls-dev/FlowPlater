@@ -1,4 +1,4 @@
-import { errorLog } from "../../core/Debug";
+import { Debug } from "../../core/Debug";
 
 export function executeHelper() {
   Handlebars.registerHelper("execute", function (fn, ...args) {
@@ -15,7 +15,7 @@ export function executeHelper() {
       return functionToExecute(...args);
     } else {
       // Log an error if the function is not found
-      errorLog("Function not found or is not a function: " + fn);
+      Debug.error("Function not found or is not a function: " + fn);
     }
   });
 }

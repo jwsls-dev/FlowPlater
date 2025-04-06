@@ -1,4 +1,4 @@
-import { Debug, log, errorLog } from "./Debug";
+import { Debug } from "./Debug";
 import { _state } from "./State";
 import PluginManager from "./PluginManager";
 import { instanceMethods } from "./InstanceMethods";
@@ -14,7 +14,7 @@ export const InstanceManager = {
   getOrCreateInstance(element, initialData = {}) {
     const instanceName = element.getAttribute("fp-instance") || element.id;
     if (!instanceName) {
-      errorLog("No instance name found for element");
+      Debug.error("No instance name found for element");
       return null;
     }
 
@@ -44,14 +44,11 @@ export const InstanceManager = {
       _state.instances[instanceName] = instance;
       // Execute newInstance hook
       PluginManager.executeHook("newInstance", instance);
-      Debug.log(Debug.levels.INFO, `Created new instance: ${instanceName}`);
+      Debug.info(`Created new instance: ${instanceName}`);
     } else {
       // If instance exists, add the new element to its set
       instance.elements.add(element);
-      Debug.log(
-        Debug.levels.DEBUG,
-        `Added element to existing instance: ${instanceName}`,
-      );
+      Debug.debug(`Added element to existing instance: ${instanceName}`);
     }
 
     // REMOVED internal proxy creation and assignment
@@ -68,7 +65,7 @@ export const InstanceManager = {
    */
   updateInstanceData(instance, newData) {
     if (!instance || !instance.data) {
-      errorLog("Cannot update data: Instance or instance.data is invalid.");
+      Debug.error("Cannot update data: Instance or instance.data is invalid.");
       return;
     }
     // Update data through the proxy to trigger reactivity

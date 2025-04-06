@@ -42,22 +42,17 @@ export function extractLocalData(varName, wrapPrimitive = true) {
             const extractedData = dataExtractor.globalMethods.processHtml(
               element.outerHTML,
             );
-            Debug.log(
-              Debug.levels.DEBUG,
+            Debug.debug(
               `Extracted data from element "${varName}":`,
               extractedData,
             );
             return extractedData;
           } catch (e) {
-            Debug.log(
-              Debug.levels.ERROR,
-              `DataExtractor failed for "${varName}": ${e.message}`,
-            );
+            Debug.error(`DataExtractor failed for "${varName}": ${e.message}`);
             return null;
           }
         } else {
-          Debug.log(
-            Debug.levels.WARN,
+          Debug.warn(
             "DataExtractor plugin not available for element extraction",
           );
           return null;
@@ -76,16 +71,10 @@ export function extractLocalData(varName, wrapPrimitive = true) {
     }
 
     // If we get here, neither variable nor element was found
-    Debug.log(
-      Debug.levels.WARN,
-      `Neither variable nor element found for "${varName}"`,
-    );
+    Debug.warn(`Neither variable nor element found for "${varName}"`);
     return null;
   } catch (e) {
-    Debug.log(
-      Debug.levels.ERROR,
-      `Error extracting local data "${varName}": ${e.message}`,
-    );
+    Debug.info(`Error extracting local data "${varName}": ${e.message}`);
     return null;
   }
 }

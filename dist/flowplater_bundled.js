@@ -11357,17 +11357,24 @@ var FlowPlater = (function () {
           }
         }
       },
+
+      error: function (...args) {
+        this.log(this.levels.ERROR, ...args);
+      },
+
+      warn: function (...args) {
+        this.log(this.levels.WARN, ...args);
+      },
+
+      info: function (...args) {
+        this.log(this.levels.INFO, ...args);
+      },
+
+      debug: function (...args) {
+        this.log(this.levels.DEBUG, ...args);
+      },
     };
   })();
-
-  // Helper functions
-  function log(...args) {
-    Debug.log(Debug.levels.INFO, ...args);
-  }
-
-  function errorLog$1(...args) {
-    Debug.log(Debug.levels.ERROR, ...args);
-  }
 
   class FlowPlaterError extends Error {
     constructor(message, stack) {
@@ -11421,7 +11428,7 @@ var FlowPlater = (function () {
           subscribers.set(event, []);
         }
         subscribers.get(event).push({ callback, context });
-        Debug.log(Debug.levels.DEBUG, `Subscribed to event: ${event}`);
+        Debug.debug(`Subscribed to event: ${event}`);
         return () => this.unsubscribe(event, callback);
       },
 
@@ -11452,7 +11459,7 @@ var FlowPlater = (function () {
       unsubscribeAll() {
         subscribers.clear();
 
-        Debug.log(Debug.levels.INFO, "Cleared all event subscribers");
+        Debug.info("Cleared all event subscribers");
       },
 
       /**
@@ -11468,7 +11475,7 @@ var FlowPlater = (function () {
           try {
             callback.call(context, data);
           } catch (error) {
-            errorLog$1(`Error in event subscriber for ${event}:`, error);
+            Debug.error(`Error in event subscriber for ${event}:`, error);
           }
         });
 
@@ -11480,7 +11487,7 @@ var FlowPlater = (function () {
               try {
                 callback.call(context, data);
               } catch (error) {
-                errorLog$1(
+                Debug.error(
                   `Error in instance event subscriber for ${instanceEvent}:`,
                   error,
                 );
@@ -11523,8 +11530,137 @@ var FlowPlater = (function () {
       if (!this.marks[label]) return;
       const duration = performance.now() - this.marks[label];
       delete this.marks[label];
-      Debug.log(Debug.levels.DEBUG, `${label} took ${duration.toFixed(2)}ms`);
+      Debug.debug(`${label} took ${duration.toFixed(2)}ms`);
       return duration;
+    },
+  };
+
+  /**
+   * @typedef {Object} ReadyState
+   * @property {boolean} isReady - Whether FlowPlater is ready
+   * @property {Function[]} queue - Queue of functions to execute when ready
+   * @property {Set<string>} plugins - Set of registered plugin names
+   * @property {Function} processQueue - Process all queued functions
+   */
+
+  /**
+   * Manages FlowPlater's ready state and initialization queue
+   */
+  const _readyState = {
+    isReady: false,
+    queue: [],
+    plugins: new Set(),
+    hasPluginsRegistered: false,
+
+    /**
+     * Process all queued functions in order
+     */
+    processQueue() {
+      Debug.debug(`Processing ${this.queue.length} queued operations`);
+      while (this.queue.length > 0) {
+        const fn = this.queue.shift();
+        try {
+          fn();
+        } catch (error) {
+          Debug.error("Error processing queued operation:", error);
+        }
+      }
+    },
+
+    /**
+     * Add a function to the queue or execute immediately if ready
+     * @param {Function} fn - Function to queue or execute
+     */
+    enqueue(fn) {
+      if (this.isReady) {
+        try {
+          fn();
+        } catch (error) {
+          Debug.error("Error executing operation:", error);
+        }
+      } else {
+        this.queue.push(fn);
+      }
+    },
+
+    /**
+     * Mark FlowPlater as ready and process queue
+     */
+    markReady() {
+      // If no plugins have been registered at all, that's fine
+      if (this.plugins.size === 0 && !this.hasPluginsRegistered) {
+        Debug.info("No plugins registered, proceeding with initialization");
+      }
+
+      this.isReady = true;
+      this.processQueue();
+    },
+
+    /**
+     * Register a plugin and mark that we have plugins
+     * @param {string} pluginName - Name of the plugin being registered
+     */
+    registerPlugin(pluginName) {
+      this.hasPluginsRegistered = true;
+      this.plugins.add(pluginName);
+      Debug.debug(
+        `Plugin registered: ${pluginName}, total plugins: ${this.plugins.size}`,
+      );
+    },
+
+    /**
+     * Unregister a plugin from the ready state
+     * @param {string} pluginName - Name of the plugin to unregister
+     * @returns {boolean} True if the plugin was unregistered, false if it wasn't registered
+     */
+    unregisterPlugin(pluginName) {
+      const wasRemoved = this.plugins.delete(pluginName);
+      if (wasRemoved) {
+        Debug.debug(
+          `Plugin unregistered: ${pluginName}, remaining plugins: ${this.plugins.size}`,
+        );
+
+        // If this was the last plugin and we're resetting, update hasPluginsRegistered
+        if (this.plugins.size === 0) {
+          this.hasPluginsRegistered = false;
+          Debug.debug(
+            "All plugins unregistered, reset plugin registration state",
+          );
+        }
+      } else {
+        Debug.warn(`Attempted to unregister non-existent plugin: ${pluginName}`);
+      }
+      return wasRemoved;
+    },
+
+    /**
+     * Reset the ready state completely
+     * @param {boolean} [maintainReadyStatus=true] - Whether to maintain the ready status
+     */
+    reset(maintainReadyStatus = true) {
+      this.isReady;
+      this.queue = [];
+      this.plugins.clear();
+      this.hasPluginsRegistered = false;
+
+      // Only reset ready status if explicitly requested
+      if (!maintainReadyStatus) {
+        this.isReady = false;
+        Debug.info(
+          "ReadyState completely reset, FlowPlater needs re-initialization",
+        );
+      } else {
+        Debug.info("ReadyState reset but maintains ready status for new plugins");
+      }
+    },
+
+    /**
+     * Complete cleanup of FlowPlater state
+     * This should only be called when completely shutting down FlowPlater
+     */
+    cleanup() {
+      this.reset(false);
+      Debug.info("FlowPlater ReadyState cleaned up completely");
     },
   };
 
@@ -11629,8 +11765,7 @@ var FlowPlater = (function () {
             depPlugin &&
             !VersionManager.satisfiesVersion(dep, depPlugin.config.version)
           ) {
-            Debug.log(
-              Debug.levels.WARN,
+            Debug.warn(
               `Optional dependency '${depName}' version mismatch for plugin ${
               pluginInstance.config.name
             }. Required: ${depVersion || "any"}, Found: ${
@@ -11641,14 +11776,10 @@ var FlowPlater = (function () {
         }
       }
 
-      // Validate hooks are functions
-      for (const hook in pluginInstance.hooks) {
-        if (typeof pluginInstance.hooks[hook] !== "function") {
-          throw new FlowPlaterError(`Hook ${hook} must be a function`);
-        }
-      }
+      // Add to ready state tracking
+      _readyState.registerPlugin(pluginInstance.config.name);
 
-      // Register global methods if any
+      // Register methods and helpers immediately
       if (pluginInstance.globalMethods) {
         for (const [methodName, method] of Object.entries(
           pluginInstance.globalMethods,
@@ -11658,20 +11789,16 @@ var FlowPlater = (function () {
               `Global method ${methodName} must be a function`,
             );
           }
-
-          // Check for method name collisions
           if (this.globalMethods.has(methodName)) {
             const existing = this.globalMethods.get(methodName);
             throw new FlowPlaterError(
               `Global method ${methodName} already registered by plugin ${existing.plugin}`,
             );
           }
-
           this.globalMethods.set(methodName, {
             method,
             plugin: pluginInstance.config.name,
           });
-          // Add method to FlowPlater object
           if (typeof window !== "undefined" && window.FlowPlater) {
             window.FlowPlater[methodName] = (...args) =>
               this.executeGlobalMethod(methodName, ...args);
@@ -11679,7 +11806,6 @@ var FlowPlater = (function () {
         }
       }
 
-      // Register instance methods if any
       if (pluginInstance.instanceMethods) {
         for (const [methodName, method] of Object.entries(
           pluginInstance.instanceMethods,
@@ -11689,15 +11815,12 @@ var FlowPlater = (function () {
               `Instance method ${methodName} must be a function`,
             );
           }
-
-          // Check for method name collisions
           if (this.instanceMethods.has(methodName)) {
             const existing = this.instanceMethods.get(methodName);
             throw new FlowPlaterError(
               `Instance method ${methodName} already registered by plugin ${existing.plugin}`,
             );
           }
-
           this.instanceMethods.set(methodName, {
             method,
             plugin: pluginInstance.config.name,
@@ -11705,25 +11828,21 @@ var FlowPlater = (function () {
         }
       }
 
-      // Register custom helpers if any
       if (pluginInstance.helpers && typeof pluginInstance.helpers === "object") {
         for (const [helperName, helper] of Object.entries(
           pluginInstance.helpers,
         )) {
           if (typeof helper !== "function") {
-            Debug.log(
-              Debug.levels.WARN,
+            Debug.warn(
               `Plugin ${pluginInstance.config.name} contains invalid helper ${helperName}:`,
               helper,
             );
             continue;
           }
           try {
-            // Register the helper with Handlebars using the lowercase name for webflow compatibility
             Handlebars.registerHelper(helperName.toLowerCase(), helper);
           } catch (error) {
-            Debug.log(
-              Debug.levels.ERROR,
+            Debug.error(
               `Plugin ${pluginInstance.config.name} failed registering helper ${helperName}:`,
               error,
             );
@@ -11731,33 +11850,56 @@ var FlowPlater = (function () {
         }
       }
 
-      // Initialize the plugin only if it's enabled
-      if (
-        pluginInstance.config?.enabled &&
-        typeof pluginInstance.init === "function"
-      ) {
-        pluginInstance.init();
-      }
-
       // Store the plugin instance
       this.plugins.set(pluginInstance.config.name, pluginInstance);
 
-      // Update existing instances with new plugin methods
-      this.updateExistingInstances();
-
-      // If FlowPlater is already initialized, call the initComplete hook
-      if (_state.initialized && pluginInstance.hooks?.initComplete) {
-        try {
-          pluginInstance.hooks.initComplete(
-            window.FlowPlater,
-            Object.values(_state.instances),
-          );
-        } catch (error) {
-          Debug.log(
-            Debug.levels.ERROR,
-            `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
-            error,
-          );
+      // Queue initialization if FlowPlater isn't ready yet
+      if (!_readyState.isReady) {
+        _readyState.queue.push(() => {
+          if (
+            pluginInstance.config?.enabled &&
+            typeof pluginInstance.init === "function"
+          ) {
+            pluginInstance.init();
+          }
+          // Update existing instances with new plugin methods
+          this.updateExistingInstances();
+          // Execute initComplete hook
+          if (pluginInstance.hooks?.initComplete) {
+            try {
+              pluginInstance.hooks.initComplete(
+                window.FlowPlater,
+                Object.values(_state.instances),
+              );
+            } catch (error) {
+              Debug.error(
+                `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
+                error,
+              );
+            }
+          }
+        });
+      } else {
+        // Initialize immediately if FlowPlater is ready
+        if (
+          pluginInstance.config?.enabled &&
+          typeof pluginInstance.init === "function"
+        ) {
+          pluginInstance.init();
+        }
+        this.updateExistingInstances();
+        if (pluginInstance.hooks?.initComplete) {
+          try {
+            pluginInstance.hooks.initComplete(
+              window.FlowPlater,
+              Object.values(_state.instances),
+            );
+          } catch (error) {
+            Debug.error(
+              `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
+              error,
+            );
+          }
         }
       }
 
@@ -11828,6 +11970,9 @@ var FlowPlater = (function () {
           delete instance[methodName];
         });
       });
+
+      // Unregister from ready state
+      _readyState.unregisterPlugin(name);
 
       return this.plugins.delete(name);
     },
@@ -11910,8 +12055,7 @@ var FlowPlater = (function () {
 
             // If the result is undefined or null, return the original data
             if (result === undefined || result === null) {
-              Debug.log(
-                Debug.levels.WARN,
+              Debug.warn(
                 `Plugin ${plugin.config.name} returned undefined/null for ${transformationType}, using original data`,
               );
               return transformedData;
@@ -11926,8 +12070,7 @@ var FlowPlater = (function () {
 
             return result;
           } catch (error) {
-            Debug.log(
-              Debug.levels.ERROR,
+            Debug.error(
               `Plugin ${plugin.config.name} failed executing ${transformationType} transformation:`,
               error,
             );
@@ -11939,7 +12082,7 @@ var FlowPlater = (function () {
     },
 
     executeHook(hookName, ...args) {
-      Debug.log(Debug.levels.DEBUG, "[PLUGIN] Executing hook:", hookName, args);
+      Debug.debug("[PLUGIN] Executing hook:", hookName, args);
 
       const plugins = this.getSortedPlugins();
       let result = args[0]; // Store initial value
@@ -11954,16 +12097,14 @@ var FlowPlater = (function () {
               args[0] = result; // Update for next plugin
             } else {
               // If hook returns undefined, use the previous result
-              Debug.log(
-                Debug.levels.WARN,
+              Debug.warn(
                 `Plugin ${plugin.config.name} returned undefined for ${hookName}`,
                 args[0],
               );
               result = args[0];
             }
           } catch (error) {
-            Debug.log(
-              Debug.levels.ERROR,
+            Debug.error(
               `Plugin ${plugin.config.name} failed executing ${hookName}:`,
               error,
             );
@@ -12022,9 +12163,19 @@ var FlowPlater = (function () {
           typeof plugin.destroy === "function" ? plugin.destroy() : null,
         ),
       );
+
+      plugins.forEach((plugin) =>
+        _readyState.unregisterPlugin(plugin.config.name),
+      );
+
+      // Clear plugin manager state
       this.plugins.clear();
       this.globalMethods.clear();
       this.instanceMethods.clear();
+
+      Debug.info(
+        "All plugins destroyed, FlowPlater remains ready for new plugins",
+      );
     },
   };
 
@@ -12037,10 +12188,10 @@ var FlowPlater = (function () {
     apply(...args) {
       const key = JSON.stringify(args);
       if (this.cache.has(key)) {
-        Debug.log(Debug.levels.DEBUG, "Cache hit:", key);
+        Debug.debug("Cache hit:", key);
         return this.cache.get(key);
       }
-      Debug.log(Debug.levels.DEBUG, "Cache miss:", key);
+      Debug.debug("Cache miss:", key);
       const result = this.original.apply(this, args);
       this.cache.set(key, result);
       return result;
@@ -12090,7 +12241,7 @@ var FlowPlater = (function () {
     }
 
     if (replaced) {
-      log("replaced custom tags", element);
+      Debug.info("replaced custom tags", element);
     }
 
     return element;
@@ -12122,10 +12273,10 @@ var FlowPlater = (function () {
     const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
     var templateElement = document.querySelector(selector);
 
-    Debug.log(Debug.levels.DEBUG, "Trying to compile template: " + templateId);
+    Debug.debug("Trying to compile template: " + templateId);
 
     if (!templateElement) {
-      errorLog$1("Template not found: " + templateId);
+      Debug.error("Template not found: " + templateId);
       Performance.end("compile:" + templateId);
       return null;
     }
@@ -12136,7 +12287,7 @@ var FlowPlater = (function () {
       (templateElement.hasAttribute("fp-dynamic") &&
         templateElement.getAttribute("fp-dynamic") !== "false")
     ) {
-      Debug.log(Debug.levels.DEBUG, "compiling template: " + templateId);
+      Debug.debug("compiling template: " + templateId);
 
       // Function to construct tag with attributes
       function constructTagWithAttributes(element) {
@@ -12195,8 +12346,7 @@ var FlowPlater = (function () {
                 result += `{{${helperName}}}${innerContent}`;
               } else if (helperName === "math") {
                 if (innerContent) {
-                  Debug.log(
-                    Debug.levels.WARN,
+                  Debug.warn(
                     `FlowPlater: The <${helperName}> helper does not accept inner content.`,
                   );
                 }
@@ -12216,6 +12366,14 @@ var FlowPlater = (function () {
             } else {
               const childContent = processNode(child);
               const startTag = constructTagWithAttributes(child);
+              const fpValAttribute = child.getAttribute("fp-val");
+              let processedContent = childContent;
+              if (fpValAttribute) {
+                processedContent = `{{{default ${fpValAttribute} "${childContent.replace(
+                /"/g,
+                '\\"',
+              )}"}}}`;
+              }
               let endTagName = child.tagName.toLowerCase();
               currentCustomTags.forEach((tag) => {
                 if (endTagName === tag.tag) {
@@ -12223,7 +12381,7 @@ var FlowPlater = (function () {
                 }
               });
               const endTag = `</${endTagName}>`;
-              result += `${startTag}${childContent}${endTag}`;
+              result += `${startTag}${processedContent}${endTag}`;
             }
           }
         });
@@ -12231,10 +12389,7 @@ var FlowPlater = (function () {
       }
 
       const handlebarsTemplate = processNode(templateElement);
-      Debug.log(
-        Debug.levels.DEBUG,
-        "Compiling Handlebars template: " + handlebarsTemplate,
-      );
+      Debug.debug("Compiling Handlebars template: " + handlebarsTemplate);
 
       try {
         const compiledTemplate = Handlebars.compile(handlebarsTemplate);
@@ -12245,10 +12400,7 @@ var FlowPlater = (function () {
           // Remove oldest template
           const oldestKey = Object.keys(_state.templateCache)[0];
           delete _state.templateCache[oldestKey];
-          Debug.log(
-            Debug.levels.INFO,
-            "Cache limit reached. Removed template: " + oldestKey,
-          );
+          Debug.info("Cache limit reached. Removed template: " + oldestKey);
         }
 
         // Add new template to cache
@@ -12256,7 +12408,7 @@ var FlowPlater = (function () {
         Performance.end("compile:" + templateId);
         return compiledTemplate;
       } catch (e) {
-        errorLog$1(
+        Debug.error(
           "Template not valid: " + handlebarsTemplate + " | Error: " + e.message,
         );
         Performance.end("compile:" + templateId);
@@ -12268,9 +12420,9 @@ var FlowPlater = (function () {
   });
 
   function saveToLocalStorage(key, data, prefix = "") {
-    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+    Debug.debug(`Storage config:`, _state.config?.storage);
     if (!_state.config?.storage?.enabled) {
-      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping save`);
+      Debug.debug(`Storage is disabled, skipping save`);
       return false;
     }
 
@@ -12283,7 +12435,7 @@ var FlowPlater = (function () {
         // This effectively deep clones the target data, removing any proxy wrappers
         rawData = JSON.parse(JSON.stringify(data));
       } catch (e) {
-        errorLog$1(`Failed to serialize data for localStorage: ${e.message}`);
+        Debug.error(`Failed to serialize data for localStorage: ${e.message}`);
         // Fallback or decide how to handle non-serializable data
         rawData = {}; // Save empty object as fallback?
       }
@@ -12293,7 +12445,7 @@ var FlowPlater = (function () {
         expiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
       };
 
-      Debug.log(Debug.levels.DEBUG, `Saving to localStorage:`, {
+      Debug.debug(`Saving to localStorage:`, {
         key: storageKey,
         data: storageData,
       });
@@ -12301,15 +12453,15 @@ var FlowPlater = (function () {
       localStorage.setItem(storageKey, JSON.stringify(storageData));
       return true;
     } catch (error) {
-      errorLog$1(`Failed to save to localStorage: ${error.message}`);
+      Debug.error(`Failed to save to localStorage: ${error.message}`);
       return false;
     }
   }
 
   function loadFromLocalStorage(key, prefix = "") {
-    Debug.log(Debug.levels.DEBUG, `Storage config:`, _state.config?.storage);
+    Debug.debug(`Storage config:`, _state.config?.storage);
     if (!_state.config?.storage?.enabled) {
-      Debug.log(Debug.levels.DEBUG, `Storage is disabled, skipping load`);
+      Debug.debug(`Storage is disabled, skipping load`);
       return null;
     }
 
@@ -12317,7 +12469,7 @@ var FlowPlater = (function () {
       const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
       const storedItem = localStorage.getItem(storageKey);
       if (!storedItem) {
-        Debug.log(Debug.levels.DEBUG, `No stored item found for: ${storageKey}`);
+        Debug.debug(`No stored item found for: ${storageKey}`);
         return null;
       }
 
@@ -12325,12 +12477,12 @@ var FlowPlater = (function () {
 
       // Check if data has expired
       if (storageData.expiry && storageData.expiry < Date.now()) {
-        Debug.log(Debug.levels.DEBUG, `Stored item has expired: ${storageKey}`);
+        Debug.debug(`Stored item has expired: ${storageKey}`);
         localStorage.removeItem(storageKey);
         return null;
       }
 
-      Debug.log(Debug.levels.DEBUG, `Loaded from localStorage:`, {
+      Debug.debug(`Loaded from localStorage:`, {
         key: storageKey,
         data: storageData,
       });
@@ -12338,7 +12490,7 @@ var FlowPlater = (function () {
       // Return just the data portion, not the wrapper object
       return storageData.data;
     } catch (error) {
-      errorLog$1(`Failed to load from localStorage: ${error.message}`);
+      Debug.error(`Failed to load from localStorage: ${error.message}`);
       return null;
     }
   }
@@ -12360,10 +12512,7 @@ var FlowPlater = (function () {
       try {
         // Skip if already restoring
         if (this.isRestoringFormStates) {
-          Debug.log(
-            Debug.levels.DEBUG,
-            "Already restoring form states, skipping",
-          );
+          Debug.debug("Already restoring form states, skipping");
           return;
         }
 
@@ -12373,10 +12522,7 @@ var FlowPlater = (function () {
           this.restoreSingleFormState(form, source),
         );
       } catch (error) {
-        Debug.log(
-          Debug.levels.ERROR,
-          `Error restoring form states: ${error.message}`,
-        );
+        Debug.error(`Error restoring form states: ${error.message}`);
       } finally {
         this.isRestoringFormStates = false;
       }
@@ -12394,10 +12540,7 @@ var FlowPlater = (function () {
       // Try to get state from storage
       const formState = this.handleFormStorage(form, null, "load");
       if (!formState) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          `No stored state found for form: ${form.id}`,
-        );
+        Debug.debug(`No stored state found for form: ${form.id}`);
         return false;
       }
 
@@ -12423,20 +12566,16 @@ var FlowPlater = (function () {
       });
 
       // Single debug log with all information
-      Debug.log(
-        Debug.levels.DEBUG,
-        `Form state restoration summary for ${form.id}`,
-        {
-          storageType: debugInfo.storageType,
-          source: source || "unknown",
-          restoredElements: debugInfo.restoredElements.map((el) => ({
-            name: el.name,
-            value: el.value,
-          })),
-          updatedCustomVisualStates: debugInfo.customVisualUpdates,
-          skippedElements: debugInfo.skippedElements,
-        },
-      );
+      Debug.debug(`Form state restoration summary for ${form.id}`, {
+        storageType: debugInfo.storageType,
+        source: source || "unknown",
+        restoredElements: debugInfo.restoredElements.map((el) => ({
+          name: el.name,
+          value: el.value,
+        })),
+        updatedCustomVisualStates: debugInfo.customVisualUpdates,
+        skippedElements: debugInfo.skippedElements,
+      });
 
       // Emit event after restoration
       EventSystem.publish("formState:afterRestore", {
@@ -12465,10 +12604,7 @@ var FlowPlater = (function () {
           formElement: form,
         });
       } catch (error) {
-        Debug.log(
-          Debug.levels.ERROR,
-          `Error clearing form state: ${error.message}`,
-        );
+        Debug.error(`Error clearing form state: ${error.message}`);
       }
     },
 
@@ -12843,10 +12979,7 @@ var FlowPlater = (function () {
       }
       return null;
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error capturing element state: ${error.message}`,
-      );
+      Debug.error(`Error capturing element state: ${error.message}`);
       return null;
     }
   }
@@ -12891,10 +13024,7 @@ var FlowPlater = (function () {
         element.checked = state.checked;
       }
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error restoring element state: ${error.message}`,
-      );
+      Debug.error(`Error restoring element state: ${error.message}`);
     }
   }
 
@@ -12916,10 +13046,7 @@ var FlowPlater = (function () {
         }
       });
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error updating element attributes: ${error.message}`,
-      );
+      Debug.error(`Error updating element attributes: ${error.message}`);
     }
   }
 
@@ -12940,10 +13067,7 @@ var FlowPlater = (function () {
         restoreElementState(fromEl, state);
       }
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error preserving element state: ${error.message}`,
-      );
+      Debug.error(`Error preserving element state: ${error.message}`);
     }
   }
 
@@ -13009,10 +13133,7 @@ var FlowPlater = (function () {
 
       return formStates;
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error capturing form states: ${error.message}`,
-      );
+      Debug.error(`Error capturing form states: ${error.message}`);
       return {};
     }
   }
@@ -13029,7 +13150,7 @@ var FlowPlater = (function () {
     // Try to get state from storage
     const formState = handleFormStorage(form, null, "load");
     if (!formState) {
-      Debug.log(Debug.levels.DEBUG, `No stored state found for form: ${form.id}`);
+      Debug.debug(`No stored state found for form: ${form.id}`);
       return false;
     }
 
@@ -13055,20 +13176,16 @@ var FlowPlater = (function () {
     });
 
     // Single debug log with all information
-    Debug.log(
-      Debug.levels.DEBUG,
-      `Form state restoration summary for ${form.id}`,
-      {
-        storageType: debugInfo.storageType,
-        source: source || "unknown",
-        restoredElements: debugInfo.restoredElements.map((el) => ({
-          name: el.name,
-          value: el.value,
-        })),
-        updatedCustomVisualStates: debugInfo.customVisualUpdates,
-        skippedElements: debugInfo.skippedElements,
-      },
-    );
+    Debug.debug(`Form state restoration summary for ${form.id}`, {
+      storageType: debugInfo.storageType,
+      source: source || "unknown",
+      restoredElements: debugInfo.restoredElements.map((el) => ({
+        name: el.name,
+        value: el.value,
+      })),
+      updatedCustomVisualStates: debugInfo.customVisualUpdates,
+      skippedElements: debugInfo.skippedElements,
+    });
 
     // Emit event after restoration
     EventSystem.publish("formState:afterRestore", {
@@ -13096,7 +13213,7 @@ var FlowPlater = (function () {
   function setupFormChangeListeners(form) {
     try {
       if (!form.id) {
-        Debug.log(Debug.levels.DEBUG, "Skipping form without ID");
+        Debug.debug("Skipping form without ID");
         return;
       }
 
@@ -13128,7 +13245,7 @@ var FlowPlater = (function () {
       });
 
       // Output collected debug information
-      Debug.log(Debug.levels.DEBUG, `Form setup summary for ${form.id}`, {
+      Debug.debug(`Form setup summary for ${form.id}`, {
         totalFormElements: debugInfo.formElements,
         checkboxWrappers: debugInfo.checkboxWrappers,
         formPersistence: debugInfo.persistenceEnabled ? "enabled" : "disabled",
@@ -13136,10 +13253,7 @@ var FlowPlater = (function () {
         skippedElements: debugInfo.skippedElements.join(", "),
       });
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error setting up form change listeners: ${error.message}`,
-      );
+      Debug.error(`Error setting up form change listeners: ${error.message}`);
     }
   }
 
@@ -13158,10 +13272,7 @@ var FlowPlater = (function () {
 
       form._fpChangeListeners = [];
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error cleaning up form change listeners: ${error.message}`,
-      );
+      Debug.error(`Error cleaning up form change listeners: ${error.message}`);
     }
   }
 
@@ -13170,10 +13281,7 @@ var FlowPlater = (function () {
       const element = event.target;
       const form = element.form;
       if (!form || !form.id) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Skipping change handler - no form or form ID",
-        );
+        Debug.debug("Skipping change handler - no form or form ID");
         return;
       }
 
@@ -13234,7 +13342,7 @@ var FlowPlater = (function () {
         handleFormStorage(form, formState, "save");
 
         // Output collected debug information
-        Debug.log(Debug.levels.DEBUG, "Form state update for " + form.id + ":", {
+        Debug.debug("Form state update for " + form.id + ":", {
           "Changed element": element.name,
           "Storage type": shouldUseLocalStorage(form)
             ? "localStorage"
@@ -13273,10 +13381,7 @@ var FlowPlater = (function () {
         });
       }
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error handling form element change: ${error.message}`,
-      );
+      Debug.error(`Error handling form element change: ${error.message}`);
     }
   }
 
@@ -13313,35 +13418,28 @@ var FlowPlater = (function () {
    */
   function setupFormSubmitHandlers(element, source) {
     try {
-      Debug.log(
-        Debug.levels.DEBUG,
-        "Setting up form submit handlers for element:",
-        element,
-      );
+      Debug.debug("Setting up form submit handlers for element:", element);
 
       // Get all relevant forms
       const forms = getAllRelevantForms(element);
 
-      Debug.log(Debug.levels.DEBUG, `Found ${forms.size} forms`);
+      Debug.debug(`Found ${forms.size} forms`);
       forms.forEach((form) => {
         setupSingleFormHandlers(form, source || "setupFormSubmitHandlers");
       });
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error setting up form submit handlers: ${error.message}`,
-      );
+      Debug.error(`Error setting up form submit handlers: ${error.message}`);
     }
   }
 
   function setupSingleFormHandlers(form, source) {
     if (!form.id) {
-      Debug.log(Debug.levels.DEBUG, "Skipping form without ID");
+      Debug.debug("Skipping form without ID");
       return;
     }
 
     // Always set up handlers for forms that have been updated by HTMX
-    Debug.log(Debug.levels.DEBUG, `Setting up handlers for form: ${form.id}`);
+    Debug.debug(`Setting up handlers for form: ${form.id}`);
 
     // Remove existing listener if any
     form.removeEventListener("submit", handleFormSubmit);
@@ -13356,11 +13454,10 @@ var FlowPlater = (function () {
 
     // Check if form restoration is needed
     if (shouldRestoreForm(form)) {
-      Debug.log(Debug.levels.DEBUG, `Restoring state for form: ${form.id}`);
+      Debug.debug(`Restoring state for form: ${form.id}`);
       restoreSingleFormState(form, source || "setupSingleFormHandlers");
     } else {
-      Debug.log(
-        Debug.levels.DEBUG,
+      Debug.debug(
         `Skipping form restoration - no persistent elements: ${form.id}`,
       );
     }
@@ -13373,10 +13470,7 @@ var FlowPlater = (function () {
         clearFormState(form.id);
       }
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error handling form submit: ${error.message}`,
-      );
+      Debug.error(`Error handling form submit: ${error.message}`);
     }
   }
 
@@ -13399,10 +13493,7 @@ var FlowPlater = (function () {
 
       return observer;
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error setting up dynamic form observer: ${error.message}`,
-      );
+      Debug.error(`Error setting up dynamic form observer: ${error.message}`);
       return null;
     }
   }
@@ -13624,7 +13715,7 @@ var FlowPlater = (function () {
     // Add a flag to prevent multiple restorations
     const isAlreadyRestoring = element.hasAttribute("fp-restoring");
     if (isAlreadyRestoring) {
-      Debug.log(Debug.levels.DEBUG, "Already restoring, skipping");
+      Debug.debug("Already restoring, skipping");
       return;
     }
     element.setAttribute("fp-restoring", "true");
@@ -13638,15 +13729,10 @@ var FlowPlater = (function () {
         throw new Error("newHTML must be a string");
       }
 
-      Debug.log(
-        Debug.levels.DEBUG,
-        "Starting updateDOM with config:",
-        _state.config,
-      );
+      Debug.debug("Starting updateDOM with config:", _state.config);
 
       // Log form persistence state
-      Debug.log(
-        Debug.levels.DEBUG,
+      Debug.debug(
         `Form persistence enabled: ${
         _state.config?.persistForm
       }, Should restore form: ${FormStateManager.shouldRestoreForm(element)}`,
@@ -13658,9 +13744,9 @@ var FlowPlater = (function () {
         _state.config?.persistForm &&
         FormStateManager.shouldRestoreForm(element)
       ) {
-        Debug.log(Debug.levels.DEBUG, "Capturing form states before update");
+        Debug.debug("Capturing form states before update");
         formStates = captureFormStates(element);
-        Debug.log(Debug.levels.DEBUG, "Captured form states:", formStates);
+        Debug.debug("Captured form states:", formStates);
       }
 
       // Single observer setup
@@ -13669,7 +13755,7 @@ var FlowPlater = (function () {
         _state.config?.persistForm &&
         FormStateManager.shouldRestoreForm(element)
       ) {
-        Debug.log(Debug.levels.DEBUG, "Setting up dynamic form observer");
+        Debug.debug("Setting up dynamic form observer");
         formObserver = setupDynamicFormObserver(element);
       }
 
@@ -13714,7 +13800,7 @@ var FlowPlater = (function () {
             FormStateManager.shouldRestoreForm(element) &&
             formStates
           ) {
-            Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
+            Debug.debug("Restoring form states after update");
             FormStateManager.restoreFormStates(
               element,
               "updateDOM - form state restoration - restoreFormStates",
@@ -13758,9 +13844,9 @@ var FlowPlater = (function () {
         _state.config?.persistForm &&
         FormStateManager.shouldRestoreForm(element)
       ) {
-        Debug.log(Debug.levels.DEBUG, "Restoring form states after update");
+        Debug.debug("Restoring form states after update");
         const n = element.querySelectorAll('[fp-persist="true"]');
-        Debug.log(Debug.levels.DEBUG, `Found ${n.length} inputs to restore`);
+        Debug.debug(`Found ${n.length} inputs to restore`);
         FormStateManager.restoreFormStates(
           element,
           "updateDOM - final form state restoration - restoreFormStates",
@@ -13772,11 +13858,11 @@ var FlowPlater = (function () {
       }
 
       if (formObserver) {
-        Debug.log(Debug.levels.DEBUG, "Disconnecting form observer");
+        Debug.debug("Disconnecting form observer");
         formObserver.disconnect();
       }
     } catch (error) {
-      Debug.log(Debug.levels.ERROR, "Error in updateDOM:", error);
+      Debug.error("Error in updateDOM:", error);
       console.error("UpdateDOM error:", error);
       throw error;
     } finally {
@@ -13805,12 +13891,90 @@ var FlowPlater = (function () {
     }
   }
 
+  /**
+   * Checks if a string looks like a CSS selector
+   * @param {string} str - String to check
+   * @returns {boolean} True if the string looks like a CSS selector
+   */
+  function isCssSelector(str) {
+    // If it starts with # or . it's definitely a selector
+    if (str.startsWith("#") || str.startsWith(".")) {
+      return true;
+    }
+    // Other CSS selector patterns
+    return (
+      /[[]>+~:()]/.test(str) || // Other CSS characters
+      /^[a-z]+[a-z-]+$/i.test(str)
+    ); // Element names like div, custom-element
+  }
+
+  /**
+   * Extracts data from a local variable or DOM element
+   * @param {string} varName - Variable name or CSS selector
+   * @param {boolean} [wrapPrimitive=true] - Whether to wrap primitive values in an object
+   * @returns {Object|null} The extracted data or null if not found/error
+   */
+  function extractLocalData(varName, wrapPrimitive = true) {
+    if (!varName) return null;
+
+    try {
+      // If it looks like a CSS selector, try DOM first
+      if (isCssSelector(varName)) {
+        const element = document.querySelector(varName);
+        if (element) {
+          // Check if DataExtractor plugin is available
+          const dataExtractor = PluginManager.getPlugin("data-extractor");
+          if (
+            dataExtractor &&
+            typeof dataExtractor.globalMethods.processHtml === "function"
+          ) {
+            try {
+              const extractedData = dataExtractor.globalMethods.processHtml(
+                element.outerHTML,
+              );
+              Debug.debug(
+                `Extracted data from element "${varName}":`,
+                extractedData,
+              );
+              return extractedData;
+            } catch (e) {
+              Debug.error(`DataExtractor failed for "${varName}": ${e.message}`);
+              return null;
+            }
+          } else {
+            Debug.warn(
+              "DataExtractor plugin not available for element extraction",
+            );
+            return null;
+          }
+        }
+      }
+
+      // If not a selector or element not found, try window scope
+      const value = window[varName];
+      if (value !== undefined) {
+        // If value is not an object and wrapping is enabled, wrap it
+        if (wrapPrimitive && (typeof value !== "object" || value === null)) {
+          return { [varName]: value };
+        }
+        return value;
+      }
+
+      // If we get here, neither variable nor element was found
+      Debug.warn(`Neither variable nor element found for "${varName}"`);
+      return null;
+    } catch (e) {
+      Debug.info(`Error extracting local data "${varName}": ${e.message}`);
+      return null;
+    }
+  }
+
   function instanceMethods(instanceName) {
     // Helper function to resolve a path within the data
     function _resolvePath(path) {
       const instance = _state.instances[instanceName];
       if (!instance) {
-        errorLog$1("Instance not found: " + instanceName);
+        Debug.error("Instance not found: " + instanceName);
         return undefined;
       }
 
@@ -13833,11 +13997,7 @@ var FlowPlater = (function () {
 
     function _validateData(data) {
       if (typeof data === "string" && data.trim().startsWith("<!DOCTYPE")) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Data is HTML, skipping validation",
-          instanceName,
-        );
+        Debug.debug("Data is HTML, skipping validation", instanceName);
         return { valid: true, isHtml: true };
       }
 
@@ -13850,7 +14010,7 @@ var FlowPlater = (function () {
         return { valid: true, isHtml: false };
       }
 
-      errorLog$1("Invalid data type: " + typeof data);
+      Debug.error("Invalid data type: " + typeof data);
       return { valid: false, isHtml: false };
     }
 
@@ -13861,7 +14021,7 @@ var FlowPlater = (function () {
       _updateDOM: function () {
         const instance = _state.instances[instanceName];
         if (!instance) {
-          errorLog$1("Instance not found: " + instanceName);
+          Debug.error("Instance not found: " + instanceName);
           return;
         }
 
@@ -13877,8 +14037,7 @@ var FlowPlater = (function () {
             // For "self" template, use the first element as the template
             const templateElement = Array.from(instance.elements)[0];
             if (!templateElement) {
-              Debug.log(
-                Debug.levels.ERROR,
+              Debug.error(
                 "No template element found for self template",
                 instance.instanceName,
               );
@@ -13886,11 +14045,7 @@ var FlowPlater = (function () {
             }
             rendered = templateElement.innerHTML;
           } else if (!instance.template) {
-            Debug.log(
-              Debug.levels.ERROR,
-              "No template found for instance",
-              instance.instanceName,
-            );
+            Debug.error("No template found for instance", instance.instanceName);
             return;
           } else {
             // Apply plugin transformations to the data before rendering
@@ -13903,7 +14058,7 @@ var FlowPlater = (function () {
 
             // Use transformed data for reactive rendering
             rendered = instance.template(transformedData);
-            Debug.log(Debug.levels.DEBUG, "Rendered template with data:", {
+            Debug.debug("Rendered template with data:", {
               template: instance.templateId,
               data: transformedData,
               rendered: rendered,
@@ -13916,8 +14071,7 @@ var FlowPlater = (function () {
           );
 
           if (activeElements.length === 0) {
-            Debug.log(
-              Debug.levels.ERROR,
+            Debug.error(
               "No active elements found for instance",
               instance.instanceName,
             );
@@ -13928,8 +14082,7 @@ var FlowPlater = (function () {
             updateDOM(element, rendered, instance.animate, instance);
           });
         } catch (error) {
-          Debug.log(
-            Debug.levels.ERROR,
+          Debug.error(
             "Error updating DOM for instance",
             instance.instanceName,
             error,
@@ -13946,8 +14099,16 @@ var FlowPlater = (function () {
       setData: function (newData) {
         const instance = _state.instances[instanceName];
         if (!instance) {
-          errorLog$1("Instance not found: " + instanceName);
-          return this; // Return instance for chaining?
+          Debug.error("Instance not found: " + instanceName);
+          return this;
+        }
+
+        // If newData is an unnamed root object (no data property), wrap it
+        if (!("data" in newData)) {
+          Debug.warn(
+            `[setData] Received unnamed root object, automatically wrapping in 'data' property`,
+          );
+          newData = { data: newData };
         }
 
         // Validate newData type (allow empty objects)
@@ -13956,14 +14117,15 @@ var FlowPlater = (function () {
           newData === null ||
           Array.isArray(newData)
         ) {
-          errorLog$1("Invalid newData type provided to setData: " + typeof newData);
+          Debug.error(
+            "Invalid newData type provided to setData: " + typeof newData,
+          );
           return this;
         }
 
         const currentData = instance.data; // The proxy's target
 
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[setData] Replacing data for ${instanceName}. Current keys: ${Object.keys(
           currentData,
         ).join(", ")}, New keys: ${Object.keys(newData).join(", ")}`,
@@ -13982,8 +14144,7 @@ var FlowPlater = (function () {
           }
         }
         if (deletedKeys.length > 0) {
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[setData] Deleted stale keys for ${instanceName}: ${deletedKeys.join(
             ", ",
           )}`,
@@ -13994,8 +14155,7 @@ var FlowPlater = (function () {
         Object.assign(currentData, newData); // Triggers proxy set traps
         // --- End Reconciliation Logic ---
 
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[setData] Data replacement processing complete for ${instanceName}.`,
         );
 
@@ -14025,7 +14185,7 @@ var FlowPlater = (function () {
             try {
               element.innerHTML = "";
             } catch (error) {
-              errorLog$1("Error removing instance: " + error.message);
+              Debug.error("Error removing instance: " + error.message);
             }
           });
 
@@ -14041,17 +14201,19 @@ var FlowPlater = (function () {
             elements: [],
           });
 
-          log("Removed instance: " + instanceName);
+          Debug.info("Removed instance: " + instanceName);
           return true;
         } catch (error) {
           throw error;
         }
       },
 
-      refresh: async function (options = { remote: true, recompile: false }) {
+      refresh: async function (
+        options = { remote: true, recompile: false, ignoreLocalVar: false },
+      ) {
         const instance = _state.instances[instanceName];
         if (!instance) {
-          errorLog$1("Instance not found: " + instanceName);
+          Debug.error("Instance not found: " + instanceName);
           return Promise.reject(new Error("Instance not found: " + instanceName));
         }
 
@@ -14064,17 +14226,30 @@ var FlowPlater = (function () {
           instance.template = compileTemplate(instance.templateId, true);
         }
 
-        Debug.log(Debug.levels.DEBUG, "Refresh - Template check:", {
+        Debug.debug("Refresh - Template check:", {
           templateId: instance.templateId,
           templateElement: document.querySelector(instance.templateId),
           compiledTemplate: instance.template(instance.data),
         });
 
+        // Check for local variable at instance level first
+        let hasLocalVarUpdate = false;
+        if (instance.localVarName && !options.ignoreLocalVar) {
+          const localData = extractLocalData(instance.localVarName);
+          if (localData) {
+            Object.assign(instance.data, localData);
+            hasLocalVarUpdate = true;
+            Debug.debug(
+              `Refreshed data from local variable "${instance.localVarName}"`,
+            );
+          }
+        }
+
         const promises = [];
 
         instance.elements.forEach(function (element) {
           try {
-            if (options.remote) {
+            if (options.remote && !hasLocalVarUpdate) {
               const htmxMethods = ["get", "post", "put", "patch", "delete"];
               const hasHtmxMethod = htmxMethods.some((method) =>
                 element.getAttribute(`hx-${method}`),
@@ -14115,7 +14290,7 @@ var FlowPlater = (function () {
             }
           } catch (error) {
             element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-            errorLog$1(`Failed to refresh template: ${error.message}`);
+            Debug.error(`Failed to refresh template: ${error.message}`);
             promises.push(Promise.reject(error));
           }
         });
@@ -14141,7 +14316,7 @@ var FlowPlater = (function () {
         Performance.start("refreshTemplate:" + templateId);
         const compiledTemplate = compileTemplate(templateId, recompile);
         if (!compiledTemplate) {
-          errorLog$1("Failed to compile template: " + templateId);
+          Debug.error("Failed to compile template: " + templateId);
           Performance.end("refreshTemplate:" + templateId);
           return false;
         }
@@ -14161,7 +14336,7 @@ var FlowPlater = (function () {
     getOrCreateInstance(element, initialData = {}) {
       const instanceName = element.getAttribute("fp-instance") || element.id;
       if (!instanceName) {
-        errorLog$1("No instance name found for element");
+        Debug.error("No instance name found for element");
         return null;
       }
 
@@ -14191,14 +14366,11 @@ var FlowPlater = (function () {
         _state.instances[instanceName] = instance;
         // Execute newInstance hook
         PluginManager.executeHook("newInstance", instance);
-        Debug.log(Debug.levels.INFO, `Created new instance: ${instanceName}`);
+        Debug.info(`Created new instance: ${instanceName}`);
       } else {
         // If instance exists, add the new element to its set
         instance.elements.add(element);
-        Debug.log(
-          Debug.levels.DEBUG,
-          `Added element to existing instance: ${instanceName}`,
-        );
+        Debug.debug(`Added element to existing instance: ${instanceName}`);
       }
 
       // REMOVED internal proxy creation and assignment
@@ -14215,7 +14387,7 @@ var FlowPlater = (function () {
      */
     updateInstanceData(instance, newData) {
       if (!instance || !instance.data) {
-        errorLog$1("Cannot update data: Instance or instance.data is invalid.");
+        Debug.error("Cannot update data: Instance or instance.data is invalid.");
         return;
       }
       // Update data through the proxy to trigger reactivity
@@ -14294,8 +14466,7 @@ var FlowPlater = (function () {
         Date.now() - _state._initTracking[derivedInstanceName];
       if (timeSinceLastInit < 100) {
         // 100ms window to prevent duplicate initializations
-        Debug.log(
-          Debug.levels.WARN,
+        Debug.warn(
           `[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`,
         );
         // Still return the existing instance
@@ -14339,7 +14510,7 @@ var FlowPlater = (function () {
     }
 
     if (elements.length === 0) {
-      errorLog$1("No target elements found");
+      Debug.error("No target elements found");
       return;
     }
 
@@ -14358,8 +14529,6 @@ var FlowPlater = (function () {
       instanceName = _state.length;
     }
 
-    log("Rendering instance: " + instanceName, template, data, target);
-
     /* -------------------------------------------------------------------------- */
     /*                              Compile template                              */
     /* -------------------------------------------------------------------------- */
@@ -14368,12 +14537,12 @@ var FlowPlater = (function () {
     _state.length++;
 
     if (!compiledTemplate) {
-      errorLog$1("Template not found: " + template);
+      Debug.error("Template not found: " + template);
       return;
     }
 
     if (elements.length === 0) {
-      errorLog$1("Target not found: " + target);
+      Debug.error("Target not found: " + target);
       return;
     }
 
@@ -14385,6 +14554,16 @@ var FlowPlater = (function () {
     let finalInitialData = data || {};
     let persistedData = null;
     let proxy = null; // Initialize proxy at function level
+
+    // Check for local variable at instance level first
+    const localVarName = elements[0].getAttribute("fp-local");
+    let localData = null;
+    if (localVarName) {
+      localData = extractLocalData(localVarName);
+      if (localData) {
+        finalInitialData = { ...finalInitialData, ...localData };
+      }
+    }
 
     if (!_state.instances[instanceName] || !_state.instances[instanceName].data) {
       // Load persisted data if available and not skipped
@@ -14423,8 +14602,7 @@ var FlowPlater = (function () {
           // Extract actual data - if persistedData has a 'data' property, use that
           const actualData = persistedData?.data || persistedData;
           finalInitialData = { ...actualData, ...finalInitialData };
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[Template] Merged persisted data for ${instanceName}:`,
             finalInitialData,
           );
@@ -14437,9 +14615,14 @@ var FlowPlater = (function () {
         finalInitialData,
       );
 
+      // Store local variable name if present
+      if (localVarName) {
+        instance.localVarName = localVarName;
+      }
+
       // If instance couldn't be created, exit
       if (!instance) {
-        errorLog$1("Failed to get or create instance: " + instanceName);
+        Debug.error("Failed to get or create instance: " + instanceName);
         return null;
       }
 
@@ -14467,13 +14650,12 @@ var FlowPlater = (function () {
               // Use a deep clone to prevent the captured state from being mutated
               // before the setTimeout callback runs.
               instance._stateBeforeDebounce = JSON.parse(JSON.stringify(proxy));
-              Debug.log(
-                Debug.levels.DEBUG,
+              Debug.debug(
                 `[Debounce Start] Captured pre-debounce state for ${instanceName}:`,
                 instance._stateBeforeDebounce, // Log the actual captured object
               );
             } catch (e) {
-              errorLog$1(
+              Debug.error(
                 `[Debounce Start] Failed to capture pre-debounce state for ${instanceName}:`,
                 e,
               );
@@ -14503,8 +14685,7 @@ var FlowPlater = (function () {
 
             // 2. Execute Hooks/Events with Full States
             if (stateChanged) {
-              Debug.log(
-                Debug.levels.INFO,
+              Debug.info(
                 `[Debounced Update] State changed for ${instanceName}. Firing updateData hook.`,
               );
               // Pass the full old and new states
@@ -14520,15 +14701,13 @@ var FlowPlater = (function () {
                 source: "proxy",
               });
             } else {
-              Debug.log(
-                Debug.levels.DEBUG,
+              Debug.debug(
                 `[Debounced Update] No state change detected for ${instanceName}. Skipping updateData hook.`,
               );
             }
 
             // 3. Update DOM
-            Debug.log(
-              Debug.levels.DEBUG,
+            Debug.debug(
               `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
             );
 
@@ -14537,8 +14716,7 @@ var FlowPlater = (function () {
             // 4. Save to storage
             // Get the correct instance name and sanitize it for the key
             const storageId = instance.instanceName.replace("#", "");
-            Debug.log(
-              Debug.levels.DEBUG,
+            Debug.debug(
               `[Debounced Update] Saving root proxy object for ${storageId}.`,
             );
             if (_state.config?.storage?.enabled) {
@@ -14564,8 +14742,7 @@ var FlowPlater = (function () {
       instance.data = proxy; // Assign the proxy!
 
       // 4. Trigger initial render - This should be OUTSIDE the debounce logic
-      Debug.log(
-        Debug.levels.DEBUG,
+      Debug.debug(
         `[Initial Render] ${
         skipRender ? "Skipping" : "Triggering"
       } _updateDOM for ${instanceName}`,
@@ -14580,10 +14757,7 @@ var FlowPlater = (function () {
       if (_state.config?.storage?.enabled && !persistedData) {
         // Only save if not loaded
         const storageId = instanceName.replace("#", "");
-        Debug.log(
-          Debug.levels.DEBUG,
-          `[Initial Save] Saving initial data for ${storageId}`,
-        );
+        Debug.debug(`[Initial Save] Saving initial data for ${storageId}`);
         saveToLocalStorage(
           storageId,
           finalInitialData, // Save the data directly, not wrapped in an object
@@ -14597,7 +14771,7 @@ var FlowPlater = (function () {
 
     // Return the instance from the state (might be the one just created or an existing one)
     const finalInstance = _state.instances[instanceName];
-    log("Final instance data: ", finalInstance.data);
+    Debug.info("Final instance data: ", finalInstance.data);
 
     /* -------------------------------------------------------------------------- */
     /*                               Render template                              */
@@ -14621,10 +14795,7 @@ var FlowPlater = (function () {
 
       // Only perform actual rendering if explicitly requested
       if (!skipRender) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          `[Render Template] Executing render for ${instanceName}`,
-        );
+        Debug.debug(`[Render Template] Executing render for ${instanceName}`);
 
         try {
           if (returnHtml) {
@@ -14655,20 +14826,18 @@ var FlowPlater = (function () {
           });
         } catch (error) {
           if (!(error instanceof TemplateError)) {
-            errorLog$1(`Failed to render template: ${error.message}`);
+            Debug.error(`Failed to render template: ${error.message}`);
           }
           throw error;
         }
       } else {
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[Render Template] Skipping render for ${instanceName} as requested`,
         );
       }
     } else if (!skipRender) {
       // Log a debug message that we're skipping render due to no data
-      Debug.log(
-        Debug.levels.DEBUG,
+      Debug.debug(
         `[Template] Skipping render for ${instanceName} because no data is available yet.`,
       );
     }
@@ -14813,7 +14982,7 @@ var FlowPlater = (function () {
         const rightValue = resolveValue(rightToken, options.data.root, this);
 
         // Log resolved values for debugging
-        Debug.log(Debug.levels.INFO, "Evaluating expression:", {
+        Debug.info("Evaluating expression:", {
           raw: expression,
           leftValue,
           operator,
@@ -14832,11 +15001,7 @@ var FlowPlater = (function () {
       } catch (error) {
         // Log the error stack for better debugging
         if (!(error instanceof TemplateError)) {
-          Debug.log(
-            Debug.levels.ERROR,
-            "Error evaluating if condition:",
-            error.stack,
-          );
+          Debug.error("Error evaluating if condition:", error.stack);
         }
         throw error; // Re-throw to maintain error state
       }
@@ -14937,7 +15102,7 @@ var FlowPlater = (function () {
 
         return (Calc.ans = this.stack.pop());
       } catch (error) {
-        console.error("Error in expression evaluation:", error);
+        Debug.error("Error in expression evaluation:", error);
         throw error;
       }
     }
@@ -15236,7 +15401,7 @@ var FlowPlater = (function () {
         },
       );
 
-      Debug.log(Debug.levels.DEBUG, "Evaluating expression:", resolvedExpression);
+      Debug.debug("Evaluating expression:", resolvedExpression);
 
       try {
         // Evaluate the expression using jscalc
@@ -15386,7 +15551,7 @@ var FlowPlater = (function () {
         return functionToExecute(...args);
       } else {
         // Log an error if the function is not found
-        errorLog$1("Function not found or is not a function: " + fn);
+        Debug.error("Function not found or is not a function: " + fn);
       }
     });
   }
@@ -15394,12 +15559,12 @@ var FlowPlater = (function () {
   function setHelper() {
     Handlebars.registerHelper("set", function (varName, varValue, options) {
       if (!varName || !varValue) {
-        errorLog$1("setHelper: varName and varValue are required");
+        Debug.error("setHelper: varName and varValue are required");
         return "";
       }
       //check if varName is a valid variable name
       if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
-        errorLog$1(`setHelper: varName ${varName} is not a valid variable name`);
+        Debug.error(`setHelper: varName ${varName} is not a valid variable name`);
         return "";
       }
 
@@ -15489,6 +15654,18 @@ var FlowPlater = (function () {
     }
   }
 
+  /**
+   * Returns the first non-falsy value from the arguments
+   * @param {*} value - The primary value to check
+   * @param {*} defaultValue - The fallback value if primary is falsy
+   * @returns {*} - The first non-falsy value or the defaultValue
+   */
+  function defaultHelper() {
+    Handlebars.registerHelper("default", function (value, defaultValue) {
+      return value || defaultValue;
+    });
+  }
+
   function registerHelpers() {
     ifHelper();
     sumHelper();
@@ -15497,6 +15674,7 @@ var FlowPlater = (function () {
     executeHelper();
     setHelper();
     bunnyHelper();
+    defaultHelper();
   }
 
   /**
@@ -15538,12 +15716,7 @@ var FlowPlater = (function () {
               timestamp: Date.now(),
               processed: false,
             });
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Added element to processing set",
-              target,
-              requestId,
-            );
+            Debug.debug("Added element to processing set", target, requestId);
           }
           break;
 
@@ -15566,18 +15739,12 @@ var FlowPlater = (function () {
             currentInfo.processed
           ) {
             this.processingElements.delete(target);
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Cleaned up after request",
-              target,
-              requestId,
-            );
+            Debug.debug("Cleaned up after request", target, requestId);
           } else {
-            Debug.log(
-              Debug.levels.DEBUG,
-              "Skipping cleanup - request mismatch or not processed",
-              { current: currentInfo?.requestId, received: requestId },
-            );
+            Debug.debug("Skipping cleanup - request mismatch or not processed", {
+              current: currentInfo?.requestId,
+              received: requestId,
+            });
           }
           break;
       }
@@ -15593,8 +15760,7 @@ var FlowPlater = (function () {
       for (const [target, info] of this.processingElements.entries()) {
         if (now - info.timestamp > staleTimeout) {
           this.processingElements.delete(target);
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             "Cleaned up stale processing entry",
             target,
             info.requestId,
@@ -15659,7 +15825,7 @@ var FlowPlater = (function () {
         // Only prevent swap if request IDs don't match
         if (info && info.requestId !== requestId) {
           event.preventDefault();
-          Debug.log(Debug.levels.DEBUG, "Prevented swap - request ID mismatch");
+          Debug.debug("Prevented swap - request ID mismatch");
         }
       });
 
@@ -15718,6 +15884,8 @@ var FlowPlater = (function () {
         }
       }
 
+      // If the object is empty, return an empty string
+      obj = Object.keys(obj).length > 0 ? obj : "";
       return obj;
     }
 
@@ -15753,7 +15921,7 @@ var FlowPlater = (function () {
             processedText = JSON.stringify(parseXmlToJson(xmlDoc));
             isJson = true;
           } catch (error) {
-            errorLog$1("Failed to parse XML response:", error);
+            Debug.error("Failed to parse XML response:", error);
             // Keep the original text if XML parsing fails
           }
         } else if (!isHtml) {
@@ -15773,8 +15941,7 @@ var FlowPlater = (function () {
             dataType,
           );
         } else {
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[transformResponse] No instance found for elt ${elt.id}. Skipping transformations.`,
           );
         }
@@ -15812,7 +15979,7 @@ var FlowPlater = (function () {
         try {
           newData = JSON.parse(processedText);
         } catch (error) {
-          errorLog$1("Failed to parse JSON response:", error);
+          Debug.error("Failed to parse JSON response:", error);
           return processedText;
         }
 
@@ -15820,15 +15987,13 @@ var FlowPlater = (function () {
 
         if (instance) {
           const instanceName = instance.instanceName;
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[transformResponse] Calling instance.setData for ${instanceName} with new data.`,
           );
 
           // Store the raw data in the instance
           instance.setData(newData);
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[transformResponse] setData called for request ${requestId} on elt ${elt.id}. Returning empty string.`,
           );
           return "";
@@ -15840,16 +16005,14 @@ var FlowPlater = (function () {
         const isEmptySignal = fragment.textContent?.trim() === "";
 
         if (isEmptySignal) {
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[handleSwap] Detected empty string signal for target ${
             target.id || "[no id]"
           }. Preventing htmx default swap.`,
           );
           return true;
         } else {
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `[handleSwap] Fragment is not empty signal for target ${
             target.id || "[no id]"
           }. Letting htmx swap.`,
@@ -15861,8 +16024,7 @@ var FlowPlater = (function () {
       onEvent: function (name, evt) {
         const triggeringElt = evt.detail.elt;
         if (!triggeringElt) {
-          Debug.log(
-            Debug.levels.WARN,
+          Debug.warn(
             `[onEvent] Event ${name} has no triggering element (evt.detail.elt). Skipping.`,
           );
           return;
@@ -15937,8 +16099,7 @@ var FlowPlater = (function () {
 
           case "htmx:afterSettle":
             executeHtmxHook("afterSettle", triggeringElt, evt);
-            Debug.log(
-              Debug.levels.DEBUG,
+            Debug.debug(
               `Setting up form handlers after DOM settle for target: ${
               triggeringElt.id || "unknown"
             }, ` +
@@ -15971,7 +16132,7 @@ var FlowPlater = (function () {
    */
   function restoreFormIfNecessary(target, checkFailed = true, event) {
     if (FormStateManager.isRestoringFormStates) {
-      Debug.log(Debug.levels.DEBUG, "Already restoring form states, skipping");
+      Debug.debug("Already restoring form states, skipping");
       return;
     }
 
@@ -15984,7 +16145,7 @@ var FlowPlater = (function () {
 
   function preloadUrl(url) {
     if (!url) {
-      errorLog("No URL provided for preloading");
+      Debug.error("No URL provided for preloading");
       return;
     }
 
@@ -16001,7 +16162,7 @@ var FlowPlater = (function () {
     };
 
     link.onerror = (e) => {
-      errorLog(`Failed to preload URL: ${url}`, e);
+      Debug.error(`Failed to preload URL: ${url}`, e);
       cleanup();
     };
 
@@ -16082,7 +16243,7 @@ var FlowPlater = (function () {
 
       return element;
     } catch (error) {
-      Debug.log(Debug.levels.ERROR, `Error in processPreload: ${error.message}`);
+      Debug.error(`Error in processPreload: ${error.message}`);
       return element;
     }
   }
@@ -16111,7 +16272,7 @@ var FlowPlater = (function () {
       });
       return element;
     } catch (error) {
-      errorLog(`Error in translateCustomHTMXAttributes: ${error.message}`);
+      Debug.error(`Error in translateCustomHTMXAttributes: ${error.message}`);
       return element;
     }
   }
@@ -16135,7 +16296,7 @@ var FlowPlater = (function () {
           var attr = "hx-" + method;
           if (el.hasAttribute(attr)) {
             var originalUrl = el.getAttribute(attr);
-            log("Original URL: " + originalUrl);
+            Debug.info("Original URL: " + originalUrl);
 
             var prepend = findAttributeInParents(el, "fp-prepend");
             var append = findAttributeInParents(el, "fp-append");
@@ -16149,12 +16310,12 @@ var FlowPlater = (function () {
             }
 
             el.setAttribute(attr, modifiedUrl);
-            log("Modified URL: " + modifiedUrl);
+            Debug.info("Modified URL: " + modifiedUrl);
 
             if (modifiedUrl !== originalUrl) {
-              log("Modification successful for", method, "on element", el);
+              Debug.info("Modification successful for", method, "on element", el);
             } else {
-              errorLog$1("Modification failed for", method, "on element", el);
+              Debug.error("Modification failed for", method, "on element", el);
             }
           }
         });
@@ -16170,7 +16331,7 @@ var FlowPlater = (function () {
       }
       return element;
     } catch (error) {
-      errorLog$1(`Error in processUrlAffixes: ${error.message}`);
+      Debug.error(`Error in processUrlAffixes: ${error.message}`);
       return element;
     }
   }
@@ -16193,7 +16354,7 @@ var FlowPlater = (function () {
       }
       return element;
     } catch (error) {
-      Debug.log(Debug.levels.ERROR, `Error in setupAnimation: ${error.message}`);
+      Debug.error(`Error in setupAnimation: ${error.message}`);
       return element;
     }
   }
@@ -16207,14 +16368,11 @@ var FlowPlater = (function () {
         // Add flowplater to hx-ext
         var newExt = currentExt ? currentExt + ", flowplater" : "flowplater";
         element.setAttribute("hx-ext", newExt);
-        Debug.log(Debug.levels.INFO, "Added hx-ext attribute to " + element.id);
+        Debug.info("Added hx-ext attribute to " + element.id);
       }
       return element;
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error in addHtmxExtensionAttribute: ${error.message}`,
-      );
+      Debug.info(`Error in addHtmxExtensionAttribute: ${error.message}`);
       return element;
     }
   }
@@ -16259,7 +16417,8 @@ var FlowPlater = (function () {
     debug: {
       level:
         window.location.hostname.endsWith(".webflow.io") ||
-        window.location.hostname.endsWith(".canvas.webflow.com")
+        window.location.hostname.endsWith(".canvas.webflow.com") ||
+        window.location.hostname.endsWith("localhost")
           ? 3
           : 1,
     },
@@ -16407,8 +16566,7 @@ var FlowPlater = (function () {
             });
 
             // Log the error
-            Debug.log(
-              Debug.levels.ERROR,
+            Debug.error(
               `Error in processor ${processor.name}: ${error.message}`,
               error,
             );
@@ -16489,12 +16647,7 @@ var FlowPlater = (function () {
     },
 
     // Log levels for use with the log method
-    logLevels: {
-      ERROR: Debug.levels.ERROR,
-      WARN: Debug.levels.WARN,
-      INFO: Debug.levels.INFO,
-      DEBUG: Debug.levels.DEBUG,
-    },
+    logLevels: Debug.levels,
 
     // Plugin management methods
     registerPlugin(plugin) {
@@ -16547,10 +16700,7 @@ var FlowPlater = (function () {
         if (Object.keys(cache).length >= cacheSize) {
           const oldestKey = Object.keys(cache)[0];
           delete cache[oldestKey];
-          Debug.log(
-            Debug.levels.INFO,
-            `Cache limit reached. Removed template: ${oldestKey}`,
-          );
+          Debug.info(`Cache limit reached. Removed template: ${oldestKey}`);
         }
 
         // Add new template to cache
@@ -16586,13 +16736,10 @@ var FlowPlater = (function () {
       clear: function (templateId) {
         if (templateId) {
           delete _state.templateCache[templateId];
-          Debug.log(
-            Debug.levels.INFO,
-            `Cleared template cache for: ${templateId}`,
-          );
+          Debug.info(`Cleared template cache for: ${templateId}`);
         } else {
           _state.templateCache = {};
-          Debug.log(Debug.levels.INFO, "Cleared entire template cache");
+          Debug.info("Cleared entire template cache");
         }
       },
 
@@ -16614,10 +16761,18 @@ var FlowPlater = (function () {
      * Processes templates, loads configuration, and sets up event handling.
      */
     init: function (element = document, options = { render: true }) {
-      Performance.start("init");
-      Debug.log(Debug.levels.INFO, "Initializing FlowPlater...");
+      // If already initialized, just process the element
+      if (_state.initialized) {
+        if (element !== document) {
+          process(element);
+        }
+        return this;
+      }
 
-      // Process any templates on the page
+      Performance.start("init");
+      Debug.info("Initializing FlowPlater...");
+
+      // Process templates and set up initial state
       const templates = document.querySelectorAll("[fp-template]");
       templates.forEach((template) => {
         let templateId = template.getAttribute("fp-template");
@@ -16630,7 +16785,7 @@ var FlowPlater = (function () {
           // template.innerHTML = template.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
           const templateElement = document.querySelector(templateId);
           if (templateElement) {
-            log("replacing template content", templateElement);
+            Debug.info("replacing template content", templateElement);
 
             const scriptTags = templateElement.getElementsByTagName("script");
             const scriptContents = Array.from(scriptTags).map(
@@ -16693,8 +16848,7 @@ var FlowPlater = (function () {
               );
             }
 
-            Debug.log(
-              Debug.levels.DEBUG,
+            Debug.debug(
               `[Template ${templateId}] Has request method: ${hasRequestMethod}`,
               template,
             );
@@ -16714,8 +16868,7 @@ var FlowPlater = (function () {
                 template.getAttribute("fp-instance") || template.id || templateId;
               const storedData = loadFromLocalStorage(instanceName, "instance");
               if (storedData) {
-                Debug.log(
-                  Debug.levels.INFO,
+                Debug.info(
                   `Found stored data for instance: ${instanceName}, rendering with stored data`,
                 );
                 // Instead of directly setting data, use render with the stored data
@@ -16729,15 +16882,14 @@ var FlowPlater = (function () {
                   isStoredDataRender: true, // Flag to bypass redundant init check
                 });
               } else {
-                Debug.log(
-                  Debug.levels.DEBUG,
+                Debug.debug(
                   `Skipping initial render for instance: ${instanceName} - no stored data found`,
                 );
               }
             }
           }
         } else {
-          errorLog$1(
+          Debug.error(
             `No template ID found for element: ${template.id}`,
             template,
             "Make sure your template has an ID attribute",
@@ -16746,16 +16898,34 @@ var FlowPlater = (function () {
       });
 
       process(element);
-      Debug.log(Debug.levels.INFO, "FlowPlater initialized successfully");
+
+      // Mark as initialized and ready
+      _state.initialized = true;
+      _readyState.isReady = true;
+
+      Debug.info("FlowPlater initialized successfully");
       Performance.end("init");
 
-      // Set initialized flag
-      _state.initialized = true;
+      // Process any queued operations
+      _readyState.processQueue();
 
       EventSystem.publish("initialized");
-
-      // Execute initComplete hook after everything is done
       this.PluginManager.executeHook("initComplete", this, _state.instances);
+
+      return this;
+    },
+
+    /**
+     * @function ready
+     * @param {Function} callback - Function to execute when FlowPlater is ready
+     * @returns {FlowPlaterObj} The FlowPlater instance
+     */
+    ready: function (callback) {
+      if (_readyState.isReady) {
+        callback(this);
+      } else {
+        _readyState.queue.push(() => callback(this));
+      }
       return this;
     },
 
@@ -16781,14 +16951,15 @@ var FlowPlater = (function () {
 
           // Remove instance
           delete _state.instances[instanceName];
-          log(`Cleaned up instance: ${instanceName}`);
+          Debug.info(`Cleaned up instance: ${instanceName}`);
         }
       } else {
         // Clean up all instances
         Object.keys(_state.instances).forEach((name) => {
           this.cleanup(name);
         });
-        log("Cleaned up all instances");
+        _state.initialized = false;
+        Debug.info("Cleaned up all instances");
       }
       return this;
     },
@@ -16850,7 +17021,7 @@ var FlowPlater = (function () {
         setCustomTags(newConfig.customTags);
       }
 
-      Debug.log(Debug.levels.INFO, "FlowPlater configured with:", _state.config);
+      Debug.info("FlowPlater configured with:", _state.config);
 
       return this;
     },
@@ -16888,7 +17059,7 @@ var FlowPlater = (function () {
       });
 
       // Log the registration
-      Debug.log(Debug.levels.INFO, `Registered Handlebars helper: ${name}`);
+      Debug.info(`Registered Handlebars helper: ${name}`);
 
       return this;
     },
@@ -16911,7 +17082,7 @@ var FlowPlater = (function () {
       // Clean up event listeners
       EventSystem.unsubscribeAll();
 
-      log("Cleaned up all instances");
+      Debug.info("Cleaned up all instances");
     },
 
     /**
@@ -16924,10 +17095,7 @@ var FlowPlater = (function () {
      */
     create: function (instanceName, options = { refresh: true }) {
       Performance.start(`createInstance:${instanceName}`);
-      Debug.log(
-        Debug.levels.INFO,
-        `Creating FlowPlater instance: ${instanceName}`,
-      );
+      Debug.info(`Creating FlowPlater instance: ${instanceName}`);
 
       // Find the element
       let element;
@@ -16965,10 +17133,7 @@ var FlowPlater = (function () {
         instance.refresh();
       }
 
-      Debug.log(
-        Debug.levels.INFO,
-        `Instance created successfully: ${instanceName}`,
-      );
+      Debug.info(`Instance created successfully: ${instanceName}`);
       Performance.end(`createInstance:${instanceName}`);
 
       return instance;
@@ -17024,7 +17189,7 @@ var FlowPlater = (function () {
         ...metaConfig,
       };
     } catch (e) {
-      errorLog$1(
+      Debug.error(
         "Error parsing fp-config meta tag:",
         metaElement,
         "Make sure your meta tag is valid",
@@ -17041,26 +17206,12 @@ var FlowPlater = (function () {
 
   /**
    * @description Automatically initializes FlowPlater when the DOM is ready.
-   * Uses a small timeout to ensure proper initialization after other scripts.
+   * Uses the ready state system to ensure proper initialization order.
    */
   if (document.readyState === "complete" || document.readyState !== "loading") {
-    setTimeout(() => {
-      try {
-        FlowPlater.init();
-      } catch (error) {
-        errorLog$1("FlowPlater initialization failed:", error);
-      }
-    }, 1);
+    FlowPlaterObj.init();
   } else {
-    document.addEventListener("DOMContentLoaded", function () {
-      setTimeout(() => {
-        try {
-          FlowPlater.init();
-        } catch (error) {
-          errorLog$1("FlowPlater initialization failed:", error);
-        }
-      }, 1);
-    });
+    document.addEventListener("DOMContentLoaded", () => FlowPlaterObj.init());
   }
 
   return FlowPlaterObj;

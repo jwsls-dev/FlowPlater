@@ -20,10 +20,7 @@ export const FormStateManager = {
     try {
       // Skip if already restoring
       if (this.isRestoringFormStates) {
-        Debug.log(
-          Debug.levels.DEBUG,
-          "Already restoring form states, skipping",
-        );
+        Debug.debug("Already restoring form states, skipping");
         return;
       }
 
@@ -33,10 +30,7 @@ export const FormStateManager = {
         this.restoreSingleFormState(form, source),
       );
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error restoring form states: ${error.message}`,
-      );
+      Debug.error(`Error restoring form states: ${error.message}`);
     } finally {
       this.isRestoringFormStates = false;
     }
@@ -54,10 +48,7 @@ export const FormStateManager = {
     // Try to get state from storage
     const formState = this.handleFormStorage(form, null, "load");
     if (!formState) {
-      Debug.log(
-        Debug.levels.DEBUG,
-        `No stored state found for form: ${form.id}`,
-      );
+      Debug.debug(`No stored state found for form: ${form.id}`);
       return false;
     }
 
@@ -83,20 +74,16 @@ export const FormStateManager = {
     });
 
     // Single debug log with all information
-    Debug.log(
-      Debug.levels.DEBUG,
-      `Form state restoration summary for ${form.id}`,
-      {
-        storageType: debugInfo.storageType,
-        source: source || "unknown",
-        restoredElements: debugInfo.restoredElements.map((el) => ({
-          name: el.name,
-          value: el.value,
-        })),
-        updatedCustomVisualStates: debugInfo.customVisualUpdates,
-        skippedElements: debugInfo.skippedElements,
-      },
-    );
+    Debug.debug(`Form state restoration summary for ${form.id}`, {
+      storageType: debugInfo.storageType,
+      source: source || "unknown",
+      restoredElements: debugInfo.restoredElements.map((el) => ({
+        name: el.name,
+        value: el.value,
+      })),
+      updatedCustomVisualStates: debugInfo.customVisualUpdates,
+      skippedElements: debugInfo.skippedElements,
+    });
 
     // Emit event after restoration
     EventSystem.publish("formState:afterRestore", {
@@ -125,10 +112,7 @@ export const FormStateManager = {
         formElement: form,
       });
     } catch (error) {
-      Debug.log(
-        Debug.levels.ERROR,
-        `Error clearing form state: ${error.message}`,
-      );
+      Debug.error(`Error clearing form state: ${error.message}`);
     }
   },
 

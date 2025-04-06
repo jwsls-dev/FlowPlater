@@ -38,9 +38,20 @@ var DataExtractorPlugin = (function () {
        * @returns {Object} Extracted data as JSON
        */
       processHtml(html) {
+        FlowPlater.log(
+          FlowPlater.logLevels.DEBUG,
+          "[DataExtractor] Processing HTML:",
+          html,
+        );
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
-        return instanceMethods.extractData(doc.body) || {};
+        const result = instanceMethods.extractData(doc.body) || {};
+        FlowPlater.log(
+          FlowPlater.logLevels.DEBUG,
+          "[DataExtractor] Extraction result:",
+          result,
+        );
+        return result;
       },
     };
 
@@ -51,53 +62,57 @@ var DataExtractorPlugin = (function () {
        * @returns {Object} The extracted data as a JSON object
        */
       extractData(element) {
-        if (!element) return null;
-
-        // Get all direct children with fp-data attribute
-        const dataElements = Array.from(element.children).filter((child) =>
-          child.hasAttribute("fp-data"),
-        );
-
-        // If no data elements found, return null
-        if (dataElements.length === 0) return null;
-
-        // Group elements by their fp-data value
-        const groupedElements = dataElements.reduce((acc, elem) => {
-          const key = elem.getAttribute("fp-data") || "";
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(elem);
-          return acc;
-        }, {});
-
-        // Process each group
-        const result = {};
-        for (const [key, elements] of Object.entries(groupedElements)) {
-          if (elements.length === 1) {
-            // Single element - process as object
-            const element = elements[0];
-            const children = Array.from(element.children).filter((child) =>
-              child.hasAttribute("fp-data"),
-            );
-
-            if (children.length > 0) {
-              // Has children with fp-data - process recursively
-              result[key] = this.extractData(element);
-            } else {
-              // Leaf node - get text content
-              result[key] = element.textContent.trim();
-            }
-          } else {
-            // Multiple elements with same key - process as array
-            result[key] = elements.map((elem) => {
-              const children = Array.from(elem.children).filter((child) =>
-                child.hasAttribute("fp-data"),
-              );
-              return children.length > 0
-                ? this.extractData(elem)
-                : elem.textContent.trim();
-            });
-          }
+        if (!element) {
+          FlowPlater.log(
+            FlowPlater.logLevels.DEBUG,
+            "[DataExtractor] No element provided",
+          );
+          return null;
         }
+
+        // First handle if this element has fp-data
+        if (element.hasAttribute("fp-data")) {
+          const key = element.getAttribute("fp-data");
+
+          // Check for span children with fp-data
+          const spans = element.querySelectorAll("span[fp-data]");
+          if (spans.length > 0) {
+            // Process all spans
+            const data = {};
+            spans.forEach((span) => {
+              const spanKey = span.getAttribute("fp-data");
+              data[spanKey] = span.textContent.trim();
+            });
+            return { [key]: data };
+          }
+
+          // No spans, return the element's text content
+          return { [key]: element.textContent.trim() };
+        }
+
+        // Look for any elements with fp-data
+        const dataElements = element.querySelectorAll("[fp-data]");
+
+        if (dataElements.length === 0) {
+          FlowPlater.log(
+            FlowPlater.logLevels.INFO,
+            "[DataExtractor] No data elements found",
+          );
+          return {};
+        }
+
+        // Process root level elements with fp-data
+        const result = {};
+        dataElements.forEach((el) => {
+          if (el.parentElement.hasAttribute("fp-data")) {
+            // Skip nested elements, they'll be handled by their parent
+            return;
+          }
+          const extracted = this.extractData(el);
+          if (extracted) {
+            Object.assign(result, extracted);
+          }
+        });
 
         return result;
       },

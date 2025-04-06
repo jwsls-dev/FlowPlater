@@ -19,7 +19,7 @@ export function setupAnimation(element) {
     }
     return element;
   } catch (error) {
-    Debug.log(Debug.levels.ERROR, `Error in setupAnimation: ${error.message}`);
+    Debug.error(`Error in setupAnimation: ${error.message}`);
     return element;
   }
 }

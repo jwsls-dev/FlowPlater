@@ -26,17 +26,24 @@ export const Debug = (function () {
         }
       }
     },
+
+    error: function (...args) {
+      this.log(this.levels.ERROR, ...args);
+    },
+
+    warn: function (...args) {
+      this.log(this.levels.WARN, ...args);
+    },
+
+    info: function (...args) {
+      this.log(this.levels.INFO, ...args);
+    },
+
+    debug: function (...args) {
+      this.log(this.levels.DEBUG, ...args);
+    },
   };
 })();
-
-// Helper functions
-export function log(...args) {
-  Debug.log(Debug.levels.INFO, ...args);
-}
-
-export function errorLog(...args) {
-  Debug.log(Debug.levels.ERROR, ...args);
-}
 
 export class FlowPlaterError extends Error {
   constructor(message, stack) {

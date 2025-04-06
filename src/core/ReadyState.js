@@ -21,20 +21,13 @@ export const _readyState = {
    * Process all queued functions in order
    */
   processQueue() {
-    Debug.log(
-      Debug.levels.DEBUG,
-      `Processing ${this.queue.length} queued operations`,
-    );
+    Debug.debug(`Processing ${this.queue.length} queued operations`);
     while (this.queue.length > 0) {
       const fn = this.queue.shift();
       try {
         fn();
       } catch (error) {
-        Debug.log(
-          Debug.levels.ERROR,
-          "Error processing queued operation:",
-          error,
-        );
+        Debug.error("Error processing queued operation:", error);
       }
     }
   },
@@ -48,7 +41,7 @@ export const _readyState = {
       try {
         fn();
       } catch (error) {
-        Debug.log(Debug.levels.ERROR, "Error executing operation:", error);
+        Debug.error("Error executing operation:", error);
       }
     } else {
       this.queue.push(fn);
@@ -61,10 +54,7 @@ export const _readyState = {
   markReady() {
     // If no plugins have been registered at all, that's fine
     if (this.plugins.size === 0 && !this.hasPluginsRegistered) {
-      Debug.log(
-        Debug.levels.INFO,
-        "No plugins registered, proceeding with initialization",
-      );
+      Debug.info("No plugins registered, proceeding with initialization");
     }
 
     this.isReady = true;
@@ -78,8 +68,7 @@ export const _readyState = {
   registerPlugin(pluginName) {
     this.hasPluginsRegistered = true;
     this.plugins.add(pluginName);
-    Debug.log(
-      Debug.levels.DEBUG,
+    Debug.debug(
       `Plugin registered: ${pluginName}, total plugins: ${this.plugins.size}`,
     );
   },
@@ -92,24 +81,19 @@ export const _readyState = {
   unregisterPlugin(pluginName) {
     const wasRemoved = this.plugins.delete(pluginName);
     if (wasRemoved) {
-      Debug.log(
-        Debug.levels.DEBUG,
+      Debug.debug(
         `Plugin unregistered: ${pluginName}, remaining plugins: ${this.plugins.size}`,
       );
 
       // If this was the last plugin and we're resetting, update hasPluginsRegistered
       if (this.plugins.size === 0) {
         this.hasPluginsRegistered = false;
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           "All plugins unregistered, reset plugin registration state",
         );
       }
     } else {
-      Debug.log(
-        Debug.levels.WARN,
-        `Attempted to unregister non-existent plugin: ${pluginName}`,
-      );
+      Debug.warn(`Attempted to unregister non-existent plugin: ${pluginName}`);
     }
     return wasRemoved;
   },
@@ -127,15 +111,11 @@ export const _readyState = {
     // Only reset ready status if explicitly requested
     if (!maintainReadyStatus) {
       this.isReady = false;
-      Debug.log(
-        Debug.levels.INFO,
+      Debug.info(
         "ReadyState completely reset, FlowPlater needs re-initialization",
       );
     } else {
-      Debug.log(
-        Debug.levels.INFO,
-        "ReadyState reset but maintains ready status for new plugins",
-      );
+      Debug.info("ReadyState reset but maintains ready status for new plugins");
     }
   },
 
@@ -145,6 +125,6 @@ export const _readyState = {
    */
   cleanup() {
     this.reset(false);
-    Debug.log(Debug.levels.INFO, "FlowPlater ReadyState cleaned up completely");
+    Debug.info("FlowPlater ReadyState cleaned up completely");
   },
 };

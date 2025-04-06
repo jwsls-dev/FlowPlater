@@ -24,7 +24,7 @@ export function translateCustomHTMXAttributes(element) {
     });
     return element;
   } catch (error) {
-    errorLog(`Error in translateCustomHTMXAttributes: ${error.message}`);
+    Debug.error(`Error in translateCustomHTMXAttributes: ${error.message}`);
     return element;
   }
 }

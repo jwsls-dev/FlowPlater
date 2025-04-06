@@ -1,4 +1,4 @@
-import { Debug, log, errorLog } from "../core/Debug";
+import { Debug } from "../core/Debug";
 
 export function processUrlAffixes(element) {
   try {
@@ -19,7 +19,7 @@ export function processUrlAffixes(element) {
         var attr = "hx-" + method;
         if (el.hasAttribute(attr)) {
           var originalUrl = el.getAttribute(attr);
-          log("Original URL: " + originalUrl);
+          Debug.info("Original URL: " + originalUrl);
 
           var prepend = findAttributeInParents(el, "fp-prepend");
           var append = findAttributeInParents(el, "fp-append");
@@ -33,12 +33,12 @@ export function processUrlAffixes(element) {
           }
 
           el.setAttribute(attr, modifiedUrl);
-          log("Modified URL: " + modifiedUrl);
+          Debug.info("Modified URL: " + modifiedUrl);
 
           if (modifiedUrl !== originalUrl) {
-            log("Modification successful for", method, "on element", el);
+            Debug.info("Modification successful for", method, "on element", el);
           } else {
-            errorLog("Modification failed for", method, "on element", el);
+            Debug.error("Modification failed for", method, "on element", el);
           }
         }
       });
@@ -54,7 +54,7 @@ export function processUrlAffixes(element) {
     }
     return element;
   } catch (error) {
-    errorLog(`Error in processUrlAffixes: ${error.message}`);
+    Debug.error(`Error in processUrlAffixes: ${error.message}`);
     return element;
   }
 }

@@ -1,5 +1,5 @@
 import { _state } from "./State";
-import { Debug, log, errorLog } from "./Debug";
+import { Debug } from "./Debug";
 import { EventSystem } from "./EventSystem";
 import { compileTemplate, memoizedCompile } from "./TemplateCompiler";
 import { updateDOM } from "../utils/UpdateDom";
@@ -16,7 +16,7 @@ export function instanceMethods(instanceName) {
   function _resolvePath(path) {
     const instance = _state.instances[instanceName];
     if (!instance) {
-      errorLog("Instance not found: " + instanceName);
+      Debug.error("Instance not found: " + instanceName);
       return undefined;
     }
 
@@ -39,11 +39,7 @@ export function instanceMethods(instanceName) {
 
   function _validateData(data) {
     if (typeof data === "string" && data.trim().startsWith("<!DOCTYPE")) {
-      Debug.log(
-        Debug.levels.DEBUG,
-        "Data is HTML, skipping validation",
-        instanceName,
-      );
+      Debug.debug("Data is HTML, skipping validation", instanceName);
       return { valid: true, isHtml: true };
     }
 
@@ -56,7 +52,7 @@ export function instanceMethods(instanceName) {
       return { valid: true, isHtml: false };
     }
 
-    errorLog("Invalid data type: " + typeof data);
+    Debug.error("Invalid data type: " + typeof data);
     return { valid: false, isHtml: false };
   }
 
@@ -67,7 +63,7 @@ export function instanceMethods(instanceName) {
     _updateDOM: function () {
       const instance = _state.instances[instanceName];
       if (!instance) {
-        errorLog("Instance not found: " + instanceName);
+        Debug.error("Instance not found: " + instanceName);
         return;
       }
 
@@ -83,8 +79,7 @@ export function instanceMethods(instanceName) {
           // For "self" template, use the first element as the template
           const templateElement = Array.from(instance.elements)[0];
           if (!templateElement) {
-            Debug.log(
-              Debug.levels.ERROR,
+            Debug.error(
               "No template element found for self template",
               instance.instanceName,
             );
@@ -92,11 +87,7 @@ export function instanceMethods(instanceName) {
           }
           rendered = templateElement.innerHTML;
         } else if (!instance.template) {
-          Debug.log(
-            Debug.levels.ERROR,
-            "No template found for instance",
-            instance.instanceName,
-          );
+          Debug.error("No template found for instance", instance.instanceName);
           return;
         } else {
           // Apply plugin transformations to the data before rendering
@@ -109,7 +100,7 @@ export function instanceMethods(instanceName) {
 
           // Use transformed data for reactive rendering
           rendered = instance.template(transformedData);
-          Debug.log(Debug.levels.DEBUG, "Rendered template with data:", {
+          Debug.debug("Rendered template with data:", {
             template: instance.templateId,
             data: transformedData,
             rendered: rendered,
@@ -122,8 +113,7 @@ export function instanceMethods(instanceName) {
         );
 
         if (activeElements.length === 0) {
-          Debug.log(
-            Debug.levels.ERROR,
+          Debug.error(
             "No active elements found for instance",
             instance.instanceName,
           );
@@ -134,8 +124,7 @@ export function instanceMethods(instanceName) {
           updateDOM(element, rendered, instance.animate, instance);
         });
       } catch (error) {
-        Debug.log(
-          Debug.levels.ERROR,
+        Debug.error(
           "Error updating DOM for instance",
           instance.instanceName,
           error,
@@ -152,14 +141,13 @@ export function instanceMethods(instanceName) {
     setData: function (newData) {
       const instance = _state.instances[instanceName];
       if (!instance) {
-        errorLog("Instance not found: " + instanceName);
+        Debug.error("Instance not found: " + instanceName);
         return this;
       }
 
       // If newData is an unnamed root object (no data property), wrap it
       if (!("data" in newData)) {
-        Debug.log(
-          Debug.levels.WARN,
+        Debug.warn(
           `[setData] Received unnamed root object, automatically wrapping in 'data' property`,
         );
         newData = { data: newData };
@@ -171,14 +159,15 @@ export function instanceMethods(instanceName) {
         newData === null ||
         Array.isArray(newData)
       ) {
-        errorLog("Invalid newData type provided to setData: " + typeof newData);
+        Debug.error(
+          "Invalid newData type provided to setData: " + typeof newData,
+        );
         return this;
       }
 
       const currentData = instance.data; // The proxy's target
 
-      Debug.log(
-        Debug.levels.DEBUG,
+      Debug.debug(
         `[setData] Replacing data for ${instanceName}. Current keys: ${Object.keys(
           currentData,
         ).join(", ")}, New keys: ${Object.keys(newData).join(", ")}`,
@@ -197,8 +186,7 @@ export function instanceMethods(instanceName) {
         }
       }
       if (deletedKeys.length > 0) {
-        Debug.log(
-          Debug.levels.DEBUG,
+        Debug.debug(
           `[setData] Deleted stale keys for ${instanceName}: ${deletedKeys.join(
             ", ",
           )}`,
@@ -209,8 +197,7 @@ export function instanceMethods(instanceName) {
       Object.assign(currentData, newData); // Triggers proxy set traps
       // --- End Reconciliation Logic ---
 
-      Debug.log(
-        Debug.levels.DEBUG,
+      Debug.debug(
         `[setData] Data replacement processing complete for ${instanceName}.`,
       );
 
@@ -240,7 +227,7 @@ export function instanceMethods(instanceName) {
           try {
             element.innerHTML = "";
           } catch (error) {
-            errorLog("Error removing instance: " + error.message);
+            Debug.error("Error removing instance: " + error.message);
           }
         });
 
@@ -256,7 +243,7 @@ export function instanceMethods(instanceName) {
           elements: [],
         });
 
-        log("Removed instance: " + instanceName);
+        Debug.info("Removed instance: " + instanceName);
         return true;
       } catch (error) {
         throw error;
@@ -268,7 +255,7 @@ export function instanceMethods(instanceName) {
     ) {
       const instance = _state.instances[instanceName];
       if (!instance) {
-        errorLog("Instance not found: " + instanceName);
+        Debug.error("Instance not found: " + instanceName);
         return Promise.reject(new Error("Instance not found: " + instanceName));
       }
 
@@ -281,7 +268,7 @@ export function instanceMethods(instanceName) {
         instance.template = compileTemplate(instance.templateId, true);
       }
 
-      Debug.log(Debug.levels.DEBUG, "Refresh - Template check:", {
+      Debug.debug("Refresh - Template check:", {
         templateId: instance.templateId,
         templateElement: document.querySelector(instance.templateId),
         compiledTemplate: instance.template(instance.data),
@@ -294,8 +281,7 @@ export function instanceMethods(instanceName) {
         if (localData) {
           Object.assign(instance.data, localData);
           hasLocalVarUpdate = true;
-          Debug.log(
-            Debug.levels.DEBUG,
+          Debug.debug(
             `Refreshed data from local variable "${instance.localVarName}"`,
           );
         }
@@ -346,7 +332,7 @@ export function instanceMethods(instanceName) {
           }
         } catch (error) {
           element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-          errorLog(`Failed to refresh template: ${error.message}`);
+          Debug.error(`Failed to refresh template: ${error.message}`);
           promises.push(Promise.reject(error));
         }
       });
@@ -372,7 +358,7 @@ export function instanceMethods(instanceName) {
       Performance.start("refreshTemplate:" + templateId);
       const compiledTemplate = compileTemplate(templateId, recompile);
       if (!compiledTemplate) {
-        errorLog("Failed to compile template: " + templateId);
+        Debug.error("Failed to compile template: " + templateId);
         Performance.end("refreshTemplate:" + templateId);
         return false;
       }

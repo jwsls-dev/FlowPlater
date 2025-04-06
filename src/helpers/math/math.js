@@ -64,7 +64,7 @@ export function mathHelper() {
       },
     );
 
-    Debug.log(Debug.levels.DEBUG, "Evaluating expression:", resolvedExpression);
+    Debug.debug("Evaluating expression:", resolvedExpression);
 
     try {
       // Evaluate the expression using jscalc

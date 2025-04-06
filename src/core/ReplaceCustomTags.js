@@ -1,5 +1,5 @@
 import { _state } from "./State.js";
-import { log } from "../core/Debug.js";
+import { Debug } from "../core/Debug.js";
 
 // Default customTags - can be overridden via meta config in init()
 export const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
@@ -36,7 +36,7 @@ export function replaceCustomTags(element) {
   }
 
   if (replaced) {
-    log("replaced custom tags", element);
+    Debug.info("replaced custom tags", element);
   }
 
   return element;

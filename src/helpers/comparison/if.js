@@ -66,7 +66,7 @@ export function ifHelper() {
       const rightValue = resolveValue(rightToken, options.data.root, this);
 
       // Log resolved values for debugging
-      Debug.log(Debug.levels.INFO, "Evaluating expression:", {
+      Debug.info("Evaluating expression:", {
         raw: expression,
         leftValue,
         operator,
@@ -85,11 +85,7 @@ export function ifHelper() {
     } catch (error) {
       // Log the error stack for better debugging
       if (!(error instanceof TemplateError)) {
-        Debug.log(
-          Debug.levels.ERROR,
-          "Error evaluating if condition:",
-          error.stack,
-        );
+        Debug.error("Error evaluating if condition:", error.stack);
       }
       throw error; // Re-throw to maintain error state
     }

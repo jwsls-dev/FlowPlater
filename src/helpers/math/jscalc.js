@@ -1,4 +1,4 @@
-import { errorLog } from "../../core/Debug";
+import { Debug } from "../../core/Debug";
 
 function* Lexer(expr) {
   var _regex = new RegExp(Lexer.lang, "g");
@@ -74,7 +74,7 @@ class Calc {
 
       return (Calc.ans = this.stack.pop());
     } catch (error) {
-      console.error("Error in expression evaluation:", error);
+      Debug.error("Error in expression evaluation:", error);
       throw error;
     }
   }
