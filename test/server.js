@@ -40,6 +40,39 @@ app.get("/flowplater", (req, res) => {
   }
 });
 
+// Serve all plugins or specific plugin
+app.get("/plugins/:pluginName?", (req, res) => {
+  try {
+    const pluginsDir = path.join(__dirname, "..", "dist", "plugins");
+
+    // If specific plugin requested
+    if (req.params.pluginName) {
+      const pluginPath = path.join(pluginsDir, `${req.params.pluginName}.js`);
+      if (fs.existsSync(pluginPath)) {
+        const script = fs.readFileSync(pluginPath, "utf8");
+        res.type("application/javascript");
+        return res.send(script);
+      }
+      return res.status(404).send(`Plugin ${req.params.pluginName} not found`);
+    }
+
+    // If no specific plugin, serve all plugins
+    const pluginFiles = fs
+      .readdirSync(pluginsDir)
+      .filter((file) => file.endsWith(".js"));
+
+    const combinedPlugins = pluginFiles
+      .map((file) => fs.readFileSync(path.join(pluginsDir, file), "utf8"))
+      .join("\n");
+
+    res.type("application/javascript");
+    res.send(combinedPlugins);
+  } catch (error) {
+    console.error("Error serving plugin(s):", error);
+    res.status(500).send("Error loading plugin(s)");
+  }
+});
+
 // Dynamic file route
 app.get("/:filename", (req, res) => {
   const filename = req.params.filename;
