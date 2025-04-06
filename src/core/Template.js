@@ -228,31 +228,41 @@ export function render({
     // --- End Setup ---
 
     // 2. Create the proxy with the final merged data and DEBOUNCED update handler
-    const DEBOUNCE_DELAY = 50; // ms - slightly longer to avoid duplicate updates
+    const DEBOUNCE_DELAY = 50;
+
+    // Helper function to filter out temporary calculation results
+    function filterTemporaryState(state) {
+      // Return early if state is null, undefined, or not an object
+      if (!state || typeof state !== "object") return {};
+
+      // Handle arrays separately
+      if (Array.isArray(state)) {
+        return state.map((item) => filterTemporaryState(item));
+      }
+
+      // Create a shallow copy of the state
+      const filtered = { ...state };
+
+      // Remove any temporary calculation results and internal properties
+      delete filtered._calc;
+      delete filtered._temp;
+      delete filtered._stateBeforeDebounce;
+      delete filtered._updateTimer;
+
+      // Recursively filter nested objects
+      for (const key in filtered) {
+        if (filtered[key] && typeof filtered[key] === "object") {
+          filtered[key] = filterTemporaryState(filtered[key]);
+        }
+      }
+      return filtered;
+    }
+
     proxy = createDeepProxy(finalInitialData, (target) => {
       if (instance) {
-        // -- Debounce Logic --
-        // Capture state *before* the first change in this debounce cycle
-        // This is crucial for comparing changes accurately after the debounce.
-        if (instance._updateTimer === null) {
-          // Only capture if no timer is currently set
-          try {
-            // Use a deep clone to prevent the captured state from being mutated
-            // before the setTimeout callback runs.
-            instance._stateBeforeDebounce = JSON.parse(JSON.stringify(proxy));
-            Debug.debug(
-              `[Debounce Start] Captured pre-debounce state for ${instanceName}:`,
-              instance._stateBeforeDebounce, // Log the actual captured object
-            );
-          } catch (e) {
-            Debug.error(
-              `[Debounce Start] Failed to capture pre-debounce state for ${instanceName}:`,
-              e,
-            );
-            // If cloning fails, set to null to potentially prevent errors in trackChanges
-            // though trackChanges might still fail if it receives null.
-            instance._stateBeforeDebounce = null;
-          }
+        // Skip if we're currently evaluating a template
+        if (instance._isEvaluating) {
+          return;
         }
 
         // Clear existing timer
@@ -260,68 +270,63 @@ export function render({
 
         // Schedule the update
         instance._updateTimer = setTimeout(() => {
-          // ** USE STATE CAPTURED BEFORE DEBOUNCE **
-          const stateBefore = instance._stateBeforeDebounce;
-          const stateAfter = proxy;
+          try {
+            // Set flag to prevent recursive updates during evaluation
+            instance._isEvaluating = true;
 
-          const jsonStateBefore = JSON.parse(JSON.stringify(stateBefore));
-          const jsonStateAfter = JSON.parse(JSON.stringify(stateAfter));
-
-          // 1. Basic Change Check (Optional but Recommended)
-          // Avoid firing hooks if state hasn't actually changed.
-          // Using simple stringify comparison - replace with deepEqual if needed & imported.
-          const stateChanged =
-            JSON.stringify(jsonStateBefore) !== JSON.stringify(jsonStateAfter);
-
-          // 2. Execute Hooks/Events with Full States
-          if (stateChanged) {
-            Debug.info(
-              `[Debounced Update] State changed for ${instanceName}. Firing updateData hook.`,
+            // Get the current rendered output
+            const transformedData = PluginManager.applyTransformations(
+              instance,
+              proxy,
+              "transformDataBeforeRender",
+              "json",
             );
-            // Pass the full old and new states
-            PluginManager.executeHook("updateData", instance, {
-              newData: jsonStateAfter, // Current state
-              oldData: jsonStateBefore, // State before changes
-              source: "proxy",
-            });
-            EventSystem.publish("updateData", {
-              instanceName,
-              newData: jsonStateAfter,
-              oldData: jsonStateBefore,
-              source: "proxy",
-            });
-          } else {
-            Debug.debug(
-              `[Debounced Update] No state change detected for ${instanceName}. Skipping updateData hook.`,
-            );
+            const newRenderedOutput = instance.template(transformedData);
+
+            // Compare with previous render
+            if (instance._lastRenderedOutput !== newRenderedOutput) {
+              Debug.info(
+                `[Debounced Update] Output changed for ${instanceName}. Firing updateData hook.`,
+              );
+
+              // Execute hooks with current state
+              PluginManager.executeHook("updateData", instance, {
+                newData: proxy,
+                source: "proxy",
+              });
+              EventSystem.publish("updateData", {
+                instanceName,
+                newData: proxy,
+                source: "proxy",
+              });
+
+              // Update DOM since output changed
+              Debug.debug(
+                `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
+              );
+              instance._updateDOM();
+
+              // Save the new rendered output
+              instance._lastRenderedOutput = newRenderedOutput;
+
+              // Save to storage if enabled
+              if (_state.config?.storage?.enabled) {
+                const storageId = instance.instanceName.replace("#", "");
+                Debug.debug(`[Debounced Update] Saving data for ${storageId}`);
+                saveToLocalStorage(storageId, proxy, "instance");
+              }
+            } else {
+              Debug.debug(
+                `[Debounced Update] No output change for ${instanceName}. Skipping update.`,
+              );
+            }
+          } finally {
+            // Always clear the evaluation flag
+            instance._isEvaluating = false;
+            // Clear timer
+            instance._updateTimer = null;
           }
-
-          // 3. Update DOM
-          Debug.debug(
-            `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
-          );
-
-          instance._updateDOM();
-
-          // 4. Save to storage
-          // Get the correct instance name and sanitize it for the key
-          const storageId = instance.instanceName.replace("#", "");
-          Debug.debug(
-            `[Debounced Update] Saving root proxy object for ${storageId}.`,
-          );
-          if (_state.config?.storage?.enabled) {
-            saveToLocalStorage(
-              storageId,
-              stateAfter, // Save the data directly, not wrapped in an object
-              "instance",
-            );
-          }
-
-          // Clear timer and pre-debounce state reference after execution
-          instance._updateTimer = null;
-          instance._stateBeforeDebounce = null;
         }, DEBOUNCE_DELAY);
-        // -- End Debounce Logic --
       }
     });
 
