@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multiple Target Elements Test</title>
+    <style>
+        .test-case {
+            margin: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        .data-source {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .result {
+            margin-top: 10px;
+        }
+        .user-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px;
+            display: inline-block;
+            width: 200px;
+        }
+        .user-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .target-container {
+            border: 2px dashed #666;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .target-container h3 {
+            margin-top: 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Multiple Target Elements Test Cases</h1>
+
+    <!-- Template Definition -->
+    <script id="user-card-template" type="text/x-handlebars-template">
+        <div class="user-card">
+            <h3>{{name}}</h3>
+            <p><strong>Email:</strong> {{email}}</p>
+            <p><strong>Role:</strong> {{role}}</p>
+        </div>
+    </script>
+
+    <!-- Multiple elements sharing the same instance -->
+    <div fp-instance="shared-instance" 
+         fp-template="#user-card-template" 
+         fp-local="userData">Target 1</div>
+
+    <div fp-instance="shared-instance" 
+         fp-template="#user-card-template">Target 2</div>
+
+    <div fp-instance="shared-instance" 
+         fp-template="#user-card-template">Target 3</div>
+
+    <!-- Test with array data -->
+    <div id="user-list-template">
+            <each fp="users">
+                <div class="user-card">
+                    <h3>{{name}}</h3>
+                    <p><strong>Email:</strong> {{email}}</p>
+                    <p><strong>Role:</strong> {{role}}</p>
+                    <if fp="isAdmin">
+                        <p class="admin-badge">Administrator</p>
+                        <else>
+                            <p class="user-badge">Regular User</p>
+                        </else>
+                    </if>
+                </div>
+            </each>
+    </div>
+
+    <div fp-instance="list-instance" 
+         fp-template="#user-list-template" 
+         fp-local="users">List View 1</div>
+
+    <!-- <div fp-instance="list-instance" 
+         fp-template="#user-list-template">List View 2</div> -->
+
+    <script>
+        // Test data
+        var userData = {
+            name: "John Doe",
+            email: "john@example.com",
+            role: "admin"
+        };
+
+        var users = [
+            {
+                name: "John Doe",
+                email: "john@example.com",
+                role: "admin",
+                isAdmin: true
+            },
+            {
+                name: "Jane Smith",
+                email: "jane@example.com",
+                role: "editor",
+                isAdmin: false
+            },
+            {
+                name: "Foo Bar",
+                email: "foo@example.com",
+                role: "user",
+                isAdmin: false
+            }
+        ];
+
+        // Initialize FlowPlater after DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            FlowPlater.init();
+        });
+    </script>
+    <script src="/flowplater"></script>
+</body>
+</html> 
