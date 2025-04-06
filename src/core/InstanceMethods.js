@@ -152,7 +152,16 @@ export function instanceMethods(instanceName) {
       const instance = _state.instances[instanceName];
       if (!instance) {
         errorLog("Instance not found: " + instanceName);
-        return this; // Return instance for chaining?
+        return this;
+      }
+
+      // If newData is an unnamed root object (no data property), wrap it
+      if (!("data" in newData)) {
+        Debug.log(
+          Debug.levels.WARN,
+          `[setData] Received unnamed root object, automatically wrapping in 'data' property`,
+        );
+        newData = { data: newData };
       }
 
       // Validate newData type (allow empty objects)
