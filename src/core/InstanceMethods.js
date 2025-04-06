@@ -146,9 +146,13 @@ export function instanceMethods(instanceName) {
       }
 
       // If newData is an unnamed root object (no data property), wrap it
-      if (!("data" in newData)) {
+      if (
+        typeof newData === "string" ||
+        typeof newData === "number" ||
+        Array.isArray(newData)
+      ) {
         Debug.warn(
-          `[setData] Received unnamed root object, automatically wrapping in 'data' property`,
+          `[setData] Received raw value or unnamed root object, automatically wrapping in 'data' property`,
         );
         newData = { data: newData };
       }
