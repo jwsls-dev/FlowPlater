@@ -48,27 +48,27 @@ export const RequestHandler = {
         break;
 
       case "process":
-        if (
-          currentInfo &&
-          currentInfo.requestId === requestId &&
-          !currentInfo.processed
-        ) {
+        // Mark as processed during HTMX transformResponse
+        if (currentInfo && currentInfo.requestId === requestId) {
           currentInfo.processed = true;
           this.processingElements.set(target, currentInfo);
+          Debug.debug(
+            `Marked request ${requestId} as processed for ${
+              target.id || "unknown"
+            }`,
+          );
           return true;
         }
         return false;
 
       case "cleanup":
-        if (
-          currentInfo &&
-          currentInfo.requestId === requestId &&
-          currentInfo.processed
-        ) {
+        // Always clean up if we have the same requestId, regardless of processed state
+        // This ensures cleanup happens even if group updates are still in progress
+        if (currentInfo && currentInfo.requestId === requestId) {
           this.processingElements.delete(target);
           Debug.debug("Cleaned up after request", target, requestId);
         } else {
-          Debug.debug("Skipping cleanup - request mismatch or not processed", {
+          Debug.debug("Skipping cleanup - request mismatch", {
             current: currentInfo?.requestId,
             received: requestId,
           });
