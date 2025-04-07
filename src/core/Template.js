@@ -11,6 +11,8 @@ import { saveToLocalStorage } from "../utils/LocalStorage";
 import { compileTemplate, memoizedCompile } from "./TemplateCompiler";
 import { createDeepProxy } from "../utils/CreateDeepProxy";
 import PluginManager from "./PluginManager";
+import { GroupManager } from "./GroupManager";
+import { deepMerge } from "../utils/DeepMerge";
 
 export { compileTemplate, memoizedCompile };
 
@@ -199,9 +201,18 @@ export function render({
       }
     }
 
-    // 1. Get or create the instance shell
+    // Find the template element (must have fp-template attribute)
+    const templateElement = elements.find((el) =>
+      el.hasAttribute("fp-template"),
+    );
+    if (!templateElement) {
+      Debug.error("No template element found in target elements");
+      return null;
+    }
+
+    // 1. Get or create the instance shell using the template element
     const instance = InstanceManager.getOrCreateInstance(
-      elements[0],
+      templateElement,
       finalInitialData,
     );
 
@@ -227,85 +238,121 @@ export function render({
     }
     // --- End Setup ---
 
-    // 2. Create the proxy with the final merged data and DEBOUNCED update handler
-    const DEBOUNCE_DELAY = 50;
+    // Check if this instance is part of a group
+    const groupName = templateElement.getAttribute("fp-group");
 
-    proxy = createDeepProxy(finalInitialData, (target) => {
-      if (instance) {
-        // Skip if we're currently evaluating a template
-        if (instance._isEvaluating) {
-          return;
+    if (groupName) {
+      // Check for persisted group data
+      let groupData = finalInitialData; // Start with the current data
+
+      if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
+        const persistedGroupData = loadFromLocalStorage(
+          `group_${groupName}`,
+          "group",
+        );
+        if (persistedGroupData) {
+          // Merge persisted group data with any instance-specific data
+          groupData = deepMerge(persistedGroupData, finalInitialData);
+          Debug.debug(
+            `Loaded persisted data for group ${groupName}`,
+            groupData,
+          );
         }
-
-        // Clear existing timer
-        clearTimeout(instance._updateTimer);
-
-        // Schedule the update
-        instance._updateTimer = setTimeout(() => {
-          try {
-            // Set flag to prevent recursive updates during evaluation
-            instance._isEvaluating = true;
-
-            // Get the current rendered output
-            const transformedData = PluginManager.applyTransformations(
-              instance,
-              proxy,
-              "transformDataBeforeRender",
-              "json",
-            );
-            const newRenderedOutput = instance.template(transformedData);
-
-            // Compare with previous render
-            if (instance._lastRenderedOutput !== newRenderedOutput) {
-              Debug.info(
-                `[Debounced Update] Output changed for ${instanceName}. Firing updateData hook.`,
-              );
-
-              // Execute hooks with current state
-              PluginManager.executeHook("updateData", instance, {
-                newData: proxy,
-                source: "proxy",
-              });
-              EventSystem.publish("updateData", {
-                instanceName,
-                newData: proxy,
-                source: "proxy",
-              });
-
-              // Update DOM since output changed
-              Debug.debug(
-                `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
-              );
-              instance._updateDOM();
-
-              // Save the new rendered output
-              instance._lastRenderedOutput = newRenderedOutput;
-
-              // Save to storage if enabled
-              if (_state.config?.storage?.enabled) {
-                const storageId = instance.instanceName.replace("#", "");
-                Debug.debug(`[Debounced Update] Saving data for ${storageId}`);
-                saveToLocalStorage(storageId, proxy, "instance");
-              }
-            } else {
-              Debug.debug(
-                `[Debounced Update] No output change for ${instanceName}. Skipping update.`,
-              );
-            }
-          } finally {
-            // Always clear the evaluation flag
-            instance._isEvaluating = false;
-            // Clear timer
-            instance._updateTimer = null;
-          }
-        }, DEBOUNCE_DELAY);
       }
-    });
+
+      // Get or create the group and add this instance
+      const group = GroupManager.getOrCreateGroup(groupName, groupData);
+
+      // Use the group's proxy for this instance
+      proxy = group.data;
+
+      // Add instance to the group
+      GroupManager.addInstanceToGroup(instance, groupName);
+
+      Debug.info(`Instance ${instanceName} is using group ${groupName} data`);
+    } else {
+      // 2. Create the proxy with the final merged data and DEBOUNCED update handler
+      const DEBOUNCE_DELAY = 0;
+
+      proxy = createDeepProxy(finalInitialData, (target) => {
+        if (instance) {
+          // Skip if we're currently evaluating a template
+          if (instance._isEvaluating) {
+            return;
+          }
+
+          // Clear existing timer
+          clearTimeout(instance._updateTimer);
+
+          // Schedule the update
+          instance._updateTimer = setTimeout(() => {
+            try {
+              // Set flag to prevent recursive updates during evaluation
+              instance._isEvaluating = true;
+
+              // Get the current rendered output
+              const transformedData = PluginManager.applyTransformations(
+                instance,
+                proxy,
+                "transformDataBeforeRender",
+                "json",
+              );
+              const newRenderedOutput = instance.template(transformedData);
+
+              // Compare with previous render
+              if (instance._lastRenderedOutput !== newRenderedOutput) {
+                Debug.info(
+                  `[Debounced Update] Output changed for ${instanceName}. Firing updateData hook.`,
+                );
+
+                // Execute hooks with current state
+                PluginManager.executeHook("updateData", instance, {
+                  newData: proxy,
+                  source: "proxy",
+                });
+                EventSystem.publish("updateData", {
+                  instanceName,
+                  newData: proxy,
+                  source: "proxy",
+                });
+
+                // Update DOM since output changed
+                Debug.debug(
+                  `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
+                );
+                instance._updateDOM();
+
+                // Save the new rendered output
+                instance._lastRenderedOutput = newRenderedOutput;
+
+                // Save to storage if enabled
+                if (_state.config?.storage?.enabled) {
+                  const storageId = instance.instanceName.replace("#", "");
+                  Debug.debug(
+                    `[Debounced Update] Saving data for ${storageId}`,
+                  );
+                  saveToLocalStorage(storageId, proxy, "instance");
+                }
+              } else {
+                Debug.debug(
+                  `[Debounced Update] No output change for ${instanceName}. Skipping update.`,
+                );
+              }
+            } finally {
+              // Always clear the evaluation flag
+              instance._isEvaluating = false;
+              // Clear timer
+              instance._updateTimer = null;
+            }
+          }, DEBOUNCE_DELAY);
+        }
+      });
+    }
 
     // 3. Assign the proxy and template to the instance
-    instance.elements = new Set(elements);
     instance.template = compiledTemplate;
-    instance.templateId = elements[0].getAttribute("fp-template") || template;
+    instance.templateId =
+      templateElement.getAttribute("fp-template") || template;
     instance.data = proxy; // Assign the proxy!
 
     // 4. Trigger initial render - This should be OUTSIDE the debounce logic
@@ -321,8 +368,12 @@ export function render({
     }
 
     // Optional: Initial save if needed, OUTSIDE debounce
-    if (_state.config?.storage?.enabled && !persistedData) {
-      // Only save if not loaded
+    if (
+      _state.config?.storage?.enabled &&
+      !persistedData &&
+      !instance.groupName
+    ) {
+      // Only save if not loaded and not in a group (groups handle their own saving)
       const storageId = instanceName.replace("#", "");
       Debug.debug(`[Initial Save] Saving initial data for ${storageId}`);
       saveToLocalStorage(
@@ -346,16 +397,25 @@ export function render({
 
   // Only create/setup instance if proxy is defined
   if (proxy) {
+    // Find the template element (must have fp-template attribute)
+    const templateElement = elements.find((el) =>
+      el.hasAttribute("fp-template"),
+    );
+    if (!templateElement) {
+      Debug.error("No template element found in target elements");
+      return null;
+    }
+
     // Create/get instance and set up proxy regardless of skipRender
     const instance = InstanceManager.getOrCreateInstance(
-      elements[0],
+      templateElement,
       finalInitialData,
     );
 
     // Set up the instance but don't render automatically
-    instance.elements = new Set(elements);
     instance.template = compiledTemplate; // Always store the template
-    instance.templateId = elements[0].getAttribute("fp-template") || template;
+    instance.templateId =
+      templateElement.getAttribute("fp-template") || template;
     instance.data = proxy;
 
     // At this point do NOT call instance._updateDOM() to avoid automatic rendering
@@ -376,7 +436,8 @@ export function render({
           return compiledTemplate(transformedData);
         }
 
-        elements.forEach((element) => {
+        // Update all elements in the instance
+        Array.from(instance.elements).forEach((element) => {
           // Apply plugin transformations to the data before rendering
           const transformedData = PluginManager.applyTransformations(
             finalInstance,
