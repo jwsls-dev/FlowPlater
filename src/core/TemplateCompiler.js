@@ -49,6 +49,10 @@ export const memoizedCompile = memoize(function (templateId) {
     // Function to construct tag with attributes
     function constructTagWithAttributes(element) {
       let tagName = element.tagName.toLowerCase();
+      let fpTag = element.getAttribute("fp-tag");
+      if (fpTag) {
+        tagName = fpTag;
+      }
       // Replace all custom tags
       currentCustomTags.forEach((tag) => {
         if (tagName === tag.tag) {
@@ -71,6 +75,10 @@ export const memoizedCompile = memoize(function (templateId) {
           result += child.textContent;
         } else if (child.nodeType === Node.ELEMENT_NODE) {
           let childTagName = child.tagName.toLowerCase();
+          let fpTag = child.getAttribute("fp-tag");
+          if (fpTag) {
+            childTagName = fpTag;
+          }
           if (child.hasAttribute("fp") || childTagName in helpers) {
             // Process as a Handlebars helper
             const helperName = childTagName;
@@ -84,32 +92,42 @@ export const memoizedCompile = memoize(function (templateId) {
 
             const innerContent = processNode(child);
 
-            if (
-              helperName === "log" ||
-              helperName === "lookup" ||
-              helperName === "execute"
-            ) {
-              if (innerContent) {
-                result += `{{${helperName} ${innerContent} ${args}}}`;
-              } else {
-                result += `{{${helperName} ${args}}}`;
-              }
-            } else if (helperName === "comment") {
-              result += `{{!-- ${args} --}}`;
-            } else if (helperName === "if") {
-              const escapedArgs = args.replace(/"/g, '\\"');
-              result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
-            } else if (helperName === "else") {
-              result += `{{${helperName}}}${innerContent}`;
-            } else if (helperName === "math") {
-              if (innerContent) {
-                Debug.warn(
-                  `FlowPlater: The <${helperName}> helper does not accept inner content.`,
-                );
-              }
-              result += `{{#${helperName} "${args}"}}`;
-            } else {
-              result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
+            switch (helperName) {
+              case "log":
+              case "lookup":
+              case "execute":
+                if (innerContent) {
+                  result += `{{${helperName} ${innerContent} ${args}}}`;
+                } else {
+                  result += `{{${helperName} ${args}}}`;
+                }
+                break;
+
+              case "comment":
+                result += `{{!-- ${args} --}}`;
+                break;
+
+              case "if":
+                const escapedArgs = args.replace(/"/g, '\\"');
+                result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
+                break;
+
+              case "else":
+                result += `{{${helperName}}}${innerContent}`;
+                break;
+
+              case "math":
+                if (innerContent) {
+                  Debug.warn(
+                    `FlowPlater: The <${helperName}> helper does not accept inner content.`,
+                  );
+                }
+                result += `{{#${helperName} "${args}"}}`;
+                break;
+
+              default:
+                result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
+                break;
             }
           } else if (child.tagName === "else") {
             const innerContent = processNode(child);
@@ -131,7 +149,7 @@ export const memoizedCompile = memoize(function (templateId) {
                 '\\"',
               )}"}}}`;
             }
-            let endTagName = child.tagName.toLowerCase();
+            let endTagName = childTagName;
             currentCustomTags.forEach((tag) => {
               if (endTagName === tag.tag) {
                 endTagName = tag.replaceWith;

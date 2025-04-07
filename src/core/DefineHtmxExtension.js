@@ -67,6 +67,11 @@ export function defineHtmxExtension() {
       }
 
       const requestId = xhr.requestId;
+
+      // Mark this request as processed regardless of outcome
+      // This ensures cleanup will work properly
+      RequestHandler.handleRequest(elt, requestId, "process");
+
       const currentInfo = RequestHandler.processingElements.get(elt);
 
       if (!currentInfo || currentInfo.requestId !== requestId) {
@@ -107,16 +112,51 @@ export function defineHtmxExtension() {
 
       if (instance) {
         const instanceName = instance.instanceName;
-        Debug.debug(
-          `[transformResponse] Calling instance.setData for ${instanceName} with new data.`,
-        );
+        Debug.debug(`[transformResponse] Setting data for ${instanceName}`);
 
-        // Store the raw data in the instance
-        instance.setData(newData);
-        Debug.debug(
-          `[transformResponse] setData called for request ${requestId} on elt ${elt.id}. Returning empty string.`,
-        );
-        return "";
+        try {
+          // Mark this request as processed
+          RequestHandler.handleRequest(elt, requestId, "process");
+
+          // Flag that this instance is getting updated directly via HTMX
+          instance._htmxUpdateInProgress = true;
+
+          // Set the data which triggers updates
+          instance.setData(newData);
+
+          // If this instance is in a group but the group is currently updating,
+          // we need to make sure this instance gets updated
+          if (instance.groupName) {
+            const group = _state.groups[instance.groupName];
+            if (group && group._isEvaluating) {
+              // Force immediate update of this instance with a small delay
+              // to avoid conflicts with any currently executing group updates
+              Promise.resolve().then(async () => {
+                Debug.debug(
+                  `[transformResponse] Forcing update for ${instanceName}`,
+                );
+                await instance._updateDOM();
+                Debug.debug(
+                  `[transformResponse] Forced update completed for ${instanceName}`,
+                );
+                instance._htmxUpdateInProgress = false;
+              });
+            } else {
+              // Not being updated by group, clear the flag
+              instance._htmxUpdateInProgress = false;
+            }
+          } else {
+            // Not in a group, clear the flag
+            instance._htmxUpdateInProgress = false;
+          }
+
+          // Return empty string to prevent HTMX default swap
+          return "";
+        } catch (error) {
+          Debug.error(`[transformResponse] Error: ${error.message}`);
+          instance._htmxUpdateInProgress = false;
+          return processedText;
+        }
       }
       return processedText;
     },

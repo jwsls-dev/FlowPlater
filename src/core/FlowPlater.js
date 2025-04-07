@@ -1,6 +1,12 @@
 import { EventSystem } from "./EventSystem";
 import { Debug, FlowPlaterError, TemplateError } from "./Debug";
-import { _state, getInstance, getInstances } from "./State";
+import {
+  _state,
+  getInstance,
+  getInstances,
+  getGroup,
+  getGroups,
+} from "./State";
 import { compileTemplate, render } from "./Template";
 import { Performance } from "../utils/Performance";
 // import { updateDOM } from "../utils/UpdateDom";
@@ -20,6 +26,7 @@ import { setupAnimation } from "./SetupAnimation";
 import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
 import PluginManager from "./PluginManager";
 import { _readyState } from "./ReadyState";
+import { deepMerge } from "../utils/DeepMerge";
 
 /* -------------------------------------------------------------------------- */
 /* ANCHOR                      FlowPlater module                              */
@@ -32,7 +39,7 @@ import { _readyState } from "./ReadyState";
  * @author JWSLS
  */
 
-const VERSION = "1.4.26";
+const VERSION = "1.4.27";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 
@@ -283,6 +290,34 @@ const FlowPlaterObj = {
   getInstance,
   getInstances,
   PluginManager,
+
+  /**
+   * Get a group by name
+   * @param {string} groupName - The name of the group to retrieve
+   * @returns {Object|null} The group object or null if not found
+   */
+  getGroup,
+
+  /**
+   * Get all groups
+   * @returns {Object} All groups
+   */
+  getGroups,
+
+  /**
+   * Update data for a group
+   * @param {string} groupName - Name of the group to update
+   * @param {Object} data - Data to merge into the group
+   * @returns {Object|null} The updated group or null if not found
+   */
+  updateGroup(groupName, data) {
+    const group = getGroup(groupName);
+    if (group && group.data && typeof data === "object") {
+      deepMerge(group.data, data);
+      return group;
+    }
+    return null;
+  },
 
   // Logging API
   log: function (level, ...args) {
@@ -688,7 +723,7 @@ const FlowPlaterObj = {
    * @description Registers a new Handlebars helper and clears the template cache
    * to ensure all templates are recompiled with the new helper.
    */
-  registerHelper: function (name, helperFn) {
+  registerTag: function (name, helperFn) {
     // Register the helper with Handlebars
     Handlebars.registerHelper(name, helperFn);
 
@@ -708,6 +743,24 @@ const FlowPlaterObj = {
     Debug.info(`Registered Handlebars helper: ${name}`);
 
     return this;
+  },
+
+  /**
+   * @function trigger
+   * @param {string} name - The name of the event to trigger
+   * @param {HTMLElement} element - The element to trigger the event on
+   * @param {Object} detail - The detail object to pass to the event
+   */
+  trigger: function (name, element = document, detail = {}) {
+    if (typeof element === "string") {
+      element = document.querySelectorAll(element);
+    } else if (!(element instanceof HTMLElement)) {
+      throw new FlowPlaterError("Invalid element provided to trigger");
+    }
+    EventSystem.publish(name, { element, detail });
+    if (element) {
+      htmx.trigger(element, name, detail);
+    }
   },
 
   /**
