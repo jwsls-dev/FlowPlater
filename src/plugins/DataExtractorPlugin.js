@@ -85,8 +85,71 @@ const DataExtractorPlugin = () => {
           return { [key]: data };
         }
 
-        // No spans, return the element's text content
-        return { [key]: element.textContent.trim() };
+        // Handle different types of elements
+        switch (element.tagName) {
+          case "IMG":
+            return {
+              [key]: {
+                src: element.src,
+                alt: element.alt,
+                width: element.width,
+                height: element.height,
+              },
+            };
+
+          case "VIDEO":
+          case "AUDIO":
+            const sources = Array.from(element.querySelectorAll("source")).map(
+              (source) => ({
+                src: source.src,
+                type: source.type,
+              }),
+            );
+            return {
+              [key]: {
+                src: element.src,
+                sources: sources,
+              },
+            };
+
+          case "A":
+          case "BUTTON":
+            return {
+              [key]: {
+                href: element.href,
+                text: element.textContent.trim(),
+                target: element.target,
+              },
+            };
+
+          case "INPUT":
+          case "TEXTAREA":
+            return {
+              [key]: {
+                value: element.value,
+                type: element.type,
+                checked: element.checked,
+                placeholder: element.placeholder,
+              },
+            };
+
+          case "SELECT":
+            return {
+              [key]: {
+                value: element.value,
+                options: Array.from(element.querySelectorAll("option")).map(
+                  (option) => ({
+                    value: option.value,
+                    text: option.textContent.trim(),
+                  }),
+                ),
+              },
+            };
+
+          default:
+            // Default case: return the element's text content
+            return { [key]: element.textContent.trim() };
+        }
       }
 
       // Look for any elements with fp-data
