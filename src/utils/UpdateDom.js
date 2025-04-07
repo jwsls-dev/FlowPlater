@@ -218,12 +218,18 @@ function cloneWithNamespace(node) {
 /**
  * Main update function with performance tracking and error handling
  */
-async function updateDOM(element, newHTML, animate = false, instance = null) {
+async function updateDOM(
+  element,
+  newHTML,
+  animate = false,
+  instance = null,
+  forceFullUpdate = false,
+) {
   Performance.start("updateDOM");
 
   // Add a flag to prevent multiple restorations
   const isAlreadyRestoring = element.hasAttribute("fp-restoring");
-  if (isAlreadyRestoring) {
+  if (isAlreadyRestoring && !forceFullUpdate) {
     Debug.debug("Already restoring, skipping");
     return;
   }
@@ -288,20 +294,24 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
           });
         }
 
-        const virtualContainer = document.createElement("div");
-        virtualContainer.innerHTML = newHTML.trim();
+        if (!forceFullUpdate) {
+          const virtualContainer = document.createElement("div");
+          virtualContainer.innerHTML = newHTML.trim();
 
-        const oldKeyedElements = new Map();
-        const newKeyedElements = new Map();
-        indexTree(element, oldKeyedElements);
-        indexTree(virtualContainer, newKeyedElements);
+          const oldKeyedElements = new Map();
+          const newKeyedElements = new Map();
+          indexTree(element, oldKeyedElements);
+          indexTree(virtualContainer, newKeyedElements);
 
-        morphChildren(
-          element,
-          virtualContainer,
-          oldKeyedElements,
-          newKeyedElements,
-        );
+          morphChildren(
+            element,
+            virtualContainer,
+            oldKeyedElements,
+            newKeyedElements,
+          );
+        } else {
+          element.innerHTML = newHTML.trim();
+        }
 
         // Single form restoration
         if (
