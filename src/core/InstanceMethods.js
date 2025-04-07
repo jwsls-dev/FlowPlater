@@ -265,8 +265,16 @@ export function instanceMethods(instanceName) {
         return Promise.reject(new Error("Instance not found: " + instanceName));
       }
 
+      // Apply transformations before checking template
+      const transformedData = PluginManager.applyTransformations(
+        instance,
+        instance.data,
+        "transformDataBeforeRender",
+        "json",
+      );
+
       // If recompile is true, recompile the template
-      const compiledTemplate = instance.template(instance.data);
+      const compiledTemplate = instance.template(transformedData);
       const shouldRecompile =
         options.recompile || (!compiledTemplate && instance.data);
 
@@ -277,7 +285,7 @@ export function instanceMethods(instanceName) {
       Debug.debug("Refresh - Template check:", {
         templateId: instance.templateId,
         templateElement: document.querySelector(instance.templateId),
-        compiledTemplate: instance.template(instance.data),
+        compiledTemplate: instance.template(transformedData),
       });
 
       // Check for local variable at instance level first
@@ -329,10 +337,17 @@ export function instanceMethods(instanceName) {
               promises.push(promise);
             }
           } else {
+            // Apply transformations before updating DOM
+            const transformedData = PluginManager.applyTransformations(
+              instance,
+              instance.data,
+              "transformDataBeforeRender",
+              "json",
+            );
             promises.push(
               updateDOM(
                 element,
-                instance.template(instance.data),
+                instance.template(transformedData),
                 instance.animate,
                 instance,
               ),
@@ -345,8 +360,7 @@ export function instanceMethods(instanceName) {
         }
       });
 
-      await Promise.all(promises);
-      return this;
+      return Promise.all(promises);
     },
 
     getData: function () {
