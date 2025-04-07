@@ -39,7 +39,7 @@ import { deepMerge } from "../utils/DeepMerge";
  * @author JWSLS
  */
 
-const VERSION = "1.4.27";
+const VERSION = "1.4.28";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 

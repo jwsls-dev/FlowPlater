@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.27 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.28 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -13740,9 +13740,11 @@ var FlowPlater = (function () {
   async function updateDOM(element, newHTML, animate = false, instance = null) {
     Performance.start("updateDOM");
 
+    let forceFullUpdate = element.hasAttribute("fp-force-full-update");
+
     // Add a flag to prevent multiple restorations
     const isAlreadyRestoring = element.hasAttribute("fp-restoring");
-    if (isAlreadyRestoring) {
+    if (isAlreadyRestoring && !forceFullUpdate) {
       Debug.debug("Already restoring, skipping");
       return;
     }
@@ -13807,20 +13809,25 @@ var FlowPlater = (function () {
             });
           }
 
-          const virtualContainer = document.createElement("div");
-          virtualContainer.innerHTML = newHTML.trim();
+          if (!forceFullUpdate) {
+            const virtualContainer = document.createElement("div");
+            virtualContainer.innerHTML = newHTML.trim();
 
-          const oldKeyedElements = new Map();
-          const newKeyedElements = new Map();
-          indexTree(element, oldKeyedElements);
-          indexTree(virtualContainer, newKeyedElements);
+            const oldKeyedElements = new Map();
+            const newKeyedElements = new Map();
+            indexTree(element, oldKeyedElements);
+            indexTree(virtualContainer, newKeyedElements);
 
-          morphChildren(
-            element,
-            virtualContainer,
-            oldKeyedElements,
-            newKeyedElements,
-          );
+            morphChildren(
+              element,
+              virtualContainer,
+              oldKeyedElements,
+              newKeyedElements,
+            );
+          } else {
+            element.innerHTML = newHTML.trim();
+            Debug.debug("Force full update, skipping morphChildren");
+          }
 
           // Single form restoration
           if (
@@ -14291,8 +14298,16 @@ var FlowPlater = (function () {
           return Promise.reject(new Error("Instance not found: " + instanceName));
         }
 
+        // Apply transformations before checking template
+        const transformedData = PluginManager.applyTransformations(
+          instance,
+          instance.data,
+          "transformDataBeforeRender",
+          "json",
+        );
+
         // If recompile is true, recompile the template
-        const compiledTemplate = instance.template(instance.data);
+        const compiledTemplate = instance.template(transformedData);
         const shouldRecompile =
           options.recompile || (!compiledTemplate && instance.data);
 
@@ -14303,7 +14318,7 @@ var FlowPlater = (function () {
         Debug.debug("Refresh - Template check:", {
           templateId: instance.templateId,
           templateElement: document.querySelector(instance.templateId),
-          compiledTemplate: instance.template(instance.data),
+          compiledTemplate: instance.template(transformedData),
         });
 
         // Check for local variable at instance level first
@@ -14355,10 +14370,17 @@ var FlowPlater = (function () {
                 promises.push(promise);
               }
             } else {
+              // Apply transformations before updating DOM
+              const transformedData = PluginManager.applyTransformations(
+                instance,
+                instance.data,
+                "transformDataBeforeRender",
+                "json",
+              );
               promises.push(
                 updateDOM(
                   element,
-                  instance.template(instance.data),
+                  instance.template(transformedData),
                   instance.animate,
                   instance,
                 ),
@@ -14371,8 +14393,7 @@ var FlowPlater = (function () {
           }
         });
 
-        await Promise.all(promises);
-        return this;
+        return Promise.all(promises);
       },
 
       getData: function () {
@@ -16807,7 +16828,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.27";
+  const VERSION = "1.4.28";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
