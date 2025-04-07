@@ -140,7 +140,7 @@ const ExamplePlugin = () => {
       // Called before an htmx request is made.
       // instance: The FlowPlater instance making the request
       // evt: The HTMX event object
-      FlowPlater.log(FlowPlater.logLevels.INFO, "beforeRequest", instance, evt);
+      FlowPlater.log(FlowPlater.logLevels.INFO, "beforeRequest", instance, evt); // We can access the FlowPlater object using the global FlowPlater variable
       return instance;
     },
 
