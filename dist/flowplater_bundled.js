@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.26 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.27 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -11502,6 +11502,7 @@ var FlowPlater = (function () {
   const _state = {
     templateCache: {},
     instances: {},
+    groups: {}, // Store groups and their shared data
     length: 0,
     initialized: false,
     defaults: {
@@ -11517,6 +11518,15 @@ var FlowPlater = (function () {
 
   function getInstances() {
     return _state.instances;
+  }
+
+  // Helper function for group management
+  function getGroup(groupName) {
+    return _state.groups[groupName];
+  }
+
+  function getGroups() {
+    return _state.groups;
   }
 
   const Performance = {
@@ -12292,6 +12302,10 @@ var FlowPlater = (function () {
       // Function to construct tag with attributes
       function constructTagWithAttributes(element) {
         let tagName = element.tagName.toLowerCase();
+        let fpTag = element.getAttribute("fp-tag");
+        if (fpTag) {
+          tagName = fpTag;
+        }
         // Replace all custom tags
         currentCustomTags.forEach((tag) => {
           if (tagName === tag.tag) {
@@ -12314,6 +12328,10 @@ var FlowPlater = (function () {
             result += child.textContent;
           } else if (child.nodeType === Node.ELEMENT_NODE) {
             let childTagName = child.tagName.toLowerCase();
+            let fpTag = child.getAttribute("fp-tag");
+            if (fpTag) {
+              childTagName = fpTag;
+            }
             if (child.hasAttribute("fp") || childTagName in helpers) {
               // Process as a Handlebars helper
               const helperName = childTagName;
@@ -12327,32 +12345,42 @@ var FlowPlater = (function () {
 
               const innerContent = processNode(child);
 
-              if (
-                helperName === "log" ||
-                helperName === "lookup" ||
-                helperName === "execute"
-              ) {
-                if (innerContent) {
-                  result += `{{${helperName} ${innerContent} ${args}}}`;
-                } else {
-                  result += `{{${helperName} ${args}}}`;
-                }
-              } else if (helperName === "comment") {
-                result += `{{!-- ${args} --}}`;
-              } else if (helperName === "if") {
-                const escapedArgs = args.replace(/"/g, '\\"');
-                result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
-              } else if (helperName === "else") {
-                result += `{{${helperName}}}${innerContent}`;
-              } else if (helperName === "math") {
-                if (innerContent) {
-                  Debug.warn(
-                    `FlowPlater: The <${helperName}> helper does not accept inner content.`,
-                  );
-                }
-                result += `{{#${helperName} "${args}"}}`;
-              } else {
-                result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
+              switch (helperName) {
+                case "log":
+                case "lookup":
+                case "execute":
+                  if (innerContent) {
+                    result += `{{${helperName} ${innerContent} ${args}}}`;
+                  } else {
+                    result += `{{${helperName} ${args}}}`;
+                  }
+                  break;
+
+                case "comment":
+                  result += `{{!-- ${args} --}}`;
+                  break;
+
+                case "if":
+                  const escapedArgs = args.replace(/"/g, '\\"');
+                  result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
+                  break;
+
+                case "else":
+                  result += `{{${helperName}}}${innerContent}`;
+                  break;
+
+                case "math":
+                  if (innerContent) {
+                    Debug.warn(
+                      `FlowPlater: The <${helperName}> helper does not accept inner content.`,
+                    );
+                  }
+                  result += `{{#${helperName} "${args}"}}`;
+                  break;
+
+                default:
+                  result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
+                  break;
               }
             } else if (child.tagName === "else") {
               const innerContent = processNode(child);
@@ -12374,7 +12402,7 @@ var FlowPlater = (function () {
                 '\\"',
               )}"}}}`;
               }
-              let endTagName = child.tagName.toLowerCase();
+              let endTagName = childTagName;
               currentCustomTags.forEach((tag) => {
                 if (endTagName === tag.tag) {
                   endTagName = tag.replaceWith;
@@ -13954,9 +13982,15 @@ var FlowPlater = (function () {
       const value = window[varName];
       if (value !== undefined) {
         // If value is not an object and wrapping is enabled, wrap it
-        if (wrapPrimitive && (typeof value !== "object" || value === null)) {
-          return { [varName]: value };
+        if (
+          wrapPrimitive &&
+          (typeof value !== "object" || value === null || Array.isArray(value))
+        ) {
+          let wrappedValue = { [varName]: value };
+          Debug.info(`Wrapped primitive value "${varName}":`, wrappedValue);
+          return wrappedValue;
         }
+        Debug.info(`Extracted value "${varName}":`, value);
         return value;
       }
 
@@ -13967,6 +14001,41 @@ var FlowPlater = (function () {
       Debug.info(`Error extracting local data "${varName}": ${e.message}`);
       return null;
     }
+  }
+
+  /**
+   * Deep merges source objects into target object.
+   * Mutates the target object.
+   *
+   * @param {Object} target - The target object to merge into
+   * @param {Object} source - The source object to merge from
+   * @returns {Object} The merged object (same as target)
+   */
+  function deepMerge(target, source) {
+    // Handle edge cases
+    if (!source) return target;
+    if (!target) return source;
+
+    // Iterate through source properties
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        // If property exists in target and both are objects, merge recursively
+        if (
+          key in target &&
+          typeof target[key] === "object" &&
+          typeof source[key] === "object" &&
+          target[key] !== null &&
+          source[key] !== null
+        ) {
+          deepMerge(target[key], source[key]);
+        } else {
+          // Otherwise just copy the value
+          target[key] = source[key];
+        }
+      }
+    }
+
+    return target;
   }
 
   function instanceMethods(instanceName) {
@@ -14018,7 +14087,7 @@ var FlowPlater = (function () {
       instanceName,
       animate: _state.defaults.animation,
 
-      _updateDOM: function () {
+      _updateDOM: async function () {
         const instance = _state.instances[instanceName];
         if (!instance) {
           Debug.error("Instance not found: " + instanceName);
@@ -14078,9 +14147,15 @@ var FlowPlater = (function () {
             return;
           }
 
-          activeElements.forEach((element) => {
-            updateDOM(element, rendered, instance.animate, instance);
-          });
+          // Run DOM updates concurrently for better performance
+          const updatePromises = activeElements.map((element) =>
+            updateDOM(element, rendered, instance.animate, instance),
+          );
+
+          // Wait for all element updates to complete
+          const results = await Promise.all(updatePromises);
+
+          return results;
         } catch (error) {
           Debug.error(
             "Error updating DOM for instance",
@@ -14104,9 +14179,13 @@ var FlowPlater = (function () {
         }
 
         // If newData is an unnamed root object (no data property), wrap it
-        if (!("data" in newData)) {
+        if (
+          typeof newData === "string" ||
+          typeof newData === "number" ||
+          Array.isArray(newData)
+        ) {
           Debug.warn(
-            `[setData] Received unnamed root object, automatically wrapping in 'data' property`,
+            `[setData] Received raw value or unnamed root object, automatically wrapping in 'data' property`,
           );
           newData = { data: newData };
         }
@@ -14131,8 +14210,7 @@ var FlowPlater = (function () {
         ).join(", ")}, New keys: ${Object.keys(newData).join(", ")}`,
         );
 
-        // --- Reconciliation Logic ---
-        // 1. Delete keys
+        // Delete keys not present in newData
         let deletedKeys = [];
         for (const key in currentData) {
           if (
@@ -14151,15 +14229,11 @@ var FlowPlater = (function () {
           );
         }
 
-        // 2. Assign/update properties
-        Object.assign(currentData, newData); // Triggers proxy set traps
-        // --- End Reconciliation Logic ---
+        // Update with new data - use deepMerge for proper handling of nested objects
+        deepMerge(currentData, newData);
 
-        Debug.debug(
-          `[setData] Data replacement processing complete for ${instanceName}.`,
-        );
+        Debug.debug(`[setData] Data replacement complete for ${instanceName}.`);
 
-        // Return raw data
         return this;
       },
 
@@ -14209,7 +14283,7 @@ var FlowPlater = (function () {
       },
 
       refresh: async function (
-        options = { remote: true, recompile: false, ignoreLocalVar: false },
+        options = { remote: true, recompile: false, ignoreLocalData: false },
       ) {
         const instance = _state.instances[instanceName];
         if (!instance) {
@@ -14234,10 +14308,10 @@ var FlowPlater = (function () {
 
         // Check for local variable at instance level first
         let hasLocalVarUpdate = false;
-        if (instance.localVarName && !options.ignoreLocalVar) {
+        if (instance.localVarName && !options.ignoreLocalData) {
           const localData = extractLocalData(instance.localVarName);
           if (localData) {
-            Object.assign(instance.data, localData);
+            deepMerge(instance.data, localData);
             hasLocalVarUpdate = true;
             Debug.debug(
               `Refreshed data from local variable "${instance.localVarName}"`,
@@ -14247,7 +14321,7 @@ var FlowPlater = (function () {
 
         const promises = [];
 
-        instance.elements.forEach(function (element) {
+        instance.elements.forEach(async function (element) {
           try {
             if (options.remote && !hasLocalVarUpdate) {
               const htmxMethods = ["get", "post", "put", "patch", "delete"];
@@ -14268,8 +14342,8 @@ var FlowPlater = (function () {
                     return response.json();
                   })
                   .then((data) => {
-                    // Update data which will trigger render
-                    Object.assign(instance.data, data);
+                    // Update data which will trigger render - use deepMerge instead of Object.assign
+                    deepMerge(instance.data, data);
 
                     // Store data if storage is enabled
                     if (_state.config?.storage?.enabled) {
@@ -14281,11 +14355,13 @@ var FlowPlater = (function () {
                 promises.push(promise);
               }
             } else {
-              updateDOM(
-                element,
-                instance.template(instance.data),
-                instance.animate,
-                instance,
+              promises.push(
+                updateDOM(
+                  element,
+                  instance.template(instance.data),
+                  instance.animate,
+                  instance,
+                ),
               );
             }
           } catch (error) {
@@ -14325,6 +14401,227 @@ var FlowPlater = (function () {
     };
   }
 
+  function createDeepProxy(target, handler) {
+    if (typeof target !== "object" || target === null) {
+      return target;
+    }
+
+    const proxyHandler = {
+      get(target, property) {
+        const value = target[property];
+        return value && typeof value === "object"
+          ? createDeepProxy(value, handler)
+          : value;
+      },
+      set(target, property, value) {
+        target[property] = value;
+        // Execute handler but don't block on it
+        Promise.resolve().then(() => handler(target));
+        return true;
+      },
+      deleteProperty(target, property) {
+        delete target[property];
+        // Execute handler but don't block on it
+        Promise.resolve().then(() => handler(target));
+        return true;
+      },
+    };
+
+    return new Proxy(target, proxyHandler);
+  }
+
+  const GroupManager = {
+    /**
+     * Gets or creates a group and its shared data proxy
+     * @param {string} groupName - The name of the group
+     * @param {Object} initialData - Initial data for the group (if new)
+     * @returns {Object} The group object containing data proxy and instances
+     */
+    getOrCreateGroup(groupName, initialData = {}) {
+      if (!groupName) {
+        Debug.error("Invalid group name");
+        return null;
+      }
+
+      // If group already exists, return it
+      if (_state.groups[groupName]) {
+        // Merge any new initial data
+        if (Object.keys(initialData).length > 0) {
+          deepMerge(_state.groups[groupName].data, initialData);
+        }
+        return _state.groups[groupName];
+      }
+
+      // Create new group
+      const group = {
+        name: groupName,
+        instances: new Set(),
+        _isEvaluating: false,
+        _lastRenderedOutputs: new Map(),
+        data: {}, // Will be replaced with proxy
+      };
+
+      // Create proxy for group data
+      group.data = createDeepProxy(initialData, async () => {
+        // Skip if already evaluating to prevent circular updates
+        if (group._isEvaluating) return;
+
+        try {
+          group._isEvaluating = true;
+          Debug.info(
+            `[Group Update] Updating all instances in group: ${groupName}`,
+          );
+
+          // Get array of instances that are ready for updates
+          const instances = Array.from(group.instances).filter(
+            (instance) =>
+              instance.template &&
+              typeof instance.template === "function" &&
+              !instance._htmxUpdateInProgress,
+          );
+
+          // Create update promises for all instances
+          const updatePromises = instances.map(async (instance) => {
+            try {
+              // Get transformed data
+              const transformedData = PluginManager.applyTransformations(
+                instance,
+                group.data,
+                "transformDataBeforeRender",
+                "json",
+              );
+
+              // Render template
+              const newRenderedOutput = instance.template(transformedData);
+              const previousOutput = group._lastRenderedOutputs.get(
+                instance.instanceName,
+              );
+
+              // Only update if output changed
+              if (previousOutput !== newRenderedOutput) {
+                // Execute hooks
+                PluginManager.executeHook("updateData", instance, {
+                  newData: group.data,
+                  source: "group",
+                });
+
+                EventSystem.publish("updateData", {
+                  instanceName: instance.instanceName,
+                  groupName: groupName,
+                  newData: group.data,
+                  source: "group",
+                });
+
+                // Update DOM
+                Debug.debug(
+                  `[Group Update] Updating DOM for ${instance.instanceName}`,
+                );
+                return instance._updateDOM().then(() => {
+                  // Store rendered output
+                  group._lastRenderedOutputs.set(
+                    instance.instanceName,
+                    newRenderedOutput,
+                  );
+                });
+              }
+            } catch (error) {
+              Debug.error(`Error updating ${instance.instanceName}:`, error);
+            }
+          });
+
+          // Wait for all instance updates to complete
+          await Promise.all(updatePromises);
+
+          // Save to storage if enabled
+          if (_state.config?.storage?.enabled) {
+            saveToLocalStorage(`group_${groupName}`, group.data, "group");
+          }
+        } finally {
+          group._isEvaluating = false;
+        }
+      });
+
+      // Store group in state
+      _state.groups[groupName] = group;
+      Debug.info(`Created new group: ${groupName}`);
+
+      return group;
+    },
+
+    /**
+     * Adds an instance to a group
+     * @param {Object} instance - The instance to add
+     * @param {string} groupName - The name of the group
+     */
+    addInstanceToGroup(instance, groupName) {
+      const group = this.getOrCreateGroup(groupName);
+      if (group) {
+        // Set instance's group reference
+        instance.groupName = groupName;
+
+        // Add instance to group
+        group.instances.add(instance);
+
+        // Only try to render if the template is actually a function
+        if (instance.template && typeof instance.template === "function") {
+          // Store instance's initial rendered output
+          const transformedData = PluginManager.applyTransformations(
+            instance,
+            group.data,
+            "transformDataBeforeRender",
+            "json",
+          );
+
+          try {
+            const renderedOutput = instance.template(transformedData);
+            group._lastRenderedOutputs.set(instance.instanceName, renderedOutput);
+          } catch (error) {
+            Debug.error(
+              `Error rendering template for group member: ${error.message}`,
+            );
+          }
+        } else {
+          Debug.debug(
+            `Skipping initial render for group member: template not ready for ${instance.instanceName}`,
+          );
+        }
+
+        Debug.debug(
+          `Added instance ${instance.instanceName} to group ${groupName}`,
+        );
+      }
+    },
+
+    /**
+     * Removes an instance from its group
+     * @param {Object} instance - The instance to remove
+     */
+    removeInstanceFromGroup(instance) {
+      if (!instance.groupName) {
+        return;
+      }
+
+      const group = _state.groups[instance.groupName];
+      if (group) {
+        group.instances.delete(instance);
+        group._lastRenderedOutputs.delete(instance.instanceName);
+
+        Debug.debug(
+          `Removed instance ${instance.instanceName} from group ${instance.groupName}`,
+        );
+
+        // Clean up empty groups
+        if (group.instances.size === 0) {
+          delete _state.groups[instance.groupName];
+          Debug.info(`Removed empty group: ${instance.groupName}`);
+        }
+      }
+
+      // Remove group reference from instance
+      delete instance.groupName;
+    },
+  };
+
   const InstanceManager = {
     /**
      * Gets an existing instance or creates a new one.
@@ -14334,20 +14631,57 @@ var FlowPlater = (function () {
      * @returns {Object} The instance
      */
     getOrCreateInstance(element, initialData = {}) {
+      // Skip if element is already indexed
+      if (element.hasAttribute("fp-indexed")) {
+        Debug.debug(
+          `Element already indexed: ${
+          element.id || element.getAttribute("fp-instance")
+        }`,
+        );
+        return _state.instances[
+          element.getAttribute("fp-instance") || element.id
+        ];
+      }
+
       const instanceName = element.getAttribute("fp-instance") || element.id;
       if (!instanceName) {
         Debug.error("No instance name found for element");
         return null;
       }
 
+      // Check if this element belongs to a group
+      const groupName = element.getAttribute("fp-group");
+
       let instance = _state.instances[instanceName];
       if (!instance) {
+        // If this is not a template element, look for a parent template element
+        if (!element.hasAttribute("fp-template")) {
+          const parentTemplateElement = document.querySelector(
+            `[fp-template][fp-instance="${instanceName}"]`,
+          );
+          if (parentTemplateElement) {
+            Debug.debug(
+              `Found parent template element for instance ${instanceName}`,
+            );
+            return this.getOrCreateInstance(parentTemplateElement, initialData);
+          } else {
+            Debug.error(`No template element found for instance ${instanceName}`);
+            return null;
+          }
+        }
+
+        // Create new instance with the template element
         instance = {
           elements: new Set([element]),
           template: null, // Template will be assigned by caller
           templateId: element.getAttribute("fp-template"),
           data: initialData, // Assign initial data, caller MUST replace with Proxy
           cleanup: () => {
+            // Remove from group if part of one
+            if (instance.groupName) {
+              GroupManager.removeInstanceFromGroup(instance);
+            }
+
             instance.elements.clear(); // Use instance scope
           },
         };
@@ -14367,14 +14701,45 @@ var FlowPlater = (function () {
         // Execute newInstance hook
         PluginManager.executeHook("newInstance", instance);
         Debug.info(`Created new instance: ${instanceName}`);
+
+        // Find and add all elements with matching fp-instance attribute
+        const matchingElements = document.querySelectorAll(
+          `[fp-instance="${instanceName}"]`,
+        );
+        matchingElements.forEach((matchingElement) => {
+          if (matchingElement !== element) {
+            instance.elements.add(matchingElement);
+            // Mark the element as indexed
+            matchingElement.setAttribute("fp-indexed", "true");
+            Debug.debug(`Added matching element to instance: ${instanceName}`);
+          }
+        });
+
+        // Mark the template element as indexed
+        element.setAttribute("fp-indexed", "true");
+
+        // Handle group membership, but don't set data proxy here - that happens in Template.js
+        if (groupName) {
+          instance.groupName = groupName;
+          Debug.info(
+            `Instance ${instanceName} will be added to group ${groupName}`,
+          );
+        }
       } else {
         // If instance exists, add the new element to its set
         instance.elements.add(element);
+        // Mark the element as indexed
+        element.setAttribute("fp-indexed", "true");
         Debug.debug(`Added element to existing instance: ${instanceName}`);
-      }
 
-      // REMOVED internal proxy creation and assignment
-      // REMOVED localStorage saving here (should be handled by proxy setter)
+        // Check for group membership
+        if (groupName && !instance.groupName) {
+          instance.groupName = groupName;
+          Debug.info(
+            `Added existing instance ${instanceName} to group ${groupName}`,
+          );
+        }
+      }
 
       return instance;
     },
@@ -14390,39 +14755,13 @@ var FlowPlater = (function () {
         Debug.error("Cannot update data: Instance or instance.data is invalid.");
         return;
       }
+
       // Update data through the proxy to trigger reactivity
-      Object.assign(instance.data, newData);
+      deepMerge(instance.data, newData);
       // No explicit re-render needed here, proxy handler should trigger _updateDOM
       // No explicit save needed here, proxy handler should save
     },
   };
-
-  function createDeepProxy(target, handler) {
-    if (typeof target !== "object" || target === null) {
-      return target;
-    }
-
-    const proxyHandler = {
-      get(target, property) {
-        const value = target[property];
-        return value && typeof value === "object"
-          ? createDeepProxy(value, handler)
-          : value;
-      },
-      set(target, property, value) {
-        target[property] = value;
-        handler(target);
-        return true;
-      },
-      deleteProperty(target, property) {
-        delete target[property];
-        handler(target);
-        return true;
-      },
-    };
-
-    return new Proxy(target, proxyHandler);
-  }
 
   function render({
     template,
@@ -14609,9 +14948,18 @@ var FlowPlater = (function () {
         }
       }
 
-      // 1. Get or create the instance shell
+      // Find the template element (must have fp-template attribute)
+      const templateElement = elements.find((el) =>
+        el.hasAttribute("fp-template"),
+      );
+      if (!templateElement) {
+        Debug.error("No template element found in target elements");
+        return null;
+      }
+
+      // 1. Get or create the instance shell using the template element
       const instance = InstanceManager.getOrCreateInstance(
-        elements[0],
+        templateElement,
         finalInitialData,
       );
 
@@ -14637,108 +14985,121 @@ var FlowPlater = (function () {
       }
       // --- End Setup ---
 
-      // 2. Create the proxy with the final merged data and DEBOUNCED update handler
-      const DEBOUNCE_DELAY = 50; // ms - slightly longer to avoid duplicate updates
-      proxy = createDeepProxy(finalInitialData, (target) => {
-        if (instance) {
-          // -- Debounce Logic --
-          // Capture state *before* the first change in this debounce cycle
-          // This is crucial for comparing changes accurately after the debounce.
-          if (instance._updateTimer === null) {
-            // Only capture if no timer is currently set
-            try {
-              // Use a deep clone to prevent the captured state from being mutated
-              // before the setTimeout callback runs.
-              instance._stateBeforeDebounce = JSON.parse(JSON.stringify(proxy));
-              Debug.debug(
-                `[Debounce Start] Captured pre-debounce state for ${instanceName}:`,
-                instance._stateBeforeDebounce, // Log the actual captured object
-              );
-            } catch (e) {
-              Debug.error(
-                `[Debounce Start] Failed to capture pre-debounce state for ${instanceName}:`,
-                e,
-              );
-              // If cloning fails, set to null to potentially prevent errors in trackChanges
-              // though trackChanges might still fail if it receives null.
-              instance._stateBeforeDebounce = null;
-            }
+      // Check if this instance is part of a group
+      const groupName = templateElement.getAttribute("fp-group");
+
+      if (groupName) {
+        // Check for persisted group data
+        let groupData = finalInitialData; // Start with the current data
+
+        if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
+          const persistedGroupData = loadFromLocalStorage(
+            `group_${groupName}`,
+            "group",
+          );
+          if (persistedGroupData) {
+            // Merge persisted group data with any instance-specific data
+            groupData = deepMerge(persistedGroupData, finalInitialData);
+            Debug.debug(
+              `Loaded persisted data for group ${groupName}`,
+              groupData,
+            );
           }
-
-          // Clear existing timer
-          clearTimeout(instance._updateTimer);
-
-          // Schedule the update
-          instance._updateTimer = setTimeout(() => {
-            // ** USE STATE CAPTURED BEFORE DEBOUNCE **
-            const stateBefore = instance._stateBeforeDebounce;
-            const stateAfter = proxy;
-
-            const jsonStateBefore = JSON.parse(JSON.stringify(stateBefore));
-            const jsonStateAfter = JSON.parse(JSON.stringify(stateAfter));
-
-            // 1. Basic Change Check (Optional but Recommended)
-            // Avoid firing hooks if state hasn't actually changed.
-            // Using simple stringify comparison - replace with deepEqual if needed & imported.
-            const stateChanged =
-              JSON.stringify(jsonStateBefore) !== JSON.stringify(jsonStateAfter);
-
-            // 2. Execute Hooks/Events with Full States
-            if (stateChanged) {
-              Debug.info(
-                `[Debounced Update] State changed for ${instanceName}. Firing updateData hook.`,
-              );
-              // Pass the full old and new states
-              PluginManager.executeHook("updateData", instance, {
-                newData: jsonStateAfter, // Current state
-                oldData: jsonStateBefore, // State before changes
-                source: "proxy",
-              });
-              EventSystem.publish("updateData", {
-                instanceName,
-                newData: jsonStateAfter,
-                oldData: jsonStateBefore,
-                source: "proxy",
-              });
-            } else {
-              Debug.debug(
-                `[Debounced Update] No state change detected for ${instanceName}. Skipping updateData hook.`,
-              );
-            }
-
-            // 3. Update DOM
-            Debug.debug(
-              `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
-            );
-
-            instance._updateDOM();
-
-            // 4. Save to storage
-            // Get the correct instance name and sanitize it for the key
-            const storageId = instance.instanceName.replace("#", "");
-            Debug.debug(
-              `[Debounced Update] Saving root proxy object for ${storageId}.`,
-            );
-            if (_state.config?.storage?.enabled) {
-              saveToLocalStorage(
-                storageId,
-                stateAfter, // Save the data directly, not wrapped in an object
-                "instance",
-              );
-            }
-
-            // Clear timer and pre-debounce state reference after execution
-            instance._updateTimer = null;
-            instance._stateBeforeDebounce = null;
-          }, DEBOUNCE_DELAY);
-          // -- End Debounce Logic --
         }
-      });
+
+        // Get or create the group and add this instance
+        const group = GroupManager.getOrCreateGroup(groupName, groupData);
+
+        // Use the group's proxy for this instance
+        proxy = group.data;
+
+        // Add instance to the group
+        GroupManager.addInstanceToGroup(instance, groupName);
+
+        Debug.info(`Instance ${instanceName} is using group ${groupName} data`);
+      } else {
+        // 2. Create the proxy with the final merged data and DEBOUNCED update handler
+        const DEBOUNCE_DELAY = 0;
+
+        proxy = createDeepProxy(finalInitialData, (target) => {
+          if (instance) {
+            // Skip if we're currently evaluating a template
+            if (instance._isEvaluating) {
+              return;
+            }
+
+            // Clear existing timer
+            clearTimeout(instance._updateTimer);
+
+            // Schedule the update
+            instance._updateTimer = setTimeout(() => {
+              try {
+                // Set flag to prevent recursive updates during evaluation
+                instance._isEvaluating = true;
+
+                // Get the current rendered output
+                const transformedData = PluginManager.applyTransformations(
+                  instance,
+                  proxy,
+                  "transformDataBeforeRender",
+                  "json",
+                );
+                const newRenderedOutput = instance.template(transformedData);
+
+                // Compare with previous render
+                if (instance._lastRenderedOutput !== newRenderedOutput) {
+                  Debug.info(
+                    `[Debounced Update] Output changed for ${instanceName}. Firing updateData hook.`,
+                  );
+
+                  // Execute hooks with current state
+                  PluginManager.executeHook("updateData", instance, {
+                    newData: proxy,
+                    source: "proxy",
+                  });
+                  EventSystem.publish("updateData", {
+                    instanceName,
+                    newData: proxy,
+                    source: "proxy",
+                  });
+
+                  // Update DOM since output changed
+                  Debug.debug(
+                    `[Debounced Update] Triggering _updateDOM for ${instanceName}`,
+                  );
+                  instance._updateDOM();
+
+                  // Save the new rendered output
+                  instance._lastRenderedOutput = newRenderedOutput;
+
+                  // Save to storage if enabled
+                  if (_state.config?.storage?.enabled) {
+                    const storageId = instance.instanceName.replace("#", "");
+                    Debug.debug(
+                      `[Debounced Update] Saving data for ${storageId}`,
+                    );
+                    saveToLocalStorage(storageId, proxy, "instance");
+                  }
+                } else {
+                  Debug.debug(
+                    `[Debounced Update] No output change for ${instanceName}. Skipping update.`,
+                  );
+                }
+              } finally {
+                // Always clear the evaluation flag
+                instance._isEvaluating = false;
+                // Clear timer
+                instance._updateTimer = null;
+              }
+            }, DEBOUNCE_DELAY);
+          }
+        });
+      }
 
       // 3. Assign the proxy and template to the instance
-      instance.elements = new Set(elements);
       instance.template = compiledTemplate;
-      instance.templateId = elements[0].getAttribute("fp-template") || template;
+      instance.templateId =
+        templateElement.getAttribute("fp-template") || template;
       instance.data = proxy; // Assign the proxy!
 
       // 4. Trigger initial render - This should be OUTSIDE the debounce logic
@@ -14754,8 +15115,12 @@ var FlowPlater = (function () {
       }
 
       // Optional: Initial save if needed, OUTSIDE debounce
-      if (_state.config?.storage?.enabled && !persistedData) {
-        // Only save if not loaded
+      if (
+        _state.config?.storage?.enabled &&
+        !persistedData &&
+        !instance.groupName
+      ) {
+        // Only save if not loaded and not in a group (groups handle their own saving)
         const storageId = instanceName.replace("#", "");
         Debug.debug(`[Initial Save] Saving initial data for ${storageId}`);
         saveToLocalStorage(
@@ -14779,16 +15144,25 @@ var FlowPlater = (function () {
 
     // Only create/setup instance if proxy is defined
     if (proxy) {
+      // Find the template element (must have fp-template attribute)
+      const templateElement = elements.find((el) =>
+        el.hasAttribute("fp-template"),
+      );
+      if (!templateElement) {
+        Debug.error("No template element found in target elements");
+        return null;
+      }
+
       // Create/get instance and set up proxy regardless of skipRender
       const instance = InstanceManager.getOrCreateInstance(
-        elements[0],
+        templateElement,
         finalInitialData,
       );
 
       // Set up the instance but don't render automatically
-      instance.elements = new Set(elements);
       instance.template = compiledTemplate; // Always store the template
-      instance.templateId = elements[0].getAttribute("fp-template") || template;
+      instance.templateId =
+        templateElement.getAttribute("fp-template") || template;
       instance.data = proxy;
 
       // At this point do NOT call instance._updateDOM() to avoid automatic rendering
@@ -14809,7 +15183,8 @@ var FlowPlater = (function () {
             return compiledTemplate(transformedData);
           }
 
-          elements.forEach((element) => {
+          // Update all elements in the instance
+          Array.from(instance.elements).forEach((element) => {
             // Apply plugin transformations to the data before rendering
             const transformedData = PluginManager.applyTransformations(
               finalInstance,
@@ -14969,17 +15344,21 @@ var FlowPlater = (function () {
       try {
         // Parse expression
         const expression = expressionString.trim();
-        const [leftToken, operator, rightToken] = expression.split(
+        let [leftToken, operator, rightToken] = expression.split(
           /\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/,
         );
 
-        if (!leftToken || !operator || !rightToken) {
+        if (!leftToken || (operator && !rightToken) || (!leftToken && operator)) {
           throw new TemplateError(`Invalid expression format: ${expression}`);
         }
 
         // Resolve values
         const leftValue = resolveValue(leftToken, options.data.root, this);
-        const rightValue = resolveValue(rightToken, options.data.root, this);
+        const rightValue = rightToken
+          ? resolveValue(rightToken, options.data.root, this)
+          : true;
+
+        operator = operator || "==";
 
         // Log resolved values for debugging
         Debug.info("Evaluating expression:", {
@@ -15721,27 +16100,27 @@ var FlowPlater = (function () {
           break;
 
         case "process":
-          if (
-            currentInfo &&
-            currentInfo.requestId === requestId &&
-            !currentInfo.processed
-          ) {
+          // Mark as processed during HTMX transformResponse
+          if (currentInfo && currentInfo.requestId === requestId) {
             currentInfo.processed = true;
             this.processingElements.set(target, currentInfo);
+            Debug.debug(
+              `Marked request ${requestId} as processed for ${
+              target.id || "unknown"
+            }`,
+            );
             return true;
           }
           return false;
 
         case "cleanup":
-          if (
-            currentInfo &&
-            currentInfo.requestId === requestId &&
-            currentInfo.processed
-          ) {
+          // Always clean up if we have the same requestId, regardless of processed state
+          // This ensures cleanup happens even if group updates are still in progress
+          if (currentInfo && currentInfo.requestId === requestId) {
             this.processingElements.delete(target);
             Debug.debug("Cleaned up after request", target, requestId);
           } else {
-            Debug.debug("Skipping cleanup - request mismatch or not processed", {
+            Debug.debug("Skipping cleanup - request mismatch", {
               current: currentInfo?.requestId,
               received: requestId,
             });
@@ -15947,6 +16326,11 @@ var FlowPlater = (function () {
         }
 
         const requestId = xhr.requestId;
+
+        // Mark this request as processed regardless of outcome
+        // This ensures cleanup will work properly
+        RequestHandler.handleRequest(elt, requestId, "process");
+
         const currentInfo = RequestHandler.processingElements.get(elt);
 
         if (!currentInfo || currentInfo.requestId !== requestId) {
@@ -15987,16 +16371,51 @@ var FlowPlater = (function () {
 
         if (instance) {
           const instanceName = instance.instanceName;
-          Debug.debug(
-            `[transformResponse] Calling instance.setData for ${instanceName} with new data.`,
-          );
+          Debug.debug(`[transformResponse] Setting data for ${instanceName}`);
 
-          // Store the raw data in the instance
-          instance.setData(newData);
-          Debug.debug(
-            `[transformResponse] setData called for request ${requestId} on elt ${elt.id}. Returning empty string.`,
-          );
-          return "";
+          try {
+            // Mark this request as processed
+            RequestHandler.handleRequest(elt, requestId, "process");
+
+            // Flag that this instance is getting updated directly via HTMX
+            instance._htmxUpdateInProgress = true;
+
+            // Set the data which triggers updates
+            instance.setData(newData);
+
+            // If this instance is in a group but the group is currently updating,
+            // we need to make sure this instance gets updated
+            if (instance.groupName) {
+              const group = _state.groups[instance.groupName];
+              if (group && group._isEvaluating) {
+                // Force immediate update of this instance with a small delay
+                // to avoid conflicts with any currently executing group updates
+                Promise.resolve().then(async () => {
+                  Debug.debug(
+                    `[transformResponse] Forcing update for ${instanceName}`,
+                  );
+                  await instance._updateDOM();
+                  Debug.debug(
+                    `[transformResponse] Forced update completed for ${instanceName}`,
+                  );
+                  instance._htmxUpdateInProgress = false;
+                });
+              } else {
+                // Not being updated by group, clear the flag
+                instance._htmxUpdateInProgress = false;
+              }
+            } else {
+              // Not in a group, clear the flag
+              instance._htmxUpdateInProgress = false;
+            }
+
+            // Return empty string to prevent HTMX default swap
+            return "";
+          } catch (error) {
+            Debug.error(`[transformResponse] Error: ${error.message}`);
+            instance._htmxUpdateInProgress = false;
+            return processedText;
+          }
         }
         return processedText;
       },
@@ -16388,7 +16807,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.26";
+  const VERSION = "1.4.27";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
@@ -16637,6 +17056,34 @@ var FlowPlater = (function () {
     getInstance,
     getInstances,
     PluginManager,
+
+    /**
+     * Get a group by name
+     * @param {string} groupName - The name of the group to retrieve
+     * @returns {Object|null} The group object or null if not found
+     */
+    getGroup,
+
+    /**
+     * Get all groups
+     * @returns {Object} All groups
+     */
+    getGroups,
+
+    /**
+     * Update data for a group
+     * @param {string} groupName - Name of the group to update
+     * @param {Object} data - Data to merge into the group
+     * @returns {Object|null} The updated group or null if not found
+     */
+    updateGroup(groupName, data) {
+      const group = getGroup(groupName);
+      if (group && group.data && typeof data === "object") {
+        deepMerge(group.data, data);
+        return group;
+      }
+      return null;
+    },
 
     // Logging API
     log: function (level, ...args) {
@@ -17042,7 +17489,7 @@ var FlowPlater = (function () {
      * @description Registers a new Handlebars helper and clears the template cache
      * to ensure all templates are recompiled with the new helper.
      */
-    registerHelper: function (name, helperFn) {
+    registerTag: function (name, helperFn) {
       // Register the helper with Handlebars
       Handlebars.registerHelper(name, helperFn);
 
@@ -17062,6 +17509,24 @@ var FlowPlater = (function () {
       Debug.info(`Registered Handlebars helper: ${name}`);
 
       return this;
+    },
+
+    /**
+     * @function trigger
+     * @param {string} name - The name of the event to trigger
+     * @param {HTMLElement} element - The element to trigger the event on
+     * @param {Object} detail - The detail object to pass to the event
+     */
+    trigger: function (name, element = document, detail = {}) {
+      if (typeof element === "string") {
+        element = document.querySelectorAll(element);
+      } else if (!(element instanceof HTMLElement)) {
+        throw new FlowPlaterError("Invalid element provided to trigger");
+      }
+      EventSystem.publish(name, { element, detail });
+      if (element) {
+        htmx.trigger(element, name, detail);
+      }
     },
 
     /**
