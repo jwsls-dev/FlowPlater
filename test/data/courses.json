@@ -1,0 +1,44 @@
+{
+  "courses": [
+    {
+      "name": "Introduction to Computer Science",
+      "description": "Learn the fundamentals of computer science, including algorithms, data structures, and programming basics.",
+      "startDate": "2024-01-15", 
+      "tags": ["programming", "computer science", "beginner", "development"],
+      "studyPoints": 5,
+      "difficulty": "beginner"
+    },
+    {
+      "name": "Advanced Web Development",
+      "description": "Master modern web technologies including React, Node.js, and cloud deployment strategies.",
+      "startDate": "2024-02-01",
+      "tags": ["web development", "javascript", "advanced", "programming", "development"],
+      "studyPoints": 7,
+      "difficulty": "advanced"
+    },
+    {
+      "name": "Data Science Fundamentals", 
+      "description": "Introduction to data analysis, statistics, and machine learning concepts.",
+      "startDate": "2024-01-30",
+      "tags": ["data science", "statistics", "python", "programming", "computer science"],
+      "studyPoints": 6,
+      "difficulty": "intermediate"
+    },
+    {
+      "name": "Mobile App Development",
+      "description": "Build native mobile applications for iOS and Android platforms.",
+      "startDate": "2024-03-15",
+      "tags": ["mobile", "ios", "android", "development", "programming"],
+      "studyPoints": 8,
+      "difficulty": "intermediate"
+    },
+    {
+      "name": "Database Design",
+      "description": "Learn database modeling, SQL, and best practices for data management.",
+      "startDate": "2024-02-15",
+      "tags": ["database", "sql", "data modeling", "computer science", "development"],
+      "studyPoints": 4,
+      "difficulty": "beginner"
+    }
+  ]
+}
