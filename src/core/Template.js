@@ -445,13 +445,11 @@ export function render({
             "transformDataBeforeRender",
             "json",
           );
-          const forceFullUpdate = element.hasAttribute("fp-force-full-update");
           updateDOM(
             element,
             compiledTemplate(transformedData),
             animate,
             finalInstance,
-            forceFullUpdate,
           );
         });
       } catch (error) {

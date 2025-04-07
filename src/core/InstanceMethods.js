@@ -122,16 +122,9 @@ export function instanceMethods(instanceName) {
         }
 
         // Run DOM updates concurrently for better performance
-        const updatePromises = activeElements.map((element) => {
-          const forceFullUpdate = element.hasAttribute("fp-force-full-update");
-          return updateDOM(
-            element,
-            rendered,
-            instance.animate,
-            instance,
-            forceFullUpdate,
-          );
-        });
+        const updatePromises = activeElements.map((element) =>
+          updateDOM(element, rendered, instance.animate, instance),
+        );
 
         // Wait for all element updates to complete
         const results = await Promise.all(updatePromises);

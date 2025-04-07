@@ -218,14 +218,10 @@ function cloneWithNamespace(node) {
 /**
  * Main update function with performance tracking and error handling
  */
-async function updateDOM(
-  element,
-  newHTML,
-  animate = false,
-  instance = null,
-  forceFullUpdate = false,
-) {
+async function updateDOM(element, newHTML, animate = false, instance = null) {
   Performance.start("updateDOM");
+
+  let forceFullUpdate = element.hasAttribute("fp-force-full-update");
 
   // Add a flag to prevent multiple restorations
   const isAlreadyRestoring = element.hasAttribute("fp-restoring");
@@ -311,6 +307,7 @@ async function updateDOM(
           );
         } else {
           element.innerHTML = newHTML.trim();
+          Debug.debug("Force full update, skipping morphChildren");
         }
 
         // Single form restoration
