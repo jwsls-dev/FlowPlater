@@ -1032,14 +1032,10 @@ var FilterPlugin = (function () {
             });
 
             // Trigger initial update to apply filters
-            const handleFormUpdate = (e) => {
-              if (!e.isTrusted) return;
-              const instance = FlowPlater.getInstance(instanceName);
-              if (instance) {
-                instance.refresh({ source: "filter" });
-              }
-            };
-            handleFormUpdate({ isTrusted: true, type: "init", target: form });
+            const instance = FlowPlater.getInstance(instanceName);
+            if (instance) {
+              instance.refresh({ source: "filter" });
+            }
           }
         }
       });
