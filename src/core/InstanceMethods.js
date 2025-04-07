@@ -10,6 +10,7 @@ import {
 import { Performance } from "../utils/Performance";
 import { extractLocalData } from "../utils/LocalVariableExtractor";
 import PluginManager from "./PluginManager";
+import { deepMerge } from "../utils/DeepMerge";
 
 export function instanceMethods(instanceName) {
   // Helper function to resolve a path within the data
@@ -60,7 +61,7 @@ export function instanceMethods(instanceName) {
     instanceName,
     animate: _state.defaults.animation,
 
-    _updateDOM: function () {
+    _updateDOM: async function () {
       const instance = _state.instances[instanceName];
       if (!instance) {
         Debug.error("Instance not found: " + instanceName);
@@ -120,9 +121,15 @@ export function instanceMethods(instanceName) {
           return;
         }
 
-        activeElements.forEach((element) => {
-          updateDOM(element, rendered, instance.animate, instance);
-        });
+        // Run DOM updates concurrently for better performance
+        const updatePromises = activeElements.map((element) =>
+          updateDOM(element, rendered, instance.animate, instance),
+        );
+
+        // Wait for all element updates to complete
+        const results = await Promise.all(updatePromises);
+
+        return results;
       } catch (error) {
         Debug.error(
           "Error updating DOM for instance",
@@ -177,8 +184,7 @@ export function instanceMethods(instanceName) {
         ).join(", ")}, New keys: ${Object.keys(newData).join(", ")}`,
       );
 
-      // --- Reconciliation Logic ---
-      // 1. Delete keys
+      // Delete keys not present in newData
       let deletedKeys = [];
       for (const key in currentData) {
         if (
@@ -197,15 +203,11 @@ export function instanceMethods(instanceName) {
         );
       }
 
-      // 2. Assign/update properties
-      Object.assign(currentData, newData); // Triggers proxy set traps
-      // --- End Reconciliation Logic ---
+      // Update with new data - use deepMerge for proper handling of nested objects
+      deepMerge(currentData, newData);
 
-      Debug.debug(
-        `[setData] Data replacement processing complete for ${instanceName}.`,
-      );
+      Debug.debug(`[setData] Data replacement complete for ${instanceName}.`);
 
-      // Return raw data
       return this;
     },
 
@@ -255,7 +257,7 @@ export function instanceMethods(instanceName) {
     },
 
     refresh: async function (
-      options = { remote: true, recompile: false, ignoreLocalVar: false },
+      options = { remote: true, recompile: false, ignoreLocalData: false },
     ) {
       const instance = _state.instances[instanceName];
       if (!instance) {
@@ -280,10 +282,10 @@ export function instanceMethods(instanceName) {
 
       // Check for local variable at instance level first
       let hasLocalVarUpdate = false;
-      if (instance.localVarName && !options.ignoreLocalVar) {
+      if (instance.localVarName && !options.ignoreLocalData) {
         const localData = extractLocalData(instance.localVarName);
         if (localData) {
-          Object.assign(instance.data, localData);
+          deepMerge(instance.data, localData);
           hasLocalVarUpdate = true;
           Debug.debug(
             `Refreshed data from local variable "${instance.localVarName}"`,
@@ -293,7 +295,7 @@ export function instanceMethods(instanceName) {
 
       const promises = [];
 
-      instance.elements.forEach(function (element) {
+      instance.elements.forEach(async function (element) {
         try {
           if (options.remote && !hasLocalVarUpdate) {
             const htmxMethods = ["get", "post", "put", "patch", "delete"];
@@ -314,8 +316,8 @@ export function instanceMethods(instanceName) {
                   return response.json();
                 })
                 .then((data) => {
-                  // Update data which will trigger render
-                  Object.assign(instance.data, data);
+                  // Update data which will trigger render - use deepMerge instead of Object.assign
+                  deepMerge(instance.data, data);
 
                   // Store data if storage is enabled
                   if (_state.config?.storage?.enabled) {
@@ -327,11 +329,13 @@ export function instanceMethods(instanceName) {
               promises.push(promise);
             }
           } else {
-            updateDOM(
-              element,
-              instance.template(instance.data),
-              instance.animate,
-              instance,
+            promises.push(
+              updateDOM(
+                element,
+                instance.template(instance.data),
+                instance.animate,
+                instance,
+              ),
             );
           }
         } catch (error) {
