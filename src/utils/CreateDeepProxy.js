@@ -12,12 +12,14 @@ export function createDeepProxy(target, handler) {
     },
     set(target, property, value) {
       target[property] = value;
-      handler(target);
+      // Execute handler but don't block on it
+      Promise.resolve().then(() => handler(target));
       return true;
     },
     deleteProperty(target, property) {
       delete target[property];
-      handler(target);
+      // Execute handler but don't block on it
+      Promise.resolve().then(() => handler(target));
       return true;
     },
   };
