@@ -13,7 +13,7 @@ var ExamplePlugin = (function () {
    * @function ExamplePlugin
    * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, and helpers
    */
-  const ExamplePlugin = () => {
+  const ExamplePlugin = (customConfig = {}) => {
     /**
      * Plugin configuration object
      * @type {Object}
@@ -56,6 +56,10 @@ var ExamplePlugin = (function () {
       description: "Example plugin demonstrating plugin functionality",
       author: "Your Name",
     };
+
+    // Merge custom config with default config
+    // This is optional, but recommended to allow users to override default settings
+    Object.assign(config, customConfig);
 
     /**
      * Plugin state object

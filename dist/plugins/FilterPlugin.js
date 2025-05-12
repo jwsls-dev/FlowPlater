@@ -175,81 +175,686 @@ var FilterPlugin = (function () {
     };
   })();
 
-  function saveToLocalStorage(key, data, prefix = "") {
-    Debug.debug(`Storage config:`, _state.config?.storage);
-    if (!_state.config?.storage?.enabled) {
-      Debug.debug(`Storage is disabled, skipping save`);
+  // Default customTags - can be overridden via meta config in init()
+  const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
+
+  function setCustomTags(tags) {
+  }
+
+  /**
+   * Deep merges source objects into target object.
+   * Mutates the target object.
+   *
+   * @param {Object} target - The target object to merge into
+   * @param {Object} source - The source object to merge from
+   * @returns {Object} The merged object (same as target)
+   */
+  function deepMerge(target, source) {
+    // Handle edge cases
+    if (!source) return target;
+    if (!target) return source;
+
+    // Iterate through source properties
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        // Handle arrays specially - replace entire array
+        if (Array.isArray(target[key]) && Array.isArray(source[key])) {
+          target[key] = source[key];
+        }
+        // If property exists in target and both are objects, merge recursively
+        else if (
+          key in target &&
+          typeof target[key] === "object" &&
+          typeof source[key] === "object" &&
+          target[key] !== null &&
+          source[key] !== null
+        ) {
+          deepMerge(target[key], source[key]);
+        } else {
+          // Otherwise just copy the value
+          target[key] = source[key];
+        }
+      }
+    }
+
+    return target;
+  }
+
+  const defaultConfig = {
+    debug: {
+      level:
+        window.location.hostname.endsWith(".webflow.io") ||
+        window.location.hostname.endsWith(".canvas.webflow.com") ||
+        window.location.hostname.endsWith("localhost")
+          ? 3
+          : 1,
+    },
+    selectors: {
+      fp: [
+        "template",
+        "get",
+        "post",
+        "put",
+        "delete",
+        "patch",
+        "persist",
+        "instance",
+      ],
+    },
+    templates: {
+      cacheSize: 100,
+      precompile: true,
+    },
+    animation: {
+      enabled: true,
+      duration: 300,
+    },
+    htmx: {
+      timeout: 10000,
+      swapStyle: "innerHTML",
+      selfRequestsOnly: false,
+      ignoreTitle: true,
+    },
+    customTags: customTagList,
+    storage: {
+      enabled: false,
+      ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+    },
+    persistForm: true,
+  };
+
+  /**
+   * Normalizes storage configuration to a standard format
+   * @param {boolean|number|Object} storageConfig - The storage configuration value
+   * @param {Object} defaultStorageConfig - The default storage configuration
+   * @returns {Object} Normalized storage configuration
+   */
+  function normalizeStorageConfig(storageConfig, defaultStorageConfig) {
+    if (typeof storageConfig === "boolean") {
+      return {
+        enabled: storageConfig,
+        ttl: defaultStorageConfig.ttl,
+      };
+    }
+    if (typeof storageConfig === "number") {
+      if (storageConfig === -1) {
+        return {
+          enabled: true,
+          ttl: -1, // Infinite TTL
+        };
+      }
+      return {
+        enabled: storageConfig > 0,
+        ttl: storageConfig > 0 ? storageConfig : defaultStorageConfig.ttl,
+      };
+    }
+    // Ensure enabled is boolean and ttl is number
+    if (typeof storageConfig === "object" && storageConfig !== null) {
+      return {
+        enabled: !!storageConfig.enabled,
+        ttl:
+          typeof storageConfig.ttl === "number"
+            ? storageConfig.ttl
+            : defaultStorageConfig.ttl,
+      };
+    }
+    return defaultStorageConfig; // Fallback to default if invalid format
+  }
+
+  // Initialize state with default config
+  _state.config = JSON.parse(JSON.stringify(defaultConfig));
+
+  const ConfigManager = {
+    /**
+     * Sets or updates the FlowPlater configuration.
+     * @param {Object} newConfig - Configuration options to apply.
+     */
+    setConfig(newConfig = {}) {
+      if ("storage" in newConfig) {
+        newConfig.storage = normalizeStorageConfig(
+          newConfig.storage,
+          defaultConfig.storage,
+        );
+      }
+
+      // Use the imported deepMerge utility
+      _state.config = deepMerge(
+        JSON.parse(JSON.stringify(_state.config)),
+        newConfig,
+      );
+
+      // --- Apply configuration settings ---
+
+      // Apply debug level
+      Debug.level = _state.config.debug.level;
+
+      // Configure HTMX defaults if htmx is available
+      if (typeof htmx !== "undefined") {
+        htmx.config.timeout = _state.config.htmx.timeout;
+        htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
+        htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
+        htmx.config.ignoreTitle = _state.config.htmx.ignoreTitle;
+      }
+
+      // Set custom tags if provided in the new config
+      if (newConfig.customTags) {
+        setCustomTags(newConfig.customTags);
+      }
+
+      Debug.info("FlowPlater configuration updated:", this.getConfig());
+    },
+
+    /**
+     * Gets the current configuration.
+     * @returns {Object} A deep copy of the current configuration.
+     */
+    getConfig() {
+      // Return a deep copy to prevent accidental modification of the state
+      return JSON.parse(JSON.stringify(_state.config));
+    },
+
+    /**
+     * Gets the default configuration.
+     * @returns {Object} A deep copy of the default configuration.
+     */
+    getDefaultConfig() {
+      return JSON.parse(JSON.stringify(defaultConfig));
+    },
+  };
+
+  // Apply initial debug level based on the default config loaded into state
+  Debug.level = _state.config.debug.level;
+
+  // Helper function to handle Map serialization
+  function replacer(key, value) {
+    if (value instanceof Map) {
+      return {
+        _dataType: "Map",
+        value: Array.from(value.entries()), // Convert Map to array of [key, value] pairs
+      };
+    } else {
+      return value;
+    }
+  }
+
+  // Helper function to handle Map deserialization
+  function reviver(key, value) {
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      value._dataType === "Map"
+    ) {
+      return new Map(value.value);
+    }
+    return value;
+  }
+
+  /**
+   * Saves data to localStorage with expiry
+   * @param {string} key - The key to save under
+   * @param {*} data - The data to save
+   * @param {string} type - Type prefix (e.g., 'instance', 'group')
+   * @returns {boolean} True if save was successful, false otherwise
+   */
+  function saveToLocalStorage(key, data, type = "") {
+    const config = ConfigManager.getConfig().storage;
+    if (!config?.enabled) {
+      Debug.debug(
+        `[LocalStorage] Storage is disabled, skipping save for key: ${key}`,
+      );
       return false;
     }
 
     try {
-      const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
-
-      // Always serialize/deserialize to ensure we have raw, deep-cloned data (removes Proxies)
-      let rawData;
+      const storageKey = type ? `fp_${type}_${key}` : `fp_${key}`;
+      let dataToStore;
       try {
-        // This effectively deep clones the target data, removing any proxy wrappers
-        rawData = JSON.parse(JSON.stringify(data));
+        // Use the replacer here
+        dataToStore = JSON.stringify(data, replacer);
       } catch (e) {
-        Debug.error(`Failed to serialize data for localStorage: ${e.message}`);
-        // Fallback or decide how to handle non-serializable data
-        rawData = {}; // Save empty object as fallback?
+        Debug.error(
+          `[LocalStorage] Failed to serialize data for key ${storageKey}: ${e.message}`,
+        );
+        return false; // Don't save corrupted data
       }
 
-      const storageData = {
-        data: rawData,
-        expiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
+      const item = {
+        data: dataToStore, // Store the stringified data
+        expiry: config.ttl === -1 ? null : Date.now() + config.ttl * 1000,
       };
 
-      Debug.debug(`Saving to localStorage:`, {
+      Debug.debug(`[LocalStorage] Saving to localStorage:`, {
         key: storageKey,
-        data: storageData,
+        item,
       });
-
-      localStorage.setItem(storageKey, JSON.stringify(storageData));
+      localStorage.setItem(storageKey, JSON.stringify(item)); // Store the wrapper object
       return true;
-    } catch (error) {
-      Debug.error(`Failed to save to localStorage: ${error.message}`);
+    } catch (e) {
+      Debug.error(
+        `[LocalStorage] Failed to save to localStorage for key ${key}: ${e.message}`,
+      );
       return false;
     }
   }
 
-  function loadFromLocalStorage(key, prefix = "") {
-    Debug.debug(`Storage config:`, _state.config?.storage);
-    if (!_state.config?.storage?.enabled) {
-      Debug.debug(`Storage is disabled, skipping load`);
-      return null;
-    }
+  /**
+   * Loads data from localStorage, checks expiry
+   * @param {string} key - The key to load
+   * @param {string} type - Type prefix (e.g., 'instance', 'group')
+   * @returns {*} The loaded data or null if not found or expired
+   */
+  function loadFromLocalStorage(key, type = "") {
+    ConfigManager.getConfig().storage;
+    // Allow loading even if storage is disabled *now*, data might exist from previous session
 
     try {
-      const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
+      const storageKey = type ? `fp_${type}_${key}` : `fp_${key}`;
       const storedItem = localStorage.getItem(storageKey);
+
       if (!storedItem) {
-        Debug.debug(`No stored item found for: ${storageKey}`);
+        Debug.debug(`[LocalStorage] No stored item found for key: ${storageKey}`);
         return null;
       }
 
-      const storageData = JSON.parse(storedItem);
+      const item = JSON.parse(storedItem);
 
-      // Check if data has expired
-      if (storageData.expiry && storageData.expiry < Date.now()) {
-        Debug.debug(`Stored item has expired: ${storageKey}`);
+      // Check expiry
+      if (item.expiry && item.expiry < Date.now()) {
+        Debug.debug(
+          `[LocalStorage] Stored item has expired for key: ${storageKey}`,
+        );
         localStorage.removeItem(storageKey);
         return null;
       }
 
-      Debug.debug(`Loaded from localStorage:`, {
-        key: storageKey,
-        data: storageData,
-      });
+      // Use the reviver here when parsing the stored data string
+      const loadedData = JSON.parse(item.data, reviver);
 
-      // Return just the data portion, not the wrapper object
-      return storageData.data;
-    } catch (error) {
-      Debug.error(`Failed to load from localStorage: ${error.message}`);
+      Debug.debug(`[LocalStorage] Loaded from localStorage:`, {
+        key: storageKey,
+        data: loadedData,
+      });
+      return loadedData;
+    } catch (e) {
+      Debug.error(
+        `[LocalStorage] Failed to load or parse from localStorage for key ${key}: ${e.message}`,
+      );
       return null;
     }
   }
+
+  const AttributeMatcher = {
+    INHERITABLE_ATTRIBUTES: {
+      "hx-": [
+        "boost",
+        "push-url",
+        "select",
+        "select-oob",
+        "swap",
+        "target",
+        "vals",
+        "confirm",
+        "disable",
+        "disabled-elt",
+        "encoding",
+        "ext",
+        "headers",
+        "include",
+        "indicator",
+        "params",
+        "prompt",
+        "replace-url",
+        "request",
+        "sync",
+        "vars",
+      ],
+
+      "fp-": ["prepend", "append", "persist", "target"],
+    },
+
+    _prefixes() {
+      return Object.keys(this.INHERITABLE_ATTRIBUTES);
+    },
+
+    _normalizeAttributeName(attributeName) {
+      // Remove any existing prefix
+      return attributeName.replace(/^(hx-|fp-)/, "").replace(/^data-/, "");
+    },
+
+    /**
+     * Gets all possible attribute names for a given attribute
+     * @private
+     * @param {string} attributeName - The base attribute name
+     * @returns {string[]} Array of all possible attribute names
+     */
+    _getAllAttributeNames(attributeName) {
+      const normalizedName = this._normalizeAttributeName(attributeName);
+      const names = [];
+      for (const prefix of this._prefixes()) {
+        names.push(`${prefix}${normalizedName}`);
+        names.push(`data-${prefix}${normalizedName}`);
+      }
+      return names;
+    },
+
+    /**
+     * Gets the raw attribute value, checking all possible attribute names
+     * @private
+     * @param {Element} element - The element to check
+     * @param {string} name - The attribute name
+     * @returns {string|null} The attribute value or null if not found
+     */
+    _getRawAttribute(element, name, defaultValue = null) {
+      for (const attrName of this._getAllAttributeNames(name)) {
+        const value = element.getAttribute(attrName);
+        if (value !== null) {
+          return value;
+        }
+      }
+      return defaultValue;
+    },
+
+    /**
+     * Checks if an element has an attribute, checking all possible attribute names
+     * @private
+     * @param {Element} element - The element to check
+     * @param {string} name - The attribute name
+     * @returns {boolean} Whether the element has the attribute
+     */
+    _hasAttribute(element, name) {
+      return this._getAllAttributeNames(name).some((attrName) =>
+        element.hasAttribute(attrName),
+      );
+    },
+
+    /**
+     * Finds elements with a given attribute and optional value
+     * @param {string} attributeName - The attribute to look for
+     * @param {string} [value] - Optional value to match
+     * @param {boolean} [exactMatch=true] - Whether to match the value exactly or just include it
+     * @param {Element} [element=document] - The element to search within
+     * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
+     * @param {boolean} [getFirst=false] - Whether to return the first matching element or all matching elements
+     * @returns {Element[]|Element|null} Array of elements if no value specified, first matching element if value specified
+     */
+    findMatchingElements(
+      attributeName,
+      value,
+      exactMatch = true,
+      element = document,
+      includeSelf = true,
+      getFirst = false,
+    ) {
+      const attrNames = this._getAllAttributeNames(attributeName);
+      let selector = attrNames.map((name) => `[${name}]`).join(",");
+
+      if (value !== undefined && value !== null) {
+        const valueSelector = exactMatch ? `="${value}"` : `*="${value}"`;
+        selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
+      }
+
+      const results = Array.from(element.querySelectorAll(selector));
+
+      if (includeSelf && element instanceof Element) {
+        const selfValue = this._getRawAttribute(element, attributeName);
+        if (selfValue !== null) {
+          if (
+            value === undefined ||
+            value === null ||
+            (exactMatch ? selfValue === value : selfValue.includes(value))
+          ) {
+            results.unshift(element);
+          }
+        }
+      }
+
+      return value !== undefined && value !== null
+        ? getFirst
+          ? results[0]
+          : results
+        : results;
+    },
+
+    findClosestParent(attributeName, value, exactMatch = true, element) {
+      if (!attributeName) {
+        Debug.error("Attribute name is required");
+        return null;
+      }
+      if (!element) {
+        Debug.error(
+          "Element is required to find closest parent (" + attributeName + ")",
+        );
+        return null;
+      }
+      const normalizedName = this._normalizeAttributeName(attributeName);
+      const attrNames = this._getAllAttributeNames(normalizedName);
+      let selector = attrNames.map((name) => `[${name}]`).join(",");
+
+      if (value !== undefined && value !== null) {
+        const valueSelector = exactMatch ? `="${value}"` : `*="${value}"`;
+        selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
+      }
+
+      let closestElement = element.closest(selector);
+
+      // check if there is no disinherit attribute on the closest element
+      if (closestElement && this.isInheritable(normalizedName)) {
+        const disinherit = this._getRawAttribute(closestElement, "disinherit");
+        if (
+          disinherit &&
+          (disinherit === "*" || disinherit.split(" ").includes(normalizedName))
+        ) {
+          return null;
+        }
+      }
+
+      return closestElement;
+    },
+
+    /**
+     * Gets the first element with a given attribute
+     * @param {string} attributeName - The attribute to look for
+     * @param {Element} [element=document] - The element to search within
+     * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
+     * @returns {Element|null} The first element with the attribute or null if none found
+     */
+    getElementWithAttribute(
+      attributeName,
+      element = document,
+      includeSelf = true,
+    ) {
+      if (
+        includeSelf &&
+        element instanceof Element &&
+        this._hasAttribute(element, attributeName)
+      ) {
+        return element;
+      }
+
+      const selectors = this._getAllAttributeNames(attributeName)
+        .map((name) => `[${name}]`)
+        .join(",");
+
+      return element.querySelector(selectors);
+    },
+
+    /**
+     * Gets the parent element, handling Shadow DOM
+     * @private
+     * @param {Node} element - The element to get the parent of
+     * @returns {Node|null} The parent element or null if none
+     */
+    _parentElement(element) {
+      const parent = element.parentElement;
+      if (!parent && element.parentNode instanceof ShadowRoot) {
+        return element.parentNode;
+      }
+      return parent;
+    },
+
+    /**
+     * Gets the root node of an element, handling Shadow DOM
+     * @private
+     * @param {Node} element - The element to get the root of
+     * @param {boolean} [composed=false] - Whether to get the composed root
+     * @returns {Node} The root node
+     */
+    _getRootNode(element, composed = false) {
+      return element.getRootNode ? element.getRootNode({ composed }) : document;
+    },
+
+    /**
+     * Finds the closest element matching a condition
+     * @private
+     * @param {Node} element - The element to start from
+     * @param {function(Node): boolean} condition - The condition to match
+     * @returns {Node|null} The closest matching element or null if none
+     */
+    _getClosestMatch(element, condition) {
+      while (element && !condition(element)) {
+        element = this._parentElement(element);
+      }
+      return element || null;
+    },
+
+    _attributeMatchesNormalizedName(attributeName, normalizedName) {
+      // Remove any existing prefix
+      const name = attributeName
+        .replace(/^data-/, "")
+        .replace(/^hx-/, "")
+        .replace(/^fp-/, "");
+      return name === normalizedName;
+    },
+
+    /**
+     * Gets an attribute value with inheritance and disinheritance
+     * @private
+     * @param {Element} startElement - The element to start from
+     * @param {Element} ancestor - The ancestor element to check
+     * @param {string} attributeName - The attribute name
+     * @returns {string|null} The attribute value or null if not found
+     */
+    _getAttributeValueWithInheritance(startElement, ancestor, attributeName) {
+      const attributeValue = this._getRawAttribute(ancestor, attributeName);
+      const disinherit = this._getRawAttribute(ancestor, "disinherit");
+      const inherit = this._getRawAttribute(ancestor, "inherit");
+
+      if (startElement !== ancestor) {
+        if (htmx.config.disableInheritance) {
+          if (
+            inherit &&
+            (inherit === "*" || inherit.split(" ").includes(attributeName))
+          ) {
+            return attributeValue;
+          }
+          return null;
+        }
+
+        if (
+          disinherit &&
+          (disinherit === "*" || disinherit.split(" ").includes(attributeName))
+        ) {
+          return "unset";
+        }
+      }
+
+      return attributeValue;
+    },
+
+    /**
+     * Finds the value of an inheritable attribute
+     * @param {HTMLElement} element - The element to start searching from
+     * @param {string} attributeName - The name of the attribute to find
+     * @returns {string|null} The attribute value or null if not found
+     */
+    findInheritedAttribute(element, attributeName) {
+      const normalizedName = this._normalizeAttributeName(attributeName);
+      let closestValue = null;
+
+      this._getClosestMatch(element, (ancestor) => {
+        const value = this._getAttributeValueWithInheritance(
+          element,
+          ancestor,
+          normalizedName,
+        );
+        if (value) {
+          closestValue = value;
+          return true;
+        }
+        return false;
+      });
+
+      return closestValue === "unset" ? null : closestValue;
+    },
+
+    findAttribute(element, attributeName) {
+      const normalizedName = this._normalizeAttributeName(attributeName);
+
+      // First check direct attributes
+      for (const prefix of this._prefixes()) {
+        const value = this._getRawAttribute(
+          element,
+          `${prefix}${normalizedName}`,
+        );
+        if (value) {
+          return value;
+        }
+      }
+
+      // Then check inherited attributes
+      return this.findInheritedAttribute(element, normalizedName) || null;
+    },
+
+    _validateAttributeName(attributeName) {
+      if (!attributeName) {
+        Debug.error("Attribute name is required");
+        return false;
+      }
+      const isInheritable = this.isInheritable(attributeName);
+      if (!isInheritable) {
+        Debug.info(`Attribute ${attributeName} is not inheritable`);
+        return false;
+      }
+      return true;
+    },
+
+    /**
+     * Adds an inheritable attribute to the list
+     * @param {string} prefix - The prefix to use (hx- or fp-)
+     * @param {string} attributeName - The name of the attribute to add
+     */
+    addInheritableAttribute(prefix, attributeName) {
+      if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
+        this.INHERITABLE_ATTRIBUTES[prefix] = [];
+      }
+      this.INHERITABLE_ATTRIBUTES[prefix].push(attributeName);
+    },
+
+    /**
+     * Removes an inheritable attribute from the list
+     * @param {string} prefix - The prefix to use (hx- or fp-)
+     * @param {string} attributeName - The name of the attribute to remove
+     * @returns {boolean} True if the attribute was removed, false if it wasn't found
+     */
+    removeInheritableAttribute(prefix, attributeName) {
+      if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
+        return false;
+      }
+      const index = this.INHERITABLE_ATTRIBUTES[prefix].indexOf(attributeName);
+      if (index === -1) {
+        return false;
+      }
+      this.INHERITABLE_ATTRIBUTES[prefix].splice(index, 1);
+      return true;
+    },
+
+    isInheritable(attributeName) {
+      const normalizedName = this._normalizeAttributeName(attributeName);
+      return Object.values(this.INHERITABLE_ATTRIBUTES)
+        .flat()
+        .includes(normalizedName);
+    },
+  };
 
   /**
    * @module FormStateManager
@@ -448,25 +1053,14 @@ var FilterPlugin = (function () {
      * @returns {boolean} - Whether persistence is enabled
      */
     isPersistenceEnabledForElement(element) {
-      // Check if element has explicit persistence setting
-      if (element.hasAttribute("fp-persist")) {
-        return element.getAttribute("fp-persist") !== "false";
-      }
-
-      // Check if element is inside a form with persistence setting
-      const form = element.closest("form");
-      if (form && form.hasAttribute("fp-persist")) {
-        return form.getAttribute("fp-persist") !== "false";
-      }
-
-      // Check if element is inside a container with persistence setting
-      const container = element.closest("[fp-persist]");
-      if (container) {
-        return container.getAttribute("fp-persist") !== "false";
+      // Use AttributeMatcher to check for inherited persistence setting
+      const inheritedValue = AttributeMatcher.findAttribute(element, "persist");
+      if (inheritedValue !== null) {
+        return inheritedValue !== "false";
       }
 
       // Default to global setting
-      return _state.config?.persistForm !== false;
+      return ConfigManager.getConfig().persistForm !== false;
     },
 
     /**
@@ -476,8 +1070,8 @@ var FilterPlugin = (function () {
      */
     shouldUseLocalStorage(element) {
       return (
-        element.hasAttribute("fp-persist-local") ||
-        _state.config?.storage?.enabled === true
+        AttributeMatcher._hasAttribute(element, "persist-local") ||
+        ConfigManager.getConfig().storage?.enabled === true
       );
     },
 
@@ -489,23 +1083,31 @@ var FilterPlugin = (function () {
     shouldRestoreForm(element) {
       // First check if there are any explicitly persistent elements
       // These override any parent fp-persist="false" settings
-      const explicitlyPersistentInputs = element.querySelectorAll(
-        '[fp-persist="true"]',
+      const explicitlyPersistentInputs = AttributeMatcher.findMatchingElements(
+        "persist",
+        "true",
+        true,
+        element,
       );
       if (explicitlyPersistentInputs.length > 0) {
         return true;
       }
 
       // Check if element itself is a form with explicit persistence setting
-      if (element.tagName === "FORM" && element.hasAttribute("fp-persist")) {
-        return element.getAttribute("fp-persist") !== "false";
+      if (
+        element.tagName === "FORM" &&
+        AttributeMatcher._hasAttribute(element, "persist")
+      ) {
+        return AttributeMatcher._getRawAttribute(element, "persist") !== "false";
       }
 
       // Check parent form if exists
       const parentForm = element.closest("form");
       if (parentForm) {
         // If parent form explicitly disables persistence, skip it
-        if (parentForm.getAttribute("fp-persist") === "false") {
+        if (
+          AttributeMatcher._getRawAttribute(parentForm, "persist") === "false"
+        ) {
           return false;
         }
 
@@ -516,7 +1118,12 @@ var FilterPlugin = (function () {
           if (!input.name || input.type === "file") continue;
 
           // Check if input is inside an element with fp-persist="false"
-          const persistFalseParent = input.closest('[fp-persist="false"]');
+          const persistFalseParent = AttributeMatcher.findClosestParent(
+            "persist",
+            "false",
+            true,
+            input,
+          );
           if (persistFalseParent) {
             continue;
           }
@@ -551,7 +1158,7 @@ var FilterPlugin = (function () {
    * @function FilterPlugin
    * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, and helpers
    */
-  const FilterPlugin = () => {
+  const FilterPlugin = (customConfig = {}) => {
     const config = {
       name: "filter",
       enabled: true,
@@ -565,6 +1172,9 @@ var FilterPlugin = (function () {
       description: "Filters data based on form inputs",
       author: "FlowPlater Team",
     };
+
+    // Merge custom config with default config
+    Object.assign(config, customConfig);
 
     const state = {
       instances: new Map(),
@@ -615,6 +1225,9 @@ var FilterPlugin = (function () {
      * @param {Object} data - The instance data
      */
     function setupDynamicFilters(form, path, data) {
+      // Trigger before dynamic filters update
+      FlowPlater.trigger("filter:beforeDynamicUpdate", form, { path, data });
+
       // Get the array to filter
       const pathParts = path.split(".");
       let target = data;
@@ -768,6 +1381,9 @@ var FilterPlugin = (function () {
             }
           }
         });
+
+      // Trigger after dynamic filters update
+      FlowPlater.trigger("filter:dynamicUpdated", form, { path, data });
     }
 
     /**
@@ -907,6 +1523,12 @@ var FilterPlugin = (function () {
           }
         });
 
+        // Trigger before filters are applied
+        FlowPlater.trigger("filter:beforeApply", form, {
+          formState,
+          instanceName,
+        });
+
         // Save form state and trigger events
         EventSystem.publish("formState:beforeCapture", {
           formId: form.id,
@@ -952,11 +1574,17 @@ var FilterPlugin = (function () {
             },
           );
         }
+
+        // Trigger after filters are applied
+        FlowPlater.trigger("filter:applied", form, { formState, instanceName });
       };
 
       // Helper function to reset filters
       const handleFilterReset = (e) => {
         e.preventDefault();
+
+        // Trigger before reset
+        FlowPlater.trigger("filter:beforeReset", form, { instanceName });
 
         // Reset all form elements
         form.reset();
@@ -966,6 +1594,9 @@ var FilterPlugin = (function () {
 
         // Trigger form update to refresh the view
         handleFormUpdate({ isTrusted: true, type: "reset", target: e.target });
+
+        // Trigger after reset
+        FlowPlater.trigger("filter:reset", form, { instanceName });
       };
 
       // Remove any existing event listeners
@@ -1032,10 +1663,14 @@ var FilterPlugin = (function () {
             });
 
             // Trigger initial update to apply filters
-            const instance = FlowPlater.getInstance(instanceName);
-            if (instance) {
-              instance.refresh({ source: "filter" });
-            }
+            const handleFormUpdate = (e) => {
+              if (!e.isTrusted) return;
+              const instance = FlowPlater.getInstance(instanceName);
+              if (instance) {
+                instance.refresh({ source: "filter" });
+              }
+            };
+            handleFormUpdate({ isTrusted: true, type: "init", target: form });
           }
         }
       });
@@ -1361,6 +1996,11 @@ var FilterPlugin = (function () {
 
         let filteredData = { ...data };
 
+        FlowPlater.trigger("filter:beforeTransform", instance.element, {
+          data,
+          dataType,
+        });
+
         filterForms.forEach((form) => {
           const path = form.getAttribute("fp-filter");
           if (!path) return;
@@ -1407,6 +2047,11 @@ var FilterPlugin = (function () {
             current = current[path.split(".")[i]];
           }
           current[path.split(".")[path.split(".").length - 1]] = filteredArray;
+        });
+
+        FlowPlater.trigger("filter:transformed", instance.element, {
+          originalData: data,
+          filteredData: filteredData,
         });
 
         return filteredData;

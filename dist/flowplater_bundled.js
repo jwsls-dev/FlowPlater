@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.28 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.29 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -6644,7 +6644,7 @@ var htmx = (function() {
    * @param {string} response HTML
    * @returns {DocumentFragmentWithTitle}
    */
-  function makeFragment(response) {
+  function makeFragment(response) {response = response.toString();
     // strip head tag to determine shape of response we are dealing with
     const responseWithNoHead = response.replace(/<head(\s[^>]*)?>[\s\S]*?<\/head>/i, '')
     const startTag = getStartTag(responseWithNoHead)
@@ -11499,6 +11499,22 @@ var FlowPlater = (function () {
     };
   })();
 
+  const Performance = {
+    marks: {},
+
+    start: function (label) {
+      this.marks[label] = performance.now();
+    },
+
+    end: function (label) {
+      if (!this.marks[label]) return;
+      const duration = performance.now() - this.marks[label];
+      delete this.marks[label];
+      Debug.debug(`${label} took ${duration.toFixed(2)}ms`);
+      return duration;
+    },
+  };
+
   const _state = {
     templateCache: {},
     instances: {},
@@ -11519,31 +11535,6 @@ var FlowPlater = (function () {
   function getInstances() {
     return _state.instances;
   }
-
-  // Helper function for group management
-  function getGroup(groupName) {
-    return _state.groups[groupName];
-  }
-
-  function getGroups() {
-    return _state.groups;
-  }
-
-  const Performance = {
-    marks: {},
-
-    start: function (label) {
-      this.marks[label] = performance.now();
-    },
-
-    end: function (label) {
-      if (!this.marks[label]) return;
-      const duration = performance.now() - this.marks[label];
-      delete this.marks[label];
-      Debug.debug(`${label} took ${duration.toFixed(2)}ms`);
-      return duration;
-    },
-  };
 
   /**
    * @typedef {Object} ReadyState
@@ -11674,6 +11665,379 @@ var FlowPlater = (function () {
     },
   };
 
+  const AttributeMatcher = {
+    INHERITABLE_ATTRIBUTES: {
+      "hx-": [
+        "boost",
+        "push-url",
+        "select",
+        "select-oob",
+        "swap",
+        "target",
+        "vals",
+        "confirm",
+        "disable",
+        "disabled-elt",
+        "encoding",
+        "ext",
+        "headers",
+        "include",
+        "indicator",
+        "params",
+        "prompt",
+        "replace-url",
+        "request",
+        "sync",
+        "vars",
+      ],
+
+      "fp-": ["prepend", "append", "persist", "target"],
+    },
+
+    _prefixes() {
+      return Object.keys(this.INHERITABLE_ATTRIBUTES);
+    },
+
+    _normalizeAttributeName(attributeName) {
+      // Remove any existing prefix
+      return attributeName.replace(/^(hx-|fp-)/, "").replace(/^data-/, "");
+    },
+
+    /**
+     * Gets all possible attribute names for a given attribute
+     * @private
+     * @param {string} attributeName - The base attribute name
+     * @returns {string[]} Array of all possible attribute names
+     */
+    _getAllAttributeNames(attributeName) {
+      const normalizedName = this._normalizeAttributeName(attributeName);
+      const names = [];
+      for (const prefix of this._prefixes()) {
+        names.push(`${prefix}${normalizedName}`);
+        names.push(`data-${prefix}${normalizedName}`);
+      }
+      return names;
+    },
+
+    /**
+     * Gets the raw attribute value, checking all possible attribute names
+     * @private
+     * @param {Element} element - The element to check
+     * @param {string} name - The attribute name
+     * @returns {string|null} The attribute value or null if not found
+     */
+    _getRawAttribute(element, name, defaultValue = null) {
+      for (const attrName of this._getAllAttributeNames(name)) {
+        const value = element.getAttribute(attrName);
+        if (value !== null) {
+          return value;
+        }
+      }
+      return defaultValue;
+    },
+
+    /**
+     * Checks if an element has an attribute, checking all possible attribute names
+     * @private
+     * @param {Element} element - The element to check
+     * @param {string} name - The attribute name
+     * @returns {boolean} Whether the element has the attribute
+     */
+    _hasAttribute(element, name) {
+      return this._getAllAttributeNames(name).some((attrName) =>
+        element.hasAttribute(attrName),
+      );
+    },
+
+    /**
+     * Finds elements with a given attribute and optional value
+     * @param {string} attributeName - The attribute to look for
+     * @param {string} [value] - Optional value to match
+     * @param {boolean} [exactMatch=true] - Whether to match the value exactly or just include it
+     * @param {Element} [element=document] - The element to search within
+     * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
+     * @param {boolean} [getFirst=false] - Whether to return the first matching element or all matching elements
+     * @returns {Element[]|Element|null} Array of elements if no value specified, first matching element if value specified
+     */
+    findMatchingElements(
+      attributeName,
+      value,
+      exactMatch = true,
+      element = document,
+      includeSelf = true,
+      getFirst = false,
+    ) {
+      const attrNames = this._getAllAttributeNames(attributeName);
+      let selector = attrNames.map((name) => `[${name}]`).join(",");
+
+      if (value !== undefined && value !== null) {
+        const valueSelector = exactMatch ? `="${value}"` : `*="${value}"`;
+        selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
+      }
+
+      const results = Array.from(element.querySelectorAll(selector));
+
+      if (includeSelf && element instanceof Element) {
+        const selfValue = this._getRawAttribute(element, attributeName);
+        if (selfValue !== null) {
+          if (
+            value === undefined ||
+            value === null ||
+            (exactMatch ? selfValue === value : selfValue.includes(value))
+          ) {
+            results.unshift(element);
+          }
+        }
+      }
+
+      return value !== undefined && value !== null
+        ? getFirst
+          ? results[0]
+          : results
+        : results;
+    },
+
+    findClosestParent(attributeName, value, exactMatch = true, element) {
+      if (!attributeName) {
+        Debug.error("Attribute name is required");
+        return null;
+      }
+      if (!element) {
+        Debug.error(
+          "Element is required to find closest parent (" + attributeName + ")",
+        );
+        return null;
+      }
+      const normalizedName = this._normalizeAttributeName(attributeName);
+      const attrNames = this._getAllAttributeNames(normalizedName);
+      let selector = attrNames.map((name) => `[${name}]`).join(",");
+
+      if (value !== undefined && value !== null) {
+        const valueSelector = exactMatch ? `="${value}"` : `*="${value}"`;
+        selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
+      }
+
+      let closestElement = element.closest(selector);
+
+      // check if there is no disinherit attribute on the closest element
+      if (closestElement && this.isInheritable(normalizedName)) {
+        const disinherit = this._getRawAttribute(closestElement, "disinherit");
+        if (
+          disinherit &&
+          (disinherit === "*" || disinherit.split(" ").includes(normalizedName))
+        ) {
+          return null;
+        }
+      }
+
+      return closestElement;
+    },
+
+    /**
+     * Gets the first element with a given attribute
+     * @param {string} attributeName - The attribute to look for
+     * @param {Element} [element=document] - The element to search within
+     * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
+     * @returns {Element|null} The first element with the attribute or null if none found
+     */
+    getElementWithAttribute(
+      attributeName,
+      element = document,
+      includeSelf = true,
+    ) {
+      if (
+        includeSelf &&
+        element instanceof Element &&
+        this._hasAttribute(element, attributeName)
+      ) {
+        return element;
+      }
+
+      const selectors = this._getAllAttributeNames(attributeName)
+        .map((name) => `[${name}]`)
+        .join(",");
+
+      return element.querySelector(selectors);
+    },
+
+    /**
+     * Gets the parent element, handling Shadow DOM
+     * @private
+     * @param {Node} element - The element to get the parent of
+     * @returns {Node|null} The parent element or null if none
+     */
+    _parentElement(element) {
+      const parent = element.parentElement;
+      if (!parent && element.parentNode instanceof ShadowRoot) {
+        return element.parentNode;
+      }
+      return parent;
+    },
+
+    /**
+     * Gets the root node of an element, handling Shadow DOM
+     * @private
+     * @param {Node} element - The element to get the root of
+     * @param {boolean} [composed=false] - Whether to get the composed root
+     * @returns {Node} The root node
+     */
+    _getRootNode(element, composed = false) {
+      return element.getRootNode ? element.getRootNode({ composed }) : document;
+    },
+
+    /**
+     * Finds the closest element matching a condition
+     * @private
+     * @param {Node} element - The element to start from
+     * @param {function(Node): boolean} condition - The condition to match
+     * @returns {Node|null} The closest matching element or null if none
+     */
+    _getClosestMatch(element, condition) {
+      while (element && !condition(element)) {
+        element = this._parentElement(element);
+      }
+      return element || null;
+    },
+
+    _attributeMatchesNormalizedName(attributeName, normalizedName) {
+      // Remove any existing prefix
+      const name = attributeName
+        .replace(/^data-/, "")
+        .replace(/^hx-/, "")
+        .replace(/^fp-/, "");
+      return name === normalizedName;
+    },
+
+    /**
+     * Gets an attribute value with inheritance and disinheritance
+     * @private
+     * @param {Element} startElement - The element to start from
+     * @param {Element} ancestor - The ancestor element to check
+     * @param {string} attributeName - The attribute name
+     * @returns {string|null} The attribute value or null if not found
+     */
+    _getAttributeValueWithInheritance(startElement, ancestor, attributeName) {
+      const attributeValue = this._getRawAttribute(ancestor, attributeName);
+      const disinherit = this._getRawAttribute(ancestor, "disinherit");
+      const inherit = this._getRawAttribute(ancestor, "inherit");
+
+      if (startElement !== ancestor) {
+        if (htmx.config.disableInheritance) {
+          if (
+            inherit &&
+            (inherit === "*" || inherit.split(" ").includes(attributeName))
+          ) {
+            return attributeValue;
+          }
+          return null;
+        }
+
+        if (
+          disinherit &&
+          (disinherit === "*" || disinherit.split(" ").includes(attributeName))
+        ) {
+          return "unset";
+        }
+      }
+
+      return attributeValue;
+    },
+
+    /**
+     * Finds the value of an inheritable attribute
+     * @param {HTMLElement} element - The element to start searching from
+     * @param {string} attributeName - The name of the attribute to find
+     * @returns {string|null} The attribute value or null if not found
+     */
+    findInheritedAttribute(element, attributeName) {
+      const normalizedName = this._normalizeAttributeName(attributeName);
+      let closestValue = null;
+
+      this._getClosestMatch(element, (ancestor) => {
+        const value = this._getAttributeValueWithInheritance(
+          element,
+          ancestor,
+          normalizedName,
+        );
+        if (value) {
+          closestValue = value;
+          return true;
+        }
+        return false;
+      });
+
+      return closestValue === "unset" ? null : closestValue;
+    },
+
+    findAttribute(element, attributeName) {
+      const normalizedName = this._normalizeAttributeName(attributeName);
+
+      // First check direct attributes
+      for (const prefix of this._prefixes()) {
+        const value = this._getRawAttribute(
+          element,
+          `${prefix}${normalizedName}`,
+        );
+        if (value) {
+          return value;
+        }
+      }
+
+      // Then check inherited attributes
+      return this.findInheritedAttribute(element, normalizedName) || null;
+    },
+
+    _validateAttributeName(attributeName) {
+      if (!attributeName) {
+        Debug.error("Attribute name is required");
+        return false;
+      }
+      const isInheritable = this.isInheritable(attributeName);
+      if (!isInheritable) {
+        Debug.info(`Attribute ${attributeName} is not inheritable`);
+        return false;
+      }
+      return true;
+    },
+
+    /**
+     * Adds an inheritable attribute to the list
+     * @param {string} prefix - The prefix to use (hx- or fp-)
+     * @param {string} attributeName - The name of the attribute to add
+     */
+    addInheritableAttribute(prefix, attributeName) {
+      if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
+        this.INHERITABLE_ATTRIBUTES[prefix] = [];
+      }
+      this.INHERITABLE_ATTRIBUTES[prefix].push(attributeName);
+    },
+
+    /**
+     * Removes an inheritable attribute from the list
+     * @param {string} prefix - The prefix to use (hx- or fp-)
+     * @param {string} attributeName - The name of the attribute to remove
+     * @returns {boolean} True if the attribute was removed, false if it wasn't found
+     */
+    removeInheritableAttribute(prefix, attributeName) {
+      if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
+        return false;
+      }
+      const index = this.INHERITABLE_ATTRIBUTES[prefix].indexOf(attributeName);
+      if (index === -1) {
+        return false;
+      }
+      this.INHERITABLE_ATTRIBUTES[prefix].splice(index, 1);
+      return true;
+    },
+
+    isInheritable(attributeName) {
+      const normalizedName = this._normalizeAttributeName(attributeName);
+      return Object.values(this.INHERITABLE_ATTRIBUTES)
+        .flat()
+        .includes(normalizedName);
+    },
+  };
+
   // Version management utilities
   const VersionManager = {
     parseVersion(version) {
@@ -11706,8 +12070,9 @@ var FlowPlater = (function () {
     plugins: new Map(),
     globalMethods: new Map(),
     instanceMethods: new Map(),
+    customTransformers: new Map(), // Store custom transformers by type
 
-    registerPlugin(plugin) {
+    registerPlugin(plugin, config = {}) {
       if (typeof plugin === "string") {
         plugin = window[plugin];
       }
@@ -11720,7 +12085,7 @@ var FlowPlater = (function () {
         throw new FlowPlaterError("Plugin must be a valid function");
       }
 
-      const pluginInstance = plugin();
+      const pluginInstance = plugin(config);
 
       // Validate required config fields
       const requiredFields = ["name", "enabled", "priority", "version"];
@@ -11784,6 +12149,16 @@ var FlowPlater = (function () {
             );
           }
         }
+      }
+
+      // Handle inheritable attributes
+      if (
+        plugin.inheritableAttributes &&
+        Array.isArray(plugin.inheritableAttributes)
+      ) {
+        plugin.inheritableAttributes.forEach((attributeName) => {
+          AttributeMatcher.addInheritableAttribute("fp-", attributeName);
+        });
       }
 
       // Add to ready state tracking
@@ -11945,7 +12320,19 @@ var FlowPlater = (function () {
 
     removePlugin(name) {
       const plugin = this.getPlugin(name);
-      if (!plugin) return false;
+      if (!plugin) {
+        return false;
+      }
+
+      // Remove inheritable attributes
+      if (
+        plugin.inheritableAttributes &&
+        Array.isArray(plugin.inheritableAttributes)
+      ) {
+        plugin.inheritableAttributes.forEach((attributeName) => {
+          AttributeMatcher.removeInheritableAttribute("fp-", attributeName);
+        });
+      }
 
       // Store methods to remove before deleting from maps
       const methodsToRemove = new Set();
@@ -12045,17 +12432,39 @@ var FlowPlater = (function () {
 
     // Apply transformations from all enabled plugins in priority order
     applyTransformations(instance, data, transformationType, dataType = "json") {
+      // Validate instance
+      if (!instance || typeof instance !== "object") {
+        Debug.error("Invalid instance provided to applyTransformations");
+        return data;
+      }
+
+      Debug.debug(`[Transform] Starting ${transformationType}`, {
+        instance: instance.instanceName,
+        dataType,
+        isEvent: data instanceof Event,
+        dataType: typeof data,
+        isProxy: data && typeof data === "object" && "toJSON" in data,
+      });
+
       // Get plugins in priority order
       const plugins = this.getSortedPlugins();
 
       // Apply each plugin's transformation if it exists
-      return plugins.reduce((transformedData, plugin) => {
+      let transformedData = plugins.reduce((transformedData, plugin) => {
         // Check if plugin has transformers and the specific transformation type
         if (
           plugin.transformers &&
           typeof plugin.transformers[transformationType] === "function"
         ) {
           try {
+            Debug.debug(
+              `[Transform] Applying ${plugin.config.name}'s ${transformationType}`,
+              {
+                dataType: typeof transformedData,
+                isEvent: transformedData instanceof Event,
+              },
+            );
+
             // Apply the transformation
             const result = plugin.transformers[transformationType](
               instance,
@@ -12078,6 +12487,12 @@ var FlowPlater = (function () {
               return transformedData;
             }
 
+            Debug.debug(`[Transform] ${plugin.config.name}'s transform result:`, {
+              resultType: typeof result,
+              isEvent: result instanceof Event,
+              isProxy: result && typeof result === "object" && "toJSON" in result,
+            });
+
             return result;
           } catch (error) {
             Debug.error(
@@ -12089,6 +12504,144 @@ var FlowPlater = (function () {
         }
         return transformedData;
       }, data);
+
+      // Apply custom transformers after plugin transformers
+      const customTransformers =
+        this.customTransformers.get(transformationType) || [];
+
+      if (customTransformers.length > 0) {
+        Debug.debug(
+          `[Transform] Applying ${customTransformers.length} custom transformers for ${transformationType}`,
+        );
+      }
+
+      transformedData = customTransformers.reduce(
+        (transformedData, transformer, index) => {
+          try {
+            Debug.debug(
+              `[Transform] Applying custom transformer ${index + 1}/${
+              customTransformers.length
+            }`,
+              {
+                dataType: typeof transformedData,
+                isEvent: transformedData instanceof Event,
+              },
+            );
+
+            // Apply the custom transformation with the instance context
+            const result = transformer.call(
+              null,
+              instance,
+              transformedData,
+              dataType,
+            );
+
+            // If the result is undefined or null, return the original data
+            if (result === undefined || result === null) {
+              Debug.warn(
+                `Custom transformer returned undefined/null for ${transformationType}, using original data`,
+              );
+              return transformedData;
+            }
+
+            // For event transformations, ensure we preserve the event object structure
+            if (transformedData instanceof Event && result instanceof Event) {
+              // For events, we want to preserve the event object but update its properties
+              Object.assign(transformedData.detail, result.detail);
+              return transformedData;
+            }
+
+            Debug.debug(`[Transform] Custom transformer ${index + 1} result:`, {
+              resultType: typeof result,
+              isEvent: result instanceof Event,
+              isProxy: result && typeof result === "object" && "toJSON" in result,
+            });
+
+            return result;
+          } catch (error) {
+            Debug.error(
+              `Custom transformer failed executing ${transformationType} transformation:`,
+              error,
+            );
+            return transformedData; // Return unmodified data if transformation fails
+          }
+        },
+        transformedData,
+      );
+
+      Debug.debug(`[Transform] Completed ${transformationType}`, {
+        finalDataType: typeof transformedData,
+        isEvent: transformedData instanceof Event,
+        isProxy:
+          transformedData &&
+          typeof transformedData === "object" &&
+          "toJSON" in transformedData,
+      });
+
+      return transformedData;
+    },
+
+    // Add a custom transformer function for a specific transformation type
+    addTransformer(transformationType, transformerFn) {
+      if (typeof transformerFn !== "function") {
+        throw new FlowPlaterError("Transformer must be a function");
+      }
+
+      // Validate transformer function signature
+      const fnStr = transformerFn.toString();
+      if (!fnStr.includes("instance") || !fnStr.includes("data")) {
+        Debug.warn(
+          "Transformer function should accept (instance, data, dataType) parameters",
+        );
+      }
+
+      // Initialize array for this transformation type if it doesn't exist
+      if (!this.customTransformers.has(transformationType)) {
+        this.customTransformers.set(transformationType, []);
+      }
+
+      // Add the transformer to the array
+      this.customTransformers.get(transformationType).push(transformerFn);
+
+      Debug.debug(`Added custom transformer for ${transformationType}`);
+      return this; // For method chaining
+    },
+
+    // Remove a custom transformer function
+    removeTransformer(transformationType, transformerFn) {
+      if (!this.customTransformers.has(transformationType)) {
+        return false;
+      }
+
+      const transformers = this.customTransformers.get(transformationType);
+      const index = transformers.indexOf(transformerFn);
+
+      if (index === -1) {
+        return false;
+      }
+
+      transformers.splice(index, 1);
+
+      // Remove the transformation type if no transformers left
+      if (transformers.length === 0) {
+        this.customTransformers.delete(transformationType);
+      }
+
+      Debug.debug(`Removed custom transformer for ${transformationType}`);
+      return true;
+    },
+
+    // Clear all custom transformers for a specific type
+    clearTransformers(transformationType) {
+      if (!transformationType) {
+        // Clear all transformers if no type specified
+        this.customTransformers.clear();
+        Debug.debug("Cleared all custom transformers");
+      } else {
+        this.customTransformers.delete(transformationType);
+        Debug.debug(`Cleared custom transformers for ${transformationType}`);
+      }
+      return this;
     },
 
     executeHook(hookName, ...args) {
@@ -12138,7 +12691,7 @@ var FlowPlater = (function () {
         throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
       }
 
-      return methodInfo.method(plugin, ...args);
+      return methodInfo.method.call(plugin, ...args);
     },
 
     // Execute an instance method
@@ -12257,6 +12810,190 @@ var FlowPlater = (function () {
     return element;
   }
 
+  /**
+   * Deep merges source objects into target object.
+   * Mutates the target object.
+   *
+   * @param {Object} target - The target object to merge into
+   * @param {Object} source - The source object to merge from
+   * @returns {Object} The merged object (same as target)
+   */
+  function deepMerge(target, source) {
+    // Handle edge cases
+    if (!source) return target;
+    if (!target) return source;
+
+    // Iterate through source properties
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        // Handle arrays specially - replace entire array
+        if (Array.isArray(target[key]) && Array.isArray(source[key])) {
+          target[key] = source[key];
+        }
+        // If property exists in target and both are objects, merge recursively
+        else if (
+          key in target &&
+          typeof target[key] === "object" &&
+          typeof source[key] === "object" &&
+          target[key] !== null &&
+          source[key] !== null
+        ) {
+          deepMerge(target[key], source[key]);
+        } else {
+          // Otherwise just copy the value
+          target[key] = source[key];
+        }
+      }
+    }
+
+    return target;
+  }
+
+  const defaultConfig$1 = {
+    debug: {
+      level:
+        window.location.hostname.endsWith(".webflow.io") ||
+        window.location.hostname.endsWith(".canvas.webflow.com") ||
+        window.location.hostname.endsWith("localhost")
+          ? 3
+          : 1,
+    },
+    selectors: {
+      fp: [
+        "template",
+        "get",
+        "post",
+        "put",
+        "delete",
+        "patch",
+        "persist",
+        "instance",
+      ],
+    },
+    templates: {
+      cacheSize: 100,
+      precompile: true,
+    },
+    animation: {
+      enabled: true,
+      duration: 300,
+    },
+    htmx: {
+      timeout: 10000,
+      swapStyle: "innerHTML",
+      selfRequestsOnly: false,
+      ignoreTitle: true,
+    },
+    customTags: customTagList,
+    storage: {
+      enabled: false,
+      ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+    },
+    persistForm: true,
+  };
+
+  /**
+   * Normalizes storage configuration to a standard format
+   * @param {boolean|number|Object} storageConfig - The storage configuration value
+   * @param {Object} defaultStorageConfig - The default storage configuration
+   * @returns {Object} Normalized storage configuration
+   */
+  function normalizeStorageConfig(storageConfig, defaultStorageConfig) {
+    if (typeof storageConfig === "boolean") {
+      return {
+        enabled: storageConfig,
+        ttl: defaultStorageConfig.ttl,
+      };
+    }
+    if (typeof storageConfig === "number") {
+      if (storageConfig === -1) {
+        return {
+          enabled: true,
+          ttl: -1, // Infinite TTL
+        };
+      }
+      return {
+        enabled: storageConfig > 0,
+        ttl: storageConfig > 0 ? storageConfig : defaultStorageConfig.ttl,
+      };
+    }
+    // Ensure enabled is boolean and ttl is number
+    if (typeof storageConfig === "object" && storageConfig !== null) {
+      return {
+        enabled: !!storageConfig.enabled,
+        ttl:
+          typeof storageConfig.ttl === "number"
+            ? storageConfig.ttl
+            : defaultStorageConfig.ttl,
+      };
+    }
+    return defaultStorageConfig; // Fallback to default if invalid format
+  }
+
+  // Initialize state with default config
+  _state.config = JSON.parse(JSON.stringify(defaultConfig$1));
+
+  const ConfigManager = {
+    /**
+     * Sets or updates the FlowPlater configuration.
+     * @param {Object} newConfig - Configuration options to apply.
+     */
+    setConfig(newConfig = {}) {
+      if ("storage" in newConfig) {
+        newConfig.storage = normalizeStorageConfig(
+          newConfig.storage,
+          defaultConfig$1.storage,
+        );
+      }
+
+      // Use the imported deepMerge utility
+      _state.config = deepMerge(
+        JSON.parse(JSON.stringify(_state.config)),
+        newConfig,
+      );
+
+      // --- Apply configuration settings ---
+
+      // Apply debug level
+      Debug.level = _state.config.debug.level;
+
+      // Configure HTMX defaults if htmx is available
+      if (typeof htmx !== "undefined") {
+        htmx.config.timeout = _state.config.htmx.timeout;
+        htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
+        htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
+        htmx.config.ignoreTitle = _state.config.htmx.ignoreTitle;
+      }
+
+      // Set custom tags if provided in the new config
+      if (newConfig.customTags) {
+        setCustomTags(newConfig.customTags);
+      }
+
+      Debug.info("FlowPlater configuration updated:", this.getConfig());
+    },
+
+    /**
+     * Gets the current configuration.
+     * @returns {Object} A deep copy of the current configuration.
+     */
+    getConfig() {
+      // Return a deep copy to prevent accidental modification of the state
+      return JSON.parse(JSON.stringify(_state.config));
+    },
+
+    /**
+     * Gets the default configuration.
+     * @returns {Object} A deep copy of the default configuration.
+     */
+    getDefaultConfig() {
+      return JSON.parse(JSON.stringify(defaultConfig$1));
+    },
+  };
+
+  // Apply initial debug level based on the default config loaded into state
+  Debug.level = _state.config.debug.level;
+
   function compileTemplate(templateId, recompile = false) {
     if (!recompile) {
       return memoizedCompile(templateId);
@@ -12294,15 +13031,15 @@ var FlowPlater = (function () {
     // Check if template needs compilation
     if (
       !_state.templateCache[templateId] ||
-      (templateElement.hasAttribute("fp-dynamic") &&
-        templateElement.getAttribute("fp-dynamic") !== "false")
+      (AttributeMatcher._hasAttribute(templateElement, "dynamic") &&
+        AttributeMatcher._getRawAttribute(templateElement, "dynamic") !== "false")
     ) {
       Debug.debug("compiling template: " + templateId);
 
       // Function to construct tag with attributes
       function constructTagWithAttributes(element) {
         let tagName = element.tagName.toLowerCase();
-        let fpTag = element.getAttribute("fp-tag");
+        let fpTag = AttributeMatcher._getRawAttribute(element, "tag");
         if (fpTag) {
           tagName = fpTag;
         }
@@ -12328,7 +13065,7 @@ var FlowPlater = (function () {
             result += child.textContent;
           } else if (child.nodeType === Node.ELEMENT_NODE) {
             let childTagName = child.tagName.toLowerCase();
-            let fpTag = child.getAttribute("fp-tag");
+            let fpTag = AttributeMatcher._getRawAttribute(child, "tag");
             if (fpTag) {
               childTagName = fpTag;
             }
@@ -12388,13 +13125,16 @@ var FlowPlater = (function () {
             } else if (
               child.tagName === "template" ||
               child.tagName === "fptemplate" ||
-              child.hasAttribute("fp-template")
+              AttributeMatcher._hasAttribute(child, "template")
             ) {
               result += child.outerHTML;
             } else {
               const childContent = processNode(child);
               const startTag = constructTagWithAttributes(child);
-              const fpValAttribute = child.getAttribute("fp-val");
+              const fpValAttribute = AttributeMatcher._getRawAttribute(
+                child,
+                "val",
+              );
               let processedContent = childContent;
               if (fpValAttribute) {
                 processedContent = `{{{default ${fpValAttribute} "${childContent.replace(
@@ -12423,7 +13163,7 @@ var FlowPlater = (function () {
         const compiledTemplate = Handlebars.compile(handlebarsTemplate);
 
         // Check cache size limit before adding new template
-        const cacheSize = _state.config?.templates?.cacheSize || 100; // Default to 100 if not configured
+        const cacheSize = ConfigManager.getConfig().templates?.cacheSize || 100; // Default to 100 if not configured
         if (Object.keys(_state.templateCache).length >= cacheSize) {
           // Remove oldest template
           const oldestKey = Object.keys(_state.templateCache)[0];
@@ -12447,78 +13187,120 @@ var FlowPlater = (function () {
     return _state.templateCache[templateId];
   });
 
-  function saveToLocalStorage(key, data, prefix = "") {
-    Debug.debug(`Storage config:`, _state.config?.storage);
-    if (!_state.config?.storage?.enabled) {
-      Debug.debug(`Storage is disabled, skipping save`);
+  // Helper function to handle Map serialization
+  function replacer(key, value) {
+    if (value instanceof Map) {
+      return {
+        _dataType: "Map",
+        value: Array.from(value.entries()), // Convert Map to array of [key, value] pairs
+      };
+    } else {
+      return value;
+    }
+  }
+
+  // Helper function to handle Map deserialization
+  function reviver(key, value) {
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      value._dataType === "Map"
+    ) {
+      return new Map(value.value);
+    }
+    return value;
+  }
+
+  /**
+   * Saves data to localStorage with expiry
+   * @param {string} key - The key to save under
+   * @param {*} data - The data to save
+   * @param {string} type - Type prefix (e.g., 'instance', 'group')
+   * @returns {boolean} True if save was successful, false otherwise
+   */
+  function saveToLocalStorage(key, data, type = "") {
+    const config = ConfigManager.getConfig().storage;
+    if (!config?.enabled) {
+      Debug.debug(
+        `[LocalStorage] Storage is disabled, skipping save for key: ${key}`,
+      );
       return false;
     }
 
     try {
-      const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
-
-      // Always serialize/deserialize to ensure we have raw, deep-cloned data (removes Proxies)
-      let rawData;
+      const storageKey = type ? `fp_${type}_${key}` : `fp_${key}`;
+      let dataToStore;
       try {
-        // This effectively deep clones the target data, removing any proxy wrappers
-        rawData = JSON.parse(JSON.stringify(data));
+        // Use the replacer here
+        dataToStore = JSON.stringify(data, replacer);
       } catch (e) {
-        Debug.error(`Failed to serialize data for localStorage: ${e.message}`);
-        // Fallback or decide how to handle non-serializable data
-        rawData = {}; // Save empty object as fallback?
+        Debug.error(
+          `[LocalStorage] Failed to serialize data for key ${storageKey}: ${e.message}`,
+        );
+        return false; // Don't save corrupted data
       }
 
-      const storageData = {
-        data: rawData,
-        expiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
+      const item = {
+        data: dataToStore, // Store the stringified data
+        expiry: config.ttl === -1 ? null : Date.now() + config.ttl * 1000,
       };
 
-      Debug.debug(`Saving to localStorage:`, {
+      Debug.debug(`[LocalStorage] Saving to localStorage:`, {
         key: storageKey,
-        data: storageData,
+        item,
       });
-
-      localStorage.setItem(storageKey, JSON.stringify(storageData));
+      localStorage.setItem(storageKey, JSON.stringify(item)); // Store the wrapper object
       return true;
-    } catch (error) {
-      Debug.error(`Failed to save to localStorage: ${error.message}`);
+    } catch (e) {
+      Debug.error(
+        `[LocalStorage] Failed to save to localStorage for key ${key}: ${e.message}`,
+      );
       return false;
     }
   }
 
-  function loadFromLocalStorage(key, prefix = "") {
-    Debug.debug(`Storage config:`, _state.config?.storage);
-    if (!_state.config?.storage?.enabled) {
-      Debug.debug(`Storage is disabled, skipping load`);
-      return null;
-    }
+  /**
+   * Loads data from localStorage, checks expiry
+   * @param {string} key - The key to load
+   * @param {string} type - Type prefix (e.g., 'instance', 'group')
+   * @returns {*} The loaded data or null if not found or expired
+   */
+  function loadFromLocalStorage(key, type = "") {
+    ConfigManager.getConfig().storage;
+    // Allow loading even if storage is disabled *now*, data might exist from previous session
 
     try {
-      const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
+      const storageKey = type ? `fp_${type}_${key}` : `fp_${key}`;
       const storedItem = localStorage.getItem(storageKey);
+
       if (!storedItem) {
-        Debug.debug(`No stored item found for: ${storageKey}`);
+        Debug.debug(`[LocalStorage] No stored item found for key: ${storageKey}`);
         return null;
       }
 
-      const storageData = JSON.parse(storedItem);
+      const item = JSON.parse(storedItem);
 
-      // Check if data has expired
-      if (storageData.expiry && storageData.expiry < Date.now()) {
-        Debug.debug(`Stored item has expired: ${storageKey}`);
+      // Check expiry
+      if (item.expiry && item.expiry < Date.now()) {
+        Debug.debug(
+          `[LocalStorage] Stored item has expired for key: ${storageKey}`,
+        );
         localStorage.removeItem(storageKey);
         return null;
       }
 
-      Debug.debug(`Loaded from localStorage:`, {
-        key: storageKey,
-        data: storageData,
-      });
+      // Use the reviver here when parsing the stored data string
+      const loadedData = JSON.parse(item.data, reviver);
 
-      // Return just the data portion, not the wrapper object
-      return storageData.data;
-    } catch (error) {
-      Debug.error(`Failed to load from localStorage: ${error.message}`);
+      Debug.debug(`[LocalStorage] Loaded from localStorage:`, {
+        key: storageKey,
+        data: loadedData,
+      });
+      return loadedData;
+    } catch (e) {
+      Debug.error(
+        `[LocalStorage] Failed to load or parse from localStorage for key ${key}: ${e.message}`,
+      );
       return null;
     }
   }
@@ -12720,25 +13502,14 @@ var FlowPlater = (function () {
      * @returns {boolean} - Whether persistence is enabled
      */
     isPersistenceEnabledForElement(element) {
-      // Check if element has explicit persistence setting
-      if (element.hasAttribute("fp-persist")) {
-        return element.getAttribute("fp-persist") !== "false";
-      }
-
-      // Check if element is inside a form with persistence setting
-      const form = element.closest("form");
-      if (form && form.hasAttribute("fp-persist")) {
-        return form.getAttribute("fp-persist") !== "false";
-      }
-
-      // Check if element is inside a container with persistence setting
-      const container = element.closest("[fp-persist]");
-      if (container) {
-        return container.getAttribute("fp-persist") !== "false";
+      // Use AttributeMatcher to check for inherited persistence setting
+      const inheritedValue = AttributeMatcher.findAttribute(element, "persist");
+      if (inheritedValue !== null) {
+        return inheritedValue !== "false";
       }
 
       // Default to global setting
-      return _state.config?.persistForm !== false;
+      return ConfigManager.getConfig().persistForm !== false;
     },
 
     /**
@@ -12748,8 +13519,8 @@ var FlowPlater = (function () {
      */
     shouldUseLocalStorage(element) {
       return (
-        element.hasAttribute("fp-persist-local") ||
-        _state.config?.storage?.enabled === true
+        AttributeMatcher._hasAttribute(element, "persist-local") ||
+        ConfigManager.getConfig().storage?.enabled === true
       );
     },
 
@@ -12761,23 +13532,31 @@ var FlowPlater = (function () {
     shouldRestoreForm(element) {
       // First check if there are any explicitly persistent elements
       // These override any parent fp-persist="false" settings
-      const explicitlyPersistentInputs = element.querySelectorAll(
-        '[fp-persist="true"]',
+      const explicitlyPersistentInputs = AttributeMatcher.findMatchingElements(
+        "persist",
+        "true",
+        true,
+        element,
       );
       if (explicitlyPersistentInputs.length > 0) {
         return true;
       }
 
       // Check if element itself is a form with explicit persistence setting
-      if (element.tagName === "FORM" && element.hasAttribute("fp-persist")) {
-        return element.getAttribute("fp-persist") !== "false";
+      if (
+        element.tagName === "FORM" &&
+        AttributeMatcher._hasAttribute(element, "persist")
+      ) {
+        return AttributeMatcher._getRawAttribute(element, "persist") !== "false";
       }
 
       // Check parent form if exists
       const parentForm = element.closest("form");
       if (parentForm) {
         // If parent form explicitly disables persistence, skip it
-        if (parentForm.getAttribute("fp-persist") === "false") {
+        if (
+          AttributeMatcher._getRawAttribute(parentForm, "persist") === "false"
+        ) {
           return false;
         }
 
@@ -12788,7 +13567,12 @@ var FlowPlater = (function () {
           if (!input.name || input.type === "file") continue;
 
           // Check if input is inside an element with fp-persist="false"
-          const persistFalseParent = input.closest('[fp-persist="false"]');
+          const persistFalseParent = AttributeMatcher.findClosestParent(
+            "persist",
+            "false",
+            true,
+            input,
+          );
           if (persistFalseParent) {
             continue;
           }
@@ -12918,37 +13702,46 @@ var FlowPlater = (function () {
     let useLocalStorage = false;
 
     // Check persistence settings
-    if (element.hasAttribute("fp-persist")) {
-      shouldPersist = element.getAttribute("fp-persist") !== "false";
-      useLocalStorage = element.getAttribute("fp-persist") === "true";
+    if (AttributeMatcher._hasAttribute(element, "persist")) {
+      shouldPersist =
+        AttributeMatcher._getRawAttribute(element, "persist") !== "false";
+      useLocalStorage =
+        AttributeMatcher._getRawAttribute(element, "persist") === "true";
     } else {
       const form = element.form;
-      if (form && form.hasAttribute("fp-persist")) {
-        shouldPersist = form.getAttribute("fp-persist") !== "false";
-        useLocalStorage = form.getAttribute("fp-persist") === "true";
-      } else if (_state.config?.storage?.enabled && !_state.config?.persistForm) {
+      if (form && AttributeMatcher._hasAttribute(form, "persist")) {
+        shouldPersist =
+          AttributeMatcher._getRawAttribute(form, "persist") !== "false";
+        useLocalStorage =
+          AttributeMatcher._getRawAttribute(form, "persist") === "true";
+      } else if (
+        ConfigManager.getConfig().storage?.enabled &&
+        !ConfigManager.getConfig().persistForm
+      ) {
         shouldPersist = false;
         useLocalStorage = false;
       } else {
-        shouldPersist = _state.config?.persistForm;
+        shouldPersist = ConfigManager.getConfig().persistForm;
         useLocalStorage =
-          _state.config?.storage?.enabled && _state.config?.persistForm;
+          ConfigManager.getConfig().storage?.enabled &&
+          ConfigManager.getConfig().persistForm;
       }
     }
 
     // For forms, check if any elements have explicit persistence
     if (element.tagName === "FORM") {
       const hasPersistentElements = Array.from(element.elements).some(
-        (input) => input.getAttribute("fp-persist") === "true",
+        (input) => AttributeMatcher._getRawAttribute(input, "persist") === "true",
       );
       if (hasPersistentElements) {
-        useLocalStorage = _state.config?.storage?.enabled;
+        useLocalStorage = ConfigManager.getConfig().storage?.enabled;
       }
     }
 
     return {
       shouldPersist,
-      useLocalStorage: useLocalStorage && _state.config?.storage?.enabled,
+      useLocalStorage:
+        useLocalStorage && ConfigManager.getConfig().storage?.enabled,
     };
   }
 
@@ -13337,7 +14130,7 @@ var FlowPlater = (function () {
         // Check if the input has a template value
         if (isTemplateValue(input.value)) return true;
         // Check for data-binding attributes that indicate template usage
-        if (input.getAttribute("fp-bind")) return true;
+        if (AttributeMatcher._hasAttribute(input, "bind")) return true;
         return false;
       }
 
@@ -13544,7 +14337,7 @@ var FlowPlater = (function () {
       fromEl.innerHTML = toEl.innerHTML;
 
       // Setup form persistence if enabled
-      if (_state.config?.persistForm) {
+      if (ConfigManager.getConfig().persistForm) {
         setupFormSubmitHandlers(
           fromEl,
           "updateDOM - form state restoration - setupFormSubmitHandlers",
@@ -13583,7 +14376,7 @@ var FlowPlater = (function () {
       handleMixedContent(fromEl, toEl);
       return;
     }
-    if (_state.config?.persistForm) {
+    if (ConfigManager.getConfig().persistForm) {
       captureFormStates(fromEl);
     }
 
@@ -13740,7 +14533,10 @@ var FlowPlater = (function () {
   async function updateDOM(element, newHTML, animate = false, instance = null) {
     Performance.start("updateDOM");
 
-    let forceFullUpdate = element.hasAttribute("fp-force-full-update");
+    let forceFullUpdate = AttributeMatcher._hasAttribute(
+      element,
+      "force-full-update",
+    );
 
     // Add a flag to prevent multiple restorations
     const isAlreadyRestoring = element.hasAttribute("fp-restoring");
@@ -13759,19 +14555,19 @@ var FlowPlater = (function () {
         throw new Error("newHTML must be a string");
       }
 
-      Debug.debug("Starting updateDOM with config:", _state.config);
+      Debug.debug("Starting updateDOM with config:", ConfigManager.getConfig());
 
       // Log form persistence state
       Debug.debug(
         `Form persistence enabled: ${
-        _state.config?.persistForm
+        ConfigManager.getConfig().persistForm
       }, Should restore form: ${FormStateManager.shouldRestoreForm(element)}`,
       );
 
       // Capture form states if form restoration is needed
       let formStates = null;
       if (
-        _state.config?.persistForm &&
+        ConfigManager.getConfig().persistForm &&
         FormStateManager.shouldRestoreForm(element)
       ) {
         Debug.debug("Capturing form states before update");
@@ -13782,7 +14578,7 @@ var FlowPlater = (function () {
       // Single observer setup
       let formObserver = null;
       if (
-        _state.config?.persistForm &&
+        ConfigManager.getConfig().persistForm &&
         FormStateManager.shouldRestoreForm(element)
       ) {
         Debug.debug("Setting up dynamic form observer");
@@ -13831,7 +14627,7 @@ var FlowPlater = (function () {
 
           // Single form restoration
           if (
-            _state.config?.persistForm &&
+            ConfigManager.getConfig().persistForm &&
             FormStateManager.shouldRestoreForm(element) &&
             formStates
           ) {
@@ -13876,11 +14672,11 @@ var FlowPlater = (function () {
 
       // Final form state restoration if needed
       if (
-        _state.config?.persistForm &&
+        ConfigManager.getConfig().persistForm &&
         FormStateManager.shouldRestoreForm(element)
       ) {
         Debug.debug("Restoring form states after update");
-        const n = element.querySelectorAll('[fp-persist="true"]');
+        const n = AttributeMatcher.findMatchingElements("persist", "true");
         Debug.debug(`Found ${n.length} inputs to restore`);
         FormStateManager.restoreFormStates(
           element,
@@ -14010,41 +14806,6 @@ var FlowPlater = (function () {
     }
   }
 
-  /**
-   * Deep merges source objects into target object.
-   * Mutates the target object.
-   *
-   * @param {Object} target - The target object to merge into
-   * @param {Object} source - The source object to merge from
-   * @returns {Object} The merged object (same as target)
-   */
-  function deepMerge(target, source) {
-    // Handle edge cases
-    if (!source) return target;
-    if (!target) return source;
-
-    // Iterate through source properties
-    for (const key in source) {
-      if (Object.prototype.hasOwnProperty.call(source, key)) {
-        // If property exists in target and both are objects, merge recursively
-        if (
-          key in target &&
-          typeof target[key] === "object" &&
-          typeof source[key] === "object" &&
-          target[key] !== null &&
-          source[key] !== null
-        ) {
-          deepMerge(target[key], source[key]);
-        } else {
-          // Otherwise just copy the value
-          target[key] = source[key];
-        }
-      }
-    }
-
-    return target;
-  }
-
   function instanceMethods(instanceName) {
     // Helper function to resolve a path within the data
     function _resolvePath(path) {
@@ -14101,12 +14862,6 @@ var FlowPlater = (function () {
           return;
         }
 
-        // Check if data is valid
-        const { valid, isHtml } = _validateData(instance.data);
-        if (!valid || isHtml) {
-          return;
-        }
-
         try {
           let rendered;
           if (instance.templateId === "self" || instance.templateId === null) {
@@ -14124,21 +14879,51 @@ var FlowPlater = (function () {
             Debug.error("No template found for instance", instance.instanceName);
             return;
           } else {
-            // Apply plugin transformations to the data before rendering
-            const transformedData = PluginManager.applyTransformations(
-              instance,
-              instance.data,
-              "transformDataBeforeRender",
-              "json",
-            );
+            // Check if data is valid
+            const { valid, isHtml } = _validateData(instance.data);
 
-            // Use transformed data for reactive rendering
-            rendered = instance.template(transformedData);
-            Debug.debug("Rendered template with data:", {
-              template: instance.templateId,
-              data: transformedData,
-              rendered: rendered,
-            });
+            if (!valid) {
+              Debug.error(
+                "Invalid data type for instance",
+                instance.instanceName,
+              );
+              return;
+            }
+
+            if (isHtml) {
+              Debug.debug("Data is HTML, using as is", instance.instanceName);
+              rendered = instance.data;
+            } else {
+              // Apply plugin transformations to the data before rendering
+              Debug.debug("Before transformation - instance data:", {
+                instanceName: instance.instanceName,
+                rawData: instance.data,
+                getData: instance.getData(),
+              });
+
+              const transformedData = PluginManager.applyTransformations(
+                instance,
+                instance.getData(),
+                "transformDataBeforeRender",
+                "json",
+              );
+
+              Debug.debug("After transformation - transformed data:", {
+                instanceName: instance.instanceName,
+                transformedData,
+                isNull: transformedData === null,
+                isUndefined: transformedData === undefined,
+                type: typeof transformedData,
+              });
+
+              // Use transformed data for reactive rendering
+              rendered = instance.template(transformedData);
+              Debug.debug("Rendered template with data:", {
+                template: instance.templateId,
+                data: transformedData,
+                rendered: rendered,
+              });
+            }
           }
 
           // Filter out elements that are no longer in the DOM
@@ -14257,7 +15042,7 @@ var FlowPlater = (function () {
 
         try {
           // Remove from localStorage if storage is enabled
-          if (_state.config?.storage?.enabled) {
+          if (ConfigManager.getConfig().storage?.enabled) {
             localStorage.removeItem(`fp_${instanceName}`);
           }
 
@@ -14361,7 +15146,7 @@ var FlowPlater = (function () {
                     deepMerge(instance.data, data);
 
                     // Store data if storage is enabled
-                    if (_state.config?.storage?.enabled) {
+                    if (ConfigManager.getConfig().storage?.enabled) {
                       saveToLocalStorage(instanceName, instance.data, "instance");
                     }
 
@@ -14377,6 +15162,12 @@ var FlowPlater = (function () {
                 "transformDataBeforeRender",
                 "json",
               );
+
+              Debug.debug(
+                "Instance.refresh - Transformed data:",
+                transformedData,
+              );
+
               promises.push(
                 updateDOM(
                   element,
@@ -14459,31 +15250,76 @@ var FlowPlater = (function () {
      * @returns {Object} The group object containing data proxy and instances
      */
     getOrCreateGroup(groupName, initialData = {}) {
-      if (!groupName) {
-        Debug.error("Invalid group name");
-        return null;
-      }
+      let existingGroup = _state.groups[groupName];
 
-      // If group already exists, return it
-      if (_state.groups[groupName]) {
+      if (existingGroup) {
         // Merge any new initial data
         if (Object.keys(initialData).length > 0) {
-          deepMerge(_state.groups[groupName].data, initialData);
+          deepMerge(existingGroup.data, initialData);
+          Debug.debug(
+            `[GroupManager] Merged initialData into existing group: ${groupName}`,
+            initialData,
+          );
         }
-        return _state.groups[groupName];
+        return existingGroup;
       }
 
-      // Create new group
+      // --- Group doesn't exist in state, attempt to load from storage ---
+      let baseData = {}; // Start with empty base
+
+      if (ConfigManager.getConfig().storage?.enabled) {
+        // Check if storage is currently enabled
+        try {
+          const loadedData = loadFromLocalStorage(groupName, "group");
+          if (loadedData) {
+            Debug.info(
+              `[GroupManager] Loaded group data from storage for: ${groupName}`,
+            );
+            baseData = loadedData; // Use loaded data as the base
+          } else {
+            Debug.debug(
+              `[GroupManager] No group data found in storage for: ${groupName}`,
+            );
+          }
+        } catch (e) {
+          Debug.error(
+            `[GroupManager] Error loading group ${groupName} from storage: ${e.message}`,
+          );
+          // Proceed with empty baseData on error
+        }
+      } else {
+        Debug.debug(
+          `[GroupManager] Storage is disabled, skipping loadFromLocalStorage for: ${groupName}`,
+        );
+      }
+
+      // Merge any explicitly passed initialData *on top* of the base (loaded or empty)
+      if (Object.keys(initialData).length > 0) {
+        baseData = deepMerge(baseData, initialData);
+        Debug.debug(
+          `[GroupManager] Merged initialData onto base for new group: ${groupName}`,
+          initialData,
+        );
+      }
+
+      // --- Create new group with the final baseData ---
+      Debug.info(
+        `[GroupManager] Creating new group: ${groupName} with base data`,
+        baseData,
+      );
       const group = {
         name: groupName,
         instances: new Set(),
         _isEvaluating: false,
         _lastRenderedOutputs: new Map(),
         data: {}, // Will be replaced with proxy
+        getData: () => {
+          return JSON.parse(JSON.stringify(_state.groups[groupName].data));
+        },
       };
 
-      // Create proxy for group data
-      group.data = createDeepProxy(initialData, async () => {
+      // Create proxy for group data using the final baseData
+      group.data = createDeepProxy(baseData, async () => {
         // Skip if already evaluating to prevent circular updates
         if (group._isEvaluating) return;
 
@@ -14507,7 +15343,7 @@ var FlowPlater = (function () {
               // Get transformed data
               const transformedData = PluginManager.applyTransformations(
                 instance,
-                group.data,
+                group.getData(),
                 "transformDataBeforeRender",
                 "json",
               );
@@ -14553,9 +15389,10 @@ var FlowPlater = (function () {
           // Wait for all instance updates to complete
           await Promise.all(updatePromises);
 
-          // Save to storage if enabled
-          if (_state.config?.storage?.enabled) {
-            saveToLocalStorage(`group_${groupName}`, group.data, "group");
+          // Save to storage if enabled - dynamically checks ConfigManager.getConfig
+          if (ConfigManager.getConfig().storage?.enabled) {
+            Debug.debug(`[Group Update] Saving group data for ${groupName}`);
+            saveToLocalStorage(groupName, group.data, "group");
           }
         } finally {
           group._isEvaluating = false;
@@ -14564,9 +15401,39 @@ var FlowPlater = (function () {
 
       // Store group in state
       _state.groups[groupName] = group;
-      Debug.info(`Created new group: ${groupName}`);
+      Debug.info(`[GroupManager] Created and stored new group: ${groupName}`);
 
       return group;
+    },
+
+    getGroup(groupName) {
+      return _state.groups[groupName] || null;
+    },
+
+    getAllGroups() {
+      return _state.groups;
+    },
+
+    updateGroup(groupName, data) {
+      const group = this.getGroup(groupName);
+      if (group && group.data && typeof data === "object") {
+        deepMerge(group.data, data);
+        return group;
+      }
+      return null;
+    },
+
+    removeGroup(groupName) {
+      const group = this.getGroup(groupName);
+      if (group) {
+        delete _state.groups[groupName];
+        Debug.info(`Removed group: ${groupName}`);
+      }
+    },
+
+    removeAllGroups() {
+      _state.groups = {};
+      Debug.info("Removed all groups");
     },
 
     /**
@@ -14588,7 +15455,7 @@ var FlowPlater = (function () {
           // Store instance's initial rendered output
           const transformedData = PluginManager.applyTransformations(
             instance,
-            group.data,
+            group.getData(),
             "transformDataBeforeRender",
             "json",
           );
@@ -14653,32 +15520,36 @@ var FlowPlater = (function () {
      */
     getOrCreateInstance(element, initialData = {}) {
       // Skip if element is already indexed
-      if (element.hasAttribute("fp-indexed")) {
+      if (AttributeMatcher._hasAttribute(element, "indexed")) {
         Debug.debug(
           `Element already indexed: ${
-          element.id || element.getAttribute("fp-instance")
+          element.id || AttributeMatcher._getRawAttribute(element, "instance")
         }`,
         );
         return _state.instances[
-          element.getAttribute("fp-instance") || element.id
+          AttributeMatcher._getRawAttribute(element, "instance") || element.id
         ];
       }
 
-      const instanceName = element.getAttribute("fp-instance") || element.id;
+      const instanceName =
+        AttributeMatcher._getRawAttribute(element, "instance") || element.id;
       if (!instanceName) {
         Debug.error("No instance name found for element");
         return null;
       }
 
       // Check if this element belongs to a group
-      const groupName = element.getAttribute("fp-group");
+      const groupName = AttributeMatcher._getRawAttribute(element, "group");
 
       let instance = _state.instances[instanceName];
       if (!instance) {
         // If this is not a template element, look for a parent template element
-        if (!element.hasAttribute("fp-template")) {
-          const parentTemplateElement = document.querySelector(
-            `[fp-template][fp-instance="${instanceName}"]`,
+        if (!AttributeMatcher._hasAttribute(element, "template")) {
+          const parentTemplateElement = AttributeMatcher.findMatchingElements(
+            "template",
+          ).find(
+            (el) =>
+              AttributeMatcher._getRawAttribute(el, "instance") === instanceName,
           );
           if (parentTemplateElement) {
             Debug.debug(
@@ -14695,7 +15566,7 @@ var FlowPlater = (function () {
         instance = {
           elements: new Set([element]),
           template: null, // Template will be assigned by caller
-          templateId: element.getAttribute("fp-template"),
+          templateId: AttributeMatcher._getRawAttribute(element, "template"),
           data: initialData, // Assign initial data, caller MUST replace with Proxy
           cleanup: () => {
             // Remove from group if part of one
@@ -14723,16 +15594,91 @@ var FlowPlater = (function () {
         PluginManager.executeHook("newInstance", instance);
         Debug.info(`Created new instance: ${instanceName}`);
 
-        // Find and add all elements with matching fp-instance attribute
-        const matchingElements = document.querySelectorAll(
-          `[fp-instance="${instanceName}"]`,
+        // Find all elements with matching fp-instance attribute
+        const matchingElements = AttributeMatcher.findMatchingElements(
+          "instance",
+          instanceName,
         );
+
+        // Add matching elements to the instance's elements Set
         matchingElements.forEach((matchingElement) => {
           if (matchingElement !== element) {
-            instance.elements.add(matchingElement);
+            // Check for target attributes, including inherited ones
+            const targetSelector = AttributeMatcher.findInheritedAttribute(
+              matchingElement,
+              "target",
+            );
+
+            if (targetSelector) {
+              let targetElements = [];
+
+              switch (true) {
+                case targetSelector === "this":
+                  targetElements = [matchingElement];
+                  break;
+
+                case targetSelector.startsWith("closest "):
+                  const closestSelector = targetSelector.substring(8);
+                  const closestElement = matchingElement.closest(closestSelector);
+                  if (closestElement) targetElements = [closestElement];
+                  break;
+
+                case targetSelector.startsWith("find "):
+                  const findSelector = targetSelector.substring(5);
+                  const foundElement =
+                    matchingElement.querySelector(findSelector);
+                  if (foundElement) targetElements = [foundElement];
+                  break;
+
+                case targetSelector === "next":
+                  const nextElement = matchingElement.nextElementSibling;
+                  if (nextElement) targetElements = [nextElement];
+                  break;
+
+                case targetSelector.startsWith("next "):
+                  const nextSelector = targetSelector.substring(5);
+                  let currentNext = matchingElement.nextElementSibling;
+                  while (currentNext) {
+                    if (currentNext.matches(nextSelector)) {
+                      targetElements = [currentNext];
+                      break;
+                    }
+                    currentNext = currentNext.nextElementSibling;
+                  }
+                  break;
+
+                case targetSelector === "previous":
+                  const prevElement = matchingElement.previousElementSibling;
+                  if (prevElement) targetElements = [prevElement];
+                  break;
+
+                case targetSelector.startsWith("previous "):
+                  const prevSelector = targetSelector.substring(9);
+                  let currentPrev = matchingElement.previousElementSibling;
+                  while (currentPrev) {
+                    if (currentPrev.matches(prevSelector)) {
+                      targetElements = [currentPrev];
+                      break;
+                    }
+                    currentPrev = currentPrev.previousElementSibling;
+                  }
+                  break;
+
+                default:
+                  // Regular CSS selector
+                  targetElements = document.querySelectorAll(targetSelector);
+              }
+
+              // Add all found target elements to the instance
+              targetElements.forEach((targetElement) => {
+                instance.elements.add(targetElement);
+                targetElement.setAttribute("fp-indexed", "true");
+              });
+            } else {
+              instance.elements.add(matchingElement);
+            }
             // Mark the element as indexed
             matchingElement.setAttribute("fp-indexed", "true");
-            Debug.debug(`Added matching element to instance: ${instanceName}`);
           }
         });
 
@@ -14807,8 +15753,11 @@ var FlowPlater = (function () {
     let derivedInstanceName;
     if (instanceName) {
       derivedInstanceName = instanceName;
-    } else if (target instanceof Element && target.hasAttribute("fp-instance")) {
-      derivedInstanceName = target.getAttribute("fp-instance");
+    } else if (
+      target instanceof Element &&
+      AttributeMatcher._hasAttribute(target, "instance")
+    ) {
+      derivedInstanceName = AttributeMatcher._getRawAttribute(target, "instance");
     } else if (target instanceof Element && target.id) {
       derivedInstanceName = target.id;
     } else if (typeof target === "string" && target.startsWith("#")) {
@@ -14859,32 +15808,50 @@ var FlowPlater = (function () {
       template = "#" + targetElement.id;
     }
 
-    // Normalize target to array
-    let elements = [];
-    if (target instanceof NodeList) {
-      elements = Array.from(target);
-    } else if (typeof target === "string") {
-      elements = Array.from(document.querySelectorAll(target));
-    } else if (target instanceof Element) {
-      elements = [target];
+    // First check for target attributes
+    let targetElements = [];
+    if (target instanceof Element) {
+      // Check for hx-target or fp-target attributes
+      const targetSelector = AttributeMatcher._getRawAttribute(target, "target");
+      if (targetSelector) {
+        if (targetSelector === "this") {
+          targetElements = [target];
+        } else {
+          targetElements = Array.from(document.querySelectorAll(targetSelector));
+        }
+      }
     }
 
-    if (elements.length === 0) {
+    // If no target elements found from attributes, use the normal target handling
+    if (targetElements.length === 0) {
+      if (target instanceof NodeList) {
+        targetElements = Array.from(target);
+      } else if (typeof target === "string") {
+        targetElements = Array.from(document.querySelectorAll(target));
+      } else if (target instanceof Element) {
+        targetElements = [target];
+      }
+    }
+
+    if (targetElements.length === 0) {
       Debug.error("No target elements found");
       return;
     }
 
-    if (elements.length === undefined) {
-      elements = [elements];
+    if (targetElements.length === undefined) {
+      targetElements = [targetElements];
     }
 
     // Get the instance name
     if (instanceName) {
       instanceName = instanceName;
-    } else if (elements[0].hasAttribute("fp-instance")) {
-      instanceName = elements[0].getAttribute("fp-instance");
-    } else if (elements[0].id) {
-      instanceName = elements[0].id;
+    } else if (AttributeMatcher._hasAttribute(targetElements[0], "instance")) {
+      instanceName = AttributeMatcher._getRawAttribute(
+        targetElements[0],
+        "instance",
+      );
+    } else if (targetElements[0].id) {
+      instanceName = targetElements[0].id;
     } else {
       instanceName = _state.length;
     }
@@ -14901,7 +15868,7 @@ var FlowPlater = (function () {
       return;
     }
 
-    if (elements.length === 0) {
+    if (targetElements.length === 0) {
       Debug.error("Target not found: " + target);
       return;
     }
@@ -14916,18 +15883,62 @@ var FlowPlater = (function () {
     let proxy = null; // Initialize proxy at function level
 
     // Check for local variable at instance level first
-    const localVarName = elements[0].getAttribute("fp-local");
+    const localVarName = AttributeMatcher._getRawAttribute(
+      targetElements[0],
+      "local",
+    );
     let localData = null;
     if (localVarName) {
+      // First check if it's a global variable
       localData = extractLocalData(localVarName);
+
+      // If no global variable found, try as a selector
+      if (!localData) {
+        try {
+          const selectorElement = document.querySelector(localVarName);
+          if (selectorElement) {
+            // Check if the element or its children have fp-data
+            const hasDataElement = AttributeMatcher.findMatchingElements(
+              "data",
+              null,
+              false,
+              selectorElement,
+            );
+
+            if (hasDataElement) {
+              const dataExtractor = PluginManager.getPlugin("data-extractor");
+              if (dataExtractor) {
+                localData =
+                  dataExtractor.instanceMethods.extractData(selectorElement);
+              }
+            }
+          }
+        } catch (e) {
+          Debug.warn(`[Template] Invalid selector for fp-local: ${localVarName}`);
+        }
+      }
+
       if (localData) {
         finalInitialData = { ...finalInitialData, ...localData };
+      }
+
+      // Check if we should observe this local data
+      if (AttributeMatcher._hasAttribute(targetElements[0], "local-observe")) {
+        // Find all data elements within the instance
+        const dataElements = AttributeMatcher.findMatchingElements("data");
+
+        // Delegate observation to the DataExtractorPlugin
+        dataElements.forEach((element) => {
+          PluginManager.getPlugin(
+            "data-extractor",
+          ).instanceMethods.observeDataElement(element, localVarName, instance);
+        });
       }
     }
 
     if (!_state.instances[instanceName] || !_state.instances[instanceName].data) {
       // Load persisted data if available and not skipped
-      if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
+      if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
         persistedData = loadFromLocalStorage(instanceName, "instance");
         if (persistedData) {
           // Check if stored data is HTML
@@ -14939,22 +15950,23 @@ var FlowPlater = (function () {
                 persistedData.trim().startsWith("<html")))
           ) {
             // Get swap specification from element
+            const swapStyle = AttributeMatcher._getRawAttribute(
+              targetElements[0],
+              "swap",
+              "innerHTML",
+            );
             const swapSpec = {
-              swapStyle:
-                elements[0].getAttribute("hx-swap")?.split(" ")[0] || "innerHTML",
+              swapStyle: swapStyle || "innerHTML",
               swapDelay: 0,
               settleDelay: 0,
-              transition:
-                elements[0]
-                  .getAttribute("hx-swap")
-                  ?.includes("transition:true") || false,
+              transition: swapStyle.includes("transition:true") || false,
             };
 
             // Use htmx.swap with proper swap specification
             if (returnHtml) {
               return persistedData; // HTML string is now stored directly
             }
-            elements.forEach((element) => {
+            targetElements.forEach((element) => {
               htmx.swap(element, persistedData, swapSpec);
             });
             return _state.instances[instanceName];
@@ -14970,8 +15982,8 @@ var FlowPlater = (function () {
       }
 
       // Find the template element (must have fp-template attribute)
-      const templateElement = elements.find((el) =>
-        el.hasAttribute("fp-template"),
+      const templateElement = targetElements.find((el) =>
+        AttributeMatcher._hasAttribute(el, "template"),
       );
       if (!templateElement) {
         Debug.error("No template element found in target elements");
@@ -15007,17 +16019,17 @@ var FlowPlater = (function () {
       // --- End Setup ---
 
       // Check if this instance is part of a group
-      const groupName = templateElement.getAttribute("fp-group");
+      const groupName = AttributeMatcher._getRawAttribute(
+        templateElement,
+        "group",
+      );
 
       if (groupName) {
         // Check for persisted group data
         let groupData = finalInitialData; // Start with the current data
 
-        if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
-          const persistedGroupData = loadFromLocalStorage(
-            `group_${groupName}`,
-            "group",
-          );
+        if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
+          const persistedGroupData = loadFromLocalStorage(groupName, "group");
           if (persistedGroupData) {
             // Merge persisted group data with any instance-specific data
             groupData = deepMerge(persistedGroupData, finalInitialData);
@@ -15061,10 +16073,11 @@ var FlowPlater = (function () {
                 // Get the current rendered output
                 const transformedData = PluginManager.applyTransformations(
                   instance,
-                  proxy,
+                  instance.getData(),
                   "transformDataBeforeRender",
                   "json",
                 );
+
                 const newRenderedOutput = instance.template(transformedData);
 
                 // Compare with previous render
@@ -15094,7 +16107,7 @@ var FlowPlater = (function () {
                   instance._lastRenderedOutput = newRenderedOutput;
 
                   // Save to storage if enabled
-                  if (_state.config?.storage?.enabled) {
+                  if (ConfigManager.getConfig().storage?.enabled) {
                     const storageId = instance.instanceName.replace("#", "");
                     Debug.debug(
                       `[Debounced Update] Saving data for ${storageId}`,
@@ -15120,7 +16133,8 @@ var FlowPlater = (function () {
       // 3. Assign the proxy and template to the instance
       instance.template = compiledTemplate;
       instance.templateId =
-        templateElement.getAttribute("fp-template") || template;
+        AttributeMatcher._getRawAttribute(templateElement, "template") ||
+        template;
       instance.data = proxy; // Assign the proxy!
 
       // 4. Trigger initial render - This should be OUTSIDE the debounce logic
@@ -15137,7 +16151,7 @@ var FlowPlater = (function () {
 
       // Optional: Initial save if needed, OUTSIDE debounce
       if (
-        _state.config?.storage?.enabled &&
+        ConfigManager.getConfig().storage?.enabled &&
         !persistedData &&
         !instance.groupName
       ) {
@@ -15166,8 +16180,8 @@ var FlowPlater = (function () {
     // Only create/setup instance if proxy is defined
     if (proxy) {
       // Find the template element (must have fp-template attribute)
-      const templateElement = elements.find((el) =>
-        el.hasAttribute("fp-template"),
+      const templateElement = targetElements.find((el) =>
+        AttributeMatcher._hasAttribute(el, "template"),
       );
       if (!templateElement) {
         Debug.error("No template element found in target elements");
@@ -15183,7 +16197,8 @@ var FlowPlater = (function () {
       // Set up the instance but don't render automatically
       instance.template = compiledTemplate; // Always store the template
       instance.templateId =
-        templateElement.getAttribute("fp-template") || template;
+        AttributeMatcher._getRawAttribute(templateElement, "template") ||
+        template;
       instance.data = proxy;
 
       // At this point do NOT call instance._updateDOM() to avoid automatic rendering
@@ -15196,8 +16211,8 @@ var FlowPlater = (function () {
           if (returnHtml) {
             // Apply plugin transformations to the data before rendering
             const transformedData = PluginManager.applyTransformations(
-              finalInstance,
-              finalInstance.data,
+              instance,
+              instance.getData(),
               "transformDataBeforeRender",
               "json",
             );
@@ -15208,8 +16223,8 @@ var FlowPlater = (function () {
           Array.from(instance.elements).forEach((element) => {
             // Apply plugin transformations to the data before rendering
             const transformedData = PluginManager.applyTransformations(
-              finalInstance,
-              finalInstance.data,
+              instance,
+              instance.getData(),
               "transformDataBeforeRender",
               "json",
             );
@@ -15217,7 +16232,7 @@ var FlowPlater = (function () {
               element,
               compiledTemplate(transformedData),
               animate,
-              finalInstance,
+              instance,
             );
           });
         } catch (error) {
@@ -15338,8 +16353,13 @@ var FlowPlater = (function () {
           const path = token.split(".").slice(1);
           let value = currentContext;
           for (const part of path) {
-            if (value && typeof value === "object" && part in value) {
-              value = value[part];
+            if (value && typeof value === "object") {
+              // Check if property exists using hasOwnProperty
+              if (Object.prototype.hasOwnProperty.call(value, part)) {
+                value = value[part];
+              } else {
+                return undefined;
+              }
             } else {
               return undefined;
             }
@@ -15352,8 +16372,14 @@ var FlowPlater = (function () {
         let value = dataContext;
 
         for (const part of path) {
-          if (value && typeof value === "object" && part in value) {
-            value = value[part];
+          if (value && typeof value === "object") {
+            // Check if property exists using hasOwnProperty
+            if (Object.prototype.hasOwnProperty.call(value, part)) {
+              value = value[part];
+              // Property exists, return the value even if falsy
+              continue;
+            }
+            return undefined;
           } else {
             return undefined;
           }
@@ -15363,7 +16389,15 @@ var FlowPlater = (function () {
       }
 
       try {
-        // Parse expression
+        // If expressionString is a simple property name (no operators)
+        if (!expressionString.match(/\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/)) {
+          // Get the value and check if property exists
+          const value = resolveValue(expressionString, options.data.root, this);
+          // Return true if the property exists, regardless of its value
+          return value !== undefined ? options.fn(this) : options.inverse(this);
+        }
+
+        // Parse expression for complex conditions
         const expression = expressionString.trim();
         let [leftToken, operator, rightToken] = expression.split(
           /\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/,
@@ -15388,6 +16422,13 @@ var FlowPlater = (function () {
           operator,
           rightValue,
         });
+
+        // Special handling for existence checks
+        if (operator === "==" && !rightToken) {
+          return leftValue !== undefined
+            ? options.fn(this)
+            : options.inverse(this);
+        }
 
         // Evaluate the condition
         const result = compare(leftValue, operator, rightValue);
@@ -15866,6 +16907,11 @@ var FlowPlater = (function () {
       var data;
       var contextPath;
 
+      // convert map to array if it exists
+      if (context instanceof Map) {
+        context = Array.from(context.values());
+      }
+
       sortBeforeLimit =
         typeof sortBeforeLimit === "boolean" ? sortBeforeLimit : true;
 
@@ -16103,7 +17149,7 @@ var FlowPlater = (function () {
      * @returns {boolean|void} Returns true if processing succeeded for 'process' action
      */
     handleRequest(target, requestId, action) {
-      if (!target || !target.hasAttribute("fp-template")) return;
+      if (!target || !AttributeMatcher._hasAttribute(target, "template")) return;
 
       const currentInfo = this.processingElements.get(target);
       requestId = requestId || this.generateRequestId();
@@ -16173,23 +17219,6 @@ var FlowPlater = (function () {
      * Sets up all necessary event listeners for HTMX integration and request handling
      */
     setupEventListeners() {
-      document.body.addEventListener("htmx:configRequest", (event) => {
-        // Apply plugin transformations to the request
-        const target = event.detail.elt;
-        const instance = InstanceManager.getOrCreateInstance(target);
-        if (instance) {
-          event = PluginManager.applyTransformations(
-            instance,
-            event,
-            "transformRequest",
-            "json",
-          );
-        }
-
-        event.detail.headers["Content-Type"] =
-          "application/x-www-form-urlencoded; charset=UTF-8";
-      });
-
       // Add consolidated event listeners
       document.body.addEventListener("htmx:beforeRequest", (event) => {
         const target = event.detail.elt;
@@ -16210,7 +17239,7 @@ var FlowPlater = (function () {
 
         if (instance) {
           // Execute beforeRequest hook
-          EventSystem.publish("request-start", {
+          EventSystem.publish("requestStart", {
             instanceName,
             ...event.detail,
           });
@@ -16302,10 +17331,7 @@ var FlowPlater = (function () {
 
   function defineHtmxExtension() {
     htmx.defineExtension("flowplater", {
-      transformResponse: function (text, xhr, elt) {
-        // Get the instance first to apply transformations
-        const instance = InstanceManager.getOrCreateInstance(elt);
-
+      transformResponse: async function (text, xhr, elt) {
         // First, check if the data is XML and transform it to JSON if needed
         const contentType = xhr.getResponseHeader("Content-Type") || "";
         const isXml = contentType.startsWith("text/xml");
@@ -16329,9 +17355,11 @@ var FlowPlater = (function () {
           isJson = true;
         }
 
+        // Get the instance first to apply transformations
+        const instance = InstanceManager.getOrCreateInstance(elt);
+
         // Determine the dataType for transformations
         const dataType = isHtml ? "html" : "json";
-
         // Apply plugin transformations to the response text
         if (instance) {
           processedText = PluginManager.applyTransformations(
@@ -16340,17 +17368,29 @@ var FlowPlater = (function () {
             "transformResponse",
             dataType,
           );
+
+          // Update isJson flag based on transformed data type
+          isJson =
+            typeof processedText === "object" ||
+            (typeof processedText === "string" &&
+              (() => {
+                try {
+                  JSON.parse(processedText);
+                  return true;
+                } catch {
+                  return false;
+                }
+              })());
+          Debug.debug(`[transformResponse] isJson: ${isJson}`);
         } else {
           Debug.debug(
             `[transformResponse] No instance found for elt ${elt.id}. Skipping transformations.`,
           );
         }
 
-        const requestId = xhr.requestId;
+        Debug.debug(`[transformResponse] Processed text: ${processedText}`);
 
-        // Mark this request as processed regardless of outcome
-        // This ensures cleanup will work properly
-        RequestHandler.handleRequest(elt, requestId, "process");
+        const requestId = xhr.requestId;
 
         const currentInfo = RequestHandler.processingElements.get(elt);
 
@@ -16358,91 +17398,91 @@ var FlowPlater = (function () {
           return processedText;
         }
 
-        // If the transformed data is HTML, handle it accordingly
-        if (!isJson) {
-          if (_state.config?.storage?.enabled) {
-            const instanceName = instance
-              ? instance.instanceName
-              : elt.getAttribute("fp-instance") || elt.id;
-            if (instanceName) {
-              saveToLocalStorage(
-                instanceName,
-                {
-                  data: processedText,
-                  isHtml: true,
-                  timestamp: Date.now(),
-                },
-                "instance",
-              );
-            }
-          }
-          return processedText;
-        }
+        if (isJson) {
+          Debug.debug(`[transformResponse] Processed text is JSON`);
 
-        // Process JSON data
-        let newData;
-        try {
-          newData = JSON.parse(processedText);
-        } catch (error) {
-          Debug.error("Failed to parse JSON response:", error);
-          return processedText;
-        }
+          if (instance) {
+            const instanceName = instance.instanceName;
+            Debug.debug(`[transformResponse] Setting data for ${instanceName}`);
 
-        if (!newData) return processedText;
+            try {
+              // Mark this request as processed
+              RequestHandler.handleRequest(elt, requestId, "process");
 
-        if (instance) {
-          const instanceName = instance.instanceName;
-          Debug.debug(`[transformResponse] Setting data for ${instanceName}`);
+              // Flag that this instance is getting updated directly via HTMX
+              instance._htmxUpdateInProgress = true;
 
-          try {
-            // Mark this request as processed
-            RequestHandler.handleRequest(elt, requestId, "process");
-
-            // Flag that this instance is getting updated directly via HTMX
-            instance._htmxUpdateInProgress = true;
-
-            // Set the data which triggers updates
-            instance.setData(newData);
-
-            // If this instance is in a group but the group is currently updating,
-            // we need to make sure this instance gets updated
-            if (instance.groupName) {
-              const group = _state.groups[instance.groupName];
-              if (group && group._isEvaluating) {
-                // Force immediate update of this instance with a small delay
-                // to avoid conflicts with any currently executing group updates
-                Promise.resolve().then(async () => {
-                  Debug.debug(
-                    `[transformResponse] Forcing update for ${instanceName}`,
-                  );
-                  await instance._updateDOM();
-                  Debug.debug(
-                    `[transformResponse] Forced update completed for ${instanceName}`,
-                  );
-                  instance._htmxUpdateInProgress = false;
-                });
-              } else {
-                // Not being updated by group, clear the flag
-                instance._htmxUpdateInProgress = false;
+              // Set the data which triggers updates via proxy
+              let jsonData = processedText;
+              if (typeof processedText === "string") {
+                jsonData = JSON.parse(processedText);
               }
-            } else {
-              // Not in a group, clear the flag
-              instance._htmxUpdateInProgress = false;
-            }
+              instance.setData(jsonData);
 
-            // Return empty string to prevent HTMX default swap
-            return "";
-          } catch (error) {
-            Debug.error(`[transformResponse] Error: ${error.message}`);
-            instance._htmxUpdateInProgress = false;
-            return processedText;
+              // Clear the flag
+              instance._htmxUpdateInProgress = false;
+
+              // Return empty string to prevent HTMX default swap
+              return ""; // Return empty string instead of "DO_NOT_SWAP"
+            } catch (error) {
+              Debug.error(`[transformResponse] Error: ${error.message}`);
+              instance._htmxUpdateInProgress = false;
+              return ""; // Return empty string to prevent swap errors
+            }
           }
+          return ""; // Return empty string for any JSON response
         }
         return processedText;
       },
 
       handleSwap: function (swapStyle, target, fragment, settleInfo) {
+        Debug.debug(`[handleSwap] Swap style: ${swapStyle}`);
+
         const isEmptySignal = fragment.textContent?.trim() === "";
+
+        // Check if this is a JSON response
+        const contentType =
+          settleInfo.xhr?.getResponseHeader("Content-Type") || "";
+        const isJson =
+          !contentType.startsWith("text/html") &&
+          !contentType.startsWith("text/xml");
+
+        if (isJson) {
+          Debug.debug(
+            `[handleSwap] Detected JSON response for target ${
+            target.id || "[no id]"
+          }. Preventing htmx swap.`,
+          );
+          return true;
+        }
+
+        const hasDataExtractorPlugin =
+          PluginManager.getPlugin("data-extractor") !== null;
+        const fragmentContainsFpData =
+          AttributeMatcher.findMatchingElements(
+            "data",
+            null,
+            false,
+            fragment,
+            true,
+          ).length > 0;
+
+        if (hasDataExtractorPlugin && fragmentContainsFpData) {
+          Debug.debug(
+            `[handleSwap] Detected data-extractor plugin and fp-data attribute. Processing through data extractor.`,
+          );
+          return true;
+        } else if (hasDataExtractorPlugin) {
+          Debug.info(
+            `[handleSwap] Detected data-extractor plugin but no fp-data attribute. Skipping data extraction.`,
+          );
+          return false;
+        } else if (fragmentContainsFpData) {
+          Debug.warn(
+            `[handleSwap] Detected fp-data attribute but no data-extractor plugin. Skipping data extraction.`,
+          );
+          return false;
+        }
 
         if (isEmptySignal) {
           Debug.debug(
@@ -16476,7 +17516,7 @@ var FlowPlater = (function () {
 
         switch (name) {
           case "htmx:confirm":
-            if (triggeringElt.hasAttribute("fp-template")) {
+            if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
               const instance = InstanceManager.getOrCreateInstance(triggeringElt);
               // Apply plugin transformations to the confirm event
               evt = PluginManager.applyTransformations(
@@ -16494,9 +17534,13 @@ var FlowPlater = (function () {
             evt = PluginManager.applyTransformations(
               instance || null,
               evt,
-              "configRequest",
+              "transformRequest",
               "json",
             );
+
+            // Set default Content-Type header
+            evt.detail.headers["Content-Type"] =
+              "application/x-www-form-urlencoded; charset=UTF-8";
             break;
 
           case "htmx:beforeRequest":
@@ -16506,7 +17550,7 @@ var FlowPlater = (function () {
             RequestHandler.handleRequest(triggeringElt, requestId, "start");
 
             // Execute hooks if it's a template element
-            if (triggeringElt.hasAttribute("fp-template")) {
+            if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
               const instance = InstanceManager.getOrCreateInstance(triggeringElt);
               PluginManager.executeHook("beforeRequest", instance || null, evt);
             }
@@ -16514,20 +17558,38 @@ var FlowPlater = (function () {
 
           case "htmx:beforeSwap":
             executeHtmxHook("beforeSwap", triggeringElt, evt);
+            if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
+              const instance = InstanceManager.getOrCreateInstance(triggeringElt);
+              if (instance) {
+                EventSystem.publish("beforeSwap", {
+                  instanceName: instance.instanceName,
+                  ...evt.detail,
+                });
+              }
+            }
             break;
 
           case "htmx:afterSwap":
             executeHtmxHook("afterSwap", triggeringElt, evt);
+            if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
+              const instance = InstanceManager.getOrCreateInstance(triggeringElt);
+              if (instance) {
+                EventSystem.publish("afterSwap", {
+                  instanceName: instance.instanceName,
+                  ...evt.detail,
+                });
+              }
+            }
             const formsToCleanup = getAllRelevantForms(triggeringElt);
             formsToCleanup.forEach(cleanupFormChangeListeners);
             break;
 
           case "htmx:afterRequest":
-            if (triggeringElt.hasAttribute("fp-template")) {
+            if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
               const instance = InstanceManager.getOrCreateInstance(triggeringElt);
               if (instance) {
                 PluginManager.executeHook("afterRequest", instance, evt);
-                EventSystem.publish("request-end", {
+                EventSystem.publish("requestEnd", {
                   instanceName: instance.instanceName,
                   ...evt.detail,
                 });
@@ -16543,8 +17605,9 @@ var FlowPlater = (function () {
               `Setting up form handlers after DOM settle for target: ${
               triggeringElt.id || "unknown"
             }, ` +
-                `has fp-template: ${triggeringElt.hasAttribute(
-                "fp-template",
+                `has fp-template: ${AttributeMatcher._hasAttribute(
+                triggeringElt,
+                "template",
               )}, ` +
                 `parent form: ${triggeringElt.closest("form")?.id || "none"}`,
             );
@@ -16556,7 +17619,10 @@ var FlowPlater = (function () {
   }
 
   function executeHtmxHook(hookName, target, event) {
-    if (target.hasAttribute("fp-instance") || target.hasAttribute("id")) {
+    if (
+      AttributeMatcher._hasAttribute(target, "instance") ||
+      target.hasAttribute("id")
+    ) {
       const instance = InstanceManager.getOrCreateInstance(target);
       if (instance) {
         PluginManager.executeHook(hookName, instance, event?.detail);
@@ -16613,7 +17679,8 @@ var FlowPlater = (function () {
   }
 
   function addPreloadListener(element) {
-    const preloadEvent = element.getAttribute("fp-preload") || "mouseover";
+    const preloadEvent =
+      AttributeMatcher._getRawAttribute(element, "preload") || "mouseover";
 
     if (preloadEvent === "mouseover") {
       let mouseOver = true;
@@ -16626,8 +17693,7 @@ var FlowPlater = (function () {
           if (mouseOver) {
             const url =
               element.getAttribute("href") ||
-              element.getAttribute("hx-get") ||
-              element.getAttribute("fp-get");
+              AttributeMatcher._getRawAttribute(element, "get");
             preloadInstance = preloadUrl(url);
           }
         }, 100);
@@ -16657,8 +17723,7 @@ var FlowPlater = (function () {
       const handler = () => {
         const url =
           element.getAttribute("href") ||
-          element.getAttribute("hx-get") ||
-          element.getAttribute("fp-get");
+          AttributeMatcher._getRawAttribute(element, "get");
         preloadUrl(url);
       };
       element.addEventListener(preloadEvent, handler);
@@ -16676,7 +17741,7 @@ var FlowPlater = (function () {
         return element;
       }
 
-      if (element.hasAttribute("fp-preload")) {
+      if (AttributeMatcher._hasAttribute(element, "preload")) {
         addPreloadListener(element);
         element.setAttribute("data-fp-preload-processed", "true");
       }
@@ -16699,12 +17764,16 @@ var FlowPlater = (function () {
   // * For every element with an fp-[htmxAttribute] attribute, translate to hx-[htmxAttribute]
   function translateCustomHTMXAttributes(element) {
     try {
+      Debug.log("translateCustomHTMXAttributes", element);
       const customPrefix = "fp-";
       const htmxPrefix = "hx-";
 
       htmxAttributes.forEach((attr) => {
         const customAttr = customPrefix + attr;
-        if (element.hasAttribute(customAttr)) {
+        if (
+          element.hasAttribute(customAttr) ||
+          element.hasAttribute("data-" + customAttr)
+        ) {
           const attrValue = element.getAttribute(customAttr);
           element.setAttribute(htmxPrefix + attr, attrValue);
           element.removeAttribute(customAttr);
@@ -16721,16 +17790,6 @@ var FlowPlater = (function () {
     try {
       const methods = ["get", "post", "put", "patch", "delete"];
 
-      function findAttributeInParents(el, attributeName) {
-        while (el) {
-          if (el.hasAttribute(attributeName)) {
-            return el.getAttribute(attributeName);
-          }
-          el = el.parentElement;
-        }
-        return null;
-      }
-
       function processElement(el) {
         methods.forEach(function (method) {
           var attr = "hx-" + method;
@@ -16738,8 +17797,8 @@ var FlowPlater = (function () {
             var originalUrl = el.getAttribute(attr);
             Debug.info("Original URL: " + originalUrl);
 
-            var prepend = findAttributeInParents(el, "fp-prepend");
-            var append = findAttributeInParents(el, "fp-append");
+            var prepend = AttributeMatcher.findAttribute(el, "prepend");
+            var append = AttributeMatcher.findAttribute(el, "append");
 
             var modifiedUrl = originalUrl;
             if (prepend) {
@@ -16763,8 +17822,8 @@ var FlowPlater = (function () {
 
       // Process the passed element
       if (
-        (element.hasAttribute("fp-prepend") ||
-          element.hasAttribute("fp-append")) &&
+        (AttributeMatcher._hasAttribute(element, "prepend") ||
+          AttributeMatcher._hasAttribute(element, "append")) &&
         methods.some((method) => element.hasAttribute("hx-" + method))
       ) {
         processElement(element);
@@ -16783,7 +17842,8 @@ var FlowPlater = (function () {
   function setupAnimation(element) {
     try {
       var shouldAnimate =
-        element.getAttribute("fp-animation") || _state.defaults.animation;
+        AttributeMatcher._getRawAttribute(element, "animation") ||
+        _state.defaults.animation;
       if (shouldAnimate === "true") {
         var swap = element.getAttribute("hx-swap");
         if (!swap) {
@@ -16828,7 +17888,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.28";
+  const VERSION = "1.4.29";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
@@ -16863,7 +17923,16 @@ var FlowPlater = (function () {
           : 1,
     },
     selectors: {
-      fp: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch], [fp-persist]",
+      fp: [
+        "template",
+        "get",
+        "post",
+        "put",
+        "delete",
+        "patch",
+        "persist",
+        "instance",
+      ],
     },
     templates: {
       cacheSize: 100,
@@ -16877,6 +17946,7 @@ var FlowPlater = (function () {
       timeout: 10000,
       swapStyle: "innerHTML",
       selfRequestsOnly: false,
+      ignoreTitle: true,
     },
     customTags: customTagList,
     storage: {
@@ -16902,7 +17972,7 @@ var FlowPlater = (function () {
   }
 
   // Initialize state with default config
-  _state.config = JSON.parse(JSON.stringify(defaultConfig));
+  ConfigManager.setConfig(defaultConfig);
 
   // Initialize request handling
   RequestHandler.setupEventListeners();
@@ -16957,11 +18027,15 @@ var FlowPlater = (function () {
       },
     ],
 
-    /**
-     * @type {string}
-     * @description Selector used to identify FlowPlater elements in the DOM
-     */
-    FP_SELECTOR: _state.config.selectors.fp,
+    get FP_SELECTOR() {
+      return ConfigManager.getConfig()
+        .selectors.fp.map((selector) =>
+          AttributeMatcher._getAllAttributeNames(selector)
+            .map((name) => `[${name}]`)
+            .join(","),
+        )
+        .join(",");
+    },
 
     /**
      * @function processElement
@@ -17048,8 +18122,10 @@ var FlowPlater = (function () {
    * Otherwise, finds and processes all matching child elements.
    */
   function process(element = document) {
+    Debug.debug("Processing with FP_SELECTOR:", ProcessingChain.FP_SELECTOR);
     if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
       const fpElements = element.querySelectorAll(ProcessingChain.FP_SELECTOR);
+      Debug.debug("Found elements to process:", fpElements.length);
       fpElements.forEach((el) => ProcessingChain.processElement(el));
     } else {
       ProcessingChain.processElement(element);
@@ -17076,6 +18152,11 @@ var FlowPlater = (function () {
     render,
     getInstance,
     getInstances,
+
+    getOrCreateInstance(instanceName, initialData = {}) {
+      return InstanceManager.getOrCreateInstance(instanceName, initialData);
+    },
+
     PluginManager,
 
     /**
@@ -17083,13 +18164,26 @@ var FlowPlater = (function () {
      * @param {string} groupName - The name of the group to retrieve
      * @returns {Object|null} The group object or null if not found
      */
-    getGroup,
+    getGroup(groupName) {
+      return GroupManager.getGroup(groupName);
+    },
+
+    /**
+     * Get or create a group
+     * @param {string} groupName - The name of the group to retrieve
+     * @returns {Object} The group object. This will be a proxy to the group data.
+     */
+    getOrCreateGroup(groupName, initialData = {}) {
+      return GroupManager.getOrCreateGroup(groupName, initialData);
+    },
 
     /**
      * Get all groups
      * @returns {Object} All groups
      */
-    getGroups,
+    getGroups() {
+      return GroupManager.getAllGroups();
+    },
 
     /**
      * Update data for a group
@@ -17098,12 +18192,22 @@ var FlowPlater = (function () {
      * @returns {Object|null} The updated group or null if not found
      */
     updateGroup(groupName, data) {
-      const group = getGroup(groupName);
-      if (group && group.data && typeof data === "object") {
-        deepMerge(group.data, data);
-        return group;
-      }
-      return null;
+      return GroupManager.updateGroup(groupName, data);
+    },
+
+    /**
+     * Remove a group
+     * @param {string} groupName - Name of the group to remove
+     */
+    removeGroup(groupName) {
+      return GroupManager.removeGroup(groupName);
+    },
+
+    /**
+     * Remove all groups
+     */
+    removeAllGroups() {
+      return GroupManager.removeAllGroups();
     },
 
     // Logging API
@@ -17118,8 +18222,8 @@ var FlowPlater = (function () {
     logLevels: Debug.levels,
 
     // Plugin management methods
-    registerPlugin(plugin) {
-      return this.PluginManager.registerPlugin(plugin);
+    registerPlugin(plugin, config = {}) {
+      return this.PluginManager.registerPlugin(plugin, config);
     },
 
     removePlugin(name) {
@@ -17155,13 +18259,13 @@ var FlowPlater = (function () {
     emit: (...args) => EventSystem.publish(...args),
 
     debug: function (level) {
-      Debug.level = level;
+      ConfigManager.setConfig({ debug: { level: level } });
       return this;
     },
 
     templateCache: {
       set: function (templateId, template) {
-        const cacheSize = _state.config.templates.cacheSize;
+        const cacheSize = ConfigManager.getConfig().templates.cacheSize;
         const cache = _state.templateCache;
 
         // If cache is at limit, remove oldest entry
@@ -17231,26 +18335,30 @@ var FlowPlater = (function () {
     init: function (element = document, options = { render: true }) {
       // If already initialized, just process the element
       if (_state.initialized) {
+        Performance.start("init-element");
+        Debug.info("Re-initializing FlowPlater for element:", element);
         if (element !== document) {
           process(element);
         }
+        Performance.end("init-element");
         return this;
       }
 
       Performance.start("init");
       Debug.info("Initializing FlowPlater...");
 
-      // Process templates and set up initial state
-      const templates = document.querySelectorAll("[fp-template]");
+      // Find all templates
+      const templates = AttributeMatcher.findMatchingElements("template");
+
+      // Initialize each template
       templates.forEach((template) => {
-        let templateId = template.getAttribute("fp-template");
+        let templateId = AttributeMatcher._getRawAttribute(template, "template");
         if (templateId === "self" || templateId === "") {
           templateId = template.id;
         }
 
         if (templateId) {
           // Transform template content before compiling
-          // template.innerHTML = template.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
           const templateElement = document.querySelector(templateId);
           if (templateElement) {
             Debug.info("replacing template content", templateElement);
@@ -17291,28 +18399,17 @@ var FlowPlater = (function () {
             let hasRequestMethod = false;
 
             // Check for specific HTTP method attributes
-            hasRequestMethod = methods.some(
-              (method) =>
-                template.hasAttribute(`hx-${method}`) ||
-                template.hasAttribute(`fp-${method}`),
+            hasRequestMethod = methods.some((method) =>
+              AttributeMatcher._hasAttribute(template, method),
             );
 
             // Also check for other trigger attributes that would cause loading
             if (!hasRequestMethod) {
               // Check for any attribute that would trigger an HTTP request
-              const httpTriggerAttributes = [
-                "hx-trigger",
-                "fp-trigger",
-                "hx-boost",
-                "fp-boost",
-                "hx-ws",
-                "fp-ws",
-                "hx-sse",
-                "fp-sse",
-              ];
+              const httpTriggerAttributes = ["trigger", "boost", "ws", "sse"];
 
               hasRequestMethod = httpTriggerAttributes.some((attr) =>
-                template.hasAttribute(attr),
+                AttributeMatcher._hasAttribute(template, attr),
               );
             }
 
@@ -17330,10 +18427,12 @@ var FlowPlater = (function () {
               skipRender: hasRequestMethod, // Skip render if has HTMX/FP methods
             });
 
-            // If has HTMX methods, check for stored data
-            if (hasRequestMethod && _state.config?.storage?.enabled) {
+            // Use ConfigManager to check storage config
+            if (hasRequestMethod && ConfigManager.getConfig().storage?.enabled) {
               const instanceName =
-                template.getAttribute("fp-instance") || template.id || templateId;
+                AttributeMatcher._getRawAttribute(template, "instance") ||
+                template.id ||
+                templateId;
               const storedData = loadFromLocalStorage(instanceName, "instance");
               if (storedData) {
                 Debug.info(
@@ -17437,7 +18536,7 @@ var FlowPlater = (function () {
     author: AUTHOR,
     license: LICENSE,
 
-    // Add method to modify custom tags
+    // Use ConfigManager for setting custom tags
     setCustomTags: setCustomTags,
 
     /**
@@ -17447,50 +18546,8 @@ var FlowPlater = (function () {
      * @description Configures FlowPlater with new settings. Deep merges with existing configuration.
      */
     config: function (newConfig = {}) {
-      // Handle storage shorthand configuration
-      if ("storage" in newConfig) {
-        newConfig.storage = normalizeStorageConfig(
-          newConfig.storage,
-          defaultConfig.storage,
-        );
-      }
-
-      // Deep merge configuration
-      function deepMerge(target, source) {
-        for (const key in source) {
-          if (source[key] instanceof Object && key in target) {
-            deepMerge(target[key], source[key]);
-          } else {
-            target[key] = source[key];
-          }
-        }
-        return target;
-      }
-
-      // Merge with current config in state
-      _state.config = deepMerge(
-        JSON.parse(JSON.stringify(_state.config)),
-        newConfig,
-      );
-
-      // Apply configuration
-      Debug.level = _state.config.debug.level;
-      ProcessingChain.FP_SELECTOR = _state.config.selectors.fp;
-
-      // Configure HTMX defaults if needed
-      if (typeof htmx !== "undefined") {
-        htmx.config.timeout = _state.config.htmx.timeout;
-        htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
-        htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
-      }
-
-      // Set custom tags
-      if (newConfig.customTags) {
-        setCustomTags(newConfig.customTags);
-      }
-
-      Debug.info("FlowPlater configured with:", _state.config);
-
+      // Delegate to ConfigManager
+      ConfigManager.setConfig(newConfig);
       return this;
     },
 
@@ -17499,7 +18556,8 @@ var FlowPlater = (function () {
      * @returns {Object} The current configuration
      */
     getConfig: function () {
-      return JSON.parse(JSON.stringify(_state.config));
+      // Delegate to ConfigManager
+      return ConfigManager.getConfig();
     },
 
     /**
@@ -17541,10 +18599,16 @@ var FlowPlater = (function () {
     trigger: function (name, element = document, detail = {}) {
       if (typeof element === "string") {
         element = document.querySelectorAll(element);
-      } else if (!(element instanceof HTMLElement)) {
-        throw new FlowPlaterError("Invalid element provided to trigger");
       }
       EventSystem.publish(name, { element, detail });
+
+      if (
+        element &&
+        !(element instanceof HTMLElement) &&
+        !(element instanceof Document)
+      ) {
+        throw new FlowPlaterError("Invalid element provided to trigger");
+      }
       if (element) {
         htmx.trigger(element, name, detail);
       }
@@ -17588,7 +18652,14 @@ var FlowPlater = (function () {
       if (instanceName.startsWith("#")) {
         element = document.getElementById(instanceName.slice(1));
       } else {
-        element = document.querySelector(`[fp-instance="${instanceName}"]`);
+        element = AttributeMatcher.findMatchingElements(
+          "instance",
+          instanceName,
+          false,
+          document,
+          false,
+          true,
+        );
       }
 
       if (!element) {
@@ -17598,7 +18669,7 @@ var FlowPlater = (function () {
       }
 
       // Clear any existing template cache for this instance
-      const templateId = element.getAttribute("fp-template");
+      const templateId = AttributeMatcher._getRawAttribute(element, "template");
       if (templateId) {
         this.templateCache.clear(templateId);
       }
@@ -17624,65 +18695,88 @@ var FlowPlater = (function () {
 
       return instance;
     },
+
+    /**
+     * Finds an attribute value on an element, checking both direct attributes and inheritance
+     * @param {HTMLElement} element - The element to search on
+     * @param {string} attributeName - The name of the attribute (with or without prefix)
+     * @returns {string|null} The attribute value or null if not found
+     */
+    findAttribute(element, attributeName) {
+      return AttributeMatcher.findAttribute(element, attributeName);
+    },
+
+    /**
+     * Add a custom transformer function for a specific transformation type
+     * @param {string} transformationType - The type of transformation (e.g. 'transformDataBeforeRender', 'transformResponse', 'transformRequest')
+     * @param {Function} transformerFn - The transformer function with signature (instance, data, dataType) => transformedData
+     *                                  - instance: The FlowPlater instance that triggered the transformation
+     *                                  - data: The data to transform
+     *                                  - dataType: The type of data being transformed ('json' or 'html')
+     * @returns {FlowPlaterObj} The FlowPlater instance for chaining
+     * @example
+     * FlowPlater.addTransformer('transformDataBeforeRender', (instance, data, dataType) => {
+     *   // Transform the data before it's rendered
+     *   return { ...data, timestamp: Date.now() };
+     * });
+     */
+    addTransformer(transformationType, transformerFn) {
+      this.PluginManager.addTransformer(transformationType, transformerFn);
+      return this;
+    },
+
+    /**
+     * Remove a custom transformer function
+     * @param {string} transformationType - The type of transformation
+     * @param {Function} transformerFn - The transformer function to remove (must be the same reference as added)
+     * @returns {boolean} True if the transformer was found and removed, false otherwise
+     * @example
+     * const myTransformer = (instance, data, dataType) => ({ ...data, timestamp: Date.now() });
+     * FlowPlater.addTransformer('transformDataBeforeRender', myTransformer);
+     * // Later...
+     * FlowPlater.removeTransformer('transformDataBeforeRender', myTransformer);
+     */
+    removeTransformer(transformationType, transformerFn) {
+      return this.PluginManager.removeTransformer(
+        transformationType,
+        transformerFn,
+      );
+    },
+
+    /**
+     * Clear all custom transformers for a specific type or all types
+     * @param {string} [transformationType] - The type of transformation to clear. If not provided, clears all transformers.
+     * @returns {FlowPlaterObj} The FlowPlater instance for chaining
+     * @example
+     * // Clear all transformDataBeforeRender transformers
+     * FlowPlater.clearTransformers('transformDataBeforeRender');
+     *
+     * // Clear all transformers of all types
+     * FlowPlater.clearTransformers();
+     */
+    clearTransformers(transformationType) {
+      this.PluginManager.clearTransformers(transformationType);
+      return this;
+    },
   };
 
-  /**
-   * Normalizes storage configuration to a standard format
-   * @param {boolean|number|Object} storageConfig - The storage configuration value
-   * @param {Object} defaultStorageConfig - The default storage configuration
-   * @returns {Object} Normalized storage configuration
-   */
-  function normalizeStorageConfig(storageConfig, defaultStorageConfig) {
-    if (typeof storageConfig === "boolean") {
-      return {
-        enabled: storageConfig,
-        ttl: defaultStorageConfig.ttl,
-      };
-    }
-    if (typeof storageConfig === "number") {
-      // Handle special cases
-      if (storageConfig === -1) {
-        return {
-          enabled: true,
-          ttl: -1, // Infinite TTL
-        };
-      }
-      return {
-        enabled: storageConfig > 0,
-        ttl: storageConfig > 0 ? storageConfig : defaultStorageConfig.ttl,
-      };
-    }
-    return storageConfig; // Already an object or undefined
-  }
-
-  // Initialize configuration once, combining default and meta tag configs
-  let finalConfig = JSON.parse(JSON.stringify(defaultConfig));
+  // Read initial config from meta tag and apply it using ConfigManager
+  let initialConfig = ConfigManager.getDefaultConfig(); // Start with defaults
   const metaElement = document.querySelector('meta[name="fp-config"]');
   if (metaElement) {
     try {
       const metaConfig = JSON.parse(metaElement.content);
-
-      // Handle storage shorthand configuration
-      if ("storage" in metaConfig) {
-        metaConfig.storage = normalizeStorageConfig(
-          metaConfig.storage,
-          defaultConfig.storage,
-        );
-      }
-
-      finalConfig = {
-        ...finalConfig,
-        ...metaConfig,
-      };
+      // Use the imported deepMerge utility, remove the local definition
+      initialConfig = deepMerge(initialConfig, metaConfig);
     } catch (e) {
       Debug.error(
-        "Error parsing fp-config meta tag:",
-        metaElement,
-        "Make sure your meta tag is valid",
+        "Error parsing fp-config meta tag content:",
+        metaElement.content,
+        e,
       );
     }
   }
-  FlowPlaterObj.config(finalConfig);
+  ConfigManager.setConfig(initialConfig); // Apply the combined initial config
 
   EventSystem.publish("loaded");
 

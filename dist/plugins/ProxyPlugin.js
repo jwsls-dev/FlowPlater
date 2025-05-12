@@ -52,7 +52,7 @@ var ProxyPlugin = (function () {
    * @module ProxyPlugin
    * @description Plugin for handling CORS proxy functionality in FlowPlater
    */
-  const ProxyPlugin = () => {
+  const ProxyPlugin = (customConfig = {}) => {
     /**
      * Plugin configuration object
      * @type {Object}
@@ -77,6 +77,9 @@ var ProxyPlugin = (function () {
       author: "FlowPlater Team",
     };
 
+    // Merge custom config with default config
+    Object.assign(config, customConfig);
+
     /**
      * Plugin state object
      * @type {Object}
@@ -94,7 +97,7 @@ var ProxyPlugin = (function () {
      */
     const transformers = {
       /**
-       * Transform an HTMX request before it's configured
+       * Transform an HTMX request before it's made
        * This runs during the htmx:configRequest event
        *
        * @param {Object} instance - The FlowPlater instance making the request
@@ -105,7 +108,7 @@ var ProxyPlugin = (function () {
        *   - detail.headers - The request headers
        * @returns {Object} The modified event object
        */
-      configRequest: function (instance, evt) {
+      transformRequest: function (instance, evt) {
         const elt = evt.detail.elt;
         if (!elt || !elt.hasAttribute("fp-proxy")) {
           return evt;
@@ -133,7 +136,10 @@ var ProxyPlugin = (function () {
 
           return evt;
         } catch (error) {
-          Debug.error("[ProxyPlugin] Error in configRequest transformer:", error);
+          Debug.error(
+            "[ProxyPlugin] Error in transformRequest transformer:",
+            error,
+          );
           return evt;
         }
       },
