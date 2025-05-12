@@ -9,10 +9,13 @@ import {
   restoreFormStates,
 } from "../utils/FormPersistence";
 import { saveToLocalStorage } from "../utils/LocalStorage";
-import PluginManager from "./PluginManager";
+import { PluginManager } from "./PluginManager";
+import { GroupManager } from "./GroupManager";
 import { InstanceManager } from "./InstanceManager";
 import { EventSystem } from "./EventSystem";
 import { FormStateManager } from "../utils/FormStateManager";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { ConfigManager } from "./ConfigManager";
 
 // function isHTML(string) {
 //   return Array.from(
@@ -22,10 +25,7 @@ import { FormStateManager } from "../utils/FormStateManager";
 
 export function defineHtmxExtension() {
   htmx.defineExtension("flowplater", {
-    transformResponse: function (text, xhr, elt) {
-      // Get the instance first to apply transformations
-      const instance = InstanceManager.getOrCreateInstance(elt);
-
+    transformResponse: async function (text, xhr, elt) {
       // First, check if the data is XML and transform it to JSON if needed
       const contentType = xhr.getResponseHeader("Content-Type") || "";
       const isXml = contentType.startsWith("text/xml");
@@ -49,9 +49,11 @@ export function defineHtmxExtension() {
         isJson = true;
       }
 
+      // Get the instance first to apply transformations
+      const instance = InstanceManager.getOrCreateInstance(elt);
+
       // Determine the dataType for transformations
       const dataType = isHtml ? "html" : "json";
-
       // Apply plugin transformations to the response text
       if (instance) {
         processedText = PluginManager.applyTransformations(
@@ -60,17 +62,29 @@ export function defineHtmxExtension() {
           "transformResponse",
           dataType,
         );
+
+        // Update isJson flag based on transformed data type
+        isJson =
+          typeof processedText === "object" ||
+          (typeof processedText === "string" &&
+            (() => {
+              try {
+                JSON.parse(processedText);
+                return true;
+              } catch {
+                return false;
+              }
+            })());
+        Debug.debug(`[transformResponse] isJson: ${isJson}`);
       } else {
         Debug.debug(
           `[transformResponse] No instance found for elt ${elt.id}. Skipping transformations.`,
         );
       }
 
-      const requestId = xhr.requestId;
+      Debug.debug(`[transformResponse] Processed text: ${processedText}`);
 
-      // Mark this request as processed regardless of outcome
-      // This ensures cleanup will work properly
-      RequestHandler.handleRequest(elt, requestId, "process");
+      const requestId = xhr.requestId;
 
       const currentInfo = RequestHandler.processingElements.get(elt);
 
@@ -78,91 +92,91 @@ export function defineHtmxExtension() {
         return processedText;
       }
 
-      // If the transformed data is HTML, handle it accordingly
-      if (!isJson) {
-        if (_state.config?.storage?.enabled) {
-          const instanceName = instance
-            ? instance.instanceName
-            : elt.getAttribute("fp-instance") || elt.id;
-          if (instanceName) {
-            saveToLocalStorage(
-              instanceName,
-              {
-                data: processedText,
-                isHtml: true,
-                timestamp: Date.now(),
-              },
-              "instance",
-            );
-          }
-        }
-        return processedText;
-      }
+      if (isJson) {
+        Debug.debug(`[transformResponse] Processed text is JSON`);
 
-      // Process JSON data
-      let newData;
-      try {
-        newData = JSON.parse(processedText);
-      } catch (error) {
-        Debug.error("Failed to parse JSON response:", error);
-        return processedText;
-      }
+        if (instance) {
+          const instanceName = instance.instanceName;
+          Debug.debug(`[transformResponse] Setting data for ${instanceName}`);
 
-      if (!newData) return processedText;
+          try {
+            // Mark this request as processed
+            RequestHandler.handleRequest(elt, requestId, "process");
 
-      if (instance) {
-        const instanceName = instance.instanceName;
-        Debug.debug(`[transformResponse] Setting data for ${instanceName}`);
+            // Flag that this instance is getting updated directly via HTMX
+            instance._htmxUpdateInProgress = true;
 
-        try {
-          // Mark this request as processed
-          RequestHandler.handleRequest(elt, requestId, "process");
-
-          // Flag that this instance is getting updated directly via HTMX
-          instance._htmxUpdateInProgress = true;
-
-          // Set the data which triggers updates
-          instance.setData(newData);
-
-          // If this instance is in a group but the group is currently updating,
-          // we need to make sure this instance gets updated
-          if (instance.groupName) {
-            const group = _state.groups[instance.groupName];
-            if (group && group._isEvaluating) {
-              // Force immediate update of this instance with a small delay
-              // to avoid conflicts with any currently executing group updates
-              Promise.resolve().then(async () => {
-                Debug.debug(
-                  `[transformResponse] Forcing update for ${instanceName}`,
-                );
-                await instance._updateDOM();
-                Debug.debug(
-                  `[transformResponse] Forced update completed for ${instanceName}`,
-                );
-                instance._htmxUpdateInProgress = false;
-              });
-            } else {
-              // Not being updated by group, clear the flag
-              instance._htmxUpdateInProgress = false;
+            // Set the data which triggers updates via proxy
+            let jsonData = processedText;
+            if (typeof processedText === "string") {
+              jsonData = JSON.parse(processedText);
             }
-          } else {
-            // Not in a group, clear the flag
-            instance._htmxUpdateInProgress = false;
-          }
+            instance.setData(jsonData);
 
-          // Return empty string to prevent HTMX default swap
-          return "";
-        } catch (error) {
-          Debug.error(`[transformResponse] Error: ${error.message}`);
-          instance._htmxUpdateInProgress = false;
-          return processedText;
+            // Clear the flag
+            instance._htmxUpdateInProgress = false;
+
+            // Return empty string to prevent HTMX default swap
+            return ""; // Return empty string instead of "DO_NOT_SWAP"
+          } catch (error) {
+            Debug.error(`[transformResponse] Error: ${error.message}`);
+            instance._htmxUpdateInProgress = false;
+            return ""; // Return empty string to prevent swap errors
+          }
         }
+        return ""; // Return empty string for any JSON response
       }
       return processedText;
     },
 
     handleSwap: function (swapStyle, target, fragment, settleInfo) {
+      Debug.debug(`[handleSwap] Swap style: ${swapStyle}`);
+
       const isEmptySignal = fragment.textContent?.trim() === "";
+
+      // Check if this is a JSON response
+      const contentType =
+        settleInfo.xhr?.getResponseHeader("Content-Type") || "";
+      const isJson =
+        !contentType.startsWith("text/html") &&
+        !contentType.startsWith("text/xml");
+
+      if (isJson) {
+        Debug.debug(
+          `[handleSwap] Detected JSON response for target ${
+            target.id || "[no id]"
+          }. Preventing htmx swap.`,
+        );
+        return true;
+      }
+
+      const hasDataExtractorPlugin =
+        PluginManager.getPlugin("data-extractor") !== null;
+      const fragmentContainsFpData =
+        AttributeMatcher.findMatchingElements(
+          "data",
+          null,
+          false,
+          fragment,
+          true,
+        ).length > 0;
+
+      if (hasDataExtractorPlugin && fragmentContainsFpData) {
+        Debug.debug(
+          `[handleSwap] Detected data-extractor plugin and fp-data attribute. Processing through data extractor.`,
+        );
+        return true;
+      } else if (hasDataExtractorPlugin) {
+        Debug.info(
+          `[handleSwap] Detected data-extractor plugin but no fp-data attribute. Skipping data extraction.`,
+        );
+        return false;
+      } else if (fragmentContainsFpData) {
+        Debug.warn(
+          `[handleSwap] Detected fp-data attribute but no data-extractor plugin. Skipping data extraction.`,
+        );
+        return false;
+      }
 
       if (isEmptySignal) {
         Debug.debug(
@@ -196,7 +210,7 @@ export function defineHtmxExtension() {
 
       switch (name) {
         case "htmx:confirm":
-          if (triggeringElt.hasAttribute("fp-template")) {
+          if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
             const instance = InstanceManager.getOrCreateInstance(triggeringElt);
             // Apply plugin transformations to the confirm event
             evt = PluginManager.applyTransformations(
@@ -214,9 +228,13 @@ export function defineHtmxExtension() {
           evt = PluginManager.applyTransformations(
             instance || null,
             evt,
-            "configRequest",
+            "transformRequest",
             "json",
           );
+
+          // Set default Content-Type header
+          evt.detail.headers["Content-Type"] =
+            "application/x-www-form-urlencoded; charset=UTF-8";
           break;
 
         case "htmx:beforeRequest":
@@ -226,7 +244,7 @@ export function defineHtmxExtension() {
           RequestHandler.handleRequest(triggeringElt, requestId, "start");
 
           // Execute hooks if it's a template element
-          if (triggeringElt.hasAttribute("fp-template")) {
+          if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
             const instance = InstanceManager.getOrCreateInstance(triggeringElt);
             PluginManager.executeHook("beforeRequest", instance || null, evt);
           }
@@ -234,20 +252,38 @@ export function defineHtmxExtension() {
 
         case "htmx:beforeSwap":
           executeHtmxHook("beforeSwap", triggeringElt, evt);
+          if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
+            const instance = InstanceManager.getOrCreateInstance(triggeringElt);
+            if (instance) {
+              EventSystem.publish("beforeSwap", {
+                instanceName: instance.instanceName,
+                ...evt.detail,
+              });
+            }
+          }
           break;
 
         case "htmx:afterSwap":
           executeHtmxHook("afterSwap", triggeringElt, evt);
+          if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
+            const instance = InstanceManager.getOrCreateInstance(triggeringElt);
+            if (instance) {
+              EventSystem.publish("afterSwap", {
+                instanceName: instance.instanceName,
+                ...evt.detail,
+              });
+            }
+          }
           const formsToCleanup = getAllRelevantForms(triggeringElt);
           formsToCleanup.forEach(cleanupFormChangeListeners);
           break;
 
         case "htmx:afterRequest":
-          if (triggeringElt.hasAttribute("fp-template")) {
+          if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
             const instance = InstanceManager.getOrCreateInstance(triggeringElt);
             if (instance) {
               PluginManager.executeHook("afterRequest", instance, evt);
-              EventSystem.publish("request-end", {
+              EventSystem.publish("requestEnd", {
                 instanceName: instance.instanceName,
                 ...evt.detail,
               });
@@ -263,8 +299,9 @@ export function defineHtmxExtension() {
             `Setting up form handlers after DOM settle for target: ${
               triggeringElt.id || "unknown"
             }, ` +
-              `has fp-template: ${triggeringElt.hasAttribute(
-                "fp-template",
+              `has fp-template: ${AttributeMatcher._hasAttribute(
+                triggeringElt,
+                "template",
               )}, ` +
               `parent form: ${triggeringElt.closest("form")?.id || "none"}`,
           );
@@ -276,7 +313,10 @@ export function defineHtmxExtension() {
 }
 
 function executeHtmxHook(hookName, target, event) {
-  if (target.hasAttribute("fp-instance") || target.hasAttribute("id")) {
+  if (
+    AttributeMatcher._hasAttribute(target, "instance") ||
+    target.hasAttribute("id")
+  ) {
     const instance = InstanceManager.getOrCreateInstance(target);
     if (instance) {
       PluginManager.executeHook(hookName, instance, event?.detail);

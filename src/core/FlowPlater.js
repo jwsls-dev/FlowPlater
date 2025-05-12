@@ -1,16 +1,19 @@
 import { EventSystem } from "./EventSystem";
 import { Debug, FlowPlaterError, TemplateError } from "./Debug";
-import {
-  _state,
-  getInstance,
-  getInstances,
-  getGroup,
-  getGroups,
-} from "./State";
-import { compileTemplate, render } from "./Template";
 import { Performance } from "../utils/Performance";
-// import { updateDOM } from "../utils/UpdateDom";
+import { _state, getInstance, getInstances } from "./State";
+import { _readyState } from "./ReadyState";
+
+import { InstanceManager } from "./InstanceManager";
+import { GroupManager } from "./GroupManager";
+import { PluginManager } from "./PluginManager";
+
 import { loadFromLocalStorage } from "../utils/LocalStorage";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { ConfigManager } from "./ConfigManager";
+import { deepMerge } from "../utils/DeepMerge";
+
+import { compileTemplate, render } from "./Template";
 import {
   replaceCustomTags,
   setCustomTags,
@@ -24,9 +27,6 @@ import { translateCustomHTMXAttributes } from "./TranslateHtmxAttributes";
 import { processUrlAffixes } from "./ProcessUrlAffixes";
 import { setupAnimation } from "./SetupAnimation";
 import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
-import PluginManager from "./PluginManager";
-import { _readyState } from "./ReadyState";
-import { deepMerge } from "../utils/DeepMerge";
 
 /* -------------------------------------------------------------------------- */
 /* ANCHOR                      FlowPlater module                              */
@@ -39,7 +39,7 @@ import { deepMerge } from "../utils/DeepMerge";
  * @author JWSLS
  */
 
-const VERSION = "1.4.28";
+const VERSION = "1.4.29";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 
@@ -74,7 +74,16 @@ const defaultConfig = {
         : 1,
   },
   selectors: {
-    fp: "[fp-template], [fp-get], [fp-post], [fp-put], [fp-delete], [fp-patch], [fp-persist]",
+    fp: [
+      "template",
+      "get",
+      "post",
+      "put",
+      "delete",
+      "patch",
+      "persist",
+      "instance",
+    ],
   },
   templates: {
     cacheSize: 100,
@@ -88,6 +97,7 @@ const defaultConfig = {
     timeout: 10000,
     swapStyle: "innerHTML",
     selfRequestsOnly: false,
+    ignoreTitle: true,
   },
   customTags: customTagList,
   storage: {
@@ -113,7 +123,7 @@ if (typeof htmx === "undefined") {
 }
 
 // Initialize state with default config
-_state.config = JSON.parse(JSON.stringify(defaultConfig));
+ConfigManager.setConfig(defaultConfig);
 
 // Initialize request handling
 RequestHandler.setupEventListeners();
@@ -168,11 +178,15 @@ const ProcessingChain = {
     },
   ],
 
-  /**
-   * @type {string}
-   * @description Selector used to identify FlowPlater elements in the DOM
-   */
-  FP_SELECTOR: _state.config.selectors.fp,
+  get FP_SELECTOR() {
+    return ConfigManager.getConfig()
+      .selectors.fp.map((selector) =>
+        AttributeMatcher._getAllAttributeNames(selector)
+          .map((name) => `[${name}]`)
+          .join(","),
+      )
+      .join(",");
+  },
 
   /**
    * @function processElement
@@ -261,8 +275,10 @@ const ProcessingChain = {
  * Otherwise, finds and processes all matching child elements.
  */
 function process(element = document) {
+  Debug.debug("Processing with FP_SELECTOR:", ProcessingChain.FP_SELECTOR);
   if (element === document || !element.matches(ProcessingChain.FP_SELECTOR)) {
     const fpElements = element.querySelectorAll(ProcessingChain.FP_SELECTOR);
+    Debug.debug("Found elements to process:", fpElements.length);
     fpElements.forEach((el) => ProcessingChain.processElement(el));
   } else {
     ProcessingChain.processElement(element);
@@ -289,6 +305,11 @@ const FlowPlaterObj = {
   render,
   getInstance,
   getInstances,
+
+  getOrCreateInstance(instanceName, initialData = {}) {
+    return InstanceManager.getOrCreateInstance(instanceName, initialData);
+  },
+
   PluginManager,
 
   /**
@@ -296,13 +317,26 @@ const FlowPlaterObj = {
    * @param {string} groupName - The name of the group to retrieve
    * @returns {Object|null} The group object or null if not found
    */
-  getGroup,
+  getGroup(groupName) {
+    return GroupManager.getGroup(groupName);
+  },
+
+  /**
+   * Get or create a group
+   * @param {string} groupName - The name of the group to retrieve
+   * @returns {Object} The group object. This will be a proxy to the group data.
+   */
+  getOrCreateGroup(groupName, initialData = {}) {
+    return GroupManager.getOrCreateGroup(groupName, initialData);
+  },
 
   /**
    * Get all groups
    * @returns {Object} All groups
    */
-  getGroups,
+  getGroups() {
+    return GroupManager.getAllGroups();
+  },
 
   /**
    * Update data for a group
@@ -311,12 +345,22 @@ const FlowPlaterObj = {
    * @returns {Object|null} The updated group or null if not found
    */
   updateGroup(groupName, data) {
-    const group = getGroup(groupName);
-    if (group && group.data && typeof data === "object") {
-      deepMerge(group.data, data);
-      return group;
-    }
-    return null;
+    return GroupManager.updateGroup(groupName, data);
+  },
+
+  /**
+   * Remove a group
+   * @param {string} groupName - Name of the group to remove
+   */
+  removeGroup(groupName) {
+    return GroupManager.removeGroup(groupName);
+  },
+
+  /**
+   * Remove all groups
+   */
+  removeAllGroups() {
+    return GroupManager.removeAllGroups();
   },
 
   // Logging API
@@ -331,8 +375,8 @@ const FlowPlaterObj = {
   logLevels: Debug.levels,
 
   // Plugin management methods
-  registerPlugin(plugin) {
-    return this.PluginManager.registerPlugin(plugin);
+  registerPlugin(plugin, config = {}) {
+    return this.PluginManager.registerPlugin(plugin, config);
   },
 
   removePlugin(name) {
@@ -368,13 +412,13 @@ const FlowPlaterObj = {
   emit: (...args) => EventSystem.publish(...args),
 
   debug: function (level) {
-    Debug.level = level;
+    ConfigManager.setConfig({ debug: { level: level } });
     return this;
   },
 
   templateCache: {
     set: function (templateId, template) {
-      const cacheSize = _state.config.templates.cacheSize;
+      const cacheSize = ConfigManager.getConfig().templates.cacheSize;
       const cache = _state.templateCache;
 
       // If cache is at limit, remove oldest entry
@@ -444,26 +488,30 @@ const FlowPlaterObj = {
   init: function (element = document, options = { render: true }) {
     // If already initialized, just process the element
     if (_state.initialized) {
+      Performance.start("init-element");
+      Debug.info("Re-initializing FlowPlater for element:", element);
       if (element !== document) {
         process(element);
       }
+      Performance.end("init-element");
       return this;
     }
 
     Performance.start("init");
     Debug.info("Initializing FlowPlater...");
 
-    // Process templates and set up initial state
-    const templates = document.querySelectorAll("[fp-template]");
+    // Find all templates
+    const templates = AttributeMatcher.findMatchingElements("template");
+
+    // Initialize each template
     templates.forEach((template) => {
-      let templateId = template.getAttribute("fp-template");
+      let templateId = AttributeMatcher._getRawAttribute(template, "template");
       if (templateId === "self" || templateId === "") {
         templateId = template.id;
       }
 
       if (templateId) {
         // Transform template content before compiling
-        // template.innerHTML = template.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
         const templateElement = document.querySelector(templateId);
         if (templateElement) {
           Debug.info("replacing template content", templateElement);
@@ -504,28 +552,17 @@ const FlowPlaterObj = {
           let hasRequestMethod = false;
 
           // Check for specific HTTP method attributes
-          hasRequestMethod = methods.some(
-            (method) =>
-              template.hasAttribute(`hx-${method}`) ||
-              template.hasAttribute(`fp-${method}`),
+          hasRequestMethod = methods.some((method) =>
+            AttributeMatcher._hasAttribute(template, method),
           );
 
           // Also check for other trigger attributes that would cause loading
           if (!hasRequestMethod) {
             // Check for any attribute that would trigger an HTTP request
-            const httpTriggerAttributes = [
-              "hx-trigger",
-              "fp-trigger",
-              "hx-boost",
-              "fp-boost",
-              "hx-ws",
-              "fp-ws",
-              "hx-sse",
-              "fp-sse",
-            ];
+            const httpTriggerAttributes = ["trigger", "boost", "ws", "sse"];
 
             hasRequestMethod = httpTriggerAttributes.some((attr) =>
-              template.hasAttribute(attr),
+              AttributeMatcher._hasAttribute(template, attr),
             );
           }
 
@@ -543,10 +580,12 @@ const FlowPlaterObj = {
             skipRender: hasRequestMethod, // Skip render if has HTMX/FP methods
           });
 
-          // If has HTMX methods, check for stored data
-          if (hasRequestMethod && _state.config?.storage?.enabled) {
+          // Use ConfigManager to check storage config
+          if (hasRequestMethod && ConfigManager.getConfig().storage?.enabled) {
             const instanceName =
-              template.getAttribute("fp-instance") || template.id || templateId;
+              AttributeMatcher._getRawAttribute(template, "instance") ||
+              template.id ||
+              templateId;
             const storedData = loadFromLocalStorage(instanceName, "instance");
             if (storedData) {
               Debug.info(
@@ -650,7 +689,7 @@ const FlowPlaterObj = {
   author: AUTHOR,
   license: LICENSE,
 
-  // Add method to modify custom tags
+  // Use ConfigManager for setting custom tags
   setCustomTags: setCustomTags,
 
   /**
@@ -660,50 +699,8 @@ const FlowPlaterObj = {
    * @description Configures FlowPlater with new settings. Deep merges with existing configuration.
    */
   config: function (newConfig = {}) {
-    // Handle storage shorthand configuration
-    if ("storage" in newConfig) {
-      newConfig.storage = normalizeStorageConfig(
-        newConfig.storage,
-        defaultConfig.storage,
-      );
-    }
-
-    // Deep merge configuration
-    function deepMerge(target, source) {
-      for (const key in source) {
-        if (source[key] instanceof Object && key in target) {
-          deepMerge(target[key], source[key]);
-        } else {
-          target[key] = source[key];
-        }
-      }
-      return target;
-    }
-
-    // Merge with current config in state
-    _state.config = deepMerge(
-      JSON.parse(JSON.stringify(_state.config)),
-      newConfig,
-    );
-
-    // Apply configuration
-    Debug.level = _state.config.debug.level;
-    ProcessingChain.FP_SELECTOR = _state.config.selectors.fp;
-
-    // Configure HTMX defaults if needed
-    if (typeof htmx !== "undefined") {
-      htmx.config.timeout = _state.config.htmx.timeout;
-      htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
-      htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
-    }
-
-    // Set custom tags
-    if (newConfig.customTags) {
-      setCustomTags(newConfig.customTags);
-    }
-
-    Debug.info("FlowPlater configured with:", _state.config);
-
+    // Delegate to ConfigManager
+    ConfigManager.setConfig(newConfig);
     return this;
   },
 
@@ -712,7 +709,8 @@ const FlowPlaterObj = {
    * @returns {Object} The current configuration
    */
   getConfig: function () {
-    return JSON.parse(JSON.stringify(_state.config));
+    // Delegate to ConfigManager
+    return ConfigManager.getConfig();
   },
 
   /**
@@ -754,10 +752,16 @@ const FlowPlaterObj = {
   trigger: function (name, element = document, detail = {}) {
     if (typeof element === "string") {
       element = document.querySelectorAll(element);
-    } else if (!(element instanceof HTMLElement)) {
-      throw new FlowPlaterError("Invalid element provided to trigger");
     }
     EventSystem.publish(name, { element, detail });
+
+    if (
+      element &&
+      !(element instanceof HTMLElement) &&
+      !(element instanceof Document)
+    ) {
+      throw new FlowPlaterError("Invalid element provided to trigger");
+    }
     if (element) {
       htmx.trigger(element, name, detail);
     }
@@ -801,7 +805,14 @@ const FlowPlaterObj = {
     if (instanceName.startsWith("#")) {
       element = document.getElementById(instanceName.slice(1));
     } else {
-      element = document.querySelector(`[fp-instance="${instanceName}"]`);
+      element = AttributeMatcher.findMatchingElements(
+        "instance",
+        instanceName,
+        false,
+        document,
+        false,
+        true,
+      );
     }
 
     if (!element) {
@@ -811,7 +822,7 @@ const FlowPlaterObj = {
     }
 
     // Clear any existing template cache for this instance
-    const templateId = element.getAttribute("fp-template");
+    const templateId = AttributeMatcher._getRawAttribute(element, "template");
     if (templateId) {
       this.templateCache.clear(templateId);
     }
@@ -837,65 +848,88 @@ const FlowPlaterObj = {
 
     return instance;
   },
+
+  /**
+   * Finds an attribute value on an element, checking both direct attributes and inheritance
+   * @param {HTMLElement} element - The element to search on
+   * @param {string} attributeName - The name of the attribute (with or without prefix)
+   * @returns {string|null} The attribute value or null if not found
+   */
+  findAttribute(element, attributeName) {
+    return AttributeMatcher.findAttribute(element, attributeName);
+  },
+
+  /**
+   * Add a custom transformer function for a specific transformation type
+   * @param {string} transformationType - The type of transformation (e.g. 'transformDataBeforeRender', 'transformResponse', 'transformRequest')
+   * @param {Function} transformerFn - The transformer function with signature (instance, data, dataType) => transformedData
+   *                                  - instance: The FlowPlater instance that triggered the transformation
+   *                                  - data: The data to transform
+   *                                  - dataType: The type of data being transformed ('json' or 'html')
+   * @returns {FlowPlaterObj} The FlowPlater instance for chaining
+   * @example
+   * FlowPlater.addTransformer('transformDataBeforeRender', (instance, data, dataType) => {
+   *   // Transform the data before it's rendered
+   *   return { ...data, timestamp: Date.now() };
+   * });
+   */
+  addTransformer(transformationType, transformerFn) {
+    this.PluginManager.addTransformer(transformationType, transformerFn);
+    return this;
+  },
+
+  /**
+   * Remove a custom transformer function
+   * @param {string} transformationType - The type of transformation
+   * @param {Function} transformerFn - The transformer function to remove (must be the same reference as added)
+   * @returns {boolean} True if the transformer was found and removed, false otherwise
+   * @example
+   * const myTransformer = (instance, data, dataType) => ({ ...data, timestamp: Date.now() });
+   * FlowPlater.addTransformer('transformDataBeforeRender', myTransformer);
+   * // Later...
+   * FlowPlater.removeTransformer('transformDataBeforeRender', myTransformer);
+   */
+  removeTransformer(transformationType, transformerFn) {
+    return this.PluginManager.removeTransformer(
+      transformationType,
+      transformerFn,
+    );
+  },
+
+  /**
+   * Clear all custom transformers for a specific type or all types
+   * @param {string} [transformationType] - The type of transformation to clear. If not provided, clears all transformers.
+   * @returns {FlowPlaterObj} The FlowPlater instance for chaining
+   * @example
+   * // Clear all transformDataBeforeRender transformers
+   * FlowPlater.clearTransformers('transformDataBeforeRender');
+   *
+   * // Clear all transformers of all types
+   * FlowPlater.clearTransformers();
+   */
+  clearTransformers(transformationType) {
+    this.PluginManager.clearTransformers(transformationType);
+    return this;
+  },
 };
 
-/**
- * Normalizes storage configuration to a standard format
- * @param {boolean|number|Object} storageConfig - The storage configuration value
- * @param {Object} defaultStorageConfig - The default storage configuration
- * @returns {Object} Normalized storage configuration
- */
-function normalizeStorageConfig(storageConfig, defaultStorageConfig) {
-  if (typeof storageConfig === "boolean") {
-    return {
-      enabled: storageConfig,
-      ttl: defaultStorageConfig.ttl,
-    };
-  }
-  if (typeof storageConfig === "number") {
-    // Handle special cases
-    if (storageConfig === -1) {
-      return {
-        enabled: true,
-        ttl: -1, // Infinite TTL
-      };
-    }
-    return {
-      enabled: storageConfig > 0,
-      ttl: storageConfig > 0 ? storageConfig : defaultStorageConfig.ttl,
-    };
-  }
-  return storageConfig; // Already an object or undefined
-}
-
-// Initialize configuration once, combining default and meta tag configs
-let finalConfig = JSON.parse(JSON.stringify(defaultConfig));
+// Read initial config from meta tag and apply it using ConfigManager
+let initialConfig = ConfigManager.getDefaultConfig(); // Start with defaults
 const metaElement = document.querySelector('meta[name="fp-config"]');
 if (metaElement) {
   try {
     const metaConfig = JSON.parse(metaElement.content);
-
-    // Handle storage shorthand configuration
-    if ("storage" in metaConfig) {
-      metaConfig.storage = normalizeStorageConfig(
-        metaConfig.storage,
-        defaultConfig.storage,
-      );
-    }
-
-    finalConfig = {
-      ...finalConfig,
-      ...metaConfig,
-    };
+    // Use the imported deepMerge utility, remove the local definition
+    initialConfig = deepMerge(initialConfig, metaConfig);
   } catch (e) {
     Debug.error(
-      "Error parsing fp-config meta tag:",
-      metaElement,
-      "Make sure your meta tag is valid",
+      "Error parsing fp-config meta tag content:",
+      metaElement.content,
+      e,
     );
   }
 }
-FlowPlaterObj.config(finalConfig);
+ConfigManager.setConfig(initialConfig); // Apply the combined initial config
 
 EventSystem.publish("loaded");
 

@@ -1,9 +1,10 @@
 import { Debug } from "./Debug";
 import { _state } from "./State";
-import PluginManager from "./PluginManager";
+import { PluginManager } from "./PluginManager";
 import { instanceMethods } from "./InstanceMethods";
 import { GroupManager } from "./GroupManager";
 import { deepMerge } from "../utils/DeepMerge";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
 
 export const InstanceManager = {
   /**
@@ -15,32 +16,36 @@ export const InstanceManager = {
    */
   getOrCreateInstance(element, initialData = {}) {
     // Skip if element is already indexed
-    if (element.hasAttribute("fp-indexed")) {
+    if (AttributeMatcher._hasAttribute(element, "indexed")) {
       Debug.debug(
         `Element already indexed: ${
-          element.id || element.getAttribute("fp-instance")
+          element.id || AttributeMatcher._getRawAttribute(element, "instance")
         }`,
       );
       return _state.instances[
-        element.getAttribute("fp-instance") || element.id
+        AttributeMatcher._getRawAttribute(element, "instance") || element.id
       ];
     }
 
-    const instanceName = element.getAttribute("fp-instance") || element.id;
+    const instanceName =
+      AttributeMatcher._getRawAttribute(element, "instance") || element.id;
     if (!instanceName) {
       Debug.error("No instance name found for element");
       return null;
     }
 
     // Check if this element belongs to a group
-    const groupName = element.getAttribute("fp-group");
+    const groupName = AttributeMatcher._getRawAttribute(element, "group");
 
     let instance = _state.instances[instanceName];
     if (!instance) {
       // If this is not a template element, look for a parent template element
-      if (!element.hasAttribute("fp-template")) {
-        const parentTemplateElement = document.querySelector(
-          `[fp-template][fp-instance="${instanceName}"]`,
+      if (!AttributeMatcher._hasAttribute(element, "template")) {
+        const parentTemplateElement = AttributeMatcher.findMatchingElements(
+          "template",
+        ).find(
+          (el) =>
+            AttributeMatcher._getRawAttribute(el, "instance") === instanceName,
         );
         if (parentTemplateElement) {
           Debug.debug(
@@ -57,7 +62,7 @@ export const InstanceManager = {
       instance = {
         elements: new Set([element]),
         template: null, // Template will be assigned by caller
-        templateId: element.getAttribute("fp-template"),
+        templateId: AttributeMatcher._getRawAttribute(element, "template"),
         data: initialData, // Assign initial data, caller MUST replace with Proxy
         cleanup: () => {
           // Remove from group if part of one
@@ -85,16 +90,91 @@ export const InstanceManager = {
       PluginManager.executeHook("newInstance", instance);
       Debug.info(`Created new instance: ${instanceName}`);
 
-      // Find and add all elements with matching fp-instance attribute
-      const matchingElements = document.querySelectorAll(
-        `[fp-instance="${instanceName}"]`,
+      // Find all elements with matching fp-instance attribute
+      const matchingElements = AttributeMatcher.findMatchingElements(
+        "instance",
+        instanceName,
       );
+
+      // Add matching elements to the instance's elements Set
       matchingElements.forEach((matchingElement) => {
         if (matchingElement !== element) {
-          instance.elements.add(matchingElement);
+          // Check for target attributes, including inherited ones
+          const targetSelector = AttributeMatcher.findInheritedAttribute(
+            matchingElement,
+            "target",
+          );
+
+          if (targetSelector) {
+            let targetElements = [];
+
+            switch (true) {
+              case targetSelector === "this":
+                targetElements = [matchingElement];
+                break;
+
+              case targetSelector.startsWith("closest "):
+                const closestSelector = targetSelector.substring(8);
+                const closestElement = matchingElement.closest(closestSelector);
+                if (closestElement) targetElements = [closestElement];
+                break;
+
+              case targetSelector.startsWith("find "):
+                const findSelector = targetSelector.substring(5);
+                const foundElement =
+                  matchingElement.querySelector(findSelector);
+                if (foundElement) targetElements = [foundElement];
+                break;
+
+              case targetSelector === "next":
+                const nextElement = matchingElement.nextElementSibling;
+                if (nextElement) targetElements = [nextElement];
+                break;
+
+              case targetSelector.startsWith("next "):
+                const nextSelector = targetSelector.substring(5);
+                let currentNext = matchingElement.nextElementSibling;
+                while (currentNext) {
+                  if (currentNext.matches(nextSelector)) {
+                    targetElements = [currentNext];
+                    break;
+                  }
+                  currentNext = currentNext.nextElementSibling;
+                }
+                break;
+
+              case targetSelector === "previous":
+                const prevElement = matchingElement.previousElementSibling;
+                if (prevElement) targetElements = [prevElement];
+                break;
+
+              case targetSelector.startsWith("previous "):
+                const prevSelector = targetSelector.substring(9);
+                let currentPrev = matchingElement.previousElementSibling;
+                while (currentPrev) {
+                  if (currentPrev.matches(prevSelector)) {
+                    targetElements = [currentPrev];
+                    break;
+                  }
+                  currentPrev = currentPrev.previousElementSibling;
+                }
+                break;
+
+              default:
+                // Regular CSS selector
+                targetElements = document.querySelectorAll(targetSelector);
+            }
+
+            // Add all found target elements to the instance
+            targetElements.forEach((targetElement) => {
+              instance.elements.add(targetElement);
+              targetElement.setAttribute("fp-indexed", "true");
+            });
+          } else {
+            instance.elements.add(matchingElement);
+          }
           // Mark the element as indexed
           matchingElement.setAttribute("fp-indexed", "true");
-          Debug.debug(`Added matching element to instance: ${instanceName}`);
         }
       });
 

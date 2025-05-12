@@ -2,9 +2,13 @@ import { _state } from "./State";
 import { Debug } from "./Debug";
 import { createDeepProxy } from "../utils/CreateDeepProxy";
 import { deepMerge } from "../utils/DeepMerge";
-import { saveToLocalStorage } from "../utils/LocalStorage";
+import {
+  saveToLocalStorage,
+  loadFromLocalStorage,
+} from "../utils/LocalStorage";
 import { EventSystem } from "./EventSystem";
-import PluginManager from "./PluginManager";
+import { PluginManager } from "./PluginManager";
+import { ConfigManager } from "./ConfigManager";
 
 export const GroupManager = {
   /**
@@ -14,31 +18,76 @@ export const GroupManager = {
    * @returns {Object} The group object containing data proxy and instances
    */
   getOrCreateGroup(groupName, initialData = {}) {
-    if (!groupName) {
-      Debug.error("Invalid group name");
-      return null;
-    }
+    let existingGroup = _state.groups[groupName];
 
-    // If group already exists, return it
-    if (_state.groups[groupName]) {
+    if (existingGroup) {
       // Merge any new initial data
       if (Object.keys(initialData).length > 0) {
-        deepMerge(_state.groups[groupName].data, initialData);
+        deepMerge(existingGroup.data, initialData);
+        Debug.debug(
+          `[GroupManager] Merged initialData into existing group: ${groupName}`,
+          initialData,
+        );
       }
-      return _state.groups[groupName];
+      return existingGroup;
     }
 
-    // Create new group
+    // --- Group doesn't exist in state, attempt to load from storage ---
+    let baseData = {}; // Start with empty base
+
+    if (ConfigManager.getConfig().storage?.enabled) {
+      // Check if storage is currently enabled
+      try {
+        const loadedData = loadFromLocalStorage(groupName, "group");
+        if (loadedData) {
+          Debug.info(
+            `[GroupManager] Loaded group data from storage for: ${groupName}`,
+          );
+          baseData = loadedData; // Use loaded data as the base
+        } else {
+          Debug.debug(
+            `[GroupManager] No group data found in storage for: ${groupName}`,
+          );
+        }
+      } catch (e) {
+        Debug.error(
+          `[GroupManager] Error loading group ${groupName} from storage: ${e.message}`,
+        );
+        // Proceed with empty baseData on error
+      }
+    } else {
+      Debug.debug(
+        `[GroupManager] Storage is disabled, skipping loadFromLocalStorage for: ${groupName}`,
+      );
+    }
+
+    // Merge any explicitly passed initialData *on top* of the base (loaded or empty)
+    if (Object.keys(initialData).length > 0) {
+      baseData = deepMerge(baseData, initialData);
+      Debug.debug(
+        `[GroupManager] Merged initialData onto base for new group: ${groupName}`,
+        initialData,
+      );
+    }
+
+    // --- Create new group with the final baseData ---
+    Debug.info(
+      `[GroupManager] Creating new group: ${groupName} with base data`,
+      baseData,
+    );
     const group = {
       name: groupName,
       instances: new Set(),
       _isEvaluating: false,
       _lastRenderedOutputs: new Map(),
       data: {}, // Will be replaced with proxy
+      getData: () => {
+        return JSON.parse(JSON.stringify(_state.groups[groupName].data));
+      },
     };
 
-    // Create proxy for group data
-    group.data = createDeepProxy(initialData, async () => {
+    // Create proxy for group data using the final baseData
+    group.data = createDeepProxy(baseData, async () => {
       // Skip if already evaluating to prevent circular updates
       if (group._isEvaluating) return;
 
@@ -62,7 +111,7 @@ export const GroupManager = {
             // Get transformed data
             const transformedData = PluginManager.applyTransformations(
               instance,
-              group.data,
+              group.getData(),
               "transformDataBeforeRender",
               "json",
             );
@@ -108,9 +157,10 @@ export const GroupManager = {
         // Wait for all instance updates to complete
         await Promise.all(updatePromises);
 
-        // Save to storage if enabled
-        if (_state.config?.storage?.enabled) {
-          saveToLocalStorage(`group_${groupName}`, group.data, "group");
+        // Save to storage if enabled - dynamically checks ConfigManager.getConfig
+        if (ConfigManager.getConfig().storage?.enabled) {
+          Debug.debug(`[Group Update] Saving group data for ${groupName}`);
+          saveToLocalStorage(groupName, group.data, "group");
         }
       } finally {
         group._isEvaluating = false;
@@ -119,9 +169,39 @@ export const GroupManager = {
 
     // Store group in state
     _state.groups[groupName] = group;
-    Debug.info(`Created new group: ${groupName}`);
+    Debug.info(`[GroupManager] Created and stored new group: ${groupName}`);
 
     return group;
+  },
+
+  getGroup(groupName) {
+    return _state.groups[groupName] || null;
+  },
+
+  getAllGroups() {
+    return _state.groups;
+  },
+
+  updateGroup(groupName, data) {
+    const group = this.getGroup(groupName);
+    if (group && group.data && typeof data === "object") {
+      deepMerge(group.data, data);
+      return group;
+    }
+    return null;
+  },
+
+  removeGroup(groupName) {
+    const group = this.getGroup(groupName);
+    if (group) {
+      delete _state.groups[groupName];
+      Debug.info(`Removed group: ${groupName}`);
+    }
+  },
+
+  removeAllGroups() {
+    _state.groups = {};
+    Debug.info("Removed all groups");
   },
 
   /**
@@ -143,7 +223,7 @@ export const GroupManager = {
         // Store instance's initial rendered output
         const transformedData = PluginManager.applyTransformations(
           instance,
-          group.data,
+          group.getData(),
           "transformDataBeforeRender",
           "json",
         );
