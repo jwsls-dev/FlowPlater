@@ -24,6 +24,11 @@ export function eachHelper() {
     var data;
     var contextPath;
 
+    // convert map to array if it exists
+    if (context instanceof Map) {
+      context = Array.from(context.values());
+    }
+
     sortBeforeLimit =
       typeof sortBeforeLimit === "boolean" ? sortBeforeLimit : true;
 

@@ -14,8 +14,12 @@ export function deepMerge(target, source) {
   // Iterate through source properties
   for (const key in source) {
     if (Object.prototype.hasOwnProperty.call(source, key)) {
+      // Handle arrays specially - replace entire array
+      if (Array.isArray(target[key]) && Array.isArray(source[key])) {
+        target[key] = source[key];
+      }
       // If property exists in target and both are objects, merge recursively
-      if (
+      else if (
         key in target &&
         typeof target[key] === "object" &&
         typeof source[key] === "object" &&
