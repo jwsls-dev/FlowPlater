@@ -41,6 +41,10 @@ async function concatenateFiles() {
   try {
     const handlebarsContent = await fetchUrl(handlebarsUrl);
     const htmxContent = await fetchUrl(htmxUrl);
+    const htmxContentFixed = htmxContent.replace(
+      "makeFragment(response) {",
+      "makeFragment(response) {response = response.toString();",
+    );
     const libraryContent = fs.readFileSync(libraryFilePath, "utf-8");
     const licenceContent = fs.readFileSync(licenceFilePath, "utf-8");
     const htmxLicenceContent = fs.readFileSync(htmxLicencePath, "utf-8");
@@ -65,7 +69,7 @@ async function concatenateFiles() {
       "\n" +
       htmxLicenceContent +
       "\n" +
-      htmxContent +
+      htmxContentFixed +
       "\n" +
       libraryContentWithoutBootstrap;
 
