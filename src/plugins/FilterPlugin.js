@@ -13,7 +13,7 @@ import { setupDynamicFormObserver } from "../utils/FormPersistence";
  * @function FilterPlugin
  * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, and helpers
  */
-const FilterPlugin = () => {
+const FilterPlugin = (customConfig = {}) => {
   const config = {
     name: "filter",
     enabled: true,
@@ -27,6 +27,9 @@ const FilterPlugin = () => {
     description: "Filters data based on form inputs",
     author: "FlowPlater Team",
   };
+
+  // Merge custom config with default config
+  Object.assign(config, customConfig);
 
   const state = {
     instances: new Map(),
@@ -77,6 +80,9 @@ const FilterPlugin = () => {
    * @param {Object} data - The instance data
    */
   function setupDynamicFilters(form, path, data) {
+    // Trigger before dynamic filters update
+    FlowPlater.trigger("filter:beforeDynamicUpdate", form, { path, data });
+
     // Get the array to filter
     const pathParts = path.split(".");
     let target = data;
@@ -230,6 +236,9 @@ const FilterPlugin = () => {
           }
         }
       });
+
+    // Trigger after dynamic filters update
+    FlowPlater.trigger("filter:dynamicUpdated", form, { path, data });
   }
 
   /**
@@ -369,6 +378,12 @@ const FilterPlugin = () => {
         }
       });
 
+      // Trigger before filters are applied
+      FlowPlater.trigger("filter:beforeApply", form, {
+        formState,
+        instanceName,
+      });
+
       // Save form state and trigger events
       EventSystem.publish("formState:beforeCapture", {
         formId: form.id,
@@ -414,11 +429,17 @@ const FilterPlugin = () => {
           },
         );
       }
+
+      // Trigger after filters are applied
+      FlowPlater.trigger("filter:applied", form, { formState, instanceName });
     };
 
     // Helper function to reset filters
     const handleFilterReset = (e) => {
       e.preventDefault();
+
+      // Trigger before reset
+      FlowPlater.trigger("filter:beforeReset", form, { instanceName });
 
       // Reset all form elements
       form.reset();
@@ -428,6 +449,9 @@ const FilterPlugin = () => {
 
       // Trigger form update to refresh the view
       handleFormUpdate({ isTrusted: true, type: "reset", target: e.target });
+
+      // Trigger after reset
+      FlowPlater.trigger("filter:reset", form, { instanceName });
     };
 
     // Remove any existing event listeners
@@ -494,10 +518,14 @@ const FilterPlugin = () => {
           });
 
           // Trigger initial update to apply filters
-          const instance = FlowPlater.getInstance(instanceName);
-          if (instance) {
-            instance.refresh({ source: "filter" });
-          }
+          const handleFormUpdate = (e) => {
+            if (!e.isTrusted) return;
+            const instance = FlowPlater.getInstance(instanceName);
+            if (instance) {
+              instance.refresh({ source: "filter" });
+            }
+          };
+          handleFormUpdate({ isTrusted: true, type: "init", target: form });
         }
       }
     });
@@ -823,6 +851,11 @@ const FilterPlugin = () => {
 
       let filteredData = { ...data };
 
+      FlowPlater.trigger("filter:beforeTransform", instance.element, {
+        data,
+        dataType,
+      });
+
       filterForms.forEach((form) => {
         const path = form.getAttribute("fp-filter");
         if (!path) return;
@@ -869,6 +902,11 @@ const FilterPlugin = () => {
           current = current[path.split(".")[i]];
         }
         current[path.split(".")[path.split(".").length - 1]] = filteredArray;
+      });
+
+      FlowPlater.trigger("filter:transformed", instance.element, {
+        originalData: data,
+        filteredData: filteredData,
       });
 
       return filteredData;
