@@ -2,7 +2,7 @@ import { Debug } from "../core/Debug";
 import { Performance } from "./Performance";
 import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
-import PluginManager from "../core/PluginManager";
+import { PluginManager } from "../core/PluginManager";
 import {
   captureFormStates,
   restoreFormStates,
@@ -13,6 +13,9 @@ import {
   shouldRestoreForm,
 } from "../utils/FormPersistence";
 import { FormStateManager } from "./FormStateManager";
+import { AttributeMatcher } from "./AttributeMatcher";
+import { ConfigManager } from "../core/ConfigManager";
+
 /**
  * Optimized children morphing with keyed element handling
  */
@@ -22,7 +25,7 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
     fromEl.innerHTML = toEl.innerHTML;
 
     // Setup form persistence if enabled
-    if (_state.config?.persistForm) {
+    if (ConfigManager.getConfig().persistForm) {
       setupFormSubmitHandlers(
         fromEl,
         "updateDOM - form state restoration - setupFormSubmitHandlers",
@@ -64,7 +67,7 @@ function morphChildren(fromEl, toEl, oldKeyedElements, newKeyedElements) {
 
   // Capture form states if persistForm is enabled
   let formStates = null;
-  if (_state.config?.persistForm) {
+  if (ConfigManager.getConfig().persistForm) {
     formStates = captureFormStates(fromEl);
   }
 
@@ -221,7 +224,10 @@ function cloneWithNamespace(node) {
 async function updateDOM(element, newHTML, animate = false, instance = null) {
   Performance.start("updateDOM");
 
-  let forceFullUpdate = element.hasAttribute("fp-force-full-update");
+  let forceFullUpdate = AttributeMatcher._hasAttribute(
+    element,
+    "force-full-update",
+  );
 
   // Add a flag to prevent multiple restorations
   const isAlreadyRestoring = element.hasAttribute("fp-restoring");
@@ -240,19 +246,19 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
       throw new Error("newHTML must be a string");
     }
 
-    Debug.debug("Starting updateDOM with config:", _state.config);
+    Debug.debug("Starting updateDOM with config:", ConfigManager.getConfig());
 
     // Log form persistence state
     Debug.debug(
       `Form persistence enabled: ${
-        _state.config?.persistForm
+        ConfigManager.getConfig().persistForm
       }, Should restore form: ${FormStateManager.shouldRestoreForm(element)}`,
     );
 
     // Capture form states if form restoration is needed
     let formStates = null;
     if (
-      _state.config?.persistForm &&
+      ConfigManager.getConfig().persistForm &&
       FormStateManager.shouldRestoreForm(element)
     ) {
       Debug.debug("Capturing form states before update");
@@ -263,7 +269,7 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
     // Single observer setup
     let formObserver = null;
     if (
-      _state.config?.persistForm &&
+      ConfigManager.getConfig().persistForm &&
       FormStateManager.shouldRestoreForm(element)
     ) {
       Debug.debug("Setting up dynamic form observer");
@@ -312,7 +318,7 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
 
         // Single form restoration
         if (
-          _state.config?.persistForm &&
+          ConfigManager.getConfig().persistForm &&
           FormStateManager.shouldRestoreForm(element) &&
           formStates
         ) {
@@ -357,11 +363,11 @@ async function updateDOM(element, newHTML, animate = false, instance = null) {
 
     // Final form state restoration if needed
     if (
-      _state.config?.persistForm &&
+      ConfigManager.getConfig().persistForm &&
       FormStateManager.shouldRestoreForm(element)
     ) {
       Debug.debug("Restoring form states after update");
-      const n = element.querySelectorAll('[fp-persist="true"]');
+      const n = AttributeMatcher.findMatchingElements("persist", "true");
       Debug.debug(`Found ${n.length} inputs to restore`);
       FormStateManager.restoreFormStates(
         element,

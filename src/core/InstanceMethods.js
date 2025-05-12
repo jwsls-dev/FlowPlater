@@ -9,7 +9,8 @@ import {
 } from "../utils/LocalStorage";
 import { Performance } from "../utils/Performance";
 import { extractLocalData } from "../utils/LocalVariableExtractor";
-import PluginManager from "./PluginManager";
+import { PluginManager } from "./PluginManager";
+import { ConfigManager } from "./ConfigManager";
 import { deepMerge } from "../utils/DeepMerge";
 
 export function instanceMethods(instanceName) {
@@ -68,12 +69,6 @@ export function instanceMethods(instanceName) {
         return;
       }
 
-      // Check if data is valid
-      const { valid, isHtml } = _validateData(instance.data);
-      if (!valid || isHtml) {
-        return;
-      }
-
       try {
         let rendered;
         if (instance.templateId === "self" || instance.templateId === null) {
@@ -91,21 +86,51 @@ export function instanceMethods(instanceName) {
           Debug.error("No template found for instance", instance.instanceName);
           return;
         } else {
-          // Apply plugin transformations to the data before rendering
-          const transformedData = PluginManager.applyTransformations(
-            instance,
-            instance.data,
-            "transformDataBeforeRender",
-            "json",
-          );
+          // Check if data is valid
+          const { valid, isHtml } = _validateData(instance.data);
 
-          // Use transformed data for reactive rendering
-          rendered = instance.template(transformedData);
-          Debug.debug("Rendered template with data:", {
-            template: instance.templateId,
-            data: transformedData,
-            rendered: rendered,
-          });
+          if (!valid) {
+            Debug.error(
+              "Invalid data type for instance",
+              instance.instanceName,
+            );
+            return;
+          }
+
+          if (isHtml) {
+            Debug.debug("Data is HTML, using as is", instance.instanceName);
+            rendered = instance.data;
+          } else {
+            // Apply plugin transformations to the data before rendering
+            Debug.debug("Before transformation - instance data:", {
+              instanceName: instance.instanceName,
+              rawData: instance.data,
+              getData: instance.getData(),
+            });
+
+            const transformedData = PluginManager.applyTransformations(
+              instance,
+              instance.getData(),
+              "transformDataBeforeRender",
+              "json",
+            );
+
+            Debug.debug("After transformation - transformed data:", {
+              instanceName: instance.instanceName,
+              transformedData,
+              isNull: transformedData === null,
+              isUndefined: transformedData === undefined,
+              type: typeof transformedData,
+            });
+
+            // Use transformed data for reactive rendering
+            rendered = instance.template(transformedData);
+            Debug.debug("Rendered template with data:", {
+              template: instance.templateId,
+              data: transformedData,
+              rendered: rendered,
+            });
+          }
         }
 
         // Filter out elements that are no longer in the DOM
@@ -224,7 +249,7 @@ export function instanceMethods(instanceName) {
 
       try {
         // Remove from localStorage if storage is enabled
-        if (_state.config?.storage?.enabled) {
+        if (ConfigManager.getConfig().storage?.enabled) {
           localStorage.removeItem(`fp_${instanceName}`);
         }
 
@@ -328,7 +353,7 @@ export function instanceMethods(instanceName) {
                   deepMerge(instance.data, data);
 
                   // Store data if storage is enabled
-                  if (_state.config?.storage?.enabled) {
+                  if (ConfigManager.getConfig().storage?.enabled) {
                     saveToLocalStorage(instanceName, instance.data, "instance");
                   }
 
@@ -344,6 +369,12 @@ export function instanceMethods(instanceName) {
               "transformDataBeforeRender",
               "json",
             );
+
+            Debug.debug(
+              "Instance.refresh - Transformed data:",
+              transformedData,
+            );
+
             promises.push(
               updateDOM(
                 element,

@@ -1,78 +1,121 @@
 import { _state } from "../core/State";
 import { Debug } from "../core/Debug";
+import { ConfigManager } from "../core/ConfigManager";
 
-export function saveToLocalStorage(key, data, prefix = "") {
-  Debug.debug(`Storage config:`, _state.config?.storage);
-  if (!_state.config?.storage?.enabled) {
-    Debug.debug(`Storage is disabled, skipping save`);
+// Helper function to handle Map serialization
+function replacer(key, value) {
+  if (value instanceof Map) {
+    return {
+      _dataType: "Map",
+      value: Array.from(value.entries()), // Convert Map to array of [key, value] pairs
+    };
+  } else {
+    return value;
+  }
+}
+
+// Helper function to handle Map deserialization
+function reviver(key, value) {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    value._dataType === "Map"
+  ) {
+    return new Map(value.value);
+  }
+  return value;
+}
+
+/**
+ * Saves data to localStorage with expiry
+ * @param {string} key - The key to save under
+ * @param {*} data - The data to save
+ * @param {string} type - Type prefix (e.g., 'instance', 'group')
+ * @returns {boolean} True if save was successful, false otherwise
+ */
+export function saveToLocalStorage(key, data, type = "") {
+  const config = ConfigManager.getConfig().storage;
+  if (!config?.enabled) {
+    Debug.debug(
+      `[LocalStorage] Storage is disabled, skipping save for key: ${key}`,
+    );
     return false;
   }
 
   try {
-    const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
-
-    // Always serialize/deserialize to ensure we have raw, deep-cloned data (removes Proxies)
-    let rawData;
+    const storageKey = type ? `fp_${type}_${key}` : `fp_${key}`;
+    let dataToStore;
     try {
-      // This effectively deep clones the target data, removing any proxy wrappers
-      rawData = JSON.parse(JSON.stringify(data));
+      // Use the replacer here
+      dataToStore = JSON.stringify(data, replacer);
     } catch (e) {
-      Debug.error(`Failed to serialize data for localStorage: ${e.message}`);
-      // Fallback or decide how to handle non-serializable data
-      rawData = {}; // Save empty object as fallback?
+      Debug.error(
+        `[LocalStorage] Failed to serialize data for key ${storageKey}: ${e.message}`,
+      );
+      return false; // Don't save corrupted data
     }
 
-    const storageData = {
-      data: rawData,
-      expiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
+    const item = {
+      data: dataToStore, // Store the stringified data
+      expiry: config.ttl === -1 ? null : Date.now() + config.ttl * 1000,
     };
 
-    Debug.debug(`Saving to localStorage:`, {
+    Debug.debug(`[LocalStorage] Saving to localStorage:`, {
       key: storageKey,
-      data: storageData,
+      item,
     });
-
-    localStorage.setItem(storageKey, JSON.stringify(storageData));
+    localStorage.setItem(storageKey, JSON.stringify(item)); // Store the wrapper object
     return true;
-  } catch (error) {
-    Debug.error(`Failed to save to localStorage: ${error.message}`);
+  } catch (e) {
+    Debug.error(
+      `[LocalStorage] Failed to save to localStorage for key ${key}: ${e.message}`,
+    );
     return false;
   }
 }
 
-export function loadFromLocalStorage(key, prefix = "") {
-  Debug.debug(`Storage config:`, _state.config?.storage);
-  if (!_state.config?.storage?.enabled) {
-    Debug.debug(`Storage is disabled, skipping load`);
-    return null;
-  }
+/**
+ * Loads data from localStorage, checks expiry
+ * @param {string} key - The key to load
+ * @param {string} type - Type prefix (e.g., 'instance', 'group')
+ * @returns {*} The loaded data or null if not found or expired
+ */
+export function loadFromLocalStorage(key, type = "") {
+  const config = ConfigManager.getConfig().storage;
+  // Allow loading even if storage is disabled *now*, data might exist from previous session
 
   try {
-    const storageKey = prefix ? `fp_${prefix}_${key}` : `fp_${key}`;
+    const storageKey = type ? `fp_${type}_${key}` : `fp_${key}`;
     const storedItem = localStorage.getItem(storageKey);
+
     if (!storedItem) {
-      Debug.debug(`No stored item found for: ${storageKey}`);
+      Debug.debug(`[LocalStorage] No stored item found for key: ${storageKey}`);
       return null;
     }
 
-    const storageData = JSON.parse(storedItem);
+    const item = JSON.parse(storedItem);
 
-    // Check if data has expired
-    if (storageData.expiry && storageData.expiry < Date.now()) {
-      Debug.debug(`Stored item has expired: ${storageKey}`);
+    // Check expiry
+    if (item.expiry && item.expiry < Date.now()) {
+      Debug.debug(
+        `[LocalStorage] Stored item has expired for key: ${storageKey}`,
+      );
       localStorage.removeItem(storageKey);
       return null;
     }
 
-    Debug.debug(`Loaded from localStorage:`, {
-      key: storageKey,
-      data: storageData,
-    });
+    // Use the reviver here when parsing the stored data string
+    const loadedData = JSON.parse(item.data, reviver);
 
-    // Return just the data portion, not the wrapper object
-    return storageData.data;
-  } catch (error) {
-    Debug.error(`Failed to load from localStorage: ${error.message}`);
+    Debug.debug(`[LocalStorage] Loaded from localStorage:`, {
+      key: storageKey,
+      data: loadedData,
+    });
+    return loadedData;
+  } catch (e) {
+    Debug.error(
+      `[LocalStorage] Failed to load or parse from localStorage for key ${key}: ${e.message}`,
+    );
     return null;
   }
 }
