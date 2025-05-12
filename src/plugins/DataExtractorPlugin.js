@@ -1,4 +1,5 @@
-import { Debug } from "../core/Debug";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { getGroupedInputValue } from "./utils/inputUtils";
 
 /**
  * @module DataExtractorPlugin
@@ -11,11 +12,11 @@ import { Debug } from "../core/Debug";
  * @function DataExtractorPlugin
  * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, and helpers
  */
-const DataExtractorPlugin = () => {
+const DataExtractorPlugin = (customConfig = {}) => {
   const config = {
     name: "data-extractor",
     enabled: true,
-    priority: 0,
+    priority: 100,
     version: "1.0.0",
     dependencies: [],
     optionalDependencies: [],
@@ -26,157 +27,791 @@ const DataExtractorPlugin = () => {
     author: "FlowPlater Team",
   };
 
+  Object.assign(config, customConfig);
+
   const state = {
     instances: new Map(),
+  };
+
+  /**
+   * Recursively extracts data for a single element with fp-data.
+   * Determines primary value (input, fp-data-value, specific tag, text, or nested children).
+   * Extracts suffix attributes.
+   * @param {HTMLElement} element - The element with fp-data to process.
+   * @param {Set<HTMLElement>} processedElements - Set to track elements processed during recursion to prevent cycles.
+   * @returns {{primaryValue: *, suffixes: Object, inputInfo: Object|null}|null} Object containing primary value, suffixes, and input info, or null.
+   */
+  const _extractSingleElementData = (
+    element,
+    processedElements = new Set(),
+  ) => {
+    // FlowPlater.log(
+    //   FlowPlater.logLevels.DEBUG,
+    //   `[DataExtractor] _extractSingleElementData called for:`,
+    //   element,
+    //   `Processed set size: ${processedElements.size}`,
+    // );
+    const hasDataAttr = AttributeMatcher._hasAttribute(element, "data");
+    const isProcessed = processedElements.has(element);
+    // FlowPlater.log(
+    //   FlowPlater.logLevels.DEBUG,
+    //   `  - Initial checks: hasDataAttr=${hasDataAttr}, isProcessed=${isProcessed}`,
+    // );
+
+    if (!element || !hasDataAttr || isProcessed) {
+      FlowPlater.log(FlowPlater.logLevels.DEBUG, `  - Exiting prematurely.`);
+      return null;
+    }
+    processedElements.add(element); // Mark as processed for this recursive path
+
+    let primaryValue = null;
+    let valueSource = null;
+    const suffixes = {};
+    let inputInfo = null;
+
+    // 1. Extract Suffixes first
+    const suffixPrefix = "fp-data-";
+    const dataSuffixPrefix = "data-fp-data-";
+    for (const attr of element.attributes) {
+      let suffixKey = null;
+      if (attr.name.startsWith(suffixPrefix)) {
+        suffixKey = attr.name.substring(suffixPrefix.length);
+      } else if (attr.name.startsWith(dataSuffixPrefix)) {
+        suffixKey = attr.name.substring(dataSuffixPrefix.length);
+      }
+      if (suffixKey && suffixKey !== "value") {
+        let suffixValue = attr.value;
+        const num = Number(suffixValue);
+        if (!isNaN(num) && suffixValue.trim() !== "") suffixValue = num;
+        suffixes[suffixKey] = suffixValue;
+      }
+    }
+
+    // 2. Determine Primary Value (Priority: explicit > input > specific tag > nested > text)
+    const explicitValue = AttributeMatcher._getRawAttribute(
+      element,
+      "data-value",
+      null,
+    );
+    if (explicitValue !== null) {
+      primaryValue = explicitValue;
+      valueSource = "attribute";
+    } else {
+      // Check for input info FIRST - ONLY if the element *itself* is an input
+      let inputElement = null;
+      if (["INPUT", "SELECT", "TEXTAREA"].includes(element.tagName)) {
+        inputElement = element;
+      }
+
+      if (inputElement) {
+        inputInfo = {
+          isInput: true,
+          type: inputElement.type,
+          name: inputElement.name || null,
+          valueAttr: inputElement.value, // Get value attribute directly
+        };
+      }
+
+      // If no explicit value AND no input found, check specific tags
+      if (primaryValue === null && !inputInfo) {
+        switch (element.tagName) {
+          case "IMG":
+            primaryValue = {
+              src: element.src,
+              alt: element.alt,
+              width: element.width,
+              height: element.height,
+            };
+            valueSource = "object";
+            break;
+          case "VIDEO":
+          case "AUDIO":
+            const sources = Array.from(element.querySelectorAll("source")).map(
+              (s) => ({ src: s.src, type: s.type }),
+            );
+            primaryValue = { src: element.src, sources: sources };
+            valueSource = "object";
+            break;
+          case "A":
+          case "BUTTON":
+            primaryValue = {
+              href: element.href,
+              text: element.textContent.trim(),
+              target: element.target,
+            };
+            valueSource = "object";
+            break;
+        }
+      }
+
+      // If still no value, THEN check for nested children
+      // FlowPlater.log(
+      //   FlowPlater.logLevels.DEBUG,
+      //   `[DataExtractor] Before nested check:`,
+      //   { primaryValue, inputInfo },
+      // );
+      if (primaryValue === null && !inputInfo) {
+        // Find all descendants with fp-data
+        const allDescendantsWithData = AttributeMatcher.findMatchingElements(
+          "data",
+          undefined,
+          true,
+          element,
+          false,
+        ); // includeSelf = false
+
+        // Filter to find only direct children in the fp-data hierarchy
+        const directFpDataChildren = allDescendantsWithData.filter((child) => {
+          let parent = child.parentElement;
+          while (parent && parent !== element) {
+            if (AttributeMatcher._hasAttribute(parent, "data")) {
+              return false; // Found an intermediate fp-data parent
+            }
+            parent = parent.parentElement;
+          }
+          return parent === element; // It's a direct child in the fp-data sense
+        });
+
+        if (directFpDataChildren.length > 0) {
+          const childData = {};
+          let hasChildData = false;
+          const nestedGroupParts = {}; // Temp storage for group parts keyed by childKey
+
+          for (const child of directFpDataChildren) {
+            const childKey = AttributeMatcher._getRawAttribute(child, "data");
+            const nestedResult = _extractSingleElementData(
+              child,
+              processedElements,
+            );
+
+            // FlowPlater.log(
+            //   FlowPlater.logLevels.DEBUG,
+            //   `  <- Child result for key '${childKey}':`,
+            //   { nestedResult },
+            // );
+
+            if (nestedResult) {
+              hasChildData = true;
+              // FlowPlater.log(
+              //   FlowPlater.logLevels.DEBUG,
+              //   `  -> hasChildData set to true by key '${childKey}'`,
+              // );
+              // Check if the nested result is part of a radio/checkbox group
+              if (
+                nestedResult.inputInfo &&
+                nestedResult.inputInfo.name &&
+                (nestedResult.inputInfo.type === "radio" ||
+                  nestedResult.inputInfo.type === "checkbox") &&
+                childKey !== null // Only group if it has a key
+              ) {
+                // It's part of a nested group, store marker for later processing
+                if (!nestedGroupParts[childKey]) {
+                  nestedGroupParts[childKey] = [];
+                }
+                nestedGroupParts[childKey].push({
+                  _isNestedGroupPart: true,
+                  element: child, // Reference to the original input/container element
+                  inputInfo: nestedResult.inputInfo,
+                  suffixes: nestedResult.suffixes,
+                });
+                // FlowPlater.log(
+                //   FlowPlater.logLevels.DEBUG,
+                //   `[DataExtractor] Created nested group part marker for key '${childKey}'`,
+                //   {
+                //     element: child,
+                //     inputInfo: nestedResult.inputInfo,
+                //     suffixes: nestedResult.suffixes,
+                //   },
+                // );
+              } else if (childKey !== null) {
+                // It's regular nested data
+                let nestedValue = nestedResult.primaryValue;
+                // Combine child's value and suffixes before assigning
+                if (
+                  nestedValue !== null &&
+                  Object.keys(nestedResult.suffixes).length > 0
+                ) {
+                  if (
+                    typeof nestedValue === "object" &&
+                    !Array.isArray(nestedValue) &&
+                    nestedValue !== null
+                  ) {
+                    Object.assign(nestedValue, nestedResult.suffixes);
+                  } else {
+                    nestedValue = {
+                      value: nestedValue,
+                      ...nestedResult.suffixes,
+                    };
+                  }
+                } else if (Object.keys(nestedResult.suffixes).length > 0) {
+                  nestedValue = nestedResult.suffixes;
+                }
+
+                if (childData.hasOwnProperty(childKey)) {
+                  if (!Array.isArray(childData[childKey]))
+                    childData[childKey] = [childData[childKey]];
+                  childData[childKey].push(nestedValue);
+                } else {
+                  childData[childKey] = nestedValue;
+                }
+              } else if (
+                childKey === null &&
+                Object.keys(nestedResult.suffixes).length > 0
+              ) {
+                // Suffixes from a keyless child - merge directly
+                Object.assign(childData, nestedResult.suffixes);
+              }
+            } else {
+              // FlowPlater.log(
+              //   FlowPlater.logLevels.DEBUG,
+              //   `  -- Child key '${childKey}' yielded null result.`,
+              // );
+            }
+          }
+          // After checking all children, add collected group parts to childData
+          // FlowPlater.log(
+          //   FlowPlater.logLevels.DEBUG,
+          //   `[DataExtractor] Finished processing children. hasChildData=${hasChildData}`,
+          // );
+          for (const key in nestedGroupParts) {
+            if (childData.hasOwnProperty(key)) {
+              FlowPlater.log(
+                FlowPlater.logLevels.WARN,
+                `[DataExtractor] Nested key '${key}' conflicts between regular data and a nested input group. Group data will overwrite.`,
+              );
+            }
+            childData[key] = nestedGroupParts[key];
+          }
+
+          if (hasChildData) {
+            primaryValue = childData;
+            valueSource = "nested";
+            // FlowPlater.log(
+            //   FlowPlater.logLevels.DEBUG,
+            //   `[DataExtractor] Set primaryValue from nested children:`,
+            //   { primaryValue },
+            // );
+          } else {
+            // FlowPlater.log(
+            //   FlowPlater.logLevels.DEBUG,
+            //   `[DataExtractor] No child data found despite having children.`,
+            // );
+          }
+        }
+
+        // Fallback to text content ONLY if nothing else found
+        if (primaryValue === null && !inputInfo) {
+          let textContent = Array.from(element.childNodes)
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent)
+            .join("")
+            .trim();
+          if (textContent !== "") {
+            primaryValue = textContent;
+            valueSource = "text";
+          }
+        }
+      }
+    }
+
+    // Final type conversion
+    if (
+      primaryValue !== null &&
+      (valueSource === "attribute" || valueSource === "text") &&
+      typeof primaryValue === "string"
+    ) {
+      const num = Number(primaryValue);
+      if (!isNaN(num) && primaryValue.trim() !== "") primaryValue = num;
+    }
+
+    // Restore check: Return null ONLY if absolutely nothing was found (no value, no suffixes, no input info)
+    if (
+      primaryValue === null &&
+      Object.keys(suffixes).length === 0 &&
+      !inputInfo
+    ) {
+      // Log the final return value for this element
+      // FlowPlater.log(
+      //   FlowPlater.logLevels.DEBUG,
+      //   `[DataExtractor] _extractSingleElementData returning NULL for element:`,
+      //   element,
+      // );
+      return null;
+    }
+
+    inputInfo = inputInfo || null; // Ensure inputInfo is explicitly null if not set
+
+    // Log the final return value for this element
+    // FlowPlater.log(
+    //   FlowPlater.logLevels.DEBUG,
+    //   `[DataExtractor] _extractSingleElementData returning for element:`,
+    //   element,
+    //   { returnValue: { primaryValue, suffixes, inputInfo } },
+    // );
+
+    return { primaryValue, suffixes, inputInfo };
   };
 
   const globalMethods = {
     /**
      * Process HTML string and extract data
-     * @param {string} html - HTML string to process
+     * @param {string} htmlToProcess - HTML string to process
      * @returns {Object} Extracted data as JSON
      */
-    processHtml(html) {
-      FlowPlater.log(
-        FlowPlater.logLevels.DEBUG,
-        "[DataExtractor] Processing HTML:",
-        html,
-      );
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const result = instanceMethods.extractData(doc.body) || {};
-      FlowPlater.log(
-        FlowPlater.logLevels.DEBUG,
-        "[DataExtractor] Extraction result:",
-        result,
-      );
-      return result;
+    processHtml(htmlToProcess) {
+      FlowPlater.trigger("dataExtractor:beforeProcess", document, {
+        html: htmlToProcess,
+      });
+
+      try {
+        const parser = new DOMParser();
+        let parsedHtml = {};
+        if (typeof htmlToProcess == "string") {
+          FlowPlater.log(
+            FlowPlater.logLevels.INFO,
+            "Parsing HTML",
+            htmlToProcess,
+          );
+          parsedHtml = parser.parseFromString(htmlToProcess, "text/html");
+        } else {
+          parsedHtml = htmlToProcess;
+        }
+
+        FlowPlater.log(
+          FlowPlater.logLevels.INFO,
+          "Extracting data from",
+          parsedHtml.body,
+        );
+
+        const result = instanceMethods.extractData(parsedHtml.body) || {};
+
+        FlowPlater.log(FlowPlater.logLevels.INFO, "Extracted data", result);
+
+        FlowPlater.trigger("dataExtractor:processed", document, {
+          html: htmlToProcess,
+          result,
+        });
+
+        return result;
+      } catch (error) {
+        FlowPlater.trigger("dataExtractor:error", document, {
+          html: htmlToProcess,
+          error,
+        });
+        throw error;
+      }
     },
   };
 
   const instanceMethods = {
     /**
-     * Extracts data from HTML element based on fp-data attributes
-     * @param {HTMLElement} element - The HTML element to process
-     * @returns {Object} The extracted data as a JSON object
+     * Extracts data from elements with fp-data within a given scope element.
+     * @param {HTMLElement} scopeElement - The HTML element to extract data from.
+     * @returns {Object} The aggregated extracted data as a JSON object.
      */
-    extractData(element) {
-      if (!element) {
-        FlowPlater.log(
-          FlowPlater.logLevels.DEBUG,
-          "[DataExtractor] No element provided",
-        );
-        return null;
-      }
-
-      // First handle if this element has fp-data
-      if (element.hasAttribute("fp-data")) {
-        const key = element.getAttribute("fp-data");
-
-        // Check for span children with fp-data
-        const spans = element.querySelectorAll("span[fp-data]");
-        if (spans.length > 0) {
-          // Process all spans
-          const data = {};
-          spans.forEach((span) => {
-            const spanKey = span.getAttribute("fp-data");
-            data[spanKey] = span.textContent.trim();
-          });
-          return { [key]: data };
-        }
-
-        // Handle different types of elements
-        switch (element.tagName) {
-          case "IMG":
-            return {
-              [key]: {
-                src: element.src,
-                alt: element.alt,
-                width: element.width,
-                height: element.height,
-              },
-            };
-
-          case "VIDEO":
-          case "AUDIO":
-            const sources = Array.from(element.querySelectorAll("source")).map(
-              (source) => ({
-                src: source.src,
-                type: source.type,
-              }),
-            );
-            return {
-              [key]: {
-                src: element.src,
-                sources: sources,
-              },
-            };
-
-          case "A":
-          case "BUTTON":
-            return {
-              [key]: {
-                href: element.href,
-                text: element.textContent.trim(),
-                target: element.target,
-              },
-            };
-
-          case "INPUT":
-          case "TEXTAREA":
-            return {
-              [key]: {
-                value: element.value,
-                type: element.type,
-                checked: element.checked,
-                placeholder: element.placeholder,
-              },
-            };
-
-          case "SELECT":
-            return {
-              [key]: {
-                value: element.value,
-                options: Array.from(element.querySelectorAll("option")).map(
-                  (option) => ({
-                    value: option.value,
-                    text: option.textContent.trim(),
-                  }),
-                ),
-              },
-            };
-
-          default:
-            // Default case: return the element's text content
-            return { [key]: element.textContent.trim() };
-        }
-      }
-
-      // Look for any elements with fp-data
-      const dataElements = element.querySelectorAll("[fp-data]");
-
-      if (dataElements.length === 0) {
-        FlowPlater.log(
-          FlowPlater.logLevels.INFO,
-          "[DataExtractor] No data elements found",
-        );
-        return {};
-      }
-
-      // Process root level elements with fp-data
+    extractData(scopeElement) {
       const result = {};
-      dataElements.forEach((el) => {
-        if (el.parentElement.hasAttribute("fp-data")) {
-          // Skip nested elements, they'll be handled by their parent
-          return;
+      const seenPrimaryKeys = new Map();
+      const processedElements = new Set();
+      const groupDataCollector = new Map(); // Re-introduce for Pass 2
+
+      // --- Determine Root Elements based on Scope ---
+      let rootElements;
+      if (AttributeMatcher._hasAttribute(scopeElement, "data")) {
+        // Case 1: Scope itself is the root fp-data element.
+        rootElements = [scopeElement];
+      } else {
+        // Case 2: Scope does not have fp-data. Find top-level fp-data elements within it.
+        const allFpDataDescendants = AttributeMatcher.findMatchingElements(
+          "data",
+          undefined,
+          true,
+          scopeElement,
+          false, // Exclude scopeElement itself
+        );
+
+        rootElements = allFpDataDescendants.filter((el) => {
+          let parent = el.parentElement;
+          while (parent && parent !== scopeElement) {
+            if (AttributeMatcher._hasAttribute(parent, "data")) {
+              return false; // Found intermediate fp-data parent
+            }
+            parent = parent.parentElement;
+          }
+          // Only return true if the loop stopped because parent is scopeElement
+          return parent === scopeElement;
+        });
+      }
+
+      // FlowPlater.log(
+      //   FlowPlater.logLevels.DEBUG,
+      //   "[DataExtractor] Root elements to check:",
+      //   rootElements,
+      // );
+
+      // Helper function to recursively process nested group markers
+      const processNestedGroups = (dataObject) => {
+        if (typeof dataObject !== "object" || dataObject === null) {
+          return; // Not an object or null, nothing to process
         }
-        const extracted = this.extractData(el);
-        if (extracted) {
-          Object.assign(result, extracted);
+
+        for (const key in dataObject) {
+          if (dataObject.hasOwnProperty(key)) {
+            const value = dataObject[key];
+            if (
+              Array.isArray(value) &&
+              value.length > 0 &&
+              value[0]?._isNestedGroupPart
+            ) {
+              // Found a nested group marker array
+              // FlowPlater.log(
+              //   FlowPlater.logLevels.DEBUG,
+              //   `[DataExtractor] Found nested group marker array for key '${key}'`,
+              //   value,
+              // );
+              const groupParts = value;
+              const firstPart = groupParts[0];
+              const inputType = firstPart.inputInfo.type;
+              let groupValue = null;
+              const aggregatedSuffixes = {};
+
+              if (inputType === "radio") {
+                const selectedPart = groupParts.find(
+                  (part) => part.element.checked,
+                );
+                if (selectedPart) {
+                  groupValue = selectedPart.inputInfo.valueAttr;
+                  Object.assign(aggregatedSuffixes, selectedPart.suffixes);
+                }
+              } else if (inputType === "checkbox") {
+                const selectedParts = groupParts.filter(
+                  (part) => part.element.checked,
+                );
+                if (selectedParts.length > 0) {
+                  groupValue = selectedParts.map(
+                    (part) => part.inputInfo.valueAttr,
+                  );
+                  selectedParts.forEach((part) => {
+                    for (const suffixKey in part.suffixes) {
+                      if (!aggregatedSuffixes[suffixKey])
+                        aggregatedSuffixes[suffixKey] = [];
+                      aggregatedSuffixes[suffixKey].push(
+                        part.suffixes[suffixKey],
+                      );
+                    }
+                  });
+                } else {
+                  groupValue = []; // Empty array if none checked
+                }
+              }
+
+              // Replace the marker array with the resolved value
+              dataObject[key] = groupValue;
+              // FlowPlater.log(
+              //   FlowPlater.logLevels.DEBUG,
+              //   `[DataExtractor] Resolved nested group '${key}' to value:`,
+              //   groupValue,
+              // );
+
+              // Merge aggregated suffixes into the parent object
+              for (const suffixKey in aggregatedSuffixes) {
+                if (dataObject.hasOwnProperty(suffixKey)) {
+                  // FlowPlater.log(
+                  //   FlowPlater.logLevels.WARN,
+                  //   `[DataExtractor] Suffix key '${suffixKey}' from nested group '${key}' conflicts with existing key. Overwriting.`,
+                  // );
+                }
+                dataObject[suffixKey] = aggregatedSuffixes[suffixKey];
+              }
+            } else if (typeof value === "object") {
+              // Recursively process nested objects
+              processNestedGroups(value);
+            }
+          }
+        }
+      };
+
+      // --- Single Pass: Extract and Process ---
+      for (const element of rootElements) {
+        if (processedElements.has(element)) continue;
+
+        const primaryKey = AttributeMatcher._getRawAttribute(element, "data");
+        const recursionProcessedSet = new Set();
+        const extractedResult = _extractSingleElementData(
+          element,
+          recursionProcessedSet,
+        );
+
+        if (!extractedResult) {
+          processedElements.add(element); // Mark even if null
+          recursionProcessedSet.forEach((processedEl) =>
+            processedElements.add(processedEl),
+          );
+          continue;
+        }
+
+        // Check ONLY if the element *itself* is a radio/checkbox input needing deferred processing
+        const extractedInputIsGroup =
+          extractedResult.inputInfo &&
+          (extractedResult.inputInfo.type === "radio" ||
+            extractedResult.inputInfo.type === "checkbox");
+
+        if (extractedInputIsGroup && extractedResult.inputInfo.name) {
+          // Element is a standalone fp-data radio/checkbox
+          const groupName = extractedResult.inputInfo.name;
+          const inputType = extractedResult.inputInfo.type;
+          const valueAttr = extractedResult.inputInfo.valueAttr;
+          const isChecked = element.checked; // Check the element directly
+
+          if (groupName) {
+            // Redundant check, but safe
+            if (!groupDataCollector.has(groupName)) {
+              groupDataCollector.set(groupName, {
+                // Use primaryKey from the input element itself if available, else null?
+                primaryKey: primaryKey, // Key from this input element
+                type: inputType,
+                options: [],
+              });
+            }
+            // Store data needed for Pass 2 resolution
+            groupDataCollector.get(groupName).options.push({
+              element: element, // The input element itself
+              primaryKey: primaryKey, // Key from this input element
+              valueAttr: valueAttr, // Value from the input
+              suffixes: extractedResult.suffixes, // Suffixes from this input element
+              isChecked: isChecked,
+            });
+
+            // Mark as processed for Pass 1, group resolved in Pass 2
+            processedElements.add(element);
+            recursionProcessedSet.forEach((processedEl) =>
+              processedElements.add(processedEl),
+            );
+            continue; // Defer processing to Pass 2
+          }
+        }
+
+        // Check if the element contains a radio/checkbox without its own fp-data
+        const containedInput = element.querySelector(
+          'input[type="radio"][name], input[type="checkbox"][name]',
+        );
+        if (
+          containedInput &&
+          !AttributeMatcher._hasAttribute(containedInput, "data")
+        ) {
+          // This is the simple container case (e.g., <div fp-data="opt"><input name="c"></div>)
+          const groupName = containedInput.name;
+          const inputType = containedInput.type;
+          const valueAttr = containedInput.value;
+          const isChecked = containedInput.checked;
+
+          if (!groupDataCollector.has(groupName)) {
+            groupDataCollector.set(groupName, {
+              // Use the container's primaryKey
+              primaryKey: primaryKey,
+              type: inputType,
+              options: [],
+            });
+          }
+          // Store data needed for Pass 2 resolution
+          groupDataCollector.get(groupName).options.push({
+            element: containedInput, // Store the actual input element
+            primaryKey: primaryKey, // Key from container element
+            valueAttr: valueAttr, // Value from the contained input
+            suffixes: extractedResult.suffixes, // Suffixes from container element
+            isChecked: isChecked,
+          });
+
+          // Mark as processed for Pass 1, group resolved in Pass 2
+          processedElements.add(element);
+          recursionProcessedSet.forEach((processedEl) =>
+            processedElements.add(processedEl),
+          );
+          continue; // Defer processing to Pass 2
+        }
+
+        // --- Process ALL OTHER Elements Immediately ---
+        let { primaryValue, suffixes, inputInfo } = extractedResult;
+
+        // --- Process Nested Groups within primaryValue ---
+        if (typeof primaryValue === "object" && primaryValue !== null) {
+          processNestedGroups(primaryValue);
+        }
+
+        // --- Determine Final Value for the Root Element (NON-GROUP CASE) ---
+        let finalValue = primaryValue;
+        if (inputInfo && inputInfo.isInput) {
+          // Note: This handles inputs directly on the root element itself (e.g., range, text),
+          // It WON'T be radio/checkbox here due to the group check above.
+          finalValue = getGroupedInputValue(element);
+        }
+
+        // --- Combine Final Value and Root Suffixes ---
+        if (
+          finalValue !== null &&
+          finalValue !== undefined &&
+          Object.keys(suffixes).length > 0
+        ) {
+          // Check if finalValue is already an object (likely from nested data)
+          if (
+            typeof finalValue === "object" &&
+            !Array.isArray(finalValue) &&
+            finalValue !== null
+          ) {
+            // Merge suffixes directly into the existing object
+            Object.assign(finalValue, suffixes);
+          } else {
+            // Wrap scalar value or array with suffixes
+            finalValue = { value: finalValue, ...suffixes };
+          }
+        } else if (Object.keys(suffixes).length > 0) {
+          // Only suffixes exist for this root element
+          finalValue = suffixes;
+        }
+
+        // FlowPlater.log(
+        //   FlowPlater.logLevels.DEBUG,
+        //   `[DataExtractor] Final values before assignment for root key '${primaryKey}'`,
+        //   { primaryKey, finalValue, suffixes },
+        // );
+
+        // --- Assign/Merge into Final Result ---
+        if (
+          primaryKey !== null &&
+          finalValue !== null &&
+          finalValue !== undefined
+        ) {
+          if (seenPrimaryKeys.has(primaryKey)) {
+            // Handle duplicate root keys (e.g., multiple products)
+            if (!Array.isArray(result[primaryKey])) {
+              result[primaryKey] = [result[primaryKey]];
+            }
+            result[primaryKey].push(finalValue);
+          } else {
+            seenPrimaryKeys.set(primaryKey, true);
+            result[primaryKey] = finalValue;
+          }
+        } else if (
+          finalValue !== null &&
+          finalValue !== undefined &&
+          typeof finalValue === "object"
+        ) {
+          // Root element has no key, merge its object content into the result
+          Object.assign(result, finalValue);
+        }
+
+        // Mark element and its recursively processed children as done
+        processedElements.add(element);
+        recursionProcessedSet.forEach((processedEl) =>
+          processedElements.add(processedEl),
+        );
+      }
+
+      // --- Pass 2: Process Collected Groups ---
+      for (const [groupName, groupData] of groupDataCollector.entries()) {
+        const { primaryKey, type, options } = groupData;
+
+        if (type === "radio") {
+          const selectedOption = options.find((opt) => opt.isChecked);
+          if (selectedOption) {
+            // First, handle the primary value (option)
+            let finalGroupValue = selectedOption.valueAttr;
+
+            // Create a container for both option and associated data
+            let combinedValue = { value: finalGroupValue };
+
+            // Merge all suffixes from the selected option
+            Object.assign(combinedValue, selectedOption.suffixes);
+
+            // Assign to result using the primaryKey from the group
+            if (primaryKey) {
+              if (result.hasOwnProperty(primaryKey)) {
+                if (!Array.isArray(result[primaryKey])) {
+                  result[primaryKey] = [result[primaryKey]];
+                }
+                result[primaryKey].push(combinedValue);
+              } else {
+                result[primaryKey] = combinedValue;
+              }
+            }
+          }
+        } else if (type === "checkbox") {
+          // Get all checked options
+          const selectedOptions = options.filter((opt) => opt.isChecked);
+
+          if (selectedOptions.length > 0) {
+            // Collect all values and their associated data
+            const values = selectedOptions.map((opt) => opt.valueAttr);
+            const suffixCollector = {};
+
+            // Collect and merge suffixes from all selected options
+            selectedOptions.forEach((opt) => {
+              Object.entries(opt.suffixes).forEach(([key, value]) => {
+                if (!suffixCollector[key]) {
+                  suffixCollector[key] = [];
+                }
+                suffixCollector[key].push(value);
+              });
+            });
+
+            // Create the combined result
+            let combinedValue = { value: values };
+            Object.assign(combinedValue, suffixCollector);
+
+            // Assign to result using the primaryKey from the group
+            if (primaryKey) {
+              if (result.hasOwnProperty(primaryKey)) {
+                if (!Array.isArray(result[primaryKey])) {
+                  result[primaryKey] = [result[primaryKey]];
+                }
+                result[primaryKey].push(combinedValue);
+              } else {
+                result[primaryKey] = combinedValue;
+              }
+            }
+          } else {
+            // If no options selected, still create an empty array
+            if (primaryKey) {
+              result[primaryKey] = { value: [] };
+            }
+          }
+        }
+      }
+
+      return result;
+    },
+
+    /**
+     * Sets up observation for a data element
+     * @param {HTMLElement} element - The element to observe
+     * @param {string} localVarName - The local variable name to update
+     * @param {Object} instance - The instance to update
+     */
+    observeDataElement(element, localVarName, instance) {
+      const observer = new MutationObserver((mutations) => {
+        const key = AttributeMatcher._getRawAttribute(element, "data");
+        if (key) {
+          const extracted = _extractSingleElementData(element);
+          if (extracted) {
+            // Update the instance data - the instance will handle storage
+            instance.updateData(key, extracted.primaryValue);
+          }
         }
       });
 
-      return result;
+      // Observe changes to attributes and content
+      observer.observe(element, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+
+      // Store observer on the instance for cleanup
+      if (!instance._observers) {
+        instance._observers = new Set();
+      }
+      instance._observers.add(observer);
     },
   };
 
@@ -209,14 +844,103 @@ const DataExtractorPlugin = () => {
      * @returns {Object} The modified response object
      */
     transformResponse: function (instance, response, dataType) {
+      FlowPlater.log(
+        FlowPlater.logLevels.DEBUG,
+        `[DataExtractor] transformResponse called with:`,
+        { instance, response, dataType },
+      );
+
       if (response && dataType === "html") {
-        // Check if the instance element has fp-extract-data attribute
-        if (
-          instance.element &&
-          instance.element.hasAttribute("fp-extract-data")
-        ) {
-          return globalMethods.processHtml(response);
+        if (instance) {
+          FlowPlater.log(
+            FlowPlater.logLevels.DEBUG,
+            `[DataExtractor] Instance details:`,
+            {
+              instanceName: instance.instanceName,
+              hasElements: !!instance.elements,
+              elements: instance.elements,
+              hasExtractData: instance.elements
+                ? Array.from(instance.elements).some((el) =>
+                    AttributeMatcher._hasAttribute(el, "extract-data"),
+                  )
+                : false,
+            },
+          );
         }
+
+        if (
+          instance.elements &&
+          Array.from(instance.elements).some((el) =>
+            AttributeMatcher._hasAttribute(el, "extract-data"),
+          )
+        ) {
+          const element = Array.from(instance.elements).find((el) =>
+            AttributeMatcher._hasAttribute(el, "extract-data"),
+          );
+
+          FlowPlater.log(
+            FlowPlater.logLevels.DEBUG,
+            `[DataExtractor] Found extract-data attribute on instance element:`,
+            element,
+          );
+
+          FlowPlater.trigger("dataExtractor:beforeTransform", element, {
+            response,
+            dataType,
+          });
+
+          try {
+            FlowPlater.log(
+              FlowPlater.logLevels.DEBUG,
+              `[DataExtractor] Processing HTML response:`,
+              response,
+            );
+
+            const result = globalMethods.processHtml(response);
+
+            FlowPlater.log(
+              FlowPlater.logLevels.DEBUG,
+              `[DataExtractor] Extracted data result:`,
+              result,
+            );
+
+            FlowPlater.trigger("dataExtractor:transformed", element, {
+              response,
+              result,
+            });
+
+            // Return a stringified version of the data
+            return JSON.stringify(result);
+          } catch (error) {
+            FlowPlater.log(
+              FlowPlater.logLevels.ERROR,
+              `[DataExtractor] Error during transformation:`,
+              error,
+            );
+
+            FlowPlater.trigger("dataExtractor:transformError", element, {
+              response,
+              error,
+            });
+            throw error;
+          }
+        } else {
+          FlowPlater.log(
+            FlowPlater.logLevels.DEBUG,
+            `[DataExtractor] Skipping data extraction:`,
+            instance
+              ? instance.elements
+                ? "No extract-data attribute found"
+                : "No instance elements"
+              : "No instance object",
+          );
+        }
+      } else {
+        FlowPlater.log(
+          FlowPlater.logLevels.DEBUG,
+          `[DataExtractor] Skipping data extraction:`,
+          !response ? "No response" : `Invalid data type: ${dataType}`,
+        );
       }
       return response;
     },
