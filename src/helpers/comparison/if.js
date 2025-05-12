@@ -26,8 +26,13 @@ export function ifHelper() {
         const path = token.split(".").slice(1);
         let value = currentContext;
         for (const part of path) {
-          if (value && typeof value === "object" && part in value) {
-            value = value[part];
+          if (value && typeof value === "object") {
+            // Check if property exists using hasOwnProperty
+            if (Object.prototype.hasOwnProperty.call(value, part)) {
+              value = value[part];
+            } else {
+              return undefined;
+            }
           } else {
             return undefined;
           }
@@ -40,8 +45,14 @@ export function ifHelper() {
       let value = dataContext;
 
       for (const part of path) {
-        if (value && typeof value === "object" && part in value) {
-          value = value[part];
+        if (value && typeof value === "object") {
+          // Check if property exists using hasOwnProperty
+          if (Object.prototype.hasOwnProperty.call(value, part)) {
+            value = value[part];
+            // Property exists, return the value even if falsy
+            continue;
+          }
+          return undefined;
         } else {
           return undefined;
         }
@@ -51,7 +62,15 @@ export function ifHelper() {
     }
 
     try {
-      // Parse expression
+      // If expressionString is a simple property name (no operators)
+      if (!expressionString.match(/\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/)) {
+        // Get the value and check if property exists
+        const value = resolveValue(expressionString, options.data.root, this);
+        // Return true if the property exists, regardless of its value
+        return value !== undefined ? options.fn(this) : options.inverse(this);
+      }
+
+      // Parse expression for complex conditions
       const expression = expressionString.trim();
       let [leftToken, operator, rightToken] = expression.split(
         /\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/,
@@ -76,6 +95,13 @@ export function ifHelper() {
         operator,
         rightValue,
       });
+
+      // Special handling for existence checks
+      if (operator === "==" && !rightToken) {
+        return leftValue !== undefined
+          ? options.fn(this)
+          : options.inverse(this);
+      }
 
       // Evaluate the condition
       const result = compare(leftValue, operator, rightValue);
