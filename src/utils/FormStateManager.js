@@ -2,6 +2,8 @@ import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
 import { saveToLocalStorage, loadFromLocalStorage } from "./LocalStorage";
 import { Debug } from "../core/Debug";
+import { AttributeMatcher } from "./AttributeMatcher";
+import { ConfigManager } from "../core/ConfigManager";
 
 /**
  * @module FormStateManager
@@ -200,25 +202,14 @@ export const FormStateManager = {
    * @returns {boolean} - Whether persistence is enabled
    */
   isPersistenceEnabledForElement(element) {
-    // Check if element has explicit persistence setting
-    if (element.hasAttribute("fp-persist")) {
-      return element.getAttribute("fp-persist") !== "false";
-    }
-
-    // Check if element is inside a form with persistence setting
-    const form = element.closest("form");
-    if (form && form.hasAttribute("fp-persist")) {
-      return form.getAttribute("fp-persist") !== "false";
-    }
-
-    // Check if element is inside a container with persistence setting
-    const container = element.closest("[fp-persist]");
-    if (container) {
-      return container.getAttribute("fp-persist") !== "false";
+    // Use AttributeMatcher to check for inherited persistence setting
+    const inheritedValue = AttributeMatcher.findAttribute(element, "persist");
+    if (inheritedValue !== null) {
+      return inheritedValue !== "false";
     }
 
     // Default to global setting
-    return _state.config?.persistForm !== false;
+    return ConfigManager.getConfig().persistForm !== false;
   },
 
   /**
@@ -228,8 +219,8 @@ export const FormStateManager = {
    */
   shouldUseLocalStorage(element) {
     return (
-      element.hasAttribute("fp-persist-local") ||
-      _state.config?.storage?.enabled === true
+      AttributeMatcher._hasAttribute(element, "persist-local") ||
+      ConfigManager.getConfig().storage?.enabled === true
     );
   },
 
@@ -241,23 +232,31 @@ export const FormStateManager = {
   shouldRestoreForm(element) {
     // First check if there are any explicitly persistent elements
     // These override any parent fp-persist="false" settings
-    const explicitlyPersistentInputs = element.querySelectorAll(
-      '[fp-persist="true"]',
+    const explicitlyPersistentInputs = AttributeMatcher.findMatchingElements(
+      "persist",
+      "true",
+      true,
+      element,
     );
     if (explicitlyPersistentInputs.length > 0) {
       return true;
     }
 
     // Check if element itself is a form with explicit persistence setting
-    if (element.tagName === "FORM" && element.hasAttribute("fp-persist")) {
-      return element.getAttribute("fp-persist") !== "false";
+    if (
+      element.tagName === "FORM" &&
+      AttributeMatcher._hasAttribute(element, "persist")
+    ) {
+      return AttributeMatcher._getRawAttribute(element, "persist") !== "false";
     }
 
     // Check parent form if exists
     const parentForm = element.closest("form");
     if (parentForm) {
       // If parent form explicitly disables persistence, skip it
-      if (parentForm.getAttribute("fp-persist") === "false") {
+      if (
+        AttributeMatcher._getRawAttribute(parentForm, "persist") === "false"
+      ) {
         return false;
       }
 
@@ -268,7 +267,12 @@ export const FormStateManager = {
         if (!input.name || input.type === "file") continue;
 
         // Check if input is inside an element with fp-persist="false"
-        const persistFalseParent = input.closest('[fp-persist="false"]');
+        const persistFalseParent = AttributeMatcher.findClosestParent(
+          "persist",
+          "false",
+          true,
+          input,
+        );
         if (persistFalseParent) {
           continue;
         }

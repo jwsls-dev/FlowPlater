@@ -2,8 +2,10 @@ import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
 import { saveToLocalStorage, loadFromLocalStorage } from "./LocalStorage";
 import { Debug } from "../core/Debug";
-import PluginManager from "../core/PluginManager";
+import { PluginManager } from "../core/PluginManager";
 import { FormStateManager } from "./FormStateManager";
+import { AttributeMatcher } from "./AttributeMatcher";
+import { ConfigManager } from "../core/ConfigManager";
 
 /**
  * Helper function to collect debug information consistently
@@ -112,37 +114,46 @@ function getPersistenceSettings(element) {
   let useLocalStorage = false;
 
   // Check persistence settings
-  if (element.hasAttribute("fp-persist")) {
-    shouldPersist = element.getAttribute("fp-persist") !== "false";
-    useLocalStorage = element.getAttribute("fp-persist") === "true";
+  if (AttributeMatcher._hasAttribute(element, "persist")) {
+    shouldPersist =
+      AttributeMatcher._getRawAttribute(element, "persist") !== "false";
+    useLocalStorage =
+      AttributeMatcher._getRawAttribute(element, "persist") === "true";
   } else {
     const form = element.form;
-    if (form && form.hasAttribute("fp-persist")) {
-      shouldPersist = form.getAttribute("fp-persist") !== "false";
-      useLocalStorage = form.getAttribute("fp-persist") === "true";
-    } else if (_state.config?.storage?.enabled && !_state.config?.persistForm) {
+    if (form && AttributeMatcher._hasAttribute(form, "persist")) {
+      shouldPersist =
+        AttributeMatcher._getRawAttribute(form, "persist") !== "false";
+      useLocalStorage =
+        AttributeMatcher._getRawAttribute(form, "persist") === "true";
+    } else if (
+      ConfigManager.getConfig().storage?.enabled &&
+      !ConfigManager.getConfig().persistForm
+    ) {
       shouldPersist = false;
       useLocalStorage = false;
     } else {
-      shouldPersist = _state.config?.persistForm;
+      shouldPersist = ConfigManager.getConfig().persistForm;
       useLocalStorage =
-        _state.config?.storage?.enabled && _state.config?.persistForm;
+        ConfigManager.getConfig().storage?.enabled &&
+        ConfigManager.getConfig().persistForm;
     }
   }
 
   // For forms, check if any elements have explicit persistence
   if (element.tagName === "FORM") {
     const hasPersistentElements = Array.from(element.elements).some(
-      (input) => input.getAttribute("fp-persist") === "true",
+      (input) => AttributeMatcher._getRawAttribute(input, "persist") === "true",
     );
     if (hasPersistentElements) {
-      useLocalStorage = _state.config?.storage?.enabled;
+      useLocalStorage = ConfigManager.getConfig().storage?.enabled;
     }
   }
 
   return {
     shouldPersist,
-    useLocalStorage: useLocalStorage && _state.config?.storage?.enabled,
+    useLocalStorage:
+      useLocalStorage && ConfigManager.getConfig().storage?.enabled,
   };
 }
 
@@ -540,7 +551,7 @@ function handleFormElementChange(event) {
       // Check if the input has a template value
       if (isTemplateValue(input.value)) return true;
       // Check for data-binding attributes that indicate template usage
-      if (input.getAttribute("fp-bind")) return true;
+      if (AttributeMatcher._hasAttribute(input, "bind")) return true;
       return false;
     }
 

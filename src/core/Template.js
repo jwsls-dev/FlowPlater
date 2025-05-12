@@ -4,15 +4,16 @@ import { _state } from "./State";
 import { Performance } from "../utils/Performance";
 import { InstanceManager } from "./InstanceManager";
 import { extractLocalData } from "../utils/LocalVariableExtractor";
-
 import { updateDOM } from "../utils/UpdateDom";
 import { loadFromLocalStorage } from "../utils/LocalStorage";
 import { saveToLocalStorage } from "../utils/LocalStorage";
 import { compileTemplate, memoizedCompile } from "./TemplateCompiler";
 import { createDeepProxy } from "../utils/CreateDeepProxy";
-import PluginManager from "./PluginManager";
+import { PluginManager } from "./PluginManager";
 import { GroupManager } from "./GroupManager";
 import { deepMerge } from "../utils/DeepMerge";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { ConfigManager } from "./ConfigManager";
 
 export { compileTemplate, memoizedCompile };
 
@@ -39,8 +40,11 @@ export function render({
   let derivedInstanceName;
   if (instanceName) {
     derivedInstanceName = instanceName;
-  } else if (target instanceof Element && target.hasAttribute("fp-instance")) {
-    derivedInstanceName = target.getAttribute("fp-instance");
+  } else if (
+    target instanceof Element &&
+    AttributeMatcher._hasAttribute(target, "instance")
+  ) {
+    derivedInstanceName = AttributeMatcher._getRawAttribute(target, "instance");
   } else if (target instanceof Element && target.id) {
     derivedInstanceName = target.id;
   } else if (typeof target === "string" && target.startsWith("#")) {
@@ -91,32 +95,50 @@ export function render({
     template = "#" + targetElement.id;
   }
 
-  // Normalize target to array
-  let elements = [];
-  if (target instanceof NodeList) {
-    elements = Array.from(target);
-  } else if (typeof target === "string") {
-    elements = Array.from(document.querySelectorAll(target));
-  } else if (target instanceof Element) {
-    elements = [target];
+  // First check for target attributes
+  let targetElements = [];
+  if (target instanceof Element) {
+    // Check for hx-target or fp-target attributes
+    const targetSelector = AttributeMatcher._getRawAttribute(target, "target");
+    if (targetSelector) {
+      if (targetSelector === "this") {
+        targetElements = [target];
+      } else {
+        targetElements = Array.from(document.querySelectorAll(targetSelector));
+      }
+    }
   }
 
-  if (elements.length === 0) {
+  // If no target elements found from attributes, use the normal target handling
+  if (targetElements.length === 0) {
+    if (target instanceof NodeList) {
+      targetElements = Array.from(target);
+    } else if (typeof target === "string") {
+      targetElements = Array.from(document.querySelectorAll(target));
+    } else if (target instanceof Element) {
+      targetElements = [target];
+    }
+  }
+
+  if (targetElements.length === 0) {
     Debug.error("No target elements found");
     return;
   }
 
-  if (elements.length === undefined) {
-    elements = [elements];
+  if (targetElements.length === undefined) {
+    targetElements = [targetElements];
   }
 
   // Get the instance name
   if (instanceName) {
     instanceName = instanceName;
-  } else if (elements[0].hasAttribute("fp-instance")) {
-    instanceName = elements[0].getAttribute("fp-instance");
-  } else if (elements[0].id) {
-    instanceName = elements[0].id;
+  } else if (AttributeMatcher._hasAttribute(targetElements[0], "instance")) {
+    instanceName = AttributeMatcher._getRawAttribute(
+      targetElements[0],
+      "instance",
+    );
+  } else if (targetElements[0].id) {
+    instanceName = targetElements[0].id;
   } else {
     instanceName = _state.length;
   }
@@ -133,7 +155,7 @@ export function render({
     return;
   }
 
-  if (elements.length === 0) {
+  if (targetElements.length === 0) {
     Debug.error("Target not found: " + target);
     return;
   }
@@ -148,18 +170,62 @@ export function render({
   let proxy = null; // Initialize proxy at function level
 
   // Check for local variable at instance level first
-  const localVarName = elements[0].getAttribute("fp-local");
+  const localVarName = AttributeMatcher._getRawAttribute(
+    targetElements[0],
+    "local",
+  );
   let localData = null;
   if (localVarName) {
+    // First check if it's a global variable
     localData = extractLocalData(localVarName);
+
+    // If no global variable found, try as a selector
+    if (!localData) {
+      try {
+        const selectorElement = document.querySelector(localVarName);
+        if (selectorElement) {
+          // Check if the element or its children have fp-data
+          const hasDataElement = AttributeMatcher.findMatchingElements(
+            "data",
+            null,
+            false,
+            selectorElement,
+          );
+
+          if (hasDataElement) {
+            const dataExtractor = PluginManager.getPlugin("data-extractor");
+            if (dataExtractor) {
+              localData =
+                dataExtractor.instanceMethods.extractData(selectorElement);
+            }
+          }
+        }
+      } catch (e) {
+        Debug.warn(`[Template] Invalid selector for fp-local: ${localVarName}`);
+      }
+    }
+
     if (localData) {
       finalInitialData = { ...finalInitialData, ...localData };
+    }
+
+    // Check if we should observe this local data
+    if (AttributeMatcher._hasAttribute(targetElements[0], "local-observe")) {
+      // Find all data elements within the instance
+      const dataElements = AttributeMatcher.findMatchingElements("data");
+
+      // Delegate observation to the DataExtractorPlugin
+      dataElements.forEach((element) => {
+        PluginManager.getPlugin(
+          "data-extractor",
+        ).instanceMethods.observeDataElement(element, localVarName, instance);
+      });
     }
   }
 
   if (!_state.instances[instanceName] || !_state.instances[instanceName].data) {
     // Load persisted data if available and not skipped
-    if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
+    if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
       persistedData = loadFromLocalStorage(instanceName, "instance");
       if (persistedData) {
         // Check if stored data is HTML
@@ -171,22 +237,23 @@ export function render({
               persistedData.trim().startsWith("<html")))
         ) {
           // Get swap specification from element
+          const swapStyle = AttributeMatcher._getRawAttribute(
+            targetElements[0],
+            "swap",
+            "innerHTML",
+          );
           const swapSpec = {
-            swapStyle:
-              elements[0].getAttribute("hx-swap")?.split(" ")[0] || "innerHTML",
+            swapStyle: swapStyle || "innerHTML",
             swapDelay: 0,
             settleDelay: 0,
-            transition:
-              elements[0]
-                .getAttribute("hx-swap")
-                ?.includes("transition:true") || false,
+            transition: swapStyle.includes("transition:true") || false,
           };
 
           // Use htmx.swap with proper swap specification
           if (returnHtml) {
             return persistedData; // HTML string is now stored directly
           }
-          elements.forEach((element) => {
+          targetElements.forEach((element) => {
             htmx.swap(element, persistedData, swapSpec);
           });
           return _state.instances[instanceName];
@@ -202,8 +269,8 @@ export function render({
     }
 
     // Find the template element (must have fp-template attribute)
-    const templateElement = elements.find((el) =>
-      el.hasAttribute("fp-template"),
+    const templateElement = targetElements.find((el) =>
+      AttributeMatcher._hasAttribute(el, "template"),
     );
     if (!templateElement) {
       Debug.error("No template element found in target elements");
@@ -239,17 +306,17 @@ export function render({
     // --- End Setup ---
 
     // Check if this instance is part of a group
-    const groupName = templateElement.getAttribute("fp-group");
+    const groupName = AttributeMatcher._getRawAttribute(
+      templateElement,
+      "group",
+    );
 
     if (groupName) {
       // Check for persisted group data
       let groupData = finalInitialData; // Start with the current data
 
-      if (!skipLocalStorageLoad && _state.config?.storage?.enabled) {
-        const persistedGroupData = loadFromLocalStorage(
-          `group_${groupName}`,
-          "group",
-        );
+      if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
+        const persistedGroupData = loadFromLocalStorage(groupName, "group");
         if (persistedGroupData) {
           // Merge persisted group data with any instance-specific data
           groupData = deepMerge(persistedGroupData, finalInitialData);
@@ -293,10 +360,11 @@ export function render({
               // Get the current rendered output
               const transformedData = PluginManager.applyTransformations(
                 instance,
-                proxy,
+                instance.getData(),
                 "transformDataBeforeRender",
                 "json",
               );
+
               const newRenderedOutput = instance.template(transformedData);
 
               // Compare with previous render
@@ -326,7 +394,7 @@ export function render({
                 instance._lastRenderedOutput = newRenderedOutput;
 
                 // Save to storage if enabled
-                if (_state.config?.storage?.enabled) {
+                if (ConfigManager.getConfig().storage?.enabled) {
                   const storageId = instance.instanceName.replace("#", "");
                   Debug.debug(
                     `[Debounced Update] Saving data for ${storageId}`,
@@ -352,7 +420,8 @@ export function render({
     // 3. Assign the proxy and template to the instance
     instance.template = compiledTemplate;
     instance.templateId =
-      templateElement.getAttribute("fp-template") || template;
+      AttributeMatcher._getRawAttribute(templateElement, "template") ||
+      template;
     instance.data = proxy; // Assign the proxy!
 
     // 4. Trigger initial render - This should be OUTSIDE the debounce logic
@@ -369,7 +438,7 @@ export function render({
 
     // Optional: Initial save if needed, OUTSIDE debounce
     if (
-      _state.config?.storage?.enabled &&
+      ConfigManager.getConfig().storage?.enabled &&
       !persistedData &&
       !instance.groupName
     ) {
@@ -398,8 +467,8 @@ export function render({
   // Only create/setup instance if proxy is defined
   if (proxy) {
     // Find the template element (must have fp-template attribute)
-    const templateElement = elements.find((el) =>
-      el.hasAttribute("fp-template"),
+    const templateElement = targetElements.find((el) =>
+      AttributeMatcher._hasAttribute(el, "template"),
     );
     if (!templateElement) {
       Debug.error("No template element found in target elements");
@@ -415,7 +484,8 @@ export function render({
     // Set up the instance but don't render automatically
     instance.template = compiledTemplate; // Always store the template
     instance.templateId =
-      templateElement.getAttribute("fp-template") || template;
+      AttributeMatcher._getRawAttribute(templateElement, "template") ||
+      template;
     instance.data = proxy;
 
     // At this point do NOT call instance._updateDOM() to avoid automatic rendering
@@ -428,8 +498,8 @@ export function render({
         if (returnHtml) {
           // Apply plugin transformations to the data before rendering
           const transformedData = PluginManager.applyTransformations(
-            finalInstance,
-            finalInstance.data,
+            instance,
+            instance.getData(),
             "transformDataBeforeRender",
             "json",
           );
@@ -440,8 +510,8 @@ export function render({
         Array.from(instance.elements).forEach((element) => {
           // Apply plugin transformations to the data before rendering
           const transformedData = PluginManager.applyTransformations(
-            finalInstance,
-            finalInstance.data,
+            instance,
+            instance.getData(),
             "transformDataBeforeRender",
             "json",
           );
@@ -449,7 +519,7 @@ export function render({
             element,
             compiledTemplate(transformedData),
             animate,
-            finalInstance,
+            instance,
           );
         });
       } catch (error) {

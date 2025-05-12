@@ -1,4 +1,5 @@
 import { Debug } from "./Debug";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
 
 function preloadUrl(url) {
   if (!url) {
@@ -30,7 +31,8 @@ function preloadUrl(url) {
 }
 
 function addPreloadListener(element) {
-  const preloadEvent = element.getAttribute("fp-preload") || "mouseover";
+  const preloadEvent =
+    AttributeMatcher._getRawAttribute(element, "preload") || "mouseover";
 
   if (preloadEvent === "mouseover") {
     let mouseOver = true;
@@ -43,8 +45,7 @@ function addPreloadListener(element) {
         if (mouseOver) {
           const url =
             element.getAttribute("href") ||
-            element.getAttribute("hx-get") ||
-            element.getAttribute("fp-get");
+            AttributeMatcher._getRawAttribute(element, "get");
           preloadInstance = preloadUrl(url);
         }
       }, 100);
@@ -74,8 +75,7 @@ function addPreloadListener(element) {
     const handler = () => {
       const url =
         element.getAttribute("href") ||
-        element.getAttribute("hx-get") ||
-        element.getAttribute("fp-get");
+        AttributeMatcher._getRawAttribute(element, "get");
       preloadUrl(url);
     };
     element.addEventListener(preloadEvent, handler);
@@ -93,7 +93,7 @@ export function processPreload(element) {
       return element;
     }
 
-    if (element.hasAttribute("fp-preload")) {
+    if (AttributeMatcher._hasAttribute(element, "preload")) {
       addPreloadListener(element);
       element.setAttribute("data-fp-preload-processed", "true");
     }

@@ -1,8 +1,7 @@
 import { Debug } from "./Debug";
 import { EventSystem } from "./EventSystem";
-import PluginManager from "./PluginManager";
 import { _state } from "./State";
-import { InstanceManager } from "./InstanceManager";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
 
 /**
  * @module RequestHandler
@@ -30,7 +29,7 @@ export const RequestHandler = {
    * @returns {boolean|void} Returns true if processing succeeded for 'process' action
    */
   handleRequest(target, requestId, action) {
-    if (!target || !target.hasAttribute("fp-template")) return;
+    if (!target || !AttributeMatcher._hasAttribute(target, "template")) return;
 
     const currentInfo = this.processingElements.get(target);
     requestId = requestId || this.generateRequestId();
@@ -100,23 +99,6 @@ export const RequestHandler = {
    * Sets up all necessary event listeners for HTMX integration and request handling
    */
   setupEventListeners() {
-    document.body.addEventListener("htmx:configRequest", (event) => {
-      // Apply plugin transformations to the request
-      const target = event.detail.elt;
-      const instance = InstanceManager.getOrCreateInstance(target);
-      if (instance) {
-        event = PluginManager.applyTransformations(
-          instance,
-          event,
-          "transformRequest",
-          "json",
-        );
-      }
-
-      event.detail.headers["Content-Type"] =
-        "application/x-www-form-urlencoded; charset=UTF-8";
-    });
-
     // Add consolidated event listeners
     document.body.addEventListener("htmx:beforeRequest", (event) => {
       const target = event.detail.elt;
@@ -137,7 +119,7 @@ export const RequestHandler = {
 
       if (instance) {
         // Execute beforeRequest hook
-        EventSystem.publish("request-start", {
+        EventSystem.publish("requestStart", {
           instanceName,
           ...event.detail,
         });

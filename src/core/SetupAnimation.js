@@ -1,5 +1,6 @@
 import { Debug } from "./Debug";
 import { _state } from "./State";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
 
 // * For each element with an fp-animation attribute set to true, or if defaults.animation is true, get the hx-swap attribute.
 // if the value is empty, set it to innerHTML transition:true
@@ -8,7 +9,8 @@ import { _state } from "./State";
 export function setupAnimation(element) {
   try {
     var shouldAnimate =
-      element.getAttribute("fp-animation") || _state.defaults.animation;
+      AttributeMatcher._getRawAttribute(element, "animation") ||
+      _state.defaults.animation;
     if (shouldAnimate === "true") {
       var swap = element.getAttribute("hx-swap");
       if (!swap) {

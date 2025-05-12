@@ -3,6 +3,8 @@ import { _state } from "./State";
 import { Performance } from "../utils/Performance";
 import { memoize } from "../utils/Memoize";
 import { currentCustomTags } from "./ReplaceCustomTags";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { ConfigManager } from "./ConfigManager";
 
 export function compileTemplate(templateId, recompile = false) {
   if (!recompile) {
@@ -41,15 +43,15 @@ export const memoizedCompile = memoize(function (templateId) {
   // Check if template needs compilation
   if (
     !_state.templateCache[templateId] ||
-    (templateElement.hasAttribute("fp-dynamic") &&
-      templateElement.getAttribute("fp-dynamic") !== "false")
+    (AttributeMatcher._hasAttribute(templateElement, "dynamic") &&
+      AttributeMatcher._getRawAttribute(templateElement, "dynamic") !== "false")
   ) {
     Debug.debug("compiling template: " + templateId);
 
     // Function to construct tag with attributes
     function constructTagWithAttributes(element) {
       let tagName = element.tagName.toLowerCase();
-      let fpTag = element.getAttribute("fp-tag");
+      let fpTag = AttributeMatcher._getRawAttribute(element, "tag");
       if (fpTag) {
         tagName = fpTag;
       }
@@ -75,7 +77,7 @@ export const memoizedCompile = memoize(function (templateId) {
           result += child.textContent;
         } else if (child.nodeType === Node.ELEMENT_NODE) {
           let childTagName = child.tagName.toLowerCase();
-          let fpTag = child.getAttribute("fp-tag");
+          let fpTag = AttributeMatcher._getRawAttribute(child, "tag");
           if (fpTag) {
             childTagName = fpTag;
           }
@@ -135,13 +137,16 @@ export const memoizedCompile = memoize(function (templateId) {
           } else if (
             child.tagName === "template" ||
             child.tagName === "fptemplate" ||
-            child.hasAttribute("fp-template")
+            AttributeMatcher._hasAttribute(child, "template")
           ) {
             result += child.outerHTML;
           } else {
             const childContent = processNode(child);
             const startTag = constructTagWithAttributes(child);
-            const fpValAttribute = child.getAttribute("fp-val");
+            const fpValAttribute = AttributeMatcher._getRawAttribute(
+              child,
+              "val",
+            );
             let processedContent = childContent;
             if (fpValAttribute) {
               processedContent = `{{{default ${fpValAttribute} "${childContent.replace(
@@ -170,7 +175,7 @@ export const memoizedCompile = memoize(function (templateId) {
       const compiledTemplate = Handlebars.compile(handlebarsTemplate);
 
       // Check cache size limit before adding new template
-      const cacheSize = _state.config?.templates?.cacheSize || 100; // Default to 100 if not configured
+      const cacheSize = ConfigManager.getConfig().templates?.cacheSize || 100; // Default to 100 if not configured
       if (Object.keys(_state.templateCache).length >= cacheSize) {
         // Remove oldest template
         const oldestKey = Object.keys(_state.templateCache)[0];

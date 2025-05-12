@@ -11,12 +11,16 @@ const htmxAttributes = ["boost", "get", "post", "on", "push-url", "select", "sel
 // * For every element with an fp-[htmxAttribute] attribute, translate to hx-[htmxAttribute]
 export function translateCustomHTMXAttributes(element) {
   try {
+    Debug.log("translateCustomHTMXAttributes", element);
     const customPrefix = "fp-";
     const htmxPrefix = "hx-";
 
     htmxAttributes.forEach((attr) => {
       const customAttr = customPrefix + attr;
-      if (element.hasAttribute(customAttr)) {
+      if (
+        element.hasAttribute(customAttr) ||
+        element.hasAttribute("data-" + customAttr)
+      ) {
         const attrValue = element.getAttribute(customAttr);
         element.setAttribute(htmxPrefix + attr, attrValue);
         element.removeAttribute(customAttr);

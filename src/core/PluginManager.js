@@ -1,6 +1,7 @@
 import { Debug, FlowPlaterError } from "./Debug";
 import { _state } from "./State";
 import { _readyState } from "./ReadyState";
+import { AttributeMatcher } from "../utils/AttributeMatcher";
 
 // Version management utilities
 const VersionManager = {
@@ -30,12 +31,13 @@ const VersionManager = {
   },
 };
 
-const PluginManager = {
+export const PluginManager = {
   plugins: new Map(),
   globalMethods: new Map(),
   instanceMethods: new Map(),
+  customTransformers: new Map(), // Store custom transformers by type
 
-  registerPlugin(plugin) {
+  registerPlugin(plugin, config = {}) {
     if (typeof plugin === "string") {
       plugin = window[plugin];
     }
@@ -48,7 +50,7 @@ const PluginManager = {
       throw new FlowPlaterError("Plugin must be a valid function");
     }
 
-    const pluginInstance = plugin();
+    const pluginInstance = plugin(config);
 
     // Validate required config fields
     const requiredFields = ["name", "enabled", "priority", "version"];
@@ -112,6 +114,16 @@ const PluginManager = {
           );
         }
       }
+    }
+
+    // Handle inheritable attributes
+    if (
+      plugin.inheritableAttributes &&
+      Array.isArray(plugin.inheritableAttributes)
+    ) {
+      plugin.inheritableAttributes.forEach((attributeName) => {
+        AttributeMatcher.addInheritableAttribute("fp-", attributeName);
+      });
     }
 
     // Add to ready state tracking
@@ -273,7 +285,19 @@ const PluginManager = {
 
   removePlugin(name) {
     const plugin = this.getPlugin(name);
-    if (!plugin) return false;
+    if (!plugin) {
+      return false;
+    }
+
+    // Remove inheritable attributes
+    if (
+      plugin.inheritableAttributes &&
+      Array.isArray(plugin.inheritableAttributes)
+    ) {
+      plugin.inheritableAttributes.forEach((attributeName) => {
+        AttributeMatcher.removeInheritableAttribute("fp-", attributeName);
+      });
+    }
 
     // Store methods to remove before deleting from maps
     const methodsToRemove = new Set();
@@ -373,17 +397,39 @@ const PluginManager = {
 
   // Apply transformations from all enabled plugins in priority order
   applyTransformations(instance, data, transformationType, dataType = "json") {
+    // Validate instance
+    if (!instance || typeof instance !== "object") {
+      Debug.error("Invalid instance provided to applyTransformations");
+      return data;
+    }
+
+    Debug.debug(`[Transform] Starting ${transformationType}`, {
+      instance: instance.instanceName,
+      dataType,
+      isEvent: data instanceof Event,
+      dataType: typeof data,
+      isProxy: data && typeof data === "object" && "toJSON" in data,
+    });
+
     // Get plugins in priority order
     const plugins = this.getSortedPlugins();
 
     // Apply each plugin's transformation if it exists
-    return plugins.reduce((transformedData, plugin) => {
+    let transformedData = plugins.reduce((transformedData, plugin) => {
       // Check if plugin has transformers and the specific transformation type
       if (
         plugin.transformers &&
         typeof plugin.transformers[transformationType] === "function"
       ) {
         try {
+          Debug.debug(
+            `[Transform] Applying ${plugin.config.name}'s ${transformationType}`,
+            {
+              dataType: typeof transformedData,
+              isEvent: transformedData instanceof Event,
+            },
+          );
+
           // Apply the transformation
           const result = plugin.transformers[transformationType](
             instance,
@@ -406,6 +452,12 @@ const PluginManager = {
             return transformedData;
           }
 
+          Debug.debug(`[Transform] ${plugin.config.name}'s transform result:`, {
+            resultType: typeof result,
+            isEvent: result instanceof Event,
+            isProxy: result && typeof result === "object" && "toJSON" in result,
+          });
+
           return result;
         } catch (error) {
           Debug.error(
@@ -417,6 +469,144 @@ const PluginManager = {
       }
       return transformedData;
     }, data);
+
+    // Apply custom transformers after plugin transformers
+    const customTransformers =
+      this.customTransformers.get(transformationType) || [];
+
+    if (customTransformers.length > 0) {
+      Debug.debug(
+        `[Transform] Applying ${customTransformers.length} custom transformers for ${transformationType}`,
+      );
+    }
+
+    transformedData = customTransformers.reduce(
+      (transformedData, transformer, index) => {
+        try {
+          Debug.debug(
+            `[Transform] Applying custom transformer ${index + 1}/${
+              customTransformers.length
+            }`,
+            {
+              dataType: typeof transformedData,
+              isEvent: transformedData instanceof Event,
+            },
+          );
+
+          // Apply the custom transformation with the instance context
+          const result = transformer.call(
+            null,
+            instance,
+            transformedData,
+            dataType,
+          );
+
+          // If the result is undefined or null, return the original data
+          if (result === undefined || result === null) {
+            Debug.warn(
+              `Custom transformer returned undefined/null for ${transformationType}, using original data`,
+            );
+            return transformedData;
+          }
+
+          // For event transformations, ensure we preserve the event object structure
+          if (transformedData instanceof Event && result instanceof Event) {
+            // For events, we want to preserve the event object but update its properties
+            Object.assign(transformedData.detail, result.detail);
+            return transformedData;
+          }
+
+          Debug.debug(`[Transform] Custom transformer ${index + 1} result:`, {
+            resultType: typeof result,
+            isEvent: result instanceof Event,
+            isProxy: result && typeof result === "object" && "toJSON" in result,
+          });
+
+          return result;
+        } catch (error) {
+          Debug.error(
+            `Custom transformer failed executing ${transformationType} transformation:`,
+            error,
+          );
+          return transformedData; // Return unmodified data if transformation fails
+        }
+      },
+      transformedData,
+    );
+
+    Debug.debug(`[Transform] Completed ${transformationType}`, {
+      finalDataType: typeof transformedData,
+      isEvent: transformedData instanceof Event,
+      isProxy:
+        transformedData &&
+        typeof transformedData === "object" &&
+        "toJSON" in transformedData,
+    });
+
+    return transformedData;
+  },
+
+  // Add a custom transformer function for a specific transformation type
+  addTransformer(transformationType, transformerFn) {
+    if (typeof transformerFn !== "function") {
+      throw new FlowPlaterError("Transformer must be a function");
+    }
+
+    // Validate transformer function signature
+    const fnStr = transformerFn.toString();
+    if (!fnStr.includes("instance") || !fnStr.includes("data")) {
+      Debug.warn(
+        "Transformer function should accept (instance, data, dataType) parameters",
+      );
+    }
+
+    // Initialize array for this transformation type if it doesn't exist
+    if (!this.customTransformers.has(transformationType)) {
+      this.customTransformers.set(transformationType, []);
+    }
+
+    // Add the transformer to the array
+    this.customTransformers.get(transformationType).push(transformerFn);
+
+    Debug.debug(`Added custom transformer for ${transformationType}`);
+    return this; // For method chaining
+  },
+
+  // Remove a custom transformer function
+  removeTransformer(transformationType, transformerFn) {
+    if (!this.customTransformers.has(transformationType)) {
+      return false;
+    }
+
+    const transformers = this.customTransformers.get(transformationType);
+    const index = transformers.indexOf(transformerFn);
+
+    if (index === -1) {
+      return false;
+    }
+
+    transformers.splice(index, 1);
+
+    // Remove the transformation type if no transformers left
+    if (transformers.length === 0) {
+      this.customTransformers.delete(transformationType);
+    }
+
+    Debug.debug(`Removed custom transformer for ${transformationType}`);
+    return true;
+  },
+
+  // Clear all custom transformers for a specific type
+  clearTransformers(transformationType) {
+    if (!transformationType) {
+      // Clear all transformers if no type specified
+      this.customTransformers.clear();
+      Debug.debug("Cleared all custom transformers");
+    } else {
+      this.customTransformers.delete(transformationType);
+      Debug.debug(`Cleared custom transformers for ${transformationType}`);
+    }
+    return this;
   },
 
   executeHook(hookName, ...args) {
@@ -466,7 +656,7 @@ const PluginManager = {
       throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
     }
 
-    return methodInfo.method(plugin, ...args);
+    return methodInfo.method.call(plugin, ...args);
   },
 
   // Execute an instance method
@@ -516,5 +706,3 @@ const PluginManager = {
     );
   },
 };
-
-export default PluginManager;
