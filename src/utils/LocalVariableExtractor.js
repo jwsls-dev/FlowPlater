@@ -1,5 +1,5 @@
 import { Debug } from "../core/Debug";
-import PluginManager from "../core/PluginManager";
+import { PluginManager } from "../core/PluginManager";
 
 /**
  * Checks if a string looks like a CSS selector
