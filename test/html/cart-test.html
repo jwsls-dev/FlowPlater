@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cart Plugin Test</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --card-bg: #2c2c2c;
+            --text-color: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --border-color: #444;
+            --primary-color: #007bff;
+            --primary-hover: #0056b3;
+            --disabled-bg: #495057;
+            --disabled-text: #adb5bd;
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .products {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .product {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .product h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.15em;
+        }
+
+        .product p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.9em;
+        }
+
+        .product .price {
+             color: var(--text-color);
+             font-weight: bold;
+             font-size: 1.1em;
+        }
+
+        .product .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: auto; /* Push controls to the bottom */
+        }
+
+        .product .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .cart {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--card-bg);
+            padding: 25px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            min-width: 300px;
+            z-index: 1000;
+            color: var(--text-color);
+        }
+
+        .cart h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        #cart-items {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding-right: 10px; /* For scrollbar */
+        }
+
+        input {
+            color: var(--text-color);
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .cart-item:last-child {
+             border-bottom: none;
+             margin-bottom: 0;
+             padding-bottom: 0;
+        }
+
+        .cart-item .item-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cart-item .item-name {
+            font-weight: bold;
+        }
+        .cart-item .item-details {
+            font-size: 0.85em;
+            color: var(--text-muted);
+        }
+
+
+        button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.2s ease;
+            display: inline-flex; /* Align icon/text if needed */
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:disabled {
+            background: var(--disabled-bg);
+            color: var(--disabled-text);
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--primary-hover);
+        }
+
+        /* Specific button styles */
+        .btn-quantity {
+            padding: 5px 10px;
+            min-width: 30px;
+            font-weight: bold;
+        }
+
+        .quantity-display {
+            display: inline-block;
+            min-width: 25px;
+            text-align: center;
+            font-weight: bold;
+            padding: 5px;
+            background-color: var(--bg-color);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+        .totals {
+            margin-top: 20px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+            font-size: 0.95em;
+        }
+        .totals div {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .totals div:last-child {
+             margin-bottom: 0;
+             font-weight: bold;
+             font-size: 1.05em;
+             margin-top: 10px;
+             padding-top: 10px;
+             border-top: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="cart">
+        <h2>Cart</h2>
+        <div id="cart-items" fp-instance="cart-list" fp-group="cart" fp-template>
+            <each fp="items">
+            <div class="cart-item" fp-data="product" fp-data-cart-item-id="{{this.cartItemId}}">
+                <div class="item-info"> 
+                    <span fp-data="id" style="display: none">{{this.id}}</span>
+                    <span class="item-name" fp-data="name">{{this.name}} [{{this.size}}]</span>
+                    <span class="item-details" > 
+                         {{this.amount}} x {{this.price}}
+                    </span>
+                </div>
+                <div>
+                    <button fp-cart-remove>Remove</button>
+                </div>
+            </div>
+            </each>
+        </div>
+        <div class="totals">
+            <div>Items: <span fp-cart-total-count>0</span></div>
+            <div>Subtotal: <span fp-cart-total-price>0.00</span></div>
+            <div>Discount: <span fp-cart-total-discount>0.00</span></div>
+            <div>Tax: <span fp-cart-total-tax>0.00</span></div>
+            <div>Total: <span fp-cart-total-amount>0.00</span></div>
+        </div>
+    </div>
+
+    <div class="products">
+        <!-- Product 1 -->
+        <div class="product" fp-data="product">
+            <span fp-data="id" style="display: none">1</span>
+            <div> <!-- Info div -->
+                 <h3 fp-data="name">Product 1</h3>
+                 <p class="price">$<span fp-data="price">29.99</span></p>
+                 <p fp-data="stock" style="display: none">5</p>
+                 <!-- Add Size Radio Group -->
+                 <div class="variants" style="margin-top: 10px;">
+                     <label><input fp-data="size" type="radio" name="product-1-size" value="S" checked> S</label>
+                     <label><input fp-data="size" type="radio" name="product-1-size" value="M"> M</label>
+                     <label><input fp-data="size" type="radio" name="product-1-size" value="L"> L</label>
+                 </div>
+            </div>
+            <div class="controls">
+                <button fp-cart-add fp-cart-variant-key="size">Add to Cart</button>
+                <div class="quantity-control">
+                    <button class="btn-quantity" onclick="adjustQuantity(this, -1)">-</button> 
+                    <input type="number" class="quantity-display" fp-cart-item-amount value="0" min="0" max="5"/> 
+                    <button class="btn-quantity" onclick="adjustQuantity(this, 1)">+</button>
+                </div>
+                 <button fp-cart-remove>Remove</button> 
+            </div>
+        </div>
+
+        <!-- Product 2 -->
+         <div class="product" fp-data="product">
+            <span fp-data="id" style="display: none">2</span>
+            <div> <!-- Info div -->
+                 <h3 fp-data="name">Product 2</h3>
+                 <p class="price">$<span fp-data="price">49.99</span></p>
+                 <p>Discount: <span fp-data="discount">10%</span></p>
+                 <p fp-data="stock" style="display: none">3</p>
+                 <!-- Add Size Radio Group -->
+                 <div class="variants" style="margin-top: 10px;">
+                     <label><input fp-data="size" type="radio" name="product-2-size" value="XS"> XS</label>
+                     <label><input fp-data="size" type="radio" name="product-2-size" value="S" checked> S</label>
+                     <label><input fp-data="size" type="radio" name="product-2-size" value="M"> M</label>
+                 </div>
+            </div>
+            <div class="controls">
+                <button fp-cart-add fp-cart-variant-key="size">Add to Cart</button>
+                <div class="quantity-control">
+                    <button class="btn-quantity" onclick="adjustQuantity(this, -1)">-</button>
+                    <input type="number" class="quantity-display" fp-cart-item-amount value="0" min="0" max="3"/>
+                    <button class="btn-quantity" onclick="adjustQuantity(this, 1)">+</button>
+                </div>
+                 <button fp-cart-remove>Remove</button>
+            </div>
+        </div>
+
+        <!-- Product 3 -->
+         <div class="product" fp-data="product">
+            <span fp-data="id" style="display: none">3</span>
+             <div> <!-- Info div -->
+                 <h3 fp-data="name">Product 3</h3>
+                 <p class="price">$<span fp-data="price">99.99</span></p>
+                 <p>Tax Rate: <span fp-data="taxRate">VAT</span></p>
+                 <p fp-data="stock" style="display: none">2</p>
+                 <!-- Add Size Radio Group -->
+                    <div class="variants" style="margin-top: 10px;">
+                     <label><input fp-data="size" type="radio" name="product-3-size" value="L"> L</label>
+                     <label><input fp-data="size" type="radio" name="product-3-size" value="XL" checked> XL</label>
+                     <label><input fp-data="size" type="radio" name="product-3-size" value="XXL"> XXL</label>
+                 </div>
+             </div>
+            <div class="controls">
+                <button fp-cart-add fp-cart-variant-key="size">Add to Cart</button>
+                <div class="quantity-control">
+                    <button class="btn-quantity" onclick="adjustQuantity(this, -1)">-</button>
+                    <input type="number" class="quantity-display" fp-cart-item-amount value="0" min="0" max="2"/>
+                    <button class="btn-quantity" onclick="adjustQuantity(this, 1)">+</button>
+                </div>
+                 <button fp-cart-remove>Remove</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load FlowPlater and required plugins -->
+    <script src="/flowplater"></script>
+    <script src="/plugins/DataExtractorPlugin"></script>
+    <script src="/plugins/CartPlugin"></script>
+
+    <script>
+        // Configure FlowPlater EARLY
+        FlowPlater.config({
+            storage: { enabled: true }
+        });
+
+        // Register required plugins
+        FlowPlater.registerPlugin("DataExtractorPlugin");
+        FlowPlater.registerPlugin("CartPlugin");
+
+        // Enable debug mode
+        FlowPlater.config({ debug: { level: 3 } });
+
+        // --- Add Page Script for +/- Buttons --- 
+        function adjustQuantity(buttonElement, change) {
+            const quantityControl = buttonElement.closest('.quantity-control');
+            if (!quantityControl) return;
+            
+            const inputElement = quantityControl.querySelector('input[fp-cart-item-amount]');
+            if (!inputElement) return;
+            
+            let currentValue = parseInt(inputElement.value) || 0;
+            let newValue = currentValue + change;
+            
+            // Respect min/max defined on the input
+            const min = parseInt(inputElement.min) ?? 0;
+            const max = parseInt(inputElement.max) ?? Infinity;
+            
+            newValue = Math.max(min, Math.min(newValue, max));
+            
+            if (newValue !== currentValue) {
+                inputElement.value = newValue;
+                // Manually trigger the 'change' event so FlowPlater detects it
+                const changeEvent = new Event('change', { bubbles: true });
+                inputElement.dispatchEvent(changeEvent);
+            }
+        }
+    </script>
+</body>
+
+</html>

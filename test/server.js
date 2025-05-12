@@ -4,6 +4,17 @@ const path = require("path");
 const app = express();
 const port = 42069;
 
+// Enable CORS for all routes
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept",
+  );
+  next();
+});
+
 // Function to read JSON files
 const readJsonFile = (filename) => {
   try {
@@ -27,10 +38,25 @@ const readHtmlFile = (filename) => {
   }
 };
 
+const readJsFile = (filename) => {
+  try {
+    const filePath = path.join(__dirname, "js", filename);
+    return fs.readFileSync(filePath, "utf8");
+  } catch (error) {
+    console.error(`Error reading ${filename}:`, error);
+    return null;
+  }
+};
+
 // Serve FlowPlater script
 app.get("/flowplater", (req, res) => {
   try {
-    const scriptPath = path.join(__dirname, "..", "dist", "flowplater.js");
+    const scriptPath = path.join(
+      __dirname,
+      "..",
+      "dist",
+      "flowplater_bundled.js",
+    );
     const script = fs.readFileSync(scriptPath, "utf8");
     res.type("application/javascript");
     res.send(script);
@@ -91,6 +117,14 @@ app.get("/:filename", (req, res) => {
   );
   if (htmlContent !== null) {
     return res.send(htmlContent);
+  }
+
+  // If no HTML file found, try to find a JS file
+  const jsContent = readJsFile(
+    filename.endsWith(".js") ? filename : `${filename}.js`,
+  );
+  if (jsContent !== null) {
+    return res.send(jsContent);
   }
 
   // If neither file is found, return 404
