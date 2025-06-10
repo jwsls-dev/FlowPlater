@@ -1,6 +1,6 @@
 {
   "name": "flowplater",
-  "version": "1.4.29",
+  "version": "1.4.32",
   "homepage": "https://flowplater.io",
   "main": "dist/flowplater.min.js",
   "scripts": {
@@ -26,5 +26,9 @@
       "web": "https://flowplater.io"
     }
   ],
-  "license": "Flowplater standard licence"
+  "license": "Flowplater standard licence",
+  "dependencies": {
+    "currency.js": "^2.0.4",
+    "numbro": "^2.5.0"
+  }
 }

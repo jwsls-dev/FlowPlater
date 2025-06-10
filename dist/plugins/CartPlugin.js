@@ -421,6 +421,259 @@ var CartPlugin = (function () {
     },
   };
 
+  /*!
+   * currency.js - v2.0.4
+   * http://scurker.github.io/currency.js
+   *
+   * Copyright (c) 2021 Jason Wilson
+   * Released under MIT license
+   */
+
+  var defaults = {
+    symbol: '$',
+    separator: ',',
+    decimal: '.',
+    errorOnInvalid: false,
+    precision: 2,
+    pattern: '!#',
+    negativePattern: '-!#',
+    format: format,
+    fromCents: false
+  };
+
+  var round = function round(v) {
+    return Math.round(v);
+  };
+
+  var pow = function pow(p) {
+    return Math.pow(10, p);
+  };
+
+  var rounding = function rounding(value, increment) {
+    return round(value / increment) * increment;
+  };
+
+  var groupRegex = /(\d)(?=(\d{3})+\b)/g;
+  var vedicRegex = /(\d)(?=(\d\d)+\d\b)/g;
+  /**
+   * Create a new instance of currency.js
+   * @param {number|string|currency} value
+   * @param {object} [opts]
+   */
+
+  function currency(value, opts) {
+    var that = this;
+
+    if (!(that instanceof currency)) {
+      return new currency(value, opts);
+    }
+
+    var settings = Object.assign({}, defaults, opts),
+        precision = pow(settings.precision),
+        v = parse(value, settings);
+    that.intValue = v;
+    that.value = v / precision; // Set default incremental value
+
+    settings.increment = settings.increment || 1 / precision; // Support vedic numbering systems
+    // see: https://en.wikipedia.org/wiki/Indian_numbering_system
+
+    if (settings.useVedic) {
+      settings.groups = vedicRegex;
+    } else {
+      settings.groups = groupRegex;
+    } // Intended for internal usage only - subject to change
+
+
+    this.s = settings;
+    this.p = precision;
+  }
+
+  function parse(value, opts) {
+    var useRounding = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
+    var v = 0,
+        decimal = opts.decimal,
+        errorOnInvalid = opts.errorOnInvalid,
+        decimals = opts.precision,
+        fromCents = opts.fromCents,
+        precision = pow(decimals),
+        isNumber = typeof value === 'number',
+        isCurrency = value instanceof currency;
+
+    if (isCurrency && fromCents) {
+      return value.intValue;
+    }
+
+    if (isNumber || isCurrency) {
+      v = isCurrency ? value.value : value;
+    } else if (typeof value === 'string') {
+      var regex = new RegExp('[^-\\d' + decimal + ']', 'g'),
+          decimalString = new RegExp('\\' + decimal, 'g');
+      v = value.replace(/\((.*)\)/, '-$1') // allow negative e.g. (1.99)
+      .replace(regex, '') // replace any non numeric values
+      .replace(decimalString, '.'); // convert any decimal values
+
+      v = v || 0;
+    } else {
+      if (errorOnInvalid) {
+        throw Error('Invalid Input');
+      }
+
+      v = 0;
+    }
+
+    if (!fromCents) {
+      v *= precision; // scale number to integer value
+
+      v = v.toFixed(4); // Handle additional decimal for proper rounding.
+    }
+
+    return useRounding ? round(v) : v;
+  }
+  /**
+   * Formats a currency object
+   * @param currency
+   * @param {object} [opts]
+   */
+
+
+  function format(currency, settings) {
+    var pattern = settings.pattern,
+        negativePattern = settings.negativePattern,
+        symbol = settings.symbol,
+        separator = settings.separator,
+        decimal = settings.decimal,
+        groups = settings.groups,
+        split = ('' + currency).replace(/^-/, '').split('.'),
+        dollars = split[0],
+        cents = split[1];
+    return (currency.value >= 0 ? pattern : negativePattern).replace('!', symbol).replace('#', dollars.replace(groups, '$1' + separator) + (cents ? decimal + cents : ''));
+  }
+
+  currency.prototype = {
+    /**
+     * Adds values together.
+     * @param {number} number
+     * @returns {currency}
+     */
+    add: function add(number) {
+      var intValue = this.intValue,
+          _settings = this.s,
+          _precision = this.p;
+      return currency((intValue += parse(number, _settings)) / (_settings.fromCents ? 1 : _precision), _settings);
+    },
+
+    /**
+     * Subtracts value.
+     * @param {number} number
+     * @returns {currency}
+     */
+    subtract: function subtract(number) {
+      var intValue = this.intValue,
+          _settings = this.s,
+          _precision = this.p;
+      return currency((intValue -= parse(number, _settings)) / (_settings.fromCents ? 1 : _precision), _settings);
+    },
+
+    /**
+     * Multiplies values.
+     * @param {number} number
+     * @returns {currency}
+     */
+    multiply: function multiply(number) {
+      var intValue = this.intValue,
+          _settings = this.s;
+      return currency((intValue *= number) / (_settings.fromCents ? 1 : pow(_settings.precision)), _settings);
+    },
+
+    /**
+     * Divides value.
+     * @param {number} number
+     * @returns {currency}
+     */
+    divide: function divide(number) {
+      var intValue = this.intValue,
+          _settings = this.s;
+      return currency(intValue /= parse(number, _settings, false), _settings);
+    },
+
+    /**
+     * Takes the currency amount and distributes the values evenly. Any extra pennies
+     * left over from the distribution will be stacked onto the first set of entries.
+     * @param {number} count
+     * @returns {array}
+     */
+    distribute: function distribute(count) {
+      var intValue = this.intValue,
+          _precision = this.p,
+          _settings = this.s,
+          distribution = [],
+          split = Math[intValue >= 0 ? 'floor' : 'ceil'](intValue / count),
+          pennies = Math.abs(intValue - split * count),
+          precision = _settings.fromCents ? 1 : _precision;
+
+      for (; count !== 0; count--) {
+        var item = currency(split / precision, _settings); // Add any left over pennies
+
+        pennies-- > 0 && (item = item[intValue >= 0 ? 'add' : 'subtract'](1 / precision));
+        distribution.push(item);
+      }
+
+      return distribution;
+    },
+
+    /**
+     * Returns the dollar value.
+     * @returns {number}
+     */
+    dollars: function dollars() {
+      return ~~this.value;
+    },
+
+    /**
+     * Returns the cent value.
+     * @returns {number}
+     */
+    cents: function cents() {
+      var intValue = this.intValue,
+          _precision = this.p;
+      return ~~(intValue % _precision);
+    },
+
+    /**
+     * Formats the value as a string according to the formatting settings.
+     * @param {boolean} useSymbol - format with currency symbol
+     * @returns {string}
+     */
+    format: function format(options) {
+      var _settings = this.s;
+
+      if (typeof options === 'function') {
+        return options(this, _settings);
+      }
+
+      return _settings.format(this, Object.assign({}, _settings, options));
+    },
+
+    /**
+     * Formats the value as a string according to the formatting settings.
+     * @returns {string}
+     */
+    toString: function toString() {
+      var intValue = this.intValue,
+          _precision = this.p,
+          _settings = this.s;
+      return rounding(intValue / _precision, _settings.increment).toFixed(_settings.precision);
+    },
+
+    /**
+     * Value for JSON serialization.
+     * @returns {float}
+     */
+    toJSON: function toJSON() {
+      return this.value;
+    }
+  };
+
   /**
    * @module CartPlugin
    * @description Plugin for managing shopping cart functionality in FlowPlater
@@ -461,8 +714,16 @@ var CartPlugin = (function () {
       },
       description: "Shopping cart functionality for FlowPlater",
       author: "FlowPlater Team",
-      currency: { name: "USD", symbol: "$", precision: 2 },
+      currency: {
+        name: "USD",
+        symbol: "$",
+        precision: 2,
+        separator: ",", // default thousands separator
+        decimal: ".", // default decimal separator
+        ...customConfig.currency,
+      },
       taxRates: [{ name: "VAT", value: 1.21 }],
+      locale: customConfig.locale || "en-US",
     };
 
     Object.assign(config, customConfig);
@@ -500,9 +761,18 @@ var CartPlugin = (function () {
       }
 
       const variantParts = [];
+      let hasAnyValue = false;
+
       for (const key of variantKeys) {
-        if (productData.hasOwnProperty(key)) {
-          const value = productData[key];
+        // Skip if key is not in product data - this is expected for unselected variants
+        if (!productData.hasOwnProperty(key)) {
+          continue;
+        }
+
+        const value = productData[key];
+        // Only include the variant if it has a valid value
+        if (value !== null && value !== undefined && value !== "") {
+          hasAnyValue = true;
           // Ensure value is suitable for ID (string/number)
           if (typeof value === "string" || typeof value === "number") {
             variantParts.push(
@@ -515,16 +785,13 @@ var CartPlugin = (function () {
               value,
             );
           }
-        } else {
-          FlowPlater.log(
-            FlowPlater.logLevels.WARN,
-            `[CartPlugin] Variant key '${key}' not found in product data for ID generation.`,
-          );
         }
       }
 
-      if (variantParts.length === 0) {
-        return baseId.toString(); // No valid variant parts found, use base ID
+      // If no variants had values, just return the base ID
+      // This handles the case where all variants are unselected
+      if (!hasAnyValue) {
+        return baseId.toString();
       }
 
       return `${baseId}::${variantParts.join(";")}`;
@@ -539,27 +806,127 @@ var CartPlugin = (function () {
         totalDiscount: 0,
         totalTax: 0,
         totalAmount: 0,
+        totalItemsFmt: "",
+        totalPriceFmt: "",
+        totalDiscountFmt: "",
+        totalTaxFmt: "",
+        totalAmountFmt: "",
       },
       observers: new Map(), // Store MutationObservers for product elements
+    };
+
+    // Move updateAllProductStates above updateCartTotals so it is defined before use
+    const updateAllProductStates = () => {
+      AttributeMatcher.findMatchingElements(
+        "data",
+        config.settings.dataAttribute,
+      ).forEach((productElement) => {
+        // Skip button state management for cart items
+        if (productElement.closest(`[fp-group="${config.settings.group}"]`)) {
+          return;
+        }
+
+        const productData = processHtml(productElement);
+        if (!productData) return;
+
+        const addButton = productElement.querySelector("[fp-cart-add]");
+        const cartItemId = _generateCartItemId(productData, addButton);
+        const cartItem = state.cart.items.get(cartItemId);
+        const amountInput = productElement.querySelector("[fp-cart-item-amount]");
+        const removeButton = productElement.querySelector("[fp-cart-remove]");
+
+        const currentAmount = cartItem?.amount || 0;
+        const stock =
+          productData.stock === undefined || productData.stock === null
+            ? Infinity
+            : productData.stock;
+
+        // Get total amount across all variants
+        const totalInCart = getTotalAmountForProduct(productData.id);
+
+        // Check if we've reached max stock across all variants
+        const atMaxStock = totalInCart >= stock;
+        const atMinStock = currentAmount <= 0;
+
+        if (amountInput) {
+          amountInput.value = currentAmount;
+          amountInput.min = "0";
+          // Max amount should be remaining stock plus current amount
+          const remainingStock = Math.max(
+            0,
+            stock - (totalInCart - currentAmount),
+          );
+          amountInput.max = remainingStock;
+        }
+
+        if (addButton) {
+          // Special case: if stock is 1 and a different variant is in the cart, allow add (for replacement)
+          let disableAdd = atMaxStock;
+          if (stock === 1 && totalInCart === 1) {
+            // Check if the item in the cart is a different variant
+            const baseId = productData.id?.toString();
+            const cartHasDifferentVariant = Array.from(
+              state.cart.items.keys(),
+            ).some((id) => id.split("::")[0] === baseId && id !== cartItemId);
+            if (cartHasDifferentVariant) {
+              disableAdd = false;
+            }
+          }
+          addButton.disabled = disableAdd;
+          // Toggle fp-disabled class
+          if (addButton.disabled) {
+            addButton.classList.add("fp-disabled");
+          } else {
+            addButton.classList.remove("fp-disabled");
+          }
+        }
+
+        // --- NEW: Show remove button for baseId (no variant) items ---
+        if (removeButton) {
+          let showRemove = !atMinStock;
+          // If the cart contains a baseId-only item (no variant), and this product has no variant selected, show remove
+          const hasBaseIdOnly = state.cart.items.has(productData.id?.toString());
+          // Check if this product element has no variant selected (cartItemId === baseId)
+          const isBaseIdOnly = cartItemId === productData.id?.toString();
+          if (hasBaseIdOnly && isBaseIdOnly) {
+            showRemove = true;
+          }
+          removeButton.disabled = !showRemove;
+          if (!showRemove) {
+            removeButton.classList.add("fp-disabled");
+          } else {
+            removeButton.classList.remove("fp-disabled");
+          }
+        }
+      });
+      // Broadcast product states updated
+      FlowPlater.trigger("cart:productStatesUpdated", null, {});
     };
 
     // Ensure serializeCart and deserializeCart are defined here
     const serializeCart = () => {
       // Return items as an array of the map's values (item objects)
-      const items = Array.from(state.cart.items.values());
-      // Add cartItemId to each item if not already present
-      items.forEach((item) => {
-        if (!item.cartItemId) {
-          item.cartItemId = _generateCartItemId(item, null);
-        }
-      });
+      const items = Array.from(state.cart.items.values()).map((item) => ({
+        ...item,
+        amountFmt: item.amountFmt,
+        unitPriceFmt: item.unitPriceFmt,
+        totalPriceFmt: item.totalPriceFmt,
+        discountFmt: item.discountFmt,
+        totalDiscountFmt: item.totalDiscountFmt,
+        taxFmt: item.taxFmt,
+      }));
       return {
         items,
         totalItems: state.cart.totalItems,
+        totalItemsFmt: state.cart.totalItemsFmt,
         totalPrice: state.cart.totalPrice,
+        totalPriceFmt: state.cart.totalPriceFmt,
         totalDiscount: state.cart.totalDiscount,
+        totalDiscountFmt: state.cart.totalDiscountFmt,
         totalTax: state.cart.totalTax,
+        totalTaxFmt: state.cart.totalTaxFmt,
         totalAmount: state.cart.totalAmount,
+        totalAmountFmt: state.cart.totalAmountFmt,
       };
     };
 
@@ -631,24 +998,65 @@ var CartPlugin = (function () {
     };
 
     /**
+     * Locale-aware price sanitizer using currency.js
+     * @param {string|number} price
+     * @returns {number}
+     */
+    function sanitizePrice(price) {
+      if (typeof price === "number") return price;
+      if (!price) return 0;
+      let priceStr = price.toString().trim();
+      // Remove currency symbols and whitespace
+      priceStr = priceStr.replace(/[^\d.,\- ]/g, "");
+      // Use currency.js to parse
+      try {
+        return currency(priceStr, {
+          separator: config.currency.separator,
+          decimal: config.currency.decimal,
+        }).value;
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    /**
      * Calculate price with discount
      * @param {number} price - Original price
      * @param {string} discount - Discount value (e.g. "10%" or "5")
      * @returns {number} Final price after discount
      */
     const calculateDiscountedPrice = (price, discount) => {
-      if (!discount) return price;
+      const sanitizedPrice = sanitizePrice(price);
+      if (!discount) return sanitizedPrice;
       if (discount.endsWith("%")) {
         const percentage = parseFloat(discount) / 100;
-        return price * (1 - percentage);
+        return sanitizedPrice * (1 - percentage);
       }
-      return Math.max(0, price - parseFloat(discount));
+      return Math.max(0, sanitizedPrice - sanitizePrice(discount));
     };
 
     // Returns the amount in the cart for a given cartItemId
     const getCartItemAmount = (cartItemId) => {
       const item = state.cart.items.get(cartItemId);
       return item ? item.amount : 0;
+    };
+
+    /**
+     * Get total amount in cart for all variants of a product
+     * @param {string} baseId - Base product ID without variants
+     * @returns {number} Total amount across all variants
+     */
+    const getTotalAmountForProduct = (baseId) => {
+      let totalAmount = 0;
+      state.cart.items.forEach((item) => {
+        // Check if this item is a variant of the base product
+        // Items will either be baseId or baseId::variants
+        const itemBaseId = item.cartItemId.split("::")[0];
+        if (itemBaseId === baseId.toString()) {
+          totalAmount += item.amount;
+        }
+      });
+      return totalAmount;
     };
 
     /**
@@ -661,9 +1069,11 @@ var CartPlugin = (function () {
       let totalTax = 0;
       let totalAmount = 0;
 
+      const prevTotalItems = state.cart.totalItems;
+
       state.cart.items.forEach((item) => {
         totalItems += item.amount;
-        const itemPrice = item.price || 0;
+        const itemPrice = sanitizePrice(item.price) || 0;
         const itemDiscount = item.discount || "0";
         const discountedPrice = calculateDiscountedPrice(itemPrice, itemDiscount);
         const itemTotalWithoutTax = discountedPrice * item.amount;
@@ -676,6 +1086,29 @@ var CartPlugin = (function () {
         totalPrice += itemPrice * item.amount;
         totalDiscount += (itemPrice - discountedPrice) * item.amount;
         totalTax += itemTotalWithTax - itemTotalWithoutTax;
+      });
+
+      // Update cart totals
+      totalAmount = totalPrice - totalDiscount + totalTax;
+      state.cart.totalItems = totalItems;
+      state.cart.totalPrice = totalPrice;
+      state.cart.totalDiscount = totalDiscount;
+      state.cart.totalTax = totalTax;
+      state.cart.totalAmount = totalAmount;
+
+      // Set formatted values AFTER raw values are set
+      state.cart.totalItemsFmt = state.cart.totalItems.toString();
+      state.cart.totalPriceFmt = formatNumber(state.cart.totalPrice, {
+        currencySymbol: config.currency.symbol,
+      });
+      state.cart.totalDiscountFmt = formatNumber(state.cart.totalDiscount, {
+        currencySymbol: config.currency.symbol,
+      });
+      state.cart.totalTaxFmt = formatNumber(state.cart.totalTax, {
+        currencySymbol: config.currency.symbol,
+      });
+      state.cart.totalAmountFmt = formatNumber(state.cart.totalAmount, {
+        currencySymbol: config.currency.symbol,
       });
 
       // Update all product elements on the page that are NOT in the cart
@@ -725,14 +1158,6 @@ var CartPlugin = (function () {
         }
       });
 
-      // Update cart totals
-      totalAmount = totalPrice - totalDiscount + totalTax;
-      state.cart.totalItems = totalItems;
-      state.cart.totalPrice = totalPrice;
-      state.cart.totalDiscount = totalDiscount;
-      state.cart.totalTax = totalTax;
-      state.cart.totalAmount = totalAmount;
-
       // Update display elements
       AttributeMatcher.findMatchingElements("cart-total-count").forEach((el) => {
         el.textContent = totalItems.toString();
@@ -754,7 +1179,7 @@ var CartPlugin = (function () {
 
       const cartData = serializeCart();
       FlowPlater.updateGroup(config.settings.group, cartData);
-      FlowPlater.trigger("cart:update", null, { cart: state.cart });
+      FlowPlater.trigger("cart:updated", null, { cart: state.cart });
 
       // Never disable remove buttons in cart
       document
@@ -764,7 +1189,34 @@ var CartPlugin = (function () {
         .forEach((removeButton) => {
           removeButton.disabled = false;
         });
+
+      // At the end, update product element states
+      updateAllProductStates();
+
+      // Broadcast cart amount updated if item count changed
+      if (prevTotalItems !== totalItems) {
+        FlowPlater.trigger("cart:amountUpdated", null, {
+          oldCount: prevTotalItems,
+          newCount: totalItems,
+        });
+      }
     };
+
+    function formatNumber(value, options = {}) {
+      if (typeof value !== "number" || isNaN(value)) return "";
+      return currency(value, {
+        symbol:
+          options.currencySymbol !== undefined
+            ? options.currencySymbol
+            : config.currency.symbol || "",
+        separator: config.currency.separator,
+        decimal: config.currency.decimal,
+        precision:
+          options.mantissa !== undefined
+            ? options.mantissa
+            : config.currency.precision,
+      }).format();
+    }
 
     /**
      * Add product to cart
@@ -786,25 +1238,108 @@ var CartPlugin = (function () {
       if (!cartItemId) return;
 
       const existingItem = state.cart.items.get(cartItemId);
-      const maxAmount =
+      const maxStock =
         product.stock === undefined || product.stock === null
           ? Infinity
           : product.stock;
 
+      // Get total amount across all variants
+      const totalInCart = getTotalAmountForProduct(product.id);
+
+      // Special handling for stock of 1
+      if (maxStock === 1 && totalInCart === 1 && !existingItem) {
+        // Find the existing variant in cart
+        let existingVariantId = null;
+        state.cart.items.forEach((item, id) => {
+          if (id.split("::")[0] === product.id.toString()) {
+            existingVariantId = id;
+          }
+        });
+
+        if (existingVariantId) {
+          // Remove the existing variant
+          const oldVariant = state.cart.items.get(existingVariantId);
+          state.cart.items.delete(existingVariantId);
+
+          // Add the new variant
+          state.cart.items.set(cartItemId, {
+            ...product,
+            cartItemId: cartItemId,
+            amount: 1,
+            amountFmt: currency(1).format({ thousandSeparated: true }),
+            unitPrice: oldVariant.price,
+            unitPriceFmt: formatNumber(oldVariant.price),
+            totalPrice: oldVariant.price,
+            totalPriceFmt: formatNumber(oldVariant.price),
+            discount: oldVariant.discount,
+            discountFmt: formatNumber(oldVariant.discount),
+            totalDiscount: oldVariant.discount * 1,
+            totalDiscountFmt: formatNumber(oldVariant.discount * 1),
+            tax: oldVariant.tax,
+            taxFmt: formatNumber(oldVariant.tax),
+            taxRate: oldVariant.taxRate || config.taxRates[0].name,
+          });
+
+          FlowPlater.log(
+            FlowPlater.logLevels.INFO,
+            `[CartPlugin] Replaced variant ${existingVariantId} with ${cartItemId} (stock: 1)`,
+          );
+
+          // Trigger a custom event for variant replacement
+          FlowPlater.trigger("cart:variantReplaced", null, {
+            oldVariantId: existingVariantId,
+            newVariantId: cartItemId,
+            product: product,
+          });
+
+          updateCartTotals();
+          return;
+        }
+      }
+
+      // Calculate how many more we can add considering total across variants
+      const remainingStock = Math.max(0, maxStock - totalInCart);
+
       if (existingItem) {
         const currentAmount = existingItem.amount;
-        const newAmount = Math.min(currentAmount + amount, maxAmount);
+        // Only allow adding up to remaining stock
+        const newAmount = Math.min(
+          currentAmount + amount,
+          currentAmount + remainingStock,
+        );
         if (newAmount === currentAmount) return; // No change possible
         existingItem.amount = newAmount;
       } else {
-        const initialAmount = Math.min(amount, maxAmount);
+        // For new items, only allow adding up to remaining stock
+        const initialAmount = Math.min(amount, remainingStock);
         if (initialAmount <= 0) return;
+        const unitPrice = sanitizePrice(product.price) || 0;
+        const discount = sanitizePrice(product.discount) || "0";
+        const tax =
+          config.taxRates.find(
+            (rate) => rate.name.toLowerCase() === product.taxRate?.toLowerCase(),
+          )?.value || config.taxRates[0].value;
         state.cart.items.set(cartItemId, {
           ...product,
           cartItemId: cartItemId,
           amount: initialAmount,
+          amountFmt: initialAmount.toString(),
+          unitPrice: unitPrice,
+          unitPriceFmt: formatNumber(unitPrice),
+          totalPrice: unitPrice * initialAmount,
+          totalPriceFmt: formatNumber(unitPrice * initialAmount),
+          discount: discount,
+          discountFmt: formatNumber(discount),
+          totalDiscount: discount * initialAmount,
+          totalDiscountFmt: formatNumber(discount * initialAmount),
+          tax: (unitPrice * initialAmount - discount * initialAmount) * (tax - 1),
+          taxFmt: formatNumber(
+            (unitPrice * initialAmount - discount * initialAmount) * (tax - 1),
+          ),
           taxRate: product.taxRate || config.taxRates[0].name,
         });
+        // Broadcast product added
+        FlowPlater.trigger("cart:productAdded", null, { product, cartItemId });
       }
       updateCartTotals();
     };
@@ -817,6 +1352,11 @@ var CartPlugin = (function () {
       const cartItemId = _generateCartItemId(productData, actionElement);
       if (!cartItemId) return;
       state.cart.items.delete(cartItemId);
+      // Broadcast product removed
+      FlowPlater.trigger("cart:productRemoved", null, {
+        productData,
+        cartItemId,
+      });
       updateCartTotals();
     };
 
@@ -1047,7 +1587,33 @@ var CartPlugin = (function () {
           deserializeCart(null);
         }
 
+        // --- NEW: Select first radio in each group if none selected ---
+        AttributeMatcher.findMatchingElements(
+          "data",
+          config.settings.dataAttribute,
+        ).forEach((productElement) => {
+          // Find all radio inputs in this product
+          const radios = Array.from(
+            productElement.querySelectorAll('input[type="radio"]'),
+          );
+          // Group radios by name
+          const radioGroups = {};
+          radios.forEach((radio) => {
+            if (!radio.name) return;
+            if (!radioGroups[radio.name]) radioGroups[radio.name] = [];
+            radioGroups[radio.name].push(radio);
+          });
+          // For each group, if none checked, check the first one
+          Object.values(radioGroups).forEach((group) => {
+            if (!group.some((radio) => radio.checked)) {
+              group[0].checked = true;
+            }
+          });
+        });
+        // --- END NEW ---
+
         const setupCartEventListeners = () => {
+          // Remove old direct event listeners if they exist
           document
             .querySelectorAll(
               "[fp-cart-add], [fp-cart-remove], [fp-cart-item-amount]",
@@ -1055,88 +1621,30 @@ var CartPlugin = (function () {
             .forEach((element) => {
               element.removeEventListener("click", handleCartClick);
               element.removeEventListener("change", handleCartChange);
-            });
-          document
-            .querySelectorAll("[fp-cart-add], [fp-cart-remove]")
-            .forEach((element) => {
-              element.addEventListener("click", handleCartClick);
-            });
-          document
-            .querySelectorAll("[fp-cart-item-amount]")
-            .forEach((element) => {
-              element.addEventListener("change", handleCartChange);
-            });
-          // Add input event listener for real-time updates as well
-          document
-            .querySelectorAll("[fp-cart-item-amount]")
-            .forEach((element) => {
               element.removeEventListener("input", handleCartInput);
-              element.addEventListener("input", handleCartInput);
             });
-          // ... (Initialize input values/button states)
-          AttributeMatcher.findMatchingElements(
-            "data",
-            config.settings.dataAttribute,
-          ).forEach((productElement) => {
-            // Skip button state management for cart items
-            if (productElement.closest(`[fp-group="${config.settings.group}"]`)) {
-              // For cart items, only set up input/select/textarea change listeners
-              productElement
-                .querySelectorAll(
-                  "input:not([fp-cart-item-amount]), select, textarea",
-                )
-                .forEach((inputEl) => {
-                  inputEl.removeEventListener("change", updateCartTotals);
-                  inputEl.addEventListener("change", updateCartTotals);
-                });
-              return;
-            }
 
-            const productData = processHtml(productElement);
-            const cartItemId = _generateCartItemId(
-              productData,
-              productElement.querySelector("[fp-cart-add]"),
-            );
-            const cartItem = state.cart.items.get(cartItemId);
-            const amountInput = productElement.querySelector(
-              "[fp-cart-item-amount]",
-            );
-            const addButton = productElement.querySelector("[fp-cart-add]");
-            const removeButton = productElement.querySelector("[fp-cart-remove]");
+          // Add delegated event listeners to document
+          document.removeEventListener("click", handleDelegatedClick);
+          document.removeEventListener("change", handleDelegatedChange);
+          document.removeEventListener("input", handleDelegatedInput);
 
-            const currentAmount = cartItem?.amount || 0;
-            const maxStock =
-              productData.stock === undefined || productData.stock === null
-                ? Infinity
-                : productData.stock;
-            const atMaxStock = currentAmount >= maxStock;
-            const atMinStock = currentAmount <= 0;
+          document.addEventListener("click", handleDelegatedClick);
+          document.addEventListener("change", handleDelegatedChange);
+          document.addEventListener("input", handleDelegatedInput);
 
-            if (amountInput) {
-              amountInput.value = currentAmount.toString();
-              amountInput.min = "0";
-              amountInput.max = maxStock;
-            }
-            if (addButton) addButton.disabled = atMaxStock;
-            if (removeButton) removeButton.disabled = atMinStock;
-
-            // Add change event listeners to all inputs/selects/textareas except [fp-cart-item-amount]
-            productElement
-              .querySelectorAll(
-                "input:not([fp-cart-item-amount]), select, textarea",
-              )
-              .forEach((inputEl) => {
-                inputEl.removeEventListener("change", updateCartTotals);
-                inputEl.addEventListener("change", updateCartTotals);
-              });
-          });
+          // Initialize input values/button states
+          updateAllProductStates();
         };
 
-        // Modify handleCartClick for 'Add' button
-        const handleCartClick = (e) => {
+        // Delegated event handlers
+        const handleDelegatedClick = (e) => {
+          const element = e.target.closest("[fp-cart-add], [fp-cart-remove]");
+          if (!element) return;
+
           e.preventDefault();
           e.stopPropagation();
-          const element = e.currentTarget;
+
           const isAdd = element.hasAttribute("fp-cart-add");
           const isRemove = element.hasAttribute("fp-cart-remove");
 
@@ -1202,6 +1710,38 @@ var CartPlugin = (function () {
               return;
             }
             const addButton = productElement.querySelector("[fp-cart-add]");
+
+            // --- NEW: Require all variant keys to be selected before adding ---
+            const variantKeyAttr = addButton
+              ? AttributeMatcher._getRawAttribute(
+                  addButton,
+                  "cart-variant-key",
+                  null,
+                )
+              : null;
+            if (variantKeyAttr) {
+              const variantKeys = variantKeyAttr
+                .split(",")
+                .map((k) => k.trim())
+                .filter(Boolean);
+              const missingVariant = variantKeys.some((key) => !productData[key]);
+              if (missingVariant) {
+                // Optionally show feedback here
+                FlowPlater.log(
+                  FlowPlater.logLevels.WARN,
+                  `[CartPlugin] Cannot add to cart: Not all variant options are selected.`,
+                  { variantKeys, productData },
+                );
+                // Optionally, add a visual cue to the productElement or addButton
+                addButton.classList.add("fp-variant-missing");
+                setTimeout(
+                  () => addButton.classList.remove("fp-variant-missing"),
+                  1000,
+                );
+                return;
+              }
+            }
+
             if (isAdd) {
               // Read amount from the specific input for this product
               const amountInput = productElement.querySelector(
@@ -1231,12 +1771,12 @@ var CartPlugin = (function () {
           }
         };
 
-        // handleCartChange calls the modified updateAmount
-        const handleCartChange = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const element = e.currentTarget;
-          if (element.hasAttribute("fp-cart-item-amount")) {
+        const handleDelegatedChange = (e) => {
+          const element = e.target.closest("[fp-cart-item-amount]");
+          if (element) {
+            e.preventDefault();
+            e.stopPropagation();
+
             const productElement = findProductElement(element);
             if (productElement) {
               const productData = processHtml(productElement);
@@ -1256,27 +1796,38 @@ var CartPlugin = (function () {
               );
               updateAmount(productData, parseInt(element.value) || 0, addButton);
             }
+            return;
+          }
+
+          // For any other change inside a product element, update product states
+          const productElement = findProductElement(e.target);
+          if (productElement) {
+            updateAllProductStates();
           }
         };
 
-        // Add handler for input event on amount input
-        const handleCartInput = (e) => {
-          const element = e.currentTarget;
-          if (element.hasAttribute("fp-cart-item-amount")) {
-            const productElement = findProductElement(element);
-            if (productElement) {
-              const productData = processHtml(productElement);
-              if (!productData) return;
-              const addButton = productElement.querySelector("[fp-cart-add]");
-              const cartItemId = _generateCartItemId(productData, addButton);
-              FlowPlater.log(
-                FlowPlater.logLevels.DEBUG,
-                `[CartPlugin] Input changed for ${cartItemId}, new value: ${element.value}`,
-              );
-              updateAmount(productData, parseInt(element.value) || 0, addButton);
-            }
+        const handleDelegatedInput = (e) => {
+          const element = e.target.closest("[fp-cart-item-amount]");
+          if (!element) return;
+
+          const productElement = findProductElement(element);
+          if (productElement) {
+            const productData = processHtml(productElement);
+            if (!productData) return;
+            const addButton = productElement.querySelector("[fp-cart-add]");
+            const cartItemId = _generateCartItemId(productData, addButton);
+            FlowPlater.log(
+              FlowPlater.logLevels.DEBUG,
+              `[CartPlugin] Input changed for ${cartItemId}, new value: ${element.value}`,
+            );
+            updateAmount(productData, parseInt(element.value) || 0, addButton);
           }
         };
+
+        // Remove old handlers
+        const handleCartClick = () => {};
+        const handleCartChange = () => {};
+        const handleCartInput = () => {};
 
         setupCartEventListeners();
         FlowPlater.on("afterDomUpdate", setupCartEventListeners);
@@ -1299,10 +1850,55 @@ var CartPlugin = (function () {
       },
     };
 
+    /**
+     * Returns cart items as a comma-separated string: "name (variantKey: variantValue, ...), ..."
+     * @param {string[]} [includeKeys] - Optional array of keys to include. If not provided, only variant keys from cartItemId and price are included.
+     */
+    const getCartItemsAsString = (includeKeys) => {
+      const items = Array.from(state.cart.items.values());
+      return items
+        .map((item) => {
+          let keysToInclude;
+          if (Array.isArray(includeKeys) && includeKeys.length > 0) {
+            keysToInclude = includeKeys;
+          } else {
+            // Only variant keys as defined in cartItemId (after '::'), plus price
+            const cartItemId = item.cartItemId || "";
+            let variantKeys = [];
+            if (cartItemId.includes("::")) {
+              const variantPart = cartItemId.split("::")[1];
+              variantKeys = variantPart
+                .split(";")
+                .map((pair) => decodeURIComponent(pair.split("=")[0]))
+                .filter(Boolean);
+            }
+            // Always include price by default
+            keysToInclude = [...variantKeys, "price"];
+          }
+          let variantString = "";
+          if (keysToInclude.length > 0) {
+            variantString = keysToInclude
+              .filter((key) => key in item)
+              .map((key) => `${key}: ${item[key]}`)
+              .join(", ");
+          }
+          return variantString ? `${item.name} (${variantString})` : item.name;
+        })
+        .join(", ");
+    };
+
+    // Attach to FlowPlater global if not already present
+    if (typeof FlowPlater.getCartItemsAsString !== "function") {
+      FlowPlater.getCartItemsAsString = getCartItemsAsString;
+    }
+
     return {
       config,
       state,
       hooks,
+      globalMethods: {
+        getCartItemsAsString,
+      },
     };
   };
 

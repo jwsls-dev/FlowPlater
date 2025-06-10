@@ -39,7 +39,7 @@ import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
  * @author JWSLS
  */
 
-const VERSION = "1.4.29";
+const VERSION = "1.4.32";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 

@@ -1,6 +1,6 @@
 /**!
 
- @license FlowPlater v1.4.29 | (c) 2024 FlowPlater | https://flowplater.io
+ @license FlowPlater v1.4.32 | (c) 2024 FlowPlater | https://flowplater.io
  Created by J.WSLS | https://jwsls.io
 
 Libraries used:
@@ -14493,7 +14493,9 @@ var FlowPlater = (function () {
     // Skip comparison for Webflow-specific elements
     if (
       node1 instanceof Element &&
-      (node1.className.includes("w-") || node2.className.includes("w-"))
+      [node1.className ?? "", node2.className ?? ""].some(
+        (c) => typeof c === "string" && c.includes("w-"),
+      )
     ) {
       return true;
     }
@@ -17888,7 +17890,7 @@ var FlowPlater = (function () {
    * @author JWSLS
    */
 
-  const VERSION = "1.4.29";
+  const VERSION = "1.4.32";
   const AUTHOR = "JWSLS";
   const LICENSE = "Flowplater standard licence";
 
