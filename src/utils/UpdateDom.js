@@ -184,7 +184,9 @@ function nodesAreEqual(node1, node2) {
   // Skip comparison for Webflow-specific elements
   if (
     node1 instanceof Element &&
-    (node1.className.includes("w-") || node2.className.includes("w-"))
+    [node1.className ?? "", node2.className ?? ""].some(
+      (c) => typeof c === "string" && c.includes("w-"),
+    )
   ) {
     return true;
   }
