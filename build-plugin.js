@@ -1,4 +1,5 @@
 const { nodeResolve } = require("@rollup/plugin-node-resolve");
+const typescript = require("@rollup/plugin-typescript");
 const rollup = require("rollup");
 const uglify = require("uglify-js");
 const fs = require("fs");
@@ -11,7 +12,7 @@ if (!fs.existsSync(pluginsDir)) {
 }
 
 async function buildPlugin(pluginFile) {
-  const pluginName = path.basename(pluginFile, ".js");
+  const pluginName = path.basename(pluginFile, path.extname(pluginFile));
   const input = path.join(__dirname, "src", "plugins", pluginFile);
   const outputFile = path.join(pluginsDir, `${pluginName}.js`);
   const outputMinFile = path.join(pluginsDir, `${pluginName}.min.js`);
@@ -20,7 +21,14 @@ async function buildPlugin(pluginFile) {
     // Create bundle
     const bundle = await rollup.rollup({
       input,
-      plugins: [nodeResolve()],
+      plugins: [
+        typescript({
+          tsconfig: "./tsconfig.json",
+          declaration: false,
+          declarationMap: false,
+        }),
+        nodeResolve(),
+      ],
       external: ["flowplater"], // Mark FlowPlater as external dependency
     });
 

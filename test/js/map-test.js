@@ -5,6 +5,12 @@ Webflow.push(function () {
     return window.innerWidth < 768;
   });
 
+  window.dataLayer = window.dataLayer || [];
+
+  const isFullPageMap = window.location.pathname.match(
+    /^\/(de\/|nl\/)?locations\/?$/,
+  );
+
   FlowPlater.on("afterSwap", function (data) {
     const instanceName = data.instanceName;
     if (!instanceName) {
@@ -49,7 +55,6 @@ Webflow.push(function () {
         if (location.page && location.page.href) {
           location.page.href = new URL(location.page.href).pathname;
         }
-
         return location;
       });
 
@@ -295,7 +300,7 @@ Webflow.push(function () {
 
       function removeActive() {
         $(".map_list-item.is-active").removeClass("is-active");
-        $(".location-marker.is-active").removeClass("is-active");
+        $(".location-marke.is-active").removeClass("is-active");
       }
     });
 
@@ -315,6 +320,21 @@ Webflow.push(function () {
 
     // map.scrollZoom._aroundCenter = true
     mapInstance.touchZoomRotate._touchZoom._aroundCenter = true;
+
+    $(".map_list-item").on("click", function () {
+      var currentItem = $(this);
+
+      // Remove .is-active class from other .map_list-item elements
+      $(".map_list-wrapper .map_list-item").each(function () {
+        if ($(this).is(currentItem)) return; // Skip the current item
+        $(this).removeClass("is-active");
+        $(this).find(".map_list-data-bottom").removeClass("is-active");
+      });
+
+      // Toggle .is-active class on the clicked .map_list-item element and its descendant
+      currentItem.toggleClass("is-active");
+      currentItem.find(".map_list-data-bottom").toggleClass("is-active");
+    });
 
     $("#map-location").on("change", function () {
       if ($("#map-location").val() == null) {
@@ -865,39 +885,62 @@ Webflow.push(function () {
     });
   }
 
+  // Add debounce function at the top level
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  // Add function to get active filters
+  function getActiveFilters() {
+    const filterData = $("#wf-form-Filters").serializeArray();
+    const activeFilters = {};
+
+    filterData.forEach((filter) => {
+      const name = filter.name.toLowerCase().replace(/-\d+$/, "");
+      if (filter.value === "on" || filter.value === "true") {
+        activeFilters[name] = true;
+      } else if (filter.value) {
+        activeFilters[name] = filter.value;
+      }
+    });
+
+    return activeFilters;
+  }
+
+  // Add function to push to dataLayer
+  const pushFilterUpdate = debounce((filteredLocations) => {
+    // Count locations that are actually in the district
+    const locationsFromDistrict =
+      typeof isDistrict !== "undefined" && isDistrict && districtName
+        ? filteredLocations.filter(
+            (location) => location.district === districtName,
+          ).length
+        : 0;
+
+    window.dataLayer.push({
+      event: "filter_update",
+      filter_results: {
+        total_locations: filteredLocations.length,
+        locations_from_district: locationsFromDistrict,
+        active_filters: getActiveFilters(),
+        district:
+          typeof isDistrict !== "undefined" && isDistrict && districtName
+            ? districtName
+            : null,
+      },
+    });
+  }, 1000); // 1000ms debounce
+
   function filterLocations(locationList) {
     let filteredLocations = locationList;
-
-    // Handle district filtering first if districtName is globally defined
-    if (typeof districtName !== "undefined" && districtName) {
-      console.log("Filtering locations by district:", districtName);
-      const districtFilteredLocations = filteredLocations.filter(
-        (location) => location.district === districtName,
-      );
-
-      // Only apply district filter if we found matching locations
-      if (districtFilteredLocations.length > 0) {
-        filteredLocations = districtFilteredLocations;
-        console.log(
-          "Found",
-          districtFilteredLocations.length,
-          "locations in district:",
-          districtName,
-        );
-      } else {
-        console.log(
-          "No locations found for district:",
-          districtName,
-          "- ignoring district filter",
-        );
-      }
-
-      // Hide the location toggle when district is present
-      $(".map_select.w-dropdown").hide();
-    } else {
-      // Show the location toggle when no district is specified
-      $(".map_select.w-dropdown").show();
-    }
 
     const filterData = $("#wf-form-Filters").serializeArray();
     // set all names to lowercase
@@ -1088,6 +1131,7 @@ Webflow.push(function () {
     }
 
     updateMarkers(filteredLocations);
+    pushFilterUpdate(filteredLocations);
     return filteredLocations;
   }
 
@@ -1110,7 +1154,11 @@ Webflow.push(function () {
   $("#wf-form-Filters").on("change", function () {
     console.log("wf-form-Filters changed");
     FlowPlater.getInstance("map_list-wrapper").refresh({ remote: false });
-    updateFilterCounts();
+
+    // Add a small delay to ensure DOM has updated
+    setTimeout(() => {
+      updateFilterCounts();
+    }, 10);
   });
 
   document.querySelectorAll(".filter_dropdown-wrap").forEach((dropdown) => {
@@ -1154,9 +1202,9 @@ Webflow.push(function () {
       const countElem = group.querySelector("[data-filter-count]");
       if (!countElem) return; // Skip if no count element is found
 
-      // Find all checked inputs directly within this group's content
+      // Find all checked inputs within this group (including nested groups)
       const checkedInputs = group.querySelectorAll(
-        ':scope > .filter_dropdown-content input[type="checkbox"]:checked, :scope > .filter_dropdown-content input[type="radio"]:checked',
+        '.filter_dropdown-content input[type="checkbox"]:checked, .filter_dropdown-content input[type="radio"]:checked',
       );
 
       const count = checkedInputs.length;
@@ -1165,11 +1213,9 @@ Webflow.push(function () {
       countElem.textContent = count;
 
       // Determine if this is the main filter count at the top
-      // Assuming the main filter group has the class 'map_select' and is a direct child
-      // of the body or a similar high-level container, NOT nested.
       const isMainFilterCount =
         group.parentElement &&
-        group.parentElement.classList.contains("map_select-toggle"); // Check the parent element for the main toggle class
+        group.parentElement.classList.contains("map_select-toggle");
 
       // For individual filter groups (not the main one), hide the count parent if the count is 0
       if (!isMainFilterCount) {
@@ -1194,7 +1240,6 @@ Webflow.push(function () {
           "[data-filter-group] .filter_dropdown-content input[type='checkbox']:checked, [data-filter-group] .filter_dropdown-content input[type='radio']:checked",
         );
         mainCountElem.textContent = allCheckedInputs.length;
-        // The main count element's parent should remain visible, so no hiding logic here.
       }
     }
   }
@@ -1219,7 +1264,7 @@ Webflow.push(function () {
   const filterAnimationStates = {
     "desktop-hidden": {
       y: 0,
-      x: "15.75rem",
+      x: isFullPageMap ? "-100%" : "15.75rem",
       scaleX: 0.875,
       scaleY: 1,
       opacity: 0,
@@ -1247,7 +1292,11 @@ Webflow.push(function () {
     },
   };
 
-  gsap.set(".location_filter-popup", {
+  const filterContainer = isFullPageMap
+    ? ".location_filter_static"
+    : ".location_filter-popup";
+
+  gsap.set(filterContainer, {
     ...filterAnimationStates[
       `${window.isMobile ? "mobile" : "desktop"}-hidden`
     ],
@@ -1256,45 +1305,71 @@ Webflow.push(function () {
   // function showFilter: animate .location_filter-popup from x 100% to x 0%
   function showFilter(mobile = window.isMobile) {
     filterState = "visible";
-    gsap.set(".location_filter-popup", { display: "flex" });
-    gsap.set(".map_wrapper canvas", { width: "100%" });
-    gsap.to(".location_filter-popup", {
+    gsap.set(filterContainer, { display: "flex" });
+
+    if (!mobile) {
+      gsap.set(".map_wrapper canvas", { width: "100%" });
+    }
+
+    gsap.to(filterContainer, {
       ...filterAnimationStates[`${mobile ? "mobile" : "desktop"}-visible`],
       duration: FILTER_TOGGLE_DURATION,
       ease: "power2.inOut",
     });
+
     if (!mobile) {
-      gsap.to(".map_wrapper", {
-        width: `calc(100% - ${FILTER_WIDTH}rem)`,
-        ease: "power2.inOut",
-        duration: FILTER_TOGGLE_DURATION,
-        onComplete: () => {
-          mapInstance.resize();
-        },
-      });
+      if (isFullPageMap) {
+        gsap.to(".map_list-wrapper", {
+          marginLeft: "calc(50% - 2.25rem)",
+          ease: "power2.inOut",
+          duration: FILTER_TOGGLE_DURATION,
+        });
+      } else {
+        gsap.to(".map_wrapper", {
+          width: `calc(100% - ${FILTER_WIDTH}rem)`,
+          ease: "power2.inOut",
+          duration: FILTER_TOGGLE_DURATION,
+          onComplete: () => {
+            mapInstance.resize();
+          },
+        });
+      }
     }
   }
 
   function hideFilter(mobile = window.isMobile) {
     filterState = "hidden";
-    gsap.set(".map_wrapper canvas", { width: "100%" });
-    gsap.to(".location_filter-popup", {
+
+    if (!mobile) {
+      gsap.set(".map_wrapper canvas", { width: "100%" });
+    }
+
+    gsap.to(filterContainer, {
       ...filterAnimationStates[`${mobile ? "mobile" : "desktop"}-hidden`],
       duration: FILTER_TOGGLE_DURATION,
       ease: "power2.inOut",
       onComplete: () => {
-        gsap.set(".location_filter-popup", { display: "none" });
+        gsap.set(filterContainer, { display: "none" });
       },
     });
+
     if (!mobile) {
-      gsap.to(".map_wrapper", {
-        width: "100%",
-        ease: "power2.inOut",
-        duration: FILTER_TOGGLE_DURATION,
-        onComplete: () => {
-          mapInstance.resize();
-        },
-      });
+      if (isFullPageMap) {
+        gsap.to(".map_list-wrapper", {
+          marginLeft: "0%",
+          ease: "power2.inOut",
+          duration: FILTER_TOGGLE_DURATION,
+        });
+      } else {
+        gsap.to(".map_wrapper", {
+          width: "100%",
+          ease: "power2.inOut",
+          duration: FILTER_TOGGLE_DURATION,
+          onComplete: () => {
+            mapInstance.resize();
+          },
+        });
+      }
     }
   }
 
@@ -1310,7 +1385,7 @@ Webflow.push(function () {
     .querySelector("[data-filter-toggle]")
     .addEventListener("click", (e) => {
       // prevent when inside filter group
-      if (e.target.closest(".location_filter-popup")) return;
+      if (e.target.closest(filterContainer)) return;
       toggleFilter();
     });
 
@@ -1328,8 +1403,10 @@ Webflow.push(function () {
   function toggleMapList() {
     if (window.isMobile) {
       mapListState = mapListState === "hidden" ? "visible" : "hidden";
+      let flexOrGrid =
+        isFullPageMap && window.innerWidth < 576 ? "flex" : "grid";
       gsap.set(".map_list-wrapper", {
-        display: mapListState === "visible" ? "flex" : "none",
+        display: mapListState === "visible" ? flexOrGrid : "none",
       });
     }
   }
@@ -1339,16 +1416,16 @@ Webflow.push(function () {
     .addEventListener("click", () => {
       toggleMapList();
     });
-});
 
-$(".filter_dropdown-content_line:has(input[type='checkbox'])").on(
-  "click",
-  function (e) {
-    // If the click is on a label or inside a label, do nothing
-    if ($(e.target).closest("label").length) {
-      return;
-    }
-    // Otherwise, trigger a click on the nested label
-    $(this).find("label").first().trigger("click");
-  },
-);
+  $(".filter_dropdown-content_line:has(input[type='checkbox'])").on(
+    "click",
+    function (e) {
+      // If the click is on a label or inside a label, do nothing
+      if ($(e.target).closest("label").length) {
+        return;
+      }
+      // Otherwise, trigger a click on the nested label
+      $(this).find("label").first().trigger("click");
+    },
+  );
+});

@@ -6,7 +6,7 @@ const { execSync } = require("child_process");
 const pluginsDir = path.join(__dirname, "src", "plugins");
 const pluginFiles = fs
   .readdirSync(pluginsDir)
-  .filter((file) => file.endsWith(".js") && file !== "index.js");
+  .filter((file) => file.endsWith(".ts") && file !== "index.ts");
 
 // Build each plugin
 pluginFiles.forEach((pluginFile) => {
