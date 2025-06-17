@@ -51,7 +51,7 @@ if (typeof window !== 'undefined') {
  * @author JWSLS
  */
 
-const VERSION = "1.5.0";
+const VERSION = "1.5.1";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 
@@ -246,8 +246,6 @@ const FlowPlaterObj: FlowPlaterObj = {
     }
     return InstanceManager.getOrCreateInstance(element, initialData);
   },
-
-  PluginManager,
 
   /**
    * Get a group by name
@@ -622,9 +620,9 @@ const FlowPlaterObj: FlowPlaterObj = {
   },
 
   // Public version info
-  version: VERSION,
-  author: AUTHOR,
-  license: LICENSE,
+  VERSION: VERSION,
+  AUTHOR: AUTHOR,
+  LICENSE: LICENSE,
 
   // Use ConfigManager for setting custom tags
   setCustomTags: setCustomTags,
