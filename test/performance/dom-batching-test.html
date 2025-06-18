@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOM Batching Performance Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .performance-results {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .item {
+            padding: 5px;
+            margin: 2px;
+            background: #e9e9e9;
+            border-radius: 3px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 3px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .config-panel {
+            background: #fff3cd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <h1>DOM Batching Performance Test</h1>
+    
+    <div class="config-panel">
+        <h3>Configuration</h3>
+        <label>
+            <input type="checkbox" id="enableBatching" checked> Enable DOM Batching
+        </label>
+        <br><br>
+        <label>
+            Batching Delay: 
+            <select id="batchingDelay">
+                <option value="0">requestAnimationFrame (0ms)</option>
+                <option value="1">1ms setTimeout</option>
+                <option value="5">5ms setTimeout</option>
+                <option value="16">16ms setTimeout</option>
+            </select>
+        </label>
+        <br><br>
+        <button onclick="updateConfig()">Update Configuration</button>
+    </div>
+
+    <div class="test-container">
+        <h3>Test: Multiple Element Updates</h3>
+        <p>This test updates multiple FlowPlater instances simultaneously to demonstrate batching benefits.</p>
+        <button onclick="runPerformanceTest()">Run Performance Test</button>
+        <button onclick="clearResults()">Clear Results</button>
+        
+        <div class="performance-results" id="performanceResults">
+            <p>Click "Run Performance Test" to see results...</p>
+        </div>
+    </div>
+
+    <!-- Test Templates -->
+    <template fp-template="list-template">
+        <div class="item-list">
+            {{#each items}}
+                <div class="item" data-key="{{id}}">{{name}} - {{value}}</div>
+            {{/each}}
+        </div>
+    </template>
+
+    <!-- Test Elements -->
+    <div fp-instance="test-list-1" fp-template="list-template"></div>
+    <div fp-instance="test-list-2" fp-template="list-template"></div>
+    <div fp-instance="test-list-3" fp-template="list-template"></div>
+    <div fp-instance="test-list-4" fp-template="list-template"></div>
+    <div fp-instance="test-list-5" fp-template="list-template"></div>
+
+    <script src="../../txt/flowplater.min.js"></script>
+    <script>
+        // Initialize FlowPlater
+        document.addEventListener('DOMContentLoaded', function() {
+            window.fp = FlowPlater.init(document, { render: true });
+            
+            // Initialize test data
+            const generateTestData = (count, suffix = '') => ({
+                items: Array.from({ length: count }, (_, i) => ({
+                    id: `item-${i}-${suffix}`,
+                    name: `Item ${i + 1}${suffix}`,
+                    value: Math.floor(Math.random() * 1000)
+                }))
+            });
+
+            // Set initial data for all instances
+            for (let i = 1; i <= 5; i++) {
+                const instance = fp.getInstance(`test-list-${i}`);
+                if (instance) {
+                    instance.setData(generateTestData(20, `-init-${i}`));
+                }
+            }
+        });
+
+        function updateConfig() {
+            const enableBatching = document.getElementById('enableBatching').checked;
+            const batchingDelay = parseInt(document.getElementById('batchingDelay').value);
+            
+            fp.config({
+                performance: {
+                    batchDomUpdates: enableBatching,
+                    batchingDelay: batchingDelay
+                }
+            });
+            
+            console.log('Configuration updated:', {
+                enableBatching,
+                batchingDelay
+            });
+        }
+
+        function generateTestData(count, suffix = '') {
+            return {
+                items: Array.from({ length: count }, (_, i) => ({
+                    id: `item-${i}-${suffix}`,
+                    name: `Item ${i + 1}${suffix}`,
+                    value: Math.floor(Math.random() * 1000)
+                }))
+            };
+        }
+
+        async function runPerformanceTest() {
+            const resultsEl = document.getElementById('performanceResults');
+            resultsEl.innerHTML = '<p>Running performance test...</p>';
+            
+            const config = fp.getConfig();
+            const testRuns = 5;
+            const updateCount = 50; // Number of rapid updates per run
+            
+            let totalTime = 0;
+            let totalLayoutCalculations = 0;
+            
+            for (let run = 0; run < testRuns; run++) {
+                // Force garbage collection if available
+                if (window.gc) {
+                    window.gc();
+                }
+                
+                const startTime = performance.now();
+                const startLayoutCount = getLayoutCalculations();
+                
+                // Perform rapid updates to all instances
+                const updatePromises = [];
+                for (let update = 0; update < updateCount; update++) {
+                    for (let i = 1; i <= 5; i++) {
+                        const instance = fp.getInstance(`test-list-${i}`);
+                        if (instance) {
+                            updatePromises.push(
+                                instance.setData(generateTestData(20, `-run${run}-update${update}-${i}`))
+                            );
+                        }
+                    }
+                }
+                
+                // Wait for all updates to complete
+                await Promise.all(updatePromises);
+                
+                // Wait for any pending DOM updates
+                await new Promise(resolve => {
+                    if (config.performance?.batchingDelay > 0) {
+                        setTimeout(resolve, config.performance.batchingDelay + 10);
+                    } else {
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(resolve);
+                        });
+                    }
+                });
+                
+                const endTime = performance.now();
+                const endLayoutCount = getLayoutCalculations();
+                
+                totalTime += (endTime - startTime);
+                totalLayoutCalculations += (endLayoutCount - startLayoutCount);
+            }
+            
+            const avgTime = totalTime / testRuns;
+            const avgLayoutCalculations = totalLayoutCalculations / testRuns;
+            
+            const results = `
+                <h4>Performance Test Results</h4>
+                <p><strong>Configuration:</strong></p>
+                <ul>
+                    <li>DOM Batching: ${config.performance?.batchDomUpdates ? 'Enabled' : 'Disabled'}</li>
+                    <li>Batching Delay: ${config.performance?.batchingDelay || 0}ms</li>
+                </ul>
+                <p><strong>Results (Average over ${testRuns} runs):</strong></p>
+                <ul>
+                    <li>Total Time: ${avgTime.toFixed(2)}ms</li>
+                    <li>Layout Calculations: ${avgLayoutCalculations}</li>
+                    <li>Updates per Run: ${updateCount * 5}</li>
+                    <li>Time per Update: ${(avgTime / (updateCount * 5)).toFixed(3)}ms</li>
+                </ul>
+                <p><em>Lower numbers indicate better performance. Layout calculations show DOM thrashing.</em></p>
+            `;
+            
+            resultsEl.innerHTML = results;
+        }
+
+        function getLayoutCalculations() {
+            // This is a simplified way to detect layout calculations
+            // In reality, you'd use Performance Observer API or DevTools
+            return performance.getEntriesByType('measure').length;
+        }
+
+        function clearResults() {
+            document.getElementById('performanceResults').innerHTML = '<p>Results cleared. Click "Run Performance Test" to see new results...</p>';
+        }
+
+        // Update configuration on page load
+        updateConfig();
+    </script>
+</body>
+</html> 
