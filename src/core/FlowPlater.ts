@@ -229,8 +229,6 @@ function process(element: Document | FlowPlaterElement = document) {
 /* ANCHOR                          Public API                                 */
 /* -------------------------------------------------------------------------- */
 
-
-
 // Create the base FlowPlater object
 const FlowPlaterObj: FlowPlaterObj = {
   compileTemplate,
@@ -310,35 +308,35 @@ const FlowPlaterObj: FlowPlaterObj = {
 
   // Plugin management methods
   registerPlugin(plugin: any, config: Record<string, any> = {}) {
-    return this.PluginManager.registerPlugin(plugin, config);
+    return PluginManager.registerPlugin(plugin, config);
   },
 
   removePlugin(name: string) {
-    return this.PluginManager.removePlugin(name);
+    return PluginManager.removePlugin(name);
   },
 
   removeAllPlugins() {
-    return this.PluginManager.destroyAll();
+    return PluginManager.destroyAll();
   },
 
   getPlugin(name: string) {
-    return this.PluginManager.getPlugin(name);
+    return PluginManager.getPlugin(name);
   },
 
   getAllPlugins() {
-    return this.PluginManager.getSortedPlugins();
+    return PluginManager.getSortedPlugins();
   },
 
   enablePlugin(name: string) {
-    return this.PluginManager.enablePlugin(name);
+    return PluginManager.enablePlugin(name);
   },
 
   disablePlugin(name: string) {
-    return this.PluginManager.disablePlugin(name);
+    return PluginManager.disablePlugin(name);
   },
 
   pluginConfig(name: string) {
-    return this.PluginManager.pluginConfig(name);
+    return PluginManager.pluginConfig(name);
   },
 
   on: (...args: any[]) => EventSystem.subscribe(...(args as [string, Function])),
@@ -564,7 +562,7 @@ const FlowPlaterObj: FlowPlaterObj = {
     _readyState.processQueue();
 
     EventSystem.publish("initialized");
-    this.PluginManager.executeHook("initComplete", this, _state.instances);
+    PluginManager.executeHook("initComplete", this, _state.instances);
 
     return this;
   },
@@ -769,7 +767,7 @@ const FlowPlaterObj: FlowPlaterObj = {
     }
 
     // Execute newInstance hook
-    this.PluginManager.executeHook("newInstance", instance);
+    PluginManager.executeHook("newInstance", instance);
 
     if (options.refresh) {
       instance.refresh();
@@ -806,7 +804,7 @@ const FlowPlaterObj: FlowPlaterObj = {
    * });
    */
   addTransformer(transformationType: string, transformerFn: Function) {
-    this.PluginManager.addTransformer(transformationType, transformerFn);
+    PluginManager.addTransformer(transformationType, transformerFn);
     return this;
   },
 
@@ -822,7 +820,7 @@ const FlowPlaterObj: FlowPlaterObj = {
    * FlowPlater.removeTransformer('transformDataBeforeRender', myTransformer);
    */
   removeTransformer(transformationType: string, transformerFn: Function) {
-    return this.PluginManager.removeTransformer(transformationType, transformerFn);
+    return PluginManager.removeTransformer(transformationType, transformerFn);
   },
 
   /**
@@ -837,7 +835,7 @@ const FlowPlaterObj: FlowPlaterObj = {
    * FlowPlater.clearTransformers();
    */
   clearTransformers(transformationType?: string) {
-    this.PluginManager.clearTransformers(transformationType);
+    PluginManager.clearTransformers(transformationType || "");
     return this;
   },
 };
