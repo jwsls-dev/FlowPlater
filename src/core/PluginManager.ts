@@ -2,7 +2,17 @@ import { Debug, FlowPlaterError } from "./Debug";
 import { _state } from "./State";
 import { _readyState } from "./ReadyState";
 import { AttributeMatcher } from "../utils/AttributeMatcher";
-import { FlowPlaterPlugin, FlowPlaterObj, FlowPlaterInstance, FlowPlaterPluginTransformers, FlowPlaterPluginHooks } from "../types";
+import { 
+  FlowPlaterPlugin, 
+  FlowPlaterObj, 
+  FlowPlaterInstance, 
+  FlowPlaterPluginTransformers, 
+  FlowPlaterPluginHooks,
+  TransformerFunction,
+  RequestTransformerFunction,
+  TransformerDataType,
+  NamedTransformer
+} from "../types";
 
 // Version management utilities
 const VersionManager = {
@@ -37,7 +47,7 @@ export const PluginManager = {
   plugins: new Map(),
   globalMethods: new Map(),
   instanceMethods: new Map(),
-  customTransformers: new Map(), // Store custom transformers by type
+  customTransformers: new Map(), // Store custom transformers by type (Map<string, NamedTransformer[]>)
 
   registerPlugin(plugin: FlowPlaterPlugin | string | Function, config = {}) {
     let pluginFunction: Function;
@@ -403,7 +413,7 @@ export const PluginManager = {
   },
 
   // Apply transformations from all enabled plugins in priority order
-  applyTransformations(instance: FlowPlaterInstance, data: any, transformationType: string, dataType = "json") {
+  applyTransformations(instance: FlowPlaterInstance, data: any, transformationType: string, dataType: TransformerDataType = "json") {
     // Validate instance
     if (!instance || typeof instance !== "object") {
       Debug.error("Invalid instance provided to applyTransformations");
@@ -479,7 +489,7 @@ export const PluginManager = {
 
     // Apply custom transformers after plugin transformers
     const customTransformers =
-      this.customTransformers.get(transformationType) || [];
+      this.customTransformers.get(transformationType) as NamedTransformer[] || [];
 
     if (customTransformers.length > 0) {
       Debug.debug(
@@ -488,12 +498,12 @@ export const PluginManager = {
     }
 
     transformedData = customTransformers.reduce(
-      (transformedData: any, transformer: any, index: number) => {
+      (transformedData: any, namedTransformer: NamedTransformer, index: number) => {
         try {
           Debug.debug(
-            `[Transform] Applying custom transformer ${index + 1}/${
+            `[Transform] Applying custom transformer '${namedTransformer.name}' (${index + 1}/${
               customTransformers.length
-            }`,
+            })`,
             {
               dataType: typeof transformedData,
               isEvent: transformedData instanceof Event,
@@ -501,7 +511,7 @@ export const PluginManager = {
           );
 
           // Apply the custom transformation with the instance context
-          const result = transformer.call(
+          const result = namedTransformer.fn.call(
             null,
             instance,
             transformedData,
@@ -511,7 +521,7 @@ export const PluginManager = {
           // If the result is undefined or null, return the original data
           if (result === undefined || result === null) {
             Debug.warn(
-              `Custom transformer returned undefined/null for ${transformationType}, using original data`,
+              `Custom transformer '${namedTransformer.name}' returned undefined/null for ${transformationType}, using original data`,
             );
             return transformedData;
           }
@@ -523,7 +533,7 @@ export const PluginManager = {
             return transformedData;
           }
 
-          Debug.debug(`[Transform] Custom transformer ${index + 1} result:`, {
+          Debug.debug(`[Transform] Custom transformer '${namedTransformer.name}' result:`, {
             resultType: typeof result,
             isEvent: result instanceof Event,
             isProxy: result && typeof result === "object" && "toJSON" in result,
@@ -532,7 +542,7 @@ export const PluginManager = {
           return result;
         } catch (error) {
           Debug.error(
-            `Custom transformer failed executing ${transformationType} transformation:`,
+            `Custom transformer '${namedTransformer.name}' failed executing ${transformationType} transformation:`,
             error,
           );
           return transformedData; // Return unmodified data if transformation fails
@@ -554,17 +564,38 @@ export const PluginManager = {
   },
 
   // Add a custom transformer function for a specific transformation type
-  addTransformer(transformationType: string, transformerFn: Function) {
+  addTransformer(transformationType: string, transformerFn: TransformerFunction | RequestTransformerFunction, transformerName?: string) {
     if (typeof transformerFn !== "function") {
       throw new FlowPlaterError("Transformer must be a function");
     }
 
-    // Validate transformer function signature
+    // Generate automatic name if not provided
+    if (!transformerName) {
+      // Get existing transformer count for this type
+      const existingTransformers = this.customTransformers.get(transformationType) || [];
+      transformerName = `${transformationType}_${existingTransformers.length + 1}_${Date.now()}`;
+    }
+
+    // Validate transformer function signature based on type
     const fnStr = transformerFn.toString();
-    if (!fnStr.includes("instance") || !fnStr.includes("data")) {
-      Debug.warn(
-        "Transformer function should accept (instance, data, dataType) parameters",
-      );
+    if (transformationType === "transformRequest") {
+      if (!fnStr.includes("instance") || !fnStr.includes("evt")) {
+        Debug.warn(
+          "Request transformer function should accept (instance, evt) parameters",
+        );
+      }
+    } else if (transformationType === "transformResponse") {
+      if (!fnStr.includes("instance") || !(fnStr.includes("response") || fnStr.includes("data"))) {
+        Debug.warn(
+          "Response transformer function should accept (instance, response, dataType) parameters",
+        );
+      }
+    } else {
+      if (!fnStr.includes("instance") || !fnStr.includes("data")) {
+        Debug.warn(
+          "Transformer function should accept (instance, data, dataType) parameters",
+        );
+      }
     }
 
     // Initialize array for this transformation type if it doesn't exist
@@ -572,23 +603,34 @@ export const PluginManager = {
       this.customTransformers.set(transformationType, []);
     }
 
-    // Add the transformer to the array
-    this.customTransformers.get(transformationType).push(transformerFn);
+    // Check if a transformer with this name already exists
+    const existingTransformers = this.customTransformers.get(transformationType) as NamedTransformer[];
+    const existingIndex = existingTransformers.findIndex((t: NamedTransformer) => t.name === transformerName);
+    
+    if (existingIndex !== -1) {
+      // Replace existing transformer with same name
+      existingTransformers[existingIndex] = { name: transformerName, fn: transformerFn };
+      Debug.debug(`Replaced custom transformer '${transformerName}' for ${transformationType}`);
+    } else {
+      // Add new transformer
+      existingTransformers.push({ name: transformerName, fn: transformerFn });
+      Debug.debug(`Added custom transformer '${transformerName}' for ${transformationType}`);
+    }
 
-    Debug.debug(`Added custom transformer for ${transformationType}`);
     return this; // For method chaining
   },
 
-  // Remove a custom transformer function
-  removeTransformer(transformationType: string, transformerFn: Function) {
+  // Remove a custom transformer function by name
+  removeTransformer(transformationType: string, transformerName: string) {
     if (!this.customTransformers.has(transformationType)) {
       return false;
     }
 
-    const transformers = this.customTransformers.get(transformationType);
-    const index = transformers.indexOf(transformerFn);
+    const transformers = this.customTransformers.get(transformationType) as NamedTransformer[];
+    const index = transformers.findIndex((t: NamedTransformer) => t.name === transformerName);
 
     if (index === -1) {
+      Debug.warn(`Transformer '${transformerName}' not found for type '${transformationType}'`);
       return false;
     }
 
@@ -599,7 +641,7 @@ export const PluginManager = {
       this.customTransformers.delete(transformationType);
     }
 
-    Debug.debug(`Removed custom transformer for ${transformationType}`);
+    Debug.debug(`Removed custom transformer '${transformerName}' for ${transformationType}`);
     return true;
   },
 
@@ -614,6 +656,19 @@ export const PluginManager = {
       Debug.debug(`Cleared custom transformers for ${transformationType}`);
     }
     return this;
+  },
+
+  // List all custom transformers
+  listTransformers(transformationType?: string): Record<string, NamedTransformer[]> | NamedTransformer[] {
+    if (transformationType) {
+      return this.customTransformers.get(transformationType) as NamedTransformer[] || [];
+    } else {
+      const result: Record<string, NamedTransformer[]> = {};
+      for (const [type, transformers] of this.customTransformers.entries()) {
+        result[type] = transformers as NamedTransformer[];
+      }
+      return result;
+    }
   },
 
   executeHook(hookName: string, ...args: any[]) {

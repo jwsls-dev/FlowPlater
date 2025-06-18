@@ -30,13 +30,42 @@ export function defineHtmxExtension() {
 
       if (isXml) {
         try {
-          var parser = new DOMParser();
-          var xmlDoc = parser.parseFromString(text, "text/xml");
-          processedText = JSON.stringify(parseXmlToJson(xmlDoc.toString()));
+          // First validate that we have valid XML content
+          if (!text || typeof text !== 'string') {
+            throw new Error('Invalid XML content: empty or non-string response');
+          }
+
+          // Parse the XML string using DOMParser
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(text, "text/xml");
+          
+          // Check for XML parsing errors - DOMParser doesn't throw, but creates error documents
+          const parserError = xmlDoc.querySelector("parsererror");
+          if (parserError) {
+            throw new Error(`XML parsing failed: ${parserError.textContent || 'Unknown parser error'}`);
+          }
+
+          // Validate that we have a valid document with a root element
+          if (!xmlDoc.documentElement) {
+            throw new Error('XML parsing failed: no document element found');
+          }
+
+          // Convert XML to JSON using our utility function (which expects the original string)
+          const jsonData = parseXmlToJson(text);
+          processedText = JSON.stringify(jsonData);
           isJson = true;
+          
+          Debug.debug('[transformResponse] Successfully converted XML to JSON:', jsonData);
         } catch (error) {
-          Debug.error("Failed to parse XML response:", error);
-          // Keep the original text if XML parsing fails
+          const errorMessage = error instanceof Error ? error.message : 'Unknown XML parsing error';
+          Debug.error("Failed to parse XML response:", errorMessage, {
+            originalText: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
+            contentType: contentType
+          });
+          
+          // Keep the original text if XML parsing fails - don't try to process as JSON
+          processedText = text;
+          isJson = false;
         }
       } else if (!isHtml) {
         // If not HTML and not XML, assume it's JSON
@@ -101,10 +130,41 @@ export function defineHtmxExtension() {
             instance._htmxUpdateInProgress = true;
 
             // Set the data which triggers updates via proxy
-            const jsonData = typeof processedText === "string" 
-              ? JSON.parse(processedText) 
-              : processedText;
-            instance.setData(jsonData as Record<string, any>);
+            let jsonData: Record<string, any>;
+            
+            if (typeof processedText === "string") {
+              try {
+                jsonData = JSON.parse(processedText);
+              } catch (parseError) {
+                const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown JSON parsing error';
+                Debug.error(`[transformResponse] Failed to parse JSON data for instance ${instanceName}:`, errorMessage, {
+                  originalText: processedText.substring(0, 200) + (processedText.length > 200 ? '...' : ''),
+                  contentType: xhr.getResponseHeader("Content-Type") || "unknown"
+                });
+                
+                // Clear the flag and return early to prevent further processing
+                instance._htmxUpdateInProgress = false;
+                return ""; // Return empty string to prevent swap errors
+              }
+            } else if (typeof processedText === "object") {
+              jsonData = processedText;
+            } else {
+              Debug.error(`[transformResponse] Invalid data type for JSON processing: ${typeof processedText}`, {
+                processedText: processedText,
+                instanceName: instanceName
+              });
+              instance._htmxUpdateInProgress = false;
+              return "";
+            }
+            
+            // Validate that we have valid data before setting
+            if (jsonData === null || jsonData === undefined) {
+              Debug.warn(`[transformResponse] Received null/undefined data for instance ${instanceName}, skipping update`);
+              instance._htmxUpdateInProgress = false;
+              return "";
+            }
+            
+            instance.setData(jsonData);
 
             // Clear the flag
             instance._htmxUpdateInProgress = false;
@@ -112,8 +172,12 @@ export function defineHtmxExtension() {
             // Return empty string to prevent HTMX default swap
             return ""; // Return empty string instead of "DO_NOT_SWAP"
           } catch (error: any) {
-            Debug.error(`[transformResponse] Error: ${error.message}`);
+            Debug.error(`[transformResponse] Error processing JSON data for instance ${instanceName}:`, error.message, {
+              stack: error.stack,
+              processedText: typeof processedText === 'string' ? processedText.substring(0, 200) + (processedText.length > 200 ? '...' : '') : processedText
+            });
             instance._htmxUpdateInProgress = false;
+            
             return ""; // Return empty string to prevent swap errors
           }
         }

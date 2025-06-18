@@ -12,7 +12,6 @@
     "declaration": false,
     "sourceMap": false,
     "removeComments": true,
-    "importsNotUsedAsValues": "remove",
     "preserveConstEnums": false,
     "verbatimModuleSyntax": false,
     "useDefineForClassFields": true,

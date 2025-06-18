@@ -373,4 +373,69 @@ export const AttributeMatcher = {
       .flat()
       .includes(normalizedName);
   },
+
+  /**
+   * Find the template element for a given instance name or ID selector
+   * @param {string} instanceName - The instance name or ID selector (#elementId)
+   * @returns {FlowPlaterElement | null} The template element or null if not found
+   * @description Finds the element that has both the matching instance name/ID and the fp-template attribute.
+   * This is the "template element" that defines the template for an instance.
+   */
+  findTemplateElementByInstanceName(instanceName: string): FlowPlaterElement | null {
+    // Handle ID selector format (#elementId)
+    if (instanceName.startsWith("#")) {
+      const elementId = instanceName.slice(1);
+      const element = document.getElementById(elementId);
+      
+      // For ID selectors, the element itself should have the template
+      if (element && this._hasAttribute(element as FlowPlaterElement, "template")) {
+        return element as FlowPlaterElement;
+      }
+      return null;
+    }
+    
+    // Handle instance name format - find the template element with this instance name
+    // Look for elements that have both fp-instance matching the name AND fp-template
+    const allTemplateElements = this.findMatchingElements("template") as FlowPlaterElement[];
+    
+    if (!Array.isArray(allTemplateElements)) {
+      return null;
+    }
+    
+    // Find the template element that also has the matching instance name
+    const templateElement = allTemplateElements.find((element: FlowPlaterElement) => {
+      const elementInstanceName = this._getRawAttribute(element, "instance");
+      return elementInstanceName === instanceName;
+    });
+    
+    return templateElement || null;
+  },
+
+  /**
+   * Find any element by instance name or ID selector (template or non-template)
+   * @param {string} instanceName - The instance name or ID selector (#elementId)
+   * @returns {FlowPlaterElement | null} The found element or null if not found
+   * @description Finds any element matching the instance name or ID, regardless of whether it has a template.
+   * This is useful for finding any element associated with an instance.
+   */
+  findElementByInstanceName(instanceName: string): FlowPlaterElement | null {
+    // Handle ID selector format (#elementId)
+    if (instanceName.startsWith("#")) {
+      const elementId = instanceName.slice(1);
+      const element = document.getElementById(elementId);
+      return element as FlowPlaterElement | null;
+    }
+    
+    // Handle instance name format (search by fp-instance attribute)
+    const element = this.findMatchingElements(
+      "instance",
+      instanceName,
+      false,
+      document,
+      false,
+      true,
+    );
+    
+    return element as FlowPlaterElement | null;
+  },
 };

@@ -26,7 +26,14 @@ import { translateCustomHTMXAttributes } from "./TranslateHtmxAttributes";
 import { processUrlAffixes } from "./ProcessUrlAffixes";
 import { setupAnimation } from "./SetupAnimation";
 import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
-import { FlowPlaterElement, ProcessingResult, Processor, FlowPlaterObj } from "../types";
+import { 
+  FlowPlaterElement, 
+  ProcessingResult, 
+  Processor, 
+  FlowPlaterObj, 
+  TransformerFunction, 
+  RequestTransformerFunction
+} from "../types";
 
 import htmxLib from "htmx.org";
 import Handlebars from "handlebars";
@@ -237,9 +244,9 @@ const FlowPlaterObj: FlowPlaterObj = {
   getInstances,
 
   getOrCreateInstance(instanceName: string, initialData: Record<string, any> = {}) {
-    const element = AttributeMatcher.findMatchingElements("instance", instanceName, false, document, false, true) as FlowPlaterElement;
+    const element = AttributeMatcher.findTemplateElementByInstanceName(instanceName);
     if (!element) {
-      Debug.error(`Element not found for instance: ${instanceName}`);
+      Debug.error(`Template element not found for instance: ${instanceName}`);
       return null;
     }
     return InstanceManager.getOrCreateInstance(element, initialData);
@@ -679,15 +686,16 @@ const FlowPlaterObj: FlowPlaterObj = {
   /**
    * @function trigger
    * @param {string} name - The name of the event to trigger
-   * @param {HTMLElement} element - The element to trigger the event on
+   * @param {string | FlowPlaterElement | Document} element - The element(s) to trigger the event on
    * @param {Object} detail - The detail object to pass to the event
    */
   trigger: function (name: string, element: string | FlowPlaterElement | Document = document, detail: Record<string, any> = {}) {
     if (typeof element === "string") {
       const elements = document.querySelectorAll(element);
       elements.forEach(el => {
-        EventSystem.publish(name, { element: el, detail });
-        htmx.trigger(el, name, detail);
+        const htmlElement = el as HTMLElement;
+        EventSystem.publish(name, { element: htmlElement, detail });
+        htmx.trigger(htmlElement, name, detail);
       });
       return;
     }
@@ -730,20 +738,8 @@ const FlowPlaterObj: FlowPlaterObj = {
     Performance.start(`createInstance:${instanceName}`);
     Debug.info(`Creating FlowPlater instance: ${instanceName}`);
 
-    // Find the element
-    let element;
-    if (instanceName.startsWith("#")) {
-      element = document.getElementById(instanceName.slice(1));
-    } else {
-      element = AttributeMatcher.findMatchingElements(
-        "instance",
-        instanceName,
-        false,
-        document,
-        false,
-        true,
-      );
-    }
+    // Find any element with the instance name - InstanceManager will find the template element
+    const element = AttributeMatcher.findElementByInstanceName(instanceName);
 
     if (!element) {
       throw new FlowPlaterError(
@@ -752,13 +748,13 @@ const FlowPlaterObj: FlowPlaterObj = {
     }
 
     // Clear any existing template cache for this instance
-    const templateId = AttributeMatcher._getRawAttribute(element as FlowPlaterElement, "template");
+    const templateId = AttributeMatcher._getRawAttribute(element, "template");
     if (templateId) {
       this.templateCache.clear(templateId);
     }
 
     // Use init() to process the element, but skip initial render
-    this.init(element as FlowPlaterElement);
+    this.init(element);
 
     // Get the instance from state
     const instance = getInstance(instanceName);
@@ -792,35 +788,38 @@ const FlowPlaterObj: FlowPlaterObj = {
   /**
    * Add a custom transformer function for a specific transformation type
    * @param {string} transformationType - The type of transformation (e.g. 'transformDataBeforeRender', 'transformResponse', 'transformRequest')
-   * @param {Function} transformerFn - The transformer function with signature (instance, data, dataType) => transformedData
+   * @param {TransformerFunction | RequestTransformerFunction} transformerFn - The transformer function with signature (instance, data, dataType) => transformedData
    *                                  - instance: The FlowPlater instance that triggered the transformation
    *                                  - data: The data to transform
-   *                                  - dataType: The type of data being transformed ('json' or 'html')
+   *                                  - dataType: The type of data being transformed ('json', 'html', or 'xml')
+   * @param {string} [transformerName] - Optional name for the transformer. If not provided, one will be auto-generated.
    * @returns {FlowPlaterObj} The FlowPlater instance for chaining
    * @example
    * FlowPlater.addTransformer('transformDataBeforeRender', (instance, data, dataType) => {
    *   // Transform the data before it's rendered
    *   return { ...data, timestamp: Date.now() };
-   * });
+   * }, 'myCustomTransformer');
    */
-  addTransformer(transformationType: string, transformerFn: Function) {
-    PluginManager.addTransformer(transformationType, transformerFn);
+  addTransformer(transformationType: string, transformerFn: TransformerFunction | RequestTransformerFunction, transformerName?: string) {
+    if (typeof transformerFn !== "function") {
+      throw new FlowPlaterError("Transformer must be a function");
+    }
+    PluginManager.addTransformer(transformationType, transformerFn, transformerName);
     return this;
   },
 
   /**
-   * Remove a custom transformer function
+   * Remove a custom transformer function by name
    * @param {string} transformationType - The type of transformation
-   * @param {Function} transformerFn - The transformer function to remove (must be the same reference as added)
+   * @param {string} transformerName - The name of the transformer to remove
    * @returns {boolean} True if the transformer was found and removed, false otherwise
    * @example
-   * const myTransformer = (instance, data, dataType) => ({ ...data, timestamp: Date.now() });
-   * FlowPlater.addTransformer('transformDataBeforeRender', myTransformer);
+   * FlowPlater.addTransformer('transformDataBeforeRender', myTransformer, 'myCustomTransformer');
    * // Later...
-   * FlowPlater.removeTransformer('transformDataBeforeRender', myTransformer);
+   * FlowPlater.removeTransformer('transformDataBeforeRender', 'myCustomTransformer');
    */
-  removeTransformer(transformationType: string, transformerFn: Function) {
-    return PluginManager.removeTransformer(transformationType, transformerFn);
+  removeTransformer(transformationType: string, transformerName: string) {
+    return PluginManager.removeTransformer(transformationType, transformerName);
   },
 
   /**
@@ -837,6 +836,21 @@ const FlowPlaterObj: FlowPlaterObj = {
   clearTransformers(transformationType?: string) {
     PluginManager.clearTransformers(transformationType || "");
     return this;
+  },
+
+  /**
+   * List all custom transformers for a specific type or all types
+   * @param {string} [transformationType] - The type of transformation to list. If not provided, lists all transformers.
+   * @returns {Object|Array} Object with transformer types as keys and arrays of NamedTransformers as values, or array of NamedTransformers for specific type
+   * @example
+   * // List all transformDataBeforeRender transformers
+   * const transformers = FlowPlater.listTransformers('transformDataBeforeRender');
+   *
+   * // List all transformers of all types
+   * const allTransformers = FlowPlater.listTransformers();
+   */
+  listTransformers(transformationType?: string) {
+    return PluginManager.listTransformers(transformationType);
   },
 };
 

@@ -1,4 +1,4 @@
-import { FlowPlaterObj } from "../types";
+import { FlowPlaterObj, TransformerDataType } from "../types";
 import { AttributeMatcher } from "../utils/AttributeMatcher";
 import { getGroupedInputValue } from "./utils/inputUtils";
 
@@ -848,7 +848,7 @@ const DataExtractorPlugin = (customConfig = {}) => {
      * @param {string} dataType - The type of data being transformed ("html", "xml", or "json")
      * @returns {Object} The modified response object
      */
-    transformResponse: function (instance: any, response: any, dataType: string) {
+    transformResponse: function (instance: any, response: any, dataType: TransformerDataType) {
       FlowPlater.log(
         FlowPlater.logLevels.DEBUG,
         `[DataExtractor] transformResponse called with:`,

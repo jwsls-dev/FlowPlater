@@ -5,7 +5,7 @@
 
 import { FormStateManager } from "../utils/FormStateManager";
 import { EventSystem } from "../core/EventSystem";
-import { FlowPlaterObj, FlowPlaterInstance } from "../types";
+import { FlowPlaterObj, FlowPlaterInstance, TransformerDataType } from "../types";
 
 declare const FlowPlater: FlowPlaterObj;
 
@@ -839,7 +839,7 @@ const FilterPlugin = (customConfig = {}) => {
      * @param {string} dataType - The type of data being transformed (always "json" for this transformation)
      * @returns {Object} The modified data object
      */
-    transformDataBeforeRender: function (instance: FlowPlaterInstance, data: any, dataType: string) {
+    transformDataBeforeRender: function (instance: FlowPlaterInstance, data: any, dataType: TransformerDataType) {
       if (!data) return data;
       if (dataType !== "json") {
         FlowPlater.log(

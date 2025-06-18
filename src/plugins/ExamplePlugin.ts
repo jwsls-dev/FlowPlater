@@ -1,4 +1,4 @@
-import { FlowPlaterInstance, FlowPlaterObj, FlowPlaterPlugin } from "../types";
+import { FlowPlaterInstance, FlowPlaterObj, FlowPlaterPlugin, TransformerDataType } from "../types";
 
 declare const FlowPlater: FlowPlaterObj;
 
@@ -391,7 +391,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {string} dataType - The type of data being transformed ("html", "xml", or "json")
      * @returns {Object} The modified response object
      */
-    transformResponse: function (instance: FlowPlaterInstance, response: any, dataType: string) {
+    transformResponse: function (instance: FlowPlaterInstance, response: any, dataType: TransformerDataType) {
       // Example: Add processing metadata to the response
       if (response) {
         response.metadata = {
@@ -413,7 +413,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @returns {Object} The modified data object
      */
     // @ts-ignore
-    transformDataBeforeRender: function (instance: FlowPlaterInstance, data: any, dataType: string) {
+    transformDataBeforeRender: function (instance: FlowPlaterInstance, data: any, dataType: TransformerDataType) {
       // Example: Add a timestamp to the data
       if (data) {
         return {
