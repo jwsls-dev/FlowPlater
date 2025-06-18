@@ -47,6 +47,10 @@ const defaultConfig: FlowPlaterConfig = {
     enabled: false,
     ttl: 30 * 24 * 60 * 60, // 30 days in seconds
   },
+  performance: {
+    batchDomUpdates: true,
+    batchingDelay: 0, // 0 uses requestAnimationFrame, >0 uses setTimeout with delay
+  },
   persistForm: true,
   allowExecute: true,
 };
@@ -92,44 +96,86 @@ function normalizeStorageConfig(storageConfig: any, defaultStorageConfig: any) {
 // Initialize state with default config
 _state.config = JSON.parse(JSON.stringify(defaultConfig)) as FlowPlaterConfig;
 
+// Config queue system
+let configQueue: Partial<FlowPlaterConfig>[] = [];
+let isInitialized = false;
+
+/**
+ * Internal function to apply configuration changes
+ * @param {Object} newConfig - Configuration options to apply
+ */
+function applyConfigInternal(newConfig: Partial<FlowPlaterConfig>) {
+  if ("storage" in newConfig) {
+    newConfig.storage = normalizeStorageConfig(
+      newConfig.storage,
+      defaultConfig.storage,
+    );
+  }
+
+  // Use the imported deepMerge utility
+  _state.config = deepMerge(
+    JSON.parse(JSON.stringify(_state.config)),
+    newConfig,
+  );
+
+  // --- Apply configuration settings ---
+
+  // Apply debug level
+  Debug.level = _state.config.debug.level;
+
+  // Configure HTMX defaults if htmx is available
+  if (typeof htmx !== "undefined") {
+    htmx.config.timeout = _state.config.htmx.timeout;
+    htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
+    htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
+    htmx.config.ignoreTitle = _state.config.htmx.ignoreTitle;
+  }
+
+  // Set custom tags if provided in the new config
+  if (newConfig.customTags) {
+    setCustomTags(newConfig.customTags as { tag: string; replaceWith: string }[]);
+  }
+}
+
 export const ConfigManager = {
   /**
+   * Sets the default configuration without logging
+   * @param {Object} defaultConfig - Default configuration to apply
+   */
+  setDefaultConfig(defaultConfig: FlowPlaterConfig) {
+    applyConfigInternal(defaultConfig);
+  },
+
+  /**
    * Sets or updates the FlowPlater configuration.
+   * Before initialization: queues the config change
+   * After initialization: applies immediately and logs
    * @param {Object} newConfig - Configuration options to apply.
    */
   setConfig(newConfig: Partial<FlowPlaterConfig> = {}) {
-    if ("storage" in newConfig) {
-      newConfig.storage = normalizeStorageConfig(
-        newConfig.storage,
-        defaultConfig.storage,
-      );
+    if (isInitialized) {
+      // Apply immediately and log
+      applyConfigInternal(newConfig);
+      Debug.info("FlowPlater configuration updated:", this.getConfig());
+    } else {
+      // Queue for later
+      configQueue.push(newConfig);
     }
+  },
 
-    // Use the imported deepMerge utility
-    _state.config = deepMerge(
-      JSON.parse(JSON.stringify(_state.config)),
-      newConfig,
-    );
-
-    // --- Apply configuration settings ---
-
-    // Apply debug level
-    Debug.level = _state.config.debug.level;
-
-    // Configure HTMX defaults if htmx is available
-    if (typeof htmx !== "undefined") {
-      htmx.config.timeout = _state.config.htmx.timeout;
-      htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
-      htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
-      htmx.config.ignoreTitle = _state.config.htmx.ignoreTitle;
+  /**
+   * Submits all queued configuration changes and marks as initialized
+   * @internal
+   */
+  submitQueuedConfig() {
+    if (configQueue.length > 0) {
+      // Merge all queued configs
+      const finalConfig = configQueue.reduce((acc, config) => deepMerge(acc, config), {} as Partial<FlowPlaterConfig>);
+      applyConfigInternal(finalConfig);
+      Debug.info("FlowPlater configuration updated:", this.getConfig());
+      configQueue = [];
     }
-
-    // Set custom tags if provided in the new config
-    if (newConfig.customTags) {
-      setCustomTags(newConfig.customTags as { tag: string; replaceWith: string }[]);
-    }
-
-    Debug.info("FlowPlater configuration updated:", this.getConfig());
+    isInitialized = true;
   },
 
   /**

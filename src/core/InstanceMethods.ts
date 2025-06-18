@@ -11,6 +11,7 @@ import { extractLocalData } from "../utils/LocalVariableExtractor";
 import { PluginManager } from "./PluginManager";
 import { ConfigManager } from "./ConfigManager";
 import { deepMerge } from "../utils/DeepMerge";
+import { domBatcher } from "../utils/DomBatcher";
 
 import { FlowPlaterInstance } from "../types";
 
@@ -147,12 +148,15 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
           return;
         }
 
-        // Run DOM updates concurrently for better performance
+        // Batch DOM updates to reduce layout thrashing
         const updatePromises = activeElements.map((element) =>
-          updateDOM(element, rendered, instance.animate, instance),
+          domBatcher.write(
+            () => updateDOM(element, rendered, instance.animate, instance),
+            `update-${instance.instanceName}-${Date.now()}`
+          )
         );
 
-        // Wait for all element updates to complete
+        // Wait for all batched element updates to complete
         const results = await Promise.all(updatePromises);
 
         return results;
@@ -377,12 +381,15 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
             );
 
             promises.push(
-              updateDOM(
-                element,
-                instance.template(transformedData),
-                instance.animate,
-                instance,
-              ),
+              domBatcher.write(
+                () => updateDOM(
+                  element,
+                  instance.template(transformedData),
+                  instance.animate,
+                  instance,
+                ),
+                `refresh-${instanceName}-${Date.now()}`
+              )
             );
           }
         } catch (error) {
@@ -402,6 +409,10 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
 
     getElements: function () {
       return _state.instances[instanceName].elements;
+    },
+
+    getTemplateElement: function () {
+      return _state.instances[instanceName].templateElement;
     },
 
     get: function (path: string) {

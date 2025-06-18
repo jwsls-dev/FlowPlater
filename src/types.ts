@@ -44,6 +44,10 @@ export interface FlowPlaterConfig {
     enabled: boolean;
     ttl: number; // Time to live in seconds
   };
+  performance: {
+    batchDomUpdates: boolean;
+    batchingDelay: number; // 0 uses requestAnimationFrame, >0 uses setTimeout with delay
+  };
   persistForm: boolean;
   allowExecute: boolean;
 }
@@ -151,6 +155,7 @@ export interface FlowPlaterInstance {
   instanceName: string;
   templateId: string;
   template: any;
+  templateElement: FlowPlaterElement;
   data: ProxyConstructor & Record<string, any>;
   elements: FlowPlaterElement[];
   groupName?: string;
@@ -165,6 +170,7 @@ export interface FlowPlaterInstance {
   getData(): Record<string, any>;
   setData(data: Record<string, any>): void;
   getElements(): FlowPlaterElement[];
+  getTemplateElement(): FlowPlaterElement;
   _updateDOM: () => Promise<void[] | undefined>;
   _htmxUpdateInProgress?: boolean;
   _updateTimer?: NodeJS.Timeout | null;

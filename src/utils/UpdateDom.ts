@@ -3,6 +3,7 @@ import { Performance } from "./Performance";
 import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
 import { PluginManager } from "../core/PluginManager";
+import { domBatcher } from "./DomBatcher";
 import {
   captureFormStates,
   setupFormSubmitHandlers,
@@ -250,14 +251,17 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
       }, Should restore form: ${FormStateManager.shouldRestoreForm(element)}`,
     );
 
-    // Capture form states if form restoration is needed
+    // Capture form states if form restoration is needed (DOM read operation)
     let formStates = null;
     if (
       ConfigManager.getConfig().persistForm &&
       FormStateManager.shouldRestoreForm(element)
     ) {
       Debug.debug("Capturing form states before update");
-      formStates = captureFormStates(element);
+      formStates = await domBatcher.read(
+        () => captureFormStates(element),
+        `capture-form-${element.id || 'unknown'}-${Date.now()}`
+      );
       Debug.debug("Captured form states:", formStates);
     }
 
@@ -272,7 +276,7 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
     }
 
     const updateContent = () => {
-      return new Promise<void>((resolve) => {
+      return new Promise<void>(async (resolve) => {
         // Publish beforeDomUpdate event
         EventSystem.publish("beforeDomUpdate", {
           element,
@@ -292,39 +296,67 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
         }
 
         if (!forceFullUpdate) {
-          const virtualContainer = document.createElement("div");
-          virtualContainer.innerHTML = newHTML.trim();
+          // Batch DOM operations for morphing
+          await domBatcher.batch([
+            {
+              type: 'read',
+              operation: () => {
+                const oldKeyedElements = new Map();
+                indexTree(element, oldKeyedElements);
+                return oldKeyedElements;
+              },
+              id: `index-old-${element.id || 'unknown'}-${Date.now()}`
+            },
+            {
+              type: 'write',
+              operation: () => {
+                const virtualContainer = document.createElement("div");
+                virtualContainer.innerHTML = newHTML.trim();
+                
+                const oldKeyedElements = new Map();
+                const newKeyedElements = new Map();
+                indexTree(element, oldKeyedElements);
+                indexTree(virtualContainer, newKeyedElements);
 
-          const oldKeyedElements = new Map();
-          const newKeyedElements = new Map();
-          indexTree(element, oldKeyedElements);
-          indexTree(virtualContainer, newKeyedElements);
-
-          morphChildren(
-            element,
-            virtualContainer,
-            oldKeyedElements,
-            newKeyedElements,
-          );
+                morphChildren(
+                  element,
+                  virtualContainer,
+                  oldKeyedElements,
+                  newKeyedElements,
+                );
+              },
+              id: `morph-${element.id || 'unknown'}-${Date.now()}`
+            }
+          ]);
         } else {
-          element.innerHTML = newHTML.trim();
-          Debug.debug("Force full update, skipping morphChildren");
+          await domBatcher.write(
+            () => {
+              element.innerHTML = newHTML.trim();
+              Debug.debug("Force full update, skipping morphChildren");
+            },
+            `full-update-${element.id || 'unknown'}-${Date.now()}`
+          );
         }
 
-        // Single form restoration
+        // Single form restoration (DOM write operation)
         if (
           ConfigManager.getConfig().persistForm &&
           FormStateManager.shouldRestoreForm(element) &&
           formStates
         ) {
           Debug.debug("Restoring form states after update");
-          FormStateManager.restoreFormStates(
-            element,
-            "updateDOM - form state restoration - restoreFormStates",
-          );
-          setupFormSubmitHandlers(
-            element,
-            "updateDOM - form state restoration - setupFormSubmitHandlers",
+          await domBatcher.write(
+            () => {
+              FormStateManager.restoreFormStates(
+                element,
+                "updateDOM - form state restoration - restoreFormStates",
+              );
+              setupFormSubmitHandlers(
+                element,
+                "updateDOM - form state restoration - setupFormSubmitHandlers",
+              );
+            },
+            `restore-form-${element.id || 'unknown'}-${Date.now()}`
           );
         }
 
@@ -356,23 +388,38 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
       await updateContent();
     }
 
-    // Final form state restoration if needed
+    // Final form state restoration if needed (batched DOM operations)
     if (
       ConfigManager.getConfig().persistForm &&
       FormStateManager.shouldRestoreForm(element)
     ) {
       Debug.debug("Restoring form states after update");
-      const n = AttributeMatcher.findMatchingElements("persist", "true");
-      const elements = Array.isArray(n) ? n : [n];
-      Debug.debug(`Found ${elements.length} inputs to restore`);
-      FormStateManager.restoreFormStates(
-        element,
-        "updateDOM - final form state restoration - restoreFormStates",
-      );
-      setupFormSubmitHandlers(
-        element,
-        "updateDOM - final form state restoration - setupFormSubmitHandlers",
-      );
+      await domBatcher.batch([
+        {
+          type: 'read',
+          operation: () => {
+            const n = AttributeMatcher.findMatchingElements("persist", "true");
+            const elements = Array.isArray(n) ? n : [n];
+            Debug.debug(`Found ${elements.length} inputs to restore`);
+            return elements;
+          },
+          id: `find-persist-${element.id || 'unknown'}-${Date.now()}`
+        },
+        {
+          type: 'write',
+          operation: () => {
+            FormStateManager.restoreFormStates(
+              element,
+              "updateDOM - final form state restoration - restoreFormStates",
+            );
+            setupFormSubmitHandlers(
+              element,
+              "updateDOM - final form state restoration - setupFormSubmitHandlers",
+            );
+          },
+          id: `final-restore-${element.id || 'unknown'}-${Date.now()}`
+        }
+      ]);
     }
 
     if (formObserver) {
