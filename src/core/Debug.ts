@@ -50,7 +50,7 @@ export class FlowPlaterError extends Error {
     super(message);
     this.name = "FlowPlaterError";
     if (stack !== undefined) {
-      this.stack = stack;
+    this.stack = stack;
     }
   }
 }

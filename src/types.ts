@@ -72,12 +72,14 @@ export interface Processor {
 }
 
 export interface FlowPlaterObj {
+  VERSION: string;
+  AUTHOR: string;
+  LICENSE: string;
   compileTemplate: (templateId: string, recompile?: boolean) => any;
   render: (options: any) => any;
   getInstance: (instanceName: string) => FlowPlaterInstance | undefined;
   getInstances: () => Record<string, FlowPlaterInstance>;
   getOrCreateInstance: (instanceName: string, initialData?: Record<string, any>) => any;
-  PluginManager: any;
   getGroup: (groupName: string) => any;
   getOrCreateGroup: (groupName: string, initialData?: Record<string, any>) => any;
   getGroups: () => any;
@@ -108,9 +110,6 @@ export interface FlowPlaterObj {
   init: (element?: Document | FlowPlaterElement, options?: { render: boolean }) => FlowPlaterObj;
   ready: (callback: (instance: FlowPlaterObj) => void) => FlowPlaterObj;
   cleanup: (instanceName?: string) => FlowPlaterObj;
-  version: string;
-  author: string;
-  license: string;
   setCustomTags: (tags: any[]) => void;
   config: (newConfig?: Partial<FlowPlaterConfig>) => FlowPlaterObj;
   getConfig: () => FlowPlaterConfig;
