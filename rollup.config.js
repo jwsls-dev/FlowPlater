@@ -2,6 +2,14 @@ const { nodeResolve } = require("@rollup/plugin-node-resolve");
 const commonjs = require("@rollup/plugin-commonjs");
 const typescript = require("@rollup/plugin-typescript");
 const terser = require("@rollup/plugin-terser");
+const fs = require("fs");
+const path = require("path");
+
+// Read the license file
+const licenseContent = fs.readFileSync(
+  path.join(__dirname, "src", "licence.js"),
+  "utf-8",
+);
 
 module.exports = {
   input: "src/core/FlowPlater.ts",
@@ -9,7 +17,7 @@ module.exports = {
     file: "dist/flowplater.js",
     format: "iife",
     name: "FlowPlater",
-    banner: "/**!\n@preserve FlowPlater starts here \n*/",
+    banner: licenseContent,
     sourcemap: false,
     globals: {
       fs: "fs",
