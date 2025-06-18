@@ -65,6 +65,7 @@ export const InstanceManager = {
         elements: [element],
         template: null, // Template will be assigned by caller
         templateId: AttributeMatcher._getRawAttribute(element, "template") || "",
+        templateElement: element, // Store direct reference to the template element
         data: initialData as ProxyConstructor & Record<string, any>, // Assign initial data, caller MUST replace with Proxy
         cleanup: () => {
           // Remove from group if part of one

@@ -380,6 +380,9 @@ export const AttributeMatcher = {
    * @returns {FlowPlaterElement | null} The template element or null if not found
    * @description Finds the element that has both the matching instance name/ID and the fp-template attribute.
    * This is the "template element" that defines the template for an instance.
+   * 
+   * Note: For existing instances, it's more efficient to use instance.getTemplateElement() 
+   * instead of calling this method, as it avoids DOM searches.
    */
   findTemplateElementByInstanceName(instanceName: string): FlowPlaterElement | null {
     // Handle ID selector format (#elementId)

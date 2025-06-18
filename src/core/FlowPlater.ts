@@ -11,7 +11,6 @@ import { PluginManager } from "./PluginManager";
 import { loadFromLocalStorage } from "../utils/LocalStorage";
 import { AttributeMatcher } from "../utils/AttributeMatcher";
 import { ConfigManager } from "./ConfigManager";
-import { deepMerge } from "../utils/DeepMerge";
 
 import { compileTemplate, render } from "./Template";
 import {
@@ -62,8 +61,24 @@ const VERSION = "1.5.1";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 
-// Initialize state with default config
-ConfigManager.setConfig(ConfigManager.getDefaultConfig());
+// Set default configuration without logging
+ConfigManager.setDefaultConfig(ConfigManager.getDefaultConfig());
+
+// Queue meta tag config if present
+const metaElement: HTMLMetaElement | null = document.querySelector('meta[name="fp-config"]');
+if (metaElement) {
+  try {
+    const metaConfig = JSON.parse(metaElement.content);
+    // Queue the meta config - will be applied with other queued configs
+    ConfigManager.setConfig(metaConfig);
+  } catch (e) {
+    Debug.error(
+      "Error parsing fp-config meta tag content:",
+      metaElement.content,
+      e,
+    );
+  }
+}
 
 // Initialize request handling
 RequestHandler.setupEventListeners();
@@ -244,11 +259,13 @@ const FlowPlaterObj: FlowPlaterObj = {
   getInstances,
 
   getOrCreateInstance(instanceName: string, initialData: Record<string, any> = {}) {
-    const element = AttributeMatcher.findTemplateElementByInstanceName(instanceName);
+    // Try to find any element with this instance name first
+    const element = AttributeMatcher.findElementByInstanceName(instanceName);
     if (!element) {
-      Debug.error(`Template element not found for instance: ${instanceName}`);
+      Debug.error(`Element not found for instance: ${instanceName}`);
       return null;
     }
+    // InstanceManager will handle finding the template element if this isn't one
     return InstanceManager.getOrCreateInstance(element, initialData);
   },
 
@@ -434,6 +451,9 @@ const FlowPlaterObj: FlowPlaterObj = {
       Performance.end("init-element");
       return this;
     }
+
+    // Submit any queued configuration changes before initialization begins
+    ConfigManager.submitQueuedConfig();
 
     Performance.start("init");
     Debug.info("Initializing FlowPlater...");
@@ -853,24 +873,6 @@ const FlowPlaterObj: FlowPlaterObj = {
     return PluginManager.listTransformers(transformationType);
   },
 };
-
-// Read initial config from meta tag and apply it using ConfigManager
-let initialConfig = ConfigManager.getDefaultConfig(); // Start with defaults
-const metaElement: HTMLMetaElement | null = document.querySelector('meta[name="fp-config"]');
-if (metaElement) {
-  try {
-    const metaConfig = JSON.parse(metaElement.content);
-    // Use the imported deepMerge utility, remove the local definition
-    initialConfig = deepMerge(initialConfig, metaConfig);
-  } catch (e) {
-    Debug.error(
-      "Error parsing fp-config meta tag content:",
-      metaElement.content,
-      e,
-    );
-  }
-}
-ConfigManager.setConfig(initialConfig); // Apply the combined initial config
 
 EventSystem.publish("loaded");
 
