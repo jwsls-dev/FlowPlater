@@ -9,6 +9,7 @@ import { loadFromLocalStorage, saveToLocalStorage, createDeepProxy, deepMerge } 
 import { compileTemplate } from "./TemplateCompiler";
 import { PluginManager } from "../core/PluginManager";
 import { ConfigManager } from "../core/ConfigManager";
+import { DEFAULTS, withDefault } from "../core/DefaultConfig";
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
 
 declare const htmx: any;
@@ -36,7 +37,7 @@ export function render({
   skipRender?: boolean;
   isStoredDataRender?: boolean;
 }) {
-  Performance.start("render:" + (instanceName || "anonymous"));
+  Performance.start("render:" + withDefault(instanceName, DEFAULTS.TEMPLATE.ANONYMOUS_INSTANCE_NAME));
 
   // Track initialization to prevent redundant initialization of the same instance
   if (!_state._initTracking) {
@@ -65,10 +66,10 @@ export function render({
     _state._initTracking[derivedInstanceName] &&
     !isStoredDataRender
   ) {
-    const timeSinceLastInit =
-      Date.now() - _state._initTracking[derivedInstanceName];
-    if (timeSinceLastInit < 100) {
-      // 100ms window to prevent duplicate initializations
+          const timeSinceLastInit =
+        Date.now() - _state._initTracking[derivedInstanceName];
+      if (timeSinceLastInit < DEFAULTS.INSTANCES.DUPLICATE_INIT_WINDOW) {
+              // Prevent duplicate initializations within the configured window
       Debug.warn(
         `[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`,
       );
@@ -96,7 +97,7 @@ export function render({
   /* -------------------------------------------------------------------------- */
 
   // Handle empty or "self" template
-  if (!template || template === "self") {
+  if (!template || template === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID) {
     const targetElement = typeof target === "string" ? document.querySelector(target) : target;
     if (targetElement) {
       template = "#" + (targetElement as HTMLElement).id;
@@ -247,10 +248,10 @@ export function render({
             "innerHTML",
           );
           const swapSpec = {
-            swapStyle: swapStyle || "innerHTML",
-            swapDelay: 0,
-            settleDelay: 0,
-            transition: swapStyle?.includes("transition:true") || false,
+                      swapStyle: withDefault(swapStyle, DEFAULTS.HTMX.SWAP_STYLE),
+          swapDelay: DEFAULTS.HTMX.SWAP_DELAY,
+          settleDelay: DEFAULTS.HTMX.SETTLE_DELAY,
+          transition: swapStyle?.includes("transition:true") || DEFAULTS.HTMX.TRANSITION,
           };
 
           // Use htmx.swap with proper swap specification
@@ -343,7 +344,7 @@ export function render({
       Debug.info(`Instance ${instanceName} is using group ${groupName} data`);
     } else {
       // 2. Create the proxy with the final merged data and DEBOUNCED update handler
-      const DEBOUNCE_DELAY = 0;
+      const DEBOUNCE_DELAY = DEFAULTS.PERFORMANCE.DEBOUNCE_DELAY;
 
       proxy = createDeepProxy(finalInitialData, () => {
         if (instance) {

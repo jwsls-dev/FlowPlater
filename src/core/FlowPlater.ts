@@ -10,6 +10,7 @@ import { PluginManager } from "./PluginManager";
 import { loadFromLocalStorage } from "../storage";
 import { AttributeMatcher } from "../dom";
 import { ConfigManager } from "./ConfigManager";
+import { DEFAULTS } from "./DefaultConfig";
 
 import { compileTemplate, render, replaceCustomTags, setCustomTags, TemplateCache } from "../template";
 import { registerHelpers } from "../helpers/index";
@@ -406,7 +407,7 @@ const FlowPlaterObj: FlowPlaterObj = {
     // Initialize each template
     templates.forEach((template) => {
       let templateId = AttributeMatcher._getRawAttribute(template, "template");
-      if (templateId === "self" || templateId === "") {
+              if (templateId === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID || templateId === "") {
         templateId = template.id;
       }
 

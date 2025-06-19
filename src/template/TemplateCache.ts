@@ -1,6 +1,7 @@
 import { Debug } from "../core/Debug";
 import { ConfigManager } from "../core/ConfigManager";
 import { _state } from "../core/State";
+import { DEFAULTS } from "../core/DefaultConfig";
 
 /**
  * Centralized template cache management utility
@@ -14,7 +15,7 @@ export class TemplateCache {
    * @returns The template that was added
    */
   static set(templateId: string, template: any): any {
-    const cacheSize = ConfigManager.getConfig().templates?.cacheSize || 100;
+    const cacheSize = ConfigManager.getConfig().templates?.cacheSize || DEFAULTS.TEMPLATE.CACHE_SIZE;
     const cache = _state.templateCache;
 
     // If cache is at limit, remove oldest entry (FIFO eviction)
@@ -77,7 +78,7 @@ export class TemplateCache {
    * @returns True if cache is at or over capacity
    */
   static isAtCapacity(): boolean {
-    const cacheSize = ConfigManager.getConfig().templates?.cacheSize || 100;
+    const cacheSize = ConfigManager.getConfig().templates?.cacheSize || DEFAULTS.TEMPLATE.CACHE_SIZE;
     return Object.keys(_state.templateCache).length >= cacheSize;
   }
 } 

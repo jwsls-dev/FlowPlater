@@ -2,57 +2,49 @@ import { _state } from "./State";
 import { Debug } from "./Debug";
 import { setCustomTags, customTagList } from "../template";
 import { deepMerge } from "../storage";
+import { DEFAULTS } from "./DefaultConfig";
 
 import { FlowPlaterConfig } from "../types";
 
 declare const htmx: any;
 
+// Determine debug level based on environment
+const isDevEnvironment = DEFAULTS.URL.WEBFLOW_DOMAINS.some(domain => 
+  window.location.hostname.endsWith(domain)
+) || window.location.hostname.includes(DEFAULTS.URL.LOCALHOST);
+
 const defaultConfig: FlowPlaterConfig = {
   debug: {
-    level:
-      window.location.hostname.endsWith(".webflow.io") ||
-      window.location.hostname.endsWith(".canvas.webflow.com") ||
-      window.location.hostname.endsWith("localhost")
-        ? 3
-        : 1,
+    level: isDevEnvironment ? DEFAULTS.DEBUG.DEVELOPMENT_LEVEL : DEFAULTS.DEBUG.LEVEL,
   },
   selectors: {
-    fp: [
-      "template",
-      "get",
-      "post",
-      "put",
-      "delete",
-      "patch",
-      "persist",
-      "instance",
-    ],
+    fp: DEFAULTS.SELECTORS.FP_ATTRIBUTES,
   },
   templates: {
-    cacheSize: 100,
-    precompile: true,
+    cacheSize: DEFAULTS.TEMPLATE.CACHE_SIZE,
+    precompile: DEFAULTS.TEMPLATE.PRECOMPILE,
   },
   animation: {
-    enabled: true,
-    duration: 300,
+    enabled: DEFAULTS.ANIMATION.ENABLED,
+    duration: DEFAULTS.ANIMATION.DURATION,
   },
   htmx: {
-    timeout: 10000,
-    swapStyle: "innerHTML",
-    selfRequestsOnly: false,
-    ignoreTitle: true,
+    timeout: DEFAULTS.HTMX.TIMEOUT,
+    swapStyle: DEFAULTS.HTMX.SWAP_STYLE,
+    selfRequestsOnly: DEFAULTS.HTMX.SELF_REQUESTS_ONLY,
+    ignoreTitle: DEFAULTS.HTMX.IGNORE_TITLE,
   },
   customTags: customTagList,
   storage: {
-    enabled: false,
-    ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+    enabled: DEFAULTS.STORAGE.ENABLED,
+    ttl: DEFAULTS.STORAGE.TTL,
   },
   performance: {
-    batchDomUpdates: true,
-    batchingDelay: 0, // 0 uses requestAnimationFrame, >0 uses setTimeout with delay
+    batchDomUpdates: DEFAULTS.PERFORMANCE.BATCH_DOM_UPDATES,
+    batchingDelay: DEFAULTS.PERFORMANCE.BATCHING_DELAY,
   },
-  persistForm: true,
-  allowExecute: true,
+  persistForm: DEFAULTS.FORMS.PERSIST_FORMS,
+  allowExecute: DEFAULTS.SECURITY.ALLOW_EXECUTE,
 };
 
 /**

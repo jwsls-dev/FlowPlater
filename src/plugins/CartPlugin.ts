@@ -4,6 +4,7 @@
  */
 
 import { AttributeMatcher } from "../dom";
+import { DEFAULTS, withDefault } from "../core/DefaultConfig";
 import currency from "currency.js";
 
 declare const FlowPlater: any;
@@ -29,29 +30,29 @@ const CartPlugin = (customConfig = {}) => {
 
   const config = {
     name: "cart",
-    enabled: true,
-    priority: 50,
-    version: "1.0.0",
+    enabled: DEFAULTS.CART.ENABLED,
+    priority: DEFAULTS.CART.PRIORITY,
+    version: DEFAULTS.PLUGINS.DEFAULT_VERSION,
     dependencies: ["data-extractor"],
     optionalDependencies: [],
     settings: {
-      debug: false,
-      dataAttribute: "product", // Default data attribute to look for
-      group: "cart",
-      requiredKeys: ["id", "name"], // Required keys in product data
+      debug: DEFAULTS.PLUGINS.DEBUG,
+      dataAttribute: DEFAULTS.CART.DATA_ATTRIBUTE,
+      group: DEFAULTS.CART.GROUP_NAME,
+      requiredKeys: DEFAULTS.CART.REQUIRED_KEYS,
     },
     description: "Shopping cart functionality for FlowPlater",
     author: "FlowPlater Team",
     currency: {
-      name: "USD",
-      symbol: "$",
-      precision: 2,
-      separator: ",", // default thousands separator
-      decimal: ".", // default decimal separator
+      name: DEFAULTS.CART.CURRENCY.NAME,
+      symbol: DEFAULTS.CART.CURRENCY.SYMBOL,
+      precision: DEFAULTS.CART.CURRENCY.PRECISION,
+      separator: DEFAULTS.CART.CURRENCY.SEPARATOR,
+      decimal: DEFAULTS.CART.CURRENCY.DECIMAL,
       ...(customConfig as any).currency,
     },
-    taxRates: [{ name: "VAT", value: 1.21 }],
-    locale: (customConfig as any).locale || "en-US",
+    taxRates: DEFAULTS.CART.TAX_RATES,
+    locale: withDefault((customConfig as any).locale, DEFAULTS.CART.LOCALE),
   };
 
   Object.assign(config, customConfig);

@@ -5,6 +5,7 @@
 
 import { FormStateManager } from "../forms";
 import { EventSystem } from "../events";
+import { DEFAULTS } from "../core/DefaultConfig";
 import { FlowPlaterObj, FlowPlaterInstance, TransformerDataType } from "../types";
 
 declare const FlowPlater: FlowPlaterObj;
@@ -18,13 +19,13 @@ declare const FlowPlater: FlowPlaterObj;
 const FilterPlugin = (customConfig = {}) => {
   const config = {
     name: "filter",
-    enabled: true,
-    priority: 0,
-    version: "1.0.0",
+    enabled: DEFAULTS.FILTER.ENABLED,
+    priority: DEFAULTS.FILTER.PRIORITY,
+    version: DEFAULTS.PLUGINS.DEFAULT_VERSION,
     dependencies: [],
     optionalDependencies: [],
     settings: {
-      debug: false,
+      debug: DEFAULTS.PLUGINS.DEBUG,
     },
     description: "Filters data based on form inputs",
     author: "FlowPlater Team",

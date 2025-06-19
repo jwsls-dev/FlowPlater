@@ -1,4 +1,5 @@
 import { sortFunction } from "./_sort";
+import { DEFAULTS } from "../../core/DefaultConfig";
 
 export function eachHelper() {
   const Handlebars = (window as any).Handlebars;
@@ -16,11 +17,11 @@ export function eachHelper() {
     // sortBeforeLimit: sort before limiting (default: true)
 
     var result = "";
-    var limit = options.hash.limit || undefined;
-    var startAt = options.hash.startAt || 0;
-    var key = options.hash.sortBy || "";
-    var descending = options.hash.descending || false;
-    var sortBeforeLimit = options.hash.sortBeforeLimit || true;
+      var limit = options.hash.limit || undefined;
+  var startAt = options.hash.startAt || DEFAULTS.HELPERS.EACH.START_AT;
+  var key = options.hash.sortBy || DEFAULTS.HELPERS.EACH.SORT_KEY;
+  var descending = options.hash.descending || DEFAULTS.HELPERS.EACH.DESCENDING;
+  var sortBeforeLimit = options.hash.sortBeforeLimit || DEFAULTS.HELPERS.EACH.SORT_BEFORE_LIMIT;
     var inverse = options.inverse;
     var fn = options.fn;
     var data;

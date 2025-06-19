@@ -1,5 +1,6 @@
 import { compare } from "./_compare";
 import { Debug, TemplateError } from "../../core/Debug";
+import { DEFAULTS } from "../../core/DefaultConfig";
 
 export function ifHelper() {
   const Handlebars = (window as any).Handlebars;
@@ -88,7 +89,7 @@ export function ifHelper() {
         ? resolveValue(rightToken, options.data.root, this)
         : true;
 
-      operator = operator || "==";
+      operator = operator || DEFAULTS.HELPERS.COMPARISON.DEFAULT_OPERATOR;
 
       // Log resolved values for debugging
       Debug.info("Evaluating expression:", {
