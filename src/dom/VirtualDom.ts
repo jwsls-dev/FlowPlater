@@ -1,4 +1,6 @@
 import { Performance } from "../utils/Performance";
+import { FormStateManager } from "../forms/FormStateManager";
+import { Debug } from "../core/Debug";
 
 interface VNode {
   tag: string;
@@ -48,8 +50,6 @@ class VirtualDOM {
   static parseHTML(html: string): VNode[] {
     Performance.start('VirtualDOM.parseHTML');
     
-    console.debug(`VirtualDOM.parseHTML: Input HTML length: ${html.length}`);
-    
     const container = document.createElement('div');
     // Don't trim the HTML - preserve original spacing
     container.innerHTML = html;
@@ -57,8 +57,6 @@ class VirtualDOM {
     const vnodes = Array.from(container.childNodes).map(node => 
       this.nodeToVNode(node)
     ).filter(Boolean) as VNode[];
-    
-    console.debug(`VirtualDOM.parseHTML: Generated ${vnodes.length} vnodes`);
     
     Performance.end('VirtualDOM.parseHTML');
     return vnodes;
@@ -93,11 +91,9 @@ class VirtualDOM {
         
         if (isInInlineContainer && isBetweenElements) {
           // Preserve whitespace that might be meaningful between inline elements
-          console.debug(`VirtualDOM: Preserving whitespace between elements in <${parent?.tagName.toLowerCase()}>`);
           return text;
         } else {
           // Skip formatting whitespace
-          console.debug(`VirtualDOM: Skipping formatting whitespace (parent: ${parent?.tagName.toLowerCase() || 'none'}, between: ${isBetweenElements})`);
           return null;
         }
       }
@@ -107,7 +103,6 @@ class VirtualDOM {
     }
 
     if (node.nodeType === Node.COMMENT_NODE) {
-      console.debug(`VirtualDOM.nodeToVNode: Skipping comment node: ${node.textContent}`);
       return null; // Skip comments
     }
 
@@ -162,13 +157,9 @@ class VirtualDOM {
   static domToVNodes(element: HTMLElement): VNode[] {
     Performance.start('VirtualDOM.domToVNodes');
     
-    console.debug(`VirtualDOM.domToVNodes: Processing element with ${element.childNodes.length} child nodes`);
-    
     const vnodes = Array.from(element.childNodes)
       .map(node => this.nodeToVNode(node))
       .filter(Boolean) as VNode[];
-    
-    console.debug(`VirtualDOM.domToVNodes: Generated ${vnodes.length} vnodes`);
     
     Performance.end('VirtualDOM.domToVNodes');
     return vnodes;
@@ -203,7 +194,6 @@ class VirtualDOM {
       
       if (oldIsWhitespace && newIsWhitespace) {
         // Consider all whitespace-only text nodes equal to each other
-        console.debug('VirtualDOM: Treating whitespace-only text nodes as equal');
         return true;
       }
       
@@ -271,21 +261,16 @@ class VirtualDOM {
     // Add null/undefined checks
     if (!oldVNodes || !Array.isArray(oldVNodes)) {
       Performance.end('VirtualDOM.diff');
-      console.warn('VirtualDOM.diff: oldVNodes is not a valid array', oldVNodes);
       return [];
     }
     
     if (!newVNodes || !Array.isArray(newVNodes)) {
       Performance.end('VirtualDOM.diff');
-      console.warn('VirtualDOM.diff: newVNodes is not a valid array', newVNodes);
       return [];
     }
     
-    console.debug(`VirtualDOM: Diffing ${oldVNodes.length} old nodes vs ${newVNodes.length} new nodes`);
-    
     // Quick check: if the trees are structurally identical, skip diffing
     if (this.areVNodeTreesEqual(oldVNodes, newVNodes)) {
-      console.debug('VirtualDOM: Trees are identical, skipping diff');
       Performance.end('VirtualDOM.diff');
       return [];
     }
@@ -343,8 +328,6 @@ class VirtualDOM {
     const unprocessedNew = newVNodes.filter((_, i) => !processedNew.has(i));
     const usedOldIndices = new Set<number>();
     
-    console.debug(`VirtualDOM: After keyed matching - Unprocessed old: ${unprocessedOld.length}, Unprocessed new: ${unprocessedNew.length}`);
-
     // Try to match remaining new elements with remaining old elements
     unprocessedNew.forEach((newVNode) => {
       const actualNewIndex = newVNodes.findIndex(vn => vn === newVNode);
@@ -419,8 +402,6 @@ class VirtualDOM {
         });
       }
     });
-    
-    console.debug(`VirtualDOM: Diff complete. Generated ${patches.length} patches`);
     
     Performance.end('VirtualDOM.diff');
     return patches;
@@ -653,8 +634,6 @@ class VirtualDOM {
     return patches;
   }
 
-
-
   /**
    * Find best match for non-keyed element using similarity scoring
    */
@@ -781,10 +760,8 @@ class VirtualDOM {
   /**
    * Apply patch operations to the DOM
    */
-  static patch(container: HTMLElement, patches: PatchOperation[]): void {
+  static patch(container: HTMLElement, patches: PatchOperation[], expectedVNodes?: VNode[], capturedFormStates?: Record<string, Record<string, any>>): void {
     Performance.start('VirtualDOM.patch');
-    
-    console.debug(`VirtualDOM: Processing ${patches.length} total patches`);
     
     // Group patches by type for optimal batching
     const patchGroups = {
@@ -814,14 +791,6 @@ class VirtualDOM {
       }
     });
     
-    console.debug(`VirtualDOM: Patch groups:`, {
-      replaces: patchGroups.replaces.length,
-      moves: patchGroups.moves.length,
-      removes: patchGroups.removes.length,
-      creates: patchGroups.creates.length,
-      updates: patchGroups.updates.length
-    });
-
     // Apply patches in optimal order: replaces first, then removes, then creates, then moves, then updates
     this.applyReplaces(patchGroups.replaces);
     this.applyRemoves(container, patchGroups.removes);
@@ -829,8 +798,79 @@ class VirtualDOM {
     this.applyMoves(container, patchGroups.moves);
     this.applyUpdates(patchGroups.updates);
     
+    // Perform post-update verification if expected state is provided and enabled
+    if (expectedVNodes && expectedVNodes.length > 0) {
+      try {
+        this.verifyDOMIntegrity(container, expectedVNodes, capturedFormStates);
+      } catch (error) {
+        Debug.error('VirtualDOM: Error during integrity check:', error);
+      }
+    }
+    
     Performance.end('VirtualDOM.patch');
   }
+
+    /**
+   * Verify that the actual DOM matches the expected HTML
+   * If there's a mismatch, force update the DOM to match the expected state
+   */
+  private static verifyDOMIntegrity(container: HTMLElement, expectedVNodes: VNode[], capturedFormStates?: Record<string, Record<string, any>>): void {
+    Performance.start('VirtualDOM.verifyDOMIntegrity');
+    
+    // Convert expected VNodes back to HTML string
+    const expectedHTML = this.vNodesToHTML(expectedVNodes);
+    
+    // Get current DOM as HTML string
+    const currentHTML = container.innerHTML;
+    
+    // Normalize both for comparison (remove extra whitespace, line breaks)
+    const normalize = (html: string) => html.replace(/\s+/g, ' ').trim();
+    
+    if (normalize(expectedHTML) !== normalize(currentHTML)) {
+      Debug.warn(`VirtualDOM: DOM integrity check failed - forcing innerHTML update`);
+      
+      // Force update with expected HTML
+      container.innerHTML = expectedHTML;
+      
+      // Only restore form values if we have captured states and verification failed
+      if (capturedFormStates && Object.keys(capturedFormStates).length > 0) {
+        Debug.debug(`VirtualDOM: Restoring form states after integrity fix`);
+        FormStateManager.restoreFormStates(container, 'VirtualDOM.verifyDOMIntegrity');
+      }
+      
+      Debug.debug(`VirtualDOM: DOM integrity restored via innerHTML`);
+    } else {
+      Debug.debug(`VirtualDOM: DOM integrity check passed`);
+    }
+    
+    Performance.end('VirtualDOM.verifyDOMIntegrity');
+  }
+
+  /**
+   * Convert VNodes back to HTML string
+   */
+  private static vNodesToHTML(vnodes: (VNode | string)[]): string {
+    return vnodes.map(vnode => {
+      if (typeof vnode === 'string') {
+        return vnode;
+      }
+      
+      const attrs = Object.entries(vnode.attrs || {})
+        .map(([key, value]) => `${key}="${value}"`)
+        .join(' ');
+      
+      const attrsStr = attrs ? ` ${attrs}` : '';
+      const childrenHTML = this.vNodesToHTML(vnode.children);
+      
+      if (this.VOID_ELEMENTS.has(vnode.tag)) {
+        return `<${vnode.tag}${attrsStr}>`;
+      }
+      
+      return `<${vnode.tag}${attrsStr}>${childrenHTML}</${vnode.tag}>`;
+    }).join('');
+  }
+
+
 
   private static applyReplaces(replaces: PatchOperation[]): void {
     replaces.forEach(patch => {
@@ -838,7 +878,6 @@ class VirtualDOM {
         const newElement = this.createElementFromVNode(patch.vnode);
         this.cleanupElement(patch.target);
         patch.target.parentNode.replaceChild(newElement, patch.target);
-        console.debug(`VirtualDOM: Successfully replaced element`);
       }
     });
   }
@@ -897,18 +936,10 @@ class VirtualDOM {
   }
 
   private static applyRemoves(container: HTMLElement, removes: PatchOperation[]): void {
-    console.debug(`VirtualDOM: Attempting to remove ${removes.length} elements`);
-    
     // Separate different types of removes
     const elementRemoves = removes.filter(patch => patch.target && patch.target.parentNode);
     const textNodeRemoves = removes.filter(patch => patch.textNodeIndex !== undefined);
     const indexRemoves = removes.filter(patch => !patch.target && patch.oldIndex !== undefined);
-    
-    console.debug(`VirtualDOM: Remove breakdown:`, {
-      elementRemoves: elementRemoves.length,
-      textNodeRemoves: textNodeRemoves.length,
-      indexRemoves: indexRemoves.length
-    });
     
     // Combine all index-based removals (both elements and text nodes) and sort by index descending
     // This prevents index shifting issues
@@ -922,17 +953,10 @@ class VirtualDOM {
     });
     
     // Remove elements with direct references first
-    elementRemoves.forEach((patch, index) => {
-      console.debug(`VirtualDOM: Remove element operation ${index + 1}:`, {
-        hasTarget: !!patch.target,
-        hasParent: !!(patch.target && patch.target.parentNode),
-        targetElement: patch.target
-      });
-      
+    elementRemoves.forEach((patch) => {
       if (patch.target && patch.target.parentNode) {
         this.cleanupElement(patch.target);
         patch.target.parentNode.removeChild(patch.target);
-        console.debug(`VirtualDOM: Successfully removed element:`, patch.target);
       }
     });
     
@@ -945,16 +969,10 @@ class VirtualDOM {
       if (nodeToRemove) {
         if (patch.isTextNode && nodeToRemove.nodeType === Node.TEXT_NODE) {
           container.removeChild(nodeToRemove);
-          console.debug(`VirtualDOM: Successfully removed text node at index ${indexToRemove}: "${nodeToRemove.textContent}"`);
         } else if (!patch.isTextNode && nodeToRemove.nodeType === Node.ELEMENT_NODE) {
           this.cleanupElement(nodeToRemove as HTMLElement);
           container.removeChild(nodeToRemove);
-          console.debug(`VirtualDOM: Successfully removed element by index ${indexToRemove}:`, nodeToRemove);
-        } else {
-          console.warn(`VirtualDOM: Node type mismatch at index ${indexToRemove}. Expected ${patch.isTextNode ? 'text' : 'element'}, found:`, nodeToRemove);
         }
-      } else {
-        console.warn(`VirtualDOM: Failed to find node at index ${indexToRemove}`);
       }
     });
   }
@@ -1081,7 +1099,7 @@ class VirtualDOM {
       // This preserves user interactions even when templates change
       const isCurrentlyChecked = element.checked;
       
-      console.debug(`VirtualDOM: Syncing Webflow visual state for ${element.type} - checked: ${isCurrentlyChecked}`);
+      Debug.debug(`VirtualDOM: Syncing Webflow visual state for ${element.type} - checked: ${isCurrentlyChecked}`);
       
       // Update the visual state class based on the actual input's current checked state
       if (isCurrentlyChecked) {

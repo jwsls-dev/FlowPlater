@@ -13,6 +13,7 @@ import {
 import { AttributeMatcher } from "../dom";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterInstance } from "../types";
+import { animate as runAnimation } from "../template";
 
 /**
  * Performs the actual DOM update logic
@@ -73,6 +74,13 @@ async function performDomUpdate(
     typeof vn === 'string' ? `${i}: "${vn}"` : `${i}: <${vn.tag}${vn.attrs.class ? ` class="${vn.attrs.class}"` : ''}>`
   ));
   
+  // Capture form states before making any changes (for integrity check fallback)
+  const formStates = await domBatcher.read(
+    () => captureFormStates(element),
+    `capture-form-integrity-${elementId}-${timestamp}`
+  );
+  Debug.debug(`performDomUpdate: Captured form states for integrity check:`, formStates);
+  
   // Write phase: diff and apply patches
   await domBatcher.batch([
     {
@@ -82,7 +90,8 @@ async function performDomUpdate(
         Debug.debug(`performDomUpdate: Generated ${patches.length} patches`);
         
         if (patches.length > 0) {
-          VirtualDOM.patch(element, patches);
+          // Pass the expected newVNodes and captured form states for post-update verification
+          VirtualDOM.patch(element, patches, newVNodes, formStates);
         } else {
           Debug.debug(`performDomUpdate: No patches to apply - content is identical`);
         }
@@ -237,11 +246,12 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
     };
 
     // Handle view transitions for animations
-    if (document.startViewTransition && animate) {
-      await document.startViewTransition(() => updateContent()).finished;
-    } else {
-      await updateContent();
-    }
+    await new Promise<void>(resolve => {
+      runAnimation(element, async () => {
+        await updateContent();
+        resolve();
+      });
+    });
 
     if (formObserver) {
       Debug.debug("Disconnecting form observer");
