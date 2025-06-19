@@ -1,7 +1,7 @@
 import { _state } from "./State";
 import { Debug } from "./Debug";
-import { setCustomTags, customTagList } from "./ReplaceCustomTags";
-import { deepMerge } from "../utils/DeepMerge";
+import { setCustomTags, customTagList } from "../template";
+import { deepMerge } from "../storage";
 
 import { FlowPlaterConfig } from "../types";
 

@@ -1,4 +1,4 @@
-import { Performance } from "./Performance";
+import { Performance } from "../utils/Performance";
 
 interface VNode {
   tag: string;

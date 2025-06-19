@@ -1,6 +1,6 @@
-import { Debug } from "./Debug";
-import { _state } from "./State";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { Debug } from "../core/Debug";
+import { _state } from "../core/State";
+import { AttributeMatcher } from "./AttributeMatcher";
 
 // * For each element with an fp-animation attribute set to true, or if defaults.animation is true, get the hx-swap attribute.
 // if the value is empty, set it to innerHTML transition:true

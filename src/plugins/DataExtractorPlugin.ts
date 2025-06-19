@@ -1,5 +1,5 @@
 import { FlowPlaterObj, TransformerDataType } from "../types";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { AttributeMatcher } from "../dom";
 import { getGroupedInputValue } from "./utils/inputUtils";
 
 declare const FlowPlater: FlowPlaterObj;

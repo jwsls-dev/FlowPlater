@@ -1,10 +1,10 @@
-import { Debug } from "./Debug";
-import { _state } from "./State";
+import { Debug } from "../core/Debug";
+import { _state } from "../core/State";
 import { Performance } from "../utils/Performance";
 import { memoize } from "../utils/Memoize";
 import { currentCustomTags } from "./ReplaceCustomTags";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
-import { ConfigManager } from "./ConfigManager";
+import { AttributeMatcher } from "../dom";
+import { ConfigManager } from "../core/ConfigManager";
 
 export function compileTemplate(templateId: string, recompile: boolean = false) {
   if (!recompile) {

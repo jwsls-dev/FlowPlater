@@ -1,30 +1,27 @@
-import { EventSystem } from "./EventSystem";
+import { EventSystem } from "../events";
 import { Debug, FlowPlaterError, TemplateError } from "./Debug";
 import { Performance } from "../utils/Performance";
 import { _state, getInstance, getInstances } from "./State";
 import { _readyState } from "./ReadyState";
 
-import { InstanceManager } from "./InstanceManager";
-import { GroupManager } from "./GroupManager";
+import { InstanceManager, GroupManager } from "../instance";
 import { PluginManager } from "./PluginManager";
 
-import { loadFromLocalStorage } from "../utils/LocalStorage";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { loadFromLocalStorage } from "../storage";
+import { AttributeMatcher } from "../dom";
 import { ConfigManager } from "./ConfigManager";
 
-import { compileTemplate, render } from "./Template";
-import {
-  replaceCustomTags,
-  setCustomTags,
-} from "./ReplaceCustomTags";
+import { compileTemplate, render, replaceCustomTags, setCustomTags } from "../template";
 import { registerHelpers } from "../helpers/index";
-import { RequestHandler } from "./RequestHandler";
-import { defineHtmxExtension } from "./DefineHtmxExtension";
-import { processPreload } from "./ProcessPreload";
-import { translateCustomHTMXAttributes } from "./TranslateHtmxAttributes";
-import { processUrlAffixes } from "./ProcessUrlAffixes";
-import { setupAnimation } from "./SetupAnimation";
-import { addHtmxExtensionAttribute } from "./AddHtmxExtensionAttribute";
+import { RequestHandler } from "../events";
+import { 
+  defineHtmxExtension, 
+  processPreload, 
+  translateCustomHTMXAttributes, 
+  processUrlAffixes, 
+  addHtmxExtensionAttribute 
+} from "../htmx";
+import { setupAnimation } from "../dom";
 import { 
   FlowPlaterElement, 
   ProcessingResult, 

@@ -1,7 +1,7 @@
 import { Debug, FlowPlaterError } from "./Debug";
 import { _state } from "./State";
 import { _readyState } from "./ReadyState";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { AttributeMatcher } from "../dom";
 import { 
   FlowPlaterPlugin, 
   FlowPlaterObj, 

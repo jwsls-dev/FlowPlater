@@ -1,17 +1,16 @@
-import { RequestHandler } from "./RequestHandler";
-import { Debug } from "./Debug";
+import { RequestHandler, EventSystem } from "../events";
+import { Debug } from "../core/Debug";
 import { parseXmlToJson } from "../utils/ParseXmlToJson";
-import { _state } from "./State";
+import { _state } from "../core/State";
 import {
   setupFormSubmitHandlers,
   cleanupFormChangeListeners,
   getAllRelevantForms,
-} from "../utils/FormPersistence";
-import { PluginManager } from "./PluginManager";
-import { InstanceManager } from "./InstanceManager";
-import { EventSystem } from "./EventSystem";
-import { FormStateManager } from "../utils/FormStateManager";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
+  FormStateManager
+} from "../forms";
+import { PluginManager } from "../core/PluginManager";
+import { InstanceManager } from "../instance";
+import { AttributeMatcher } from "../dom";
 
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
 

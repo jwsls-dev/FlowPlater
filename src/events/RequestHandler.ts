@@ -1,7 +1,7 @@
-import { Debug } from "./Debug";
+import { Debug } from "../core/Debug";
 import { EventSystem } from "./EventSystem";
-import { _state } from "./State";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { _state } from "../core/State";
+import { AttributeMatcher } from "../dom";
 import { FlowPlaterElement } from "../types";
 
 /**

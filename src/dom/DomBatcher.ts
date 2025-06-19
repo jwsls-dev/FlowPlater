@@ -1,5 +1,5 @@
 import { Debug } from "../core/Debug";
-import { Performance } from "./Performance";
+import { Performance } from "../utils/Performance";
 import { ConfigManager } from "../core/ConfigManager";
 
 interface DomOperation {

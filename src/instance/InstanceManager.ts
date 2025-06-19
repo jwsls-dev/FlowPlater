@@ -1,10 +1,10 @@
-import { Debug } from "./Debug";
-import { _state } from "./State";
-import { PluginManager } from "./PluginManager";
+import { Debug } from "../core/Debug";
+import { _state } from "../core/State";
+import { PluginManager } from "../core/PluginManager";
 import { instanceMethods } from "./InstanceMethods";
 import { GroupManager } from "./GroupManager";
-import { deepMerge } from "../utils/DeepMerge";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
+import { deepMerge } from "../storage";
+import { AttributeMatcher } from "../dom";
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
 
 export const InstanceManager = {

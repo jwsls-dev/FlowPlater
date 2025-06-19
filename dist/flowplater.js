@@ -254,21 +254,6 @@ var FlowPlater = (function () {
         };
     })();
 
-    const Performance = {
-        marks: {},
-        start: function (label) {
-            this.marks[label] = performance.now();
-        },
-        end: function (label) {
-            if (!this.marks[label])
-                return;
-            const duration = performance.now() - this.marks[label];
-            delete this.marks[label];
-            Debug.debug(`${label} took ${duration.toFixed(2)}ms`);
-            return duration;
-        },
-    };
-
     const _state = {
         templateCache: {},
         instances: {},
@@ -290,1658 +275,20 @@ var FlowPlater = (function () {
         return _state.instances;
     }
 
-    /**
-     * @typedef {Object} ReadyState
-     * @property {boolean} isReady - Whether FlowPlater is ready
-     * @property {Function[]} queue - Queue of functions to execute when ready
-     * @property {Set<string>} plugins - Set of registered plugin names
-     * @property {Function} processQueue - Process all queued functions
-     */
-    /**
-     * Manages FlowPlater's ready state and initialization queue
-     */
-    const _readyState = {
-        isReady: false,
-        queue: [],
-        plugins: new Set(),
-        hasPluginsRegistered: false,
-        /**
-         * Process all queued functions in order
-         */
-        processQueue() {
-            Debug.debug(`Processing ${this.queue.length} queued operations`);
-            while (this.queue.length > 0) {
-                const fn = this.queue.shift();
-                try {
-                    fn();
-                }
-                catch (error) {
-                    Debug.error("Error processing queued operation:", error);
-                }
-            }
-        },
-        /**
-         * Add a function to the queue or execute immediately if ready
-         * @param {Function} fn - Function to queue or execute
-         */
-        enqueue(fn) {
-            if (this.isReady) {
-                try {
-                    fn();
-                }
-                catch (error) {
-                    Debug.error("Error executing operation:", error);
-                }
-            }
-            else {
-                this.queue.push(fn);
-            }
-        },
-        /**
-         * Mark FlowPlater as ready and process queue
-         */
-        markReady() {
-            // If no plugins have been registered at all, that's fine
-            if (this.plugins.size === 0 && !this.hasPluginsRegistered) {
-                Debug.info("No plugins registered, proceeding with initialization");
-            }
-            this.isReady = true;
-            this.processQueue();
-        },
-        /**
-         * Register a plugin and mark that we have plugins
-         * @param {string} pluginName - Name of the plugin being registered
-         */
-        registerPlugin(pluginName) {
-            this.hasPluginsRegistered = true;
-            this.plugins.add(pluginName);
-            Debug.debug(`Plugin registered: ${pluginName}, total plugins: ${this.plugins.size}`);
-        },
-        /**
-         * Unregister a plugin from the ready state
-         * @param {string} pluginName - Name of the plugin to unregister
-         * @returns {boolean} True if the plugin was unregistered, false if it wasn't registered
-         */
-        unregisterPlugin(pluginName) {
-            const wasRemoved = this.plugins.delete(pluginName);
-            if (wasRemoved) {
-                Debug.debug(`Plugin unregistered: ${pluginName}, remaining plugins: ${this.plugins.size}`);
-                // If this was the last plugin and we're resetting, update hasPluginsRegistered
-                if (this.plugins.size === 0) {
-                    this.hasPluginsRegistered = false;
-                    Debug.debug("All plugins unregistered, reset plugin registration state");
-                }
-            }
-            else {
-                Debug.warn(`Attempted to unregister non-existent plugin: ${pluginName}`);
-            }
-            return wasRemoved;
-        },
-        /**
-         * Reset the ready state completely
-         * @param {boolean} [maintainReadyStatus=true] - Whether to maintain the ready status
-         */
-        reset(maintainReadyStatus = true) {
-            this.queue = [];
-            this.plugins.clear();
-            this.hasPluginsRegistered = false;
-            // Only reset ready status if explicitly requested
-            if (!maintainReadyStatus) {
-                this.isReady = false;
-                Debug.info("ReadyState completely reset, FlowPlater needs re-initialization");
-            }
-            else {
-                Debug.info("ReadyState reset but maintains ready status for new plugins");
-            }
-        },
-        /**
-         * Complete cleanup of FlowPlater state
-         * This should only be called when completely shutting down FlowPlater
-         */
-        cleanup() {
-            this.reset(false);
-            Debug.info("FlowPlater ReadyState cleaned up completely");
-        },
-    };
-
-    const AttributeMatcher = {
-        INHERITABLE_ATTRIBUTES: {
-            "hx-": [
-                "boost",
-                "push-url",
-                "select",
-                "select-oob",
-                "swap",
-                "target",
-                "vals",
-                "confirm",
-                "disable",
-                "disabled-elt",
-                "encoding",
-                "ext",
-                "headers",
-                "include",
-                "indicator",
-                "params",
-                "prompt",
-                "replace-url",
-                "request",
-                "sync",
-                "vars",
-            ],
-            "fp-": ["prepend", "append", "persist", "target"],
-        },
-        _prefixes() {
-            return Object.keys(this.INHERITABLE_ATTRIBUTES);
-        },
-        _normalizeAttributeName(attributeName) {
-            // Remove any existing prefix
-            return attributeName.replace(/^(hx-|fp-)/, "").replace(/^data-/, "");
-        },
-        /**
-         * Gets all possible attribute names for a given attribute
-         * @private
-         * @param {string} attributeName - The base attribute name
-         * @returns {string[]} Array of all possible attribute names
-         */
-        _getAllAttributeNames(attributeName) {
-            const normalizedName = this._normalizeAttributeName(attributeName);
-            const names = [];
-            for (const prefix of this._prefixes()) {
-                names.push(`${prefix}${normalizedName}`);
-                names.push(`data-${prefix}${normalizedName}`);
-            }
-            return names;
-        },
-        /**
-         * Gets the raw attribute value, checking all possible attribute names
-         * @private
-         * @param {Element} element - The element to check
-         * @param {string} name - The attribute name
-         * @returns {string|null} The attribute value or null if not found
-         */
-        _getRawAttribute(element, name, defaultValue = null) {
-            for (const attrName of this._getAllAttributeNames(name)) {
-                const value = element.getAttribute(attrName);
-                if (value !== null) {
-                    return value;
-                }
-            }
-            return defaultValue;
-        },
-        /**
-         * Checks if an element has an attribute, checking all possible attribute names
-         * @private
-         * @param {Element} element - The element to check
-         * @param {string} name - The attribute name
-         * @returns {boolean} Whether the element has the attribute
-         */
-        _hasAttribute(element, name) {
-            return this._getAllAttributeNames(name).some((attrName) => element.hasAttribute(attrName));
-        },
-        /**
-         * Finds elements with a given attribute and optional value
-         * @param {string} attributeName - The attribute to look for
-         * @param {string} [value] - Optional value to match
-         * @param {boolean} [exactMatch=true] - Whether to match the value exactly or just include it
-         * @param {Element} [element=document] - The element to search within
-         * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
-         * @param {boolean} [getFirst=false] - Whether to return the first matching element or all matching elements
-         * @returns {Element[]|Element|null} Array of elements if no value specified, first matching element if value specified
-         */
-        findMatchingElements(attributeName, value = null, exactMatch = true, element = document, includeSelf = true, getFirst = false) {
-            const attrNames = this._getAllAttributeNames(attributeName);
-            let selector = attrNames.map((name) => `[${name}]`).join(",");
-            if (value !== undefined && value !== null) {
-                const valueSelector = exactMatch ? `="${value}"` : `*="${value}"`;
-                selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
-            }
-            const results = Array.from(element.querySelectorAll(selector));
-            if (includeSelf && element instanceof Element) {
-                const selfValue = this._getRawAttribute(element, attributeName);
-                if (selfValue !== null) {
-                    if (value === undefined ||
-                        value === null ||
-                        (exactMatch ? selfValue === value : selfValue.includes(value))) {
-                        results.unshift(element);
-                    }
-                }
-            }
-            return value !== undefined && value !== null
-                ? getFirst
-                    ? results[0]
-                    : results
-                : results;
-        },
-        findClosestParent(attributeName, element, value = null, exactMatch = true) {
-            if (!attributeName) {
-                Debug.error("Attribute name is required");
-                return null;
-            }
-            if (!element) {
-                Debug.error("Element is required to find closest parent (" + attributeName + ")");
-                return null;
-            }
-            const normalizedName = this._normalizeAttributeName(attributeName);
-            const attrNames = this._getAllAttributeNames(normalizedName);
-            let selector = attrNames.map((name) => `[${name}]`).join(",");
-            if (value !== undefined && value !== null) {
-                const valueSelector = exactMatch ? `="${value}"` : `*="${value}"`;
-                selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
-            }
-            let closestElement = element.closest(selector);
-            // check if there is no disinherit attribute on the closest element
-            if (closestElement && this.isInheritable(normalizedName)) {
-                const disinherit = this._getRawAttribute(closestElement, "disinherit");
-                if (disinherit &&
-                    (disinherit === "*" || disinherit.split(" ").includes(normalizedName))) {
-                    return null;
-                }
-            }
-            return closestElement;
-        },
-        /**
-         * Gets the first element with a given attribute
-         * @param {string} attributeName - The attribute to look for
-         * @param {Element} [element=document] - The element to search within
-         * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
-         * @returns {Element|null} The first element with the attribute or null if none found
-         */
-        getElementWithAttribute(attributeName, element = document, includeSelf = true) {
-            if (includeSelf &&
-                element instanceof Element &&
-                this._hasAttribute(element, attributeName)) {
-                return element;
-            }
-            const selectors = this._getAllAttributeNames(attributeName)
-                .map((name) => `[${name}]`)
-                .join(",");
-            return element.querySelector(selectors);
-        },
-        /**
-         * Gets the parent element, handling Shadow DOM
-         * @private
-         * @param {Node} element - The element to get the parent of
-         * @returns {Node|null} The parent element or null if none
-         */
-        _parentElement(element) {
-            const parent = element.parentElement;
-            if (!parent && element.parentNode instanceof ShadowRoot) {
-                return element.parentNode;
-            }
-            return parent;
-        },
-        /**
-         * Gets the root node of an element, handling Shadow DOM
-         * @private
-         * @param {HTMLElement} element - The element to get the root of
-         * @param {boolean} [composed=false] - Whether to get the composed root
-         * @returns {Node} The root node
-         */
-        _getRootNode(element, composed = false) {
-            return element.getRootNode ? element.getRootNode({ composed }) : document;
-        },
-        /**
-         * Finds the closest element matching a condition
-         * @private
-         * @param {Node} element - The element to start from
-         * @param {function(Node): boolean} condition - The condition to match
-         * @returns {Node|null} The closest matching element or null if none
-         */
-        _getClosestMatch(element, condition) {
-            while (element && !condition(element)) {
-                element = this._parentElement(element);
-            }
-            return element || null;
-        },
-        _attributeMatchesNormalizedName(attributeName, normalizedName) {
-            // Remove any existing prefix
-            const name = attributeName
-                .replace(/^data-/, "")
-                .replace(/^hx-/, "")
-                .replace(/^fp-/, "");
-            return name === normalizedName;
-        },
-        /**
-         * Gets an attribute value with inheritance and disinheritance
-         * @private
-         * @param {Element} startElement - The element to start from
-         * @param {Element} ancestor - The ancestor element to check
-         * @param {string} attributeName - The attribute name
-         * @returns {string|null} The attribute value or null if not found
-         */
-        _getAttributeValueWithInheritance(startElement, ancestor, attributeName) {
-            const attributeValue = this._getRawAttribute(ancestor, attributeName);
-            const disinherit = this._getRawAttribute(ancestor, "disinherit");
-            const inherit = this._getRawAttribute(ancestor, "inherit");
-            if (startElement !== ancestor) {
-                if (htmx.config.disableInheritance) {
-                    if (inherit &&
-                        (inherit === "*" || inherit.split(" ").includes(attributeName))) {
-                        return attributeValue;
-                    }
-                    return null;
-                }
-                if (disinherit &&
-                    (disinherit === "*" || disinherit.split(" ").includes(attributeName))) {
-                    return "unset";
-                }
-            }
-            return attributeValue;
-        },
-        /**
-         * Finds the value of an inheritable attribute
-         * @param {HTMLElement} element - The element to start searching from
-         * @param {string} attributeName - The name of the attribute to find
-         * @returns {string|null} The attribute value or null if not found
-         */
-        findInheritedAttribute(element, attributeName) {
-            const normalizedName = this._normalizeAttributeName(attributeName);
-            let closestValue = null;
-            this._getClosestMatch(element, (ancestor) => {
-                const value = this._getAttributeValueWithInheritance(element, ancestor, normalizedName);
-                if (value) {
-                    closestValue = value;
-                    return true;
-                }
-                return false;
-            });
-            return closestValue === "unset" ? null : closestValue;
-        },
-        findAttribute(element, attributeName) {
-            const normalizedName = this._normalizeAttributeName(attributeName);
-            // First check direct attributes
-            for (const prefix of this._prefixes()) {
-                const value = this._getRawAttribute(element, `${prefix}${normalizedName}`);
-                if (value) {
-                    return value;
-                }
-            }
-            // Then check inherited attributes
-            return this.findInheritedAttribute(element, normalizedName) || null;
-        },
-        _validateAttributeName(attributeName) {
-            if (!attributeName) {
-                Debug.error("Attribute name is required");
-                return false;
-            }
-            const isInheritable = this.isInheritable(attributeName);
-            if (!isInheritable) {
-                Debug.info(`Attribute ${attributeName} is not inheritable`);
-                return false;
-            }
-            return true;
-        },
-        /**
-         * Adds an inheritable attribute to the list
-         * @param {string} prefix - The prefix to use (hx- or fp-)
-         * @param {string} attributeName - The name of the attribute to add
-         */
-        addInheritableAttribute(prefix, attributeName) {
-            if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
-                this.INHERITABLE_ATTRIBUTES[prefix] = [];
-            }
-            this.INHERITABLE_ATTRIBUTES[prefix].push(attributeName);
-        },
-        /**
-         * Removes an inheritable attribute from the list
-         * @param {string} prefix - The prefix to use (hx- or fp-)
-         * @param {string} attributeName - The name of the attribute to remove
-         * @returns {boolean} True if the attribute was removed, false if it wasn't found
-         */
-        removeInheritableAttribute(prefix, attributeName) {
-            if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
-                return false;
-            }
-            const index = this.INHERITABLE_ATTRIBUTES[prefix].indexOf(attributeName);
-            if (index === -1) {
-                return false;
-            }
-            this.INHERITABLE_ATTRIBUTES[prefix].splice(index, 1);
-            return true;
-        },
-        isInheritable(attributeName) {
-            const normalizedName = this._normalizeAttributeName(attributeName);
-            return Object.values(this.INHERITABLE_ATTRIBUTES)
-                .flat()
-                .includes(normalizedName);
-        },
-        /**
-         * Find the template element for a given instance name or ID selector
-         * @param {string} instanceName - The instance name or ID selector (#elementId)
-         * @returns {FlowPlaterElement | null} The template element or null if not found
-         * @description Finds the element that has both the matching instance name/ID and the fp-template attribute.
-         * This is the "template element" that defines the template for an instance.
-         *
-         * Note: For existing instances, it's more efficient to use instance.getTemplateElement()
-         * instead of calling this method, as it avoids DOM searches.
-         */
-        findTemplateElementByInstanceName(instanceName) {
-            // Handle ID selector format (#elementId)
-            if (instanceName.startsWith("#")) {
-                const elementId = instanceName.slice(1);
-                const element = document.getElementById(elementId);
-                // For ID selectors, the element itself should have the template
-                if (element && this._hasAttribute(element, "template")) {
-                    return element;
-                }
-                return null;
-            }
-            // Handle instance name format - find the template element with this instance name
-            // Look for elements that have both fp-instance matching the name AND fp-template
-            const allTemplateElements = this.findMatchingElements("template");
-            if (!Array.isArray(allTemplateElements)) {
-                return null;
-            }
-            // Find the template element that also has the matching instance name
-            const templateElement = allTemplateElements.find((element) => {
-                const elementInstanceName = this._getRawAttribute(element, "instance");
-                return elementInstanceName === instanceName;
-            });
-            return templateElement || null;
-        },
-        /**
-         * Find any element by instance name or ID selector (template or non-template)
-         * @param {string} instanceName - The instance name or ID selector (#elementId)
-         * @returns {FlowPlaterElement | null} The found element or null if not found
-         * @description Finds any element matching the instance name or ID, regardless of whether it has a template.
-         * This is useful for finding any element associated with an instance.
-         */
-        findElementByInstanceName(instanceName) {
-            // Handle ID selector format (#elementId)
-            if (instanceName.startsWith("#")) {
-                const elementId = instanceName.slice(1);
-                const element = document.getElementById(elementId);
-                return element;
-            }
-            // Handle instance name format (search by fp-instance attribute)
-            const element = this.findMatchingElements("instance", instanceName, false, document, false, true);
-            return element;
-        },
-    };
-
-    // Version management utilities
-    const VersionManager = {
-        parseVersion(version) {
-            return version.split(".").map(Number);
-        },
-        compareVersions(v1, v2) {
-            const v1Parts = this.parseVersion(v1);
-            const v2Parts = this.parseVersion(v2);
-            for (let i = 0; i < 3; i++) {
-                if (v1Parts[i] > v2Parts[i])
-                    return 1;
-                if (v1Parts[i] < v2Parts[i])
-                    return -1;
-            }
-            return 0;
-        },
-        satisfiesVersion(required, actual) {
-            if (!required || !actual)
-                return false;
-            // Handle @ syntax (e.g., "plugin@2.1")
-            // @ts-ignore
-            const [pluginName, version] = required.split("@");
-            if (!version)
-                return true; // No version requirement
-            return this.compareVersions(actual, version) >= 0;
-        },
-    };
-    const PluginManager = {
-        plugins: new Map(),
-        globalMethods: new Map(),
-        instanceMethods: new Map(),
-        customTransformers: new Map(), // Store custom transformers by type (Map<string, NamedTransformer[]>)
-        registerPlugin(plugin, config = {}) {
-            let pluginFunction;
-            if (typeof plugin === "string") {
-                pluginFunction = window[plugin];
-            }
-            else {
-                pluginFunction = plugin;
-            }
-            if (!pluginFunction) {
-                throw new FlowPlaterError(`Plugin not found: ${plugin}`);
-            }
-            if (typeof pluginFunction !== "function") {
-                throw new FlowPlaterError("Plugin must be a valid function");
-            }
-            const pluginInstance = pluginFunction(config);
-            // Validate required config fields
-            const requiredFields = ["name", "enabled", "priority", "version"];
-            for (const field of requiredFields) {
-                if (!(field in pluginInstance.config)) {
-                    throw new FlowPlaterError(`Plugin config must contain '${field}'`);
-                }
-            }
-            // Validate version format
-            if (!/^\d+\.\d+\.\d+$/.test(pluginInstance.config.version)) {
-                throw new FlowPlaterError(`Plugin version must be in format 'x.y.z' (got ${pluginInstance.config.version})`);
-            }
-            if (this.plugins.has(pluginInstance.config.name)) {
-                throw new FlowPlaterError(`Plugin ${pluginInstance.config.name} already registered`);
-            }
-            // Check dependencies
-            if (pluginInstance.config.dependencies) {
-                for (const dep of pluginInstance.config.dependencies) {
-                    const [depName, depVersion] = dep.split("@");
-                    const depPlugin = this.getPlugin(depName);
-                    if (!depPlugin) {
-                        throw new FlowPlaterError(`Required dependency '${depName}' not found for plugin ${pluginInstance.config.name}`);
-                    }
-                    if (!VersionManager.satisfiesVersion(dep, depPlugin.config.version)) {
-                        throw new FlowPlaterError(`Plugin ${pluginInstance.config.name} requires ${depName} version ${depVersion || "any"}, but found version ${depPlugin.config.version}`);
-                    }
-                }
-            }
-            // Check optional dependencies
-            if (pluginInstance.config.optionalDependencies) {
-                for (const dep of pluginInstance.config.optionalDependencies) {
-                    const [depName, depVersion] = dep.split("@");
-                    const depPlugin = this.getPlugin(depName);
-                    if (depPlugin &&
-                        !VersionManager.satisfiesVersion(dep, depPlugin.config.version)) {
-                        Debug.warn(`Optional dependency '${depName}' version mismatch for plugin ${pluginInstance.config.name}. Required: ${depVersion || "any"}, Found: ${depPlugin.config.version}`);
-                    }
-                }
-            }
-            // Handle inheritable attributes
-            if (pluginInstance.inheritableAttributes &&
-                Array.isArray(pluginInstance.inheritableAttributes)) {
-                pluginInstance.inheritableAttributes.forEach((attributeName) => {
-                    AttributeMatcher.addInheritableAttribute("fp-", attributeName);
-                });
-            }
-            // Add to ready state tracking
-            _readyState.registerPlugin(pluginInstance.config.name);
-            // Register methods and helpers immediately
-            if (pluginInstance.globalMethods) {
-                for (const [methodName, method] of Object.entries(pluginInstance.globalMethods)) {
-                    if (typeof method !== "function") {
-                        throw new FlowPlaterError(`Global method ${methodName} must be a function`);
-                    }
-                    if (this.globalMethods.has(methodName)) {
-                        const existing = this.globalMethods.get(methodName);
-                        throw new FlowPlaterError(`Global method ${methodName} already registered by plugin ${existing.plugin}`);
-                    }
-                    this.globalMethods.set(methodName, {
-                        method,
-                        plugin: pluginInstance.config.name,
-                    });
-                    if (typeof window !== "undefined" && window.FlowPlater) {
-                        window.FlowPlater[methodName] = (...args) => this.executeGlobalMethod(methodName, ...args);
-                    }
-                }
-            }
-            if (pluginInstance.instanceMethods) {
-                for (const [methodName, method] of Object.entries(pluginInstance.instanceMethods)) {
-                    if (typeof method !== "function") {
-                        throw new FlowPlaterError(`Instance method ${methodName} must be a function`);
-                    }
-                    if (this.instanceMethods.has(methodName)) {
-                        const existing = this.instanceMethods.get(methodName);
-                        throw new FlowPlaterError(`Instance method ${methodName} already registered by plugin ${existing.plugin}`);
-                    }
-                    this.instanceMethods.set(methodName, {
-                        method,
-                        plugin: pluginInstance.config.name,
-                    });
-                }
-            }
-            if (pluginInstance.helpers && typeof pluginInstance.helpers === "object") {
-                for (const [helperName, helper] of Object.entries(pluginInstance.helpers)) {
-                    if (typeof helper !== "function") {
-                        Debug.warn(`Plugin ${pluginInstance.config.name} contains invalid helper ${helperName}:`, helper);
-                        continue;
-                    }
-                    try {
-                        Handlebars.registerHelper(helperName.toLowerCase(), helper);
-                    }
-                    catch (error) {
-                        Debug.error(`Plugin ${pluginInstance.config.name} failed registering helper ${helperName}:`, error);
-                    }
-                }
-            }
-            // Store the plugin instance
-            this.plugins.set(pluginInstance.config.name, pluginInstance);
-            // Queue initialization if FlowPlater isn't ready yet
-            if (!_readyState.isReady) {
-                _readyState.queue.push(() => {
-                    if (pluginInstance.config?.enabled &&
-                        typeof pluginInstance.init === "function") {
-                        pluginInstance.init();
-                    }
-                    // Update existing instances with new plugin methods
-                    this.updateExistingInstances();
-                    // Execute initComplete hook
-                    if (pluginInstance.hooks?.initComplete) {
-                        try {
-                            pluginInstance.hooks.initComplete(window.FlowPlater, Object.values(_state.instances));
-                        }
-                        catch (error) {
-                            Debug.error(`Plugin ${pluginInstance.config.name} failed executing initComplete:`, error);
-                        }
-                    }
-                });
-            }
-            else {
-                // Initialize immediately if FlowPlater is ready
-                if (pluginInstance.config?.enabled &&
-                    typeof pluginInstance.init === "function") {
-                    pluginInstance.init();
-                }
-                this.updateExistingInstances();
-                if (pluginInstance.hooks?.initComplete) {
-                    try {
-                        pluginInstance.hooks.initComplete(window.FlowPlater, Object.values(_state.instances));
-                    }
-                    catch (error) {
-                        Debug.error(`Plugin ${pluginInstance.config.name} failed executing initComplete:`, error);
-                    }
-                }
-            }
-            return pluginInstance;
-        },
-        updateExistingInstances() {
-            // Get all instances
-            const instances = Object.values(_state.instances);
-            // For each instance, add any missing plugin methods
-            instances.forEach((instance) => {
-                // @ts-ignore
-                for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
-                    if (!instance[methodName]) {
-                        instance[methodName] = (...args) => this.executeInstanceMethod(methodName, instance, ...args);
-                    }
-                }
-            });
-        },
-        getPlugin(name) {
-            return this.plugins.get(name);
-        },
-        getAllPlugins() {
-            return Array.from(this.plugins.values());
-        },
-        getEnabledPlugins() {
-            return this.getAllPlugins().filter((plugin) => plugin.config?.enabled);
-        },
-        removePlugin(name) {
-            const plugin = this.getPlugin(name);
-            if (!plugin) {
-                return false;
-            }
-            // Remove inheritable attributes
-            if (plugin.inheritableAttributes &&
-                Array.isArray(plugin.inheritableAttributes)) {
-                plugin.inheritableAttributes.forEach((attributeName) => {
-                    AttributeMatcher.removeInheritableAttribute("fp-", attributeName);
-                });
-            }
-            // Store methods to remove before deleting from maps
-            const methodsToRemove = new Set();
-            for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
-                if (methodInfo.plugin === name) {
-                    methodsToRemove.add(methodName);
-                }
-            }
-            // Remove global methods
-            for (const [methodName, methodInfo] of this.globalMethods.entries()) {
-                if (methodInfo.plugin === name) {
-                    this.globalMethods.delete(methodName);
-                    // Remove method from FlowPlater object
-                    if (typeof window !== "undefined" && window.FlowPlater) {
-                        delete window.FlowPlater[methodName];
-                    }
-                }
-            }
-            // Remove instance methods from the manager
-            for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
-                if (methodInfo.plugin === name) {
-                    this.instanceMethods.delete(methodName);
-                }
-            }
-            // Remove instance methods from all instances
-            const instances = Object.values(_state.instances);
-            instances.forEach((instance) => {
-                methodsToRemove.forEach((methodName) => {
-                    delete instance[methodName];
-                });
-            });
-            // Unregister from ready state
-            _readyState.unregisterPlugin(name);
-            return this.plugins.delete(name);
-        },
-        disablePlugin(name) {
-            const plugin = this.getPlugin(name);
-            if (!plugin)
-                return false;
-            plugin.config.enabled = false;
-            return true;
-        },
-        enablePlugin(name) {
-            const plugin = this.getPlugin(name);
-            if (!plugin)
-                return false;
-            plugin.config.enabled = true;
-            // Initialize if not already initialized
-            if (typeof plugin.init === "function" && !plugin.state?.initialized) {
-                plugin.init();
-                plugin.state.initialized = true;
-            }
-            return true;
-        },
-        pluginConfig(name) {
-            const plugin = this.getPlugin(name);
-            if (!plugin)
-                return null;
-            return plugin.config;
-        },
-        // Helper method to sort plugins by priority
-        getSortedPlugins() {
-            return this.getEnabledPlugins().sort((a, b) => {
-                const priorityA = a.config?.priority || 0;
-                const priorityB = b.config?.priority || 0;
-                return priorityB - priorityA; // Higher priority first
-            });
-        },
-        // Helper function to determine if data is JSON or HTML
-        _determineDataType(data) {
-            // If it's already an object, it's JSON
-            if (typeof data === "object" && data !== null) {
-                return "json";
-            }
-            // If it's a string, try to parse it as JSON
-            if (typeof data === "string") {
-                try {
-                    JSON.parse(data);
-                    return "json";
-                }
-                catch (e) {
-                    // If it's not parseable as JSON, assume it's HTML
-                    return "html";
-                }
-            }
-            // For any other type, assume it's JSON
-            return "json";
-        },
-        // Apply transformations from all enabled plugins in priority order
-        applyTransformations(instance, data, transformationType, dataType = "json") {
-            // Validate instance
-            if (!instance || typeof instance !== "object") {
-                Debug.error("Invalid instance provided to applyTransformations");
-                return data;
-            }
-            Debug.debug(`[Transform] Starting ${transformationType}`, {
-                instance: instance.instanceName,
-                isEvent: data instanceof Event,
-                dataType: typeof data,
-                isProxy: data && typeof data === "object" && "toJSON" in data,
-            });
-            // Get plugins in priority order
-            const plugins = this.getSortedPlugins();
-            // Apply each plugin's transformation if it exists
-            let transformedData = plugins.reduce((transformedData, plugin) => {
-                // Check if plugin has transformers and the specific transformation type
-                if (plugin.transformers &&
-                    typeof plugin.transformers[transformationType] === "function") {
-                    try {
-                        Debug.debug(`[Transform] Applying ${plugin.config.name}'s ${transformationType}`, {
-                            dataType: typeof transformedData,
-                            isEvent: transformedData instanceof Event,
-                        });
-                        // Apply the transformation
-                        const transformerFn = plugin.transformers[transformationType];
-                        const result = transformerFn?.(instance, transformedData, dataType);
-                        // If the result is undefined or null, return the original data
-                        if (result === undefined || result === null) {
-                            Debug.warn(`Plugin ${plugin.config.name} returned undefined/null for ${transformationType}, using original data`);
-                            return transformedData;
-                        }
-                        // For event transformations, ensure we preserve the event object structure
-                        if (transformedData instanceof Event && result instanceof Event) {
-                            // For events, we want to preserve the event object but update its properties
-                            Object.assign(transformedData.detail, result.detail);
-                            return transformedData;
-                        }
-                        Debug.debug(`[Transform] ${plugin.config.name}'s transform result:`, {
-                            resultType: typeof result,
-                            isEvent: result instanceof Event,
-                            isProxy: result && typeof result === "object" && "toJSON" in result,
-                        });
-                        return result;
-                    }
-                    catch (error) {
-                        Debug.error(`Plugin ${plugin.config.name} failed executing ${transformationType} transformation:`, error);
-                        return transformedData; // Return unmodified data if transformation fails
-                    }
-                }
-                return transformedData;
-            }, data);
-            // Apply custom transformers after plugin transformers
-            const customTransformers = this.customTransformers.get(transformationType) || [];
-            if (customTransformers.length > 0) {
-                Debug.debug(`[Transform] Applying ${customTransformers.length} custom transformers for ${transformationType}`);
-            }
-            transformedData = customTransformers.reduce((transformedData, namedTransformer, index) => {
-                try {
-                    Debug.debug(`[Transform] Applying custom transformer '${namedTransformer.name}' (${index + 1}/${customTransformers.length})`, {
-                        dataType: typeof transformedData,
-                        isEvent: transformedData instanceof Event,
-                    });
-                    // Apply the custom transformation with the instance context
-                    const result = namedTransformer.fn.call(null, instance, transformedData, dataType);
-                    // If the result is undefined or null, return the original data
-                    if (result === undefined || result === null) {
-                        Debug.warn(`Custom transformer '${namedTransformer.name}' returned undefined/null for ${transformationType}, using original data`);
-                        return transformedData;
-                    }
-                    // For event transformations, ensure we preserve the event object structure
-                    if (transformedData instanceof Event && result instanceof Event) {
-                        // For events, we want to preserve the event object but update its properties
-                        Object.assign(transformedData.detail, result.detail);
-                        return transformedData;
-                    }
-                    Debug.debug(`[Transform] Custom transformer '${namedTransformer.name}' result:`, {
-                        resultType: typeof result,
-                        isEvent: result instanceof Event,
-                        isProxy: result && typeof result === "object" && "toJSON" in result,
-                    });
-                    return result;
-                }
-                catch (error) {
-                    Debug.error(`Custom transformer '${namedTransformer.name}' failed executing ${transformationType} transformation:`, error);
-                    return transformedData; // Return unmodified data if transformation fails
-                }
-            }, transformedData);
-            Debug.debug(`[Transform] Completed ${transformationType}`, {
-                finalDataType: typeof transformedData,
-                isEvent: transformedData instanceof Event,
-                isProxy: transformedData &&
-                    typeof transformedData === "object" &&
-                    "toJSON" in transformedData,
-            });
-            return transformedData;
-        },
-        // Add a custom transformer function for a specific transformation type
-        addTransformer(transformationType, transformerFn, transformerName) {
-            if (typeof transformerFn !== "function") {
-                throw new FlowPlaterError("Transformer must be a function");
-            }
-            // Generate automatic name if not provided
-            if (!transformerName) {
-                // Get existing transformer count for this type
-                const existingTransformers = this.customTransformers.get(transformationType) || [];
-                transformerName = `${transformationType}_${existingTransformers.length + 1}_${Date.now()}`;
-            }
-            // Validate transformer function signature based on type
-            const fnStr = transformerFn.toString();
-            if (transformationType === "transformRequest") {
-                if (!fnStr.includes("instance") || !fnStr.includes("evt")) {
-                    Debug.warn("Request transformer function should accept (instance, evt) parameters");
-                }
-            }
-            else if (transformationType === "transformResponse") {
-                if (!fnStr.includes("instance") || !(fnStr.includes("response") || fnStr.includes("data"))) {
-                    Debug.warn("Response transformer function should accept (instance, response, dataType) parameters");
-                }
-            }
-            else {
-                if (!fnStr.includes("instance") || !fnStr.includes("data")) {
-                    Debug.warn("Transformer function should accept (instance, data, dataType) parameters");
-                }
-            }
-            // Initialize array for this transformation type if it doesn't exist
-            if (!this.customTransformers.has(transformationType)) {
-                this.customTransformers.set(transformationType, []);
-            }
-            // Check if a transformer with this name already exists
-            const existingTransformers = this.customTransformers.get(transformationType);
-            const existingIndex = existingTransformers.findIndex((t) => t.name === transformerName);
-            if (existingIndex !== -1) {
-                // Replace existing transformer with same name
-                existingTransformers[existingIndex] = { name: transformerName, fn: transformerFn };
-                Debug.debug(`Replaced custom transformer '${transformerName}' for ${transformationType}`);
-            }
-            else {
-                // Add new transformer
-                existingTransformers.push({ name: transformerName, fn: transformerFn });
-                Debug.debug(`Added custom transformer '${transformerName}' for ${transformationType}`);
-            }
-            return this; // For method chaining
-        },
-        // Remove a custom transformer function by name
-        removeTransformer(transformationType, transformerName) {
-            if (!this.customTransformers.has(transformationType)) {
-                return false;
-            }
-            const transformers = this.customTransformers.get(transformationType);
-            const index = transformers.findIndex((t) => t.name === transformerName);
-            if (index === -1) {
-                Debug.warn(`Transformer '${transformerName}' not found for type '${transformationType}'`);
-                return false;
-            }
-            transformers.splice(index, 1);
-            // Remove the transformation type if no transformers left
-            if (transformers.length === 0) {
-                this.customTransformers.delete(transformationType);
-            }
-            Debug.debug(`Removed custom transformer '${transformerName}' for ${transformationType}`);
-            return true;
-        },
-        // Clear all custom transformers for a specific type
-        clearTransformers(transformationType) {
-            if (!transformationType) {
-                // Clear all transformers if no type specified
-                this.customTransformers.clear();
-                Debug.debug("Cleared all custom transformers");
-            }
-            else {
-                this.customTransformers.delete(transformationType);
-                Debug.debug(`Cleared custom transformers for ${transformationType}`);
-            }
-            return this;
-        },
-        // List all custom transformers
-        listTransformers(transformationType) {
-            if (transformationType) {
-                return this.customTransformers.get(transformationType) || [];
-            }
-            else {
-                const result = {};
-                for (const [type, transformers] of this.customTransformers.entries()) {
-                    result[type] = transformers;
-                }
-                return result;
-            }
-        },
-        executeHook(hookName, ...args) {
-            Debug.debug("[PLUGIN] Executing hook:", hookName, args);
-            const plugins = this.getSortedPlugins();
-            let result = args[0]; // Store initial value
-            for (const plugin of plugins) {
-                if (plugin.hooks?.[hookName]) {
-                    try {
-                        const hookFn = plugin.hooks?.[hookName];
-                        const hookResult = hookFn?.(...args);
-                        // Allow hooks to modify the value
-                        if (hookResult !== undefined) {
-                            result = hookResult;
-                            args[0] = result; // Update for next plugin
-                        }
-                        else {
-                            // If hook returns undefined, use the previous result
-                            Debug.warn(`Plugin ${plugin.config.name} returned undefined for ${hookName}`, args[0]);
-                            result = args[0];
-                        }
-                    }
-                    catch (error) {
-                        Debug.error(`Plugin ${plugin.config.name} failed executing ${hookName}:`, error);
-                        // Continue with other plugins
-                    }
-                }
-            }
-            return result;
-        },
-        // Execute a global method
-        executeGlobalMethod(methodName, ...args) {
-            const methodInfo = this.globalMethods.get(methodName);
-            if (!methodInfo) {
-                throw new FlowPlaterError(`Global method ${methodName} not found`);
-            }
-            const plugin = this.getPlugin(methodInfo.plugin);
-            if (!plugin || !plugin.config?.enabled) {
-                throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
-            }
-            return methodInfo.method.call(plugin, ...args);
-        },
-        // Execute an instance method
-        executeInstanceMethod(methodName, instance, ...args) {
-            const methodInfo = this.instanceMethods.get(methodName);
-            if (!methodInfo) {
-                throw new FlowPlaterError(`Instance method ${methodName} not found`);
-            }
-            const plugin = this.getPlugin(methodInfo.plugin);
-            if (!plugin || !plugin.config?.enabled) {
-                throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
-            }
-            return methodInfo.method(instance, ...args);
-        },
-        async destroyPlugin(name) {
-            const plugin = this.getPlugin(name);
-            if (!plugin)
-                return false;
-            if (typeof plugin.destroy === "function") {
-                await plugin.destroy();
-            }
-            return this.removePlugin(name);
-        },
-        async destroyAll() {
-            const plugins = this.getAllPlugins();
-            await Promise.all(plugins.map((plugin) => typeof plugin.destroy === "function" ? plugin.destroy() : null));
-            plugins.forEach((plugin) => _readyState.unregisterPlugin(plugin.config.name));
-            // Clear plugin manager state
-            this.plugins.clear();
-            this.globalMethods.clear();
-            this.instanceMethods.clear();
-            Debug.info("All plugins destroyed, FlowPlater remains ready for new plugins");
-        },
-    };
-
-    function memoize(fn) {
-        const cache = new Map();
-        const memoized = (...args) => {
-            const key = JSON.stringify(args);
-            if (cache.has(key))
-                return cache.get(key);
-            const result = fn(...args);
-            cache.set(key, result);
-            return result;
-        };
-        memoized.original = fn;
-        memoized.cache = cache;
-        return memoized;
-    }
-
-    // Default customTags - can be overridden via meta config in init()
-    const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
-    let currentCustomTags = customTagList; // Use default list initially - override in init()
-    function setCustomTags(tags) {
-        currentCustomTags = tags;
-    }
-    function replaceCustomTags(element) {
-        let replaced = false;
-        // Replace all custom tags in a single pass
-        for (const tag of currentCustomTags) {
-            const elements = element.getElementsByTagName(tag.tag);
-            if (elements.length > 0) {
-                replaced = true;
-                // Convert to array since the live HTMLCollection will change as we replace elements
-                const elementsArray = Array.from(elements);
-                for (const customElement of elementsArray) {
-                    const newElement = document.createElement(tag.replaceWith);
-                    newElement.innerHTML = customElement.innerHTML;
-                    // Copy all attributes from the custom element to the new element
-                    for (const attr of customElement.attributes) {
-                        newElement.setAttribute(attr.name, attr.value);
-                    }
-                    // Replace the custom element with the new element
-                    customElement.parentNode?.replaceChild(newElement, customElement);
-                }
-            }
-        }
-        if (replaced) {
-            Debug.info("replaced custom tags", element);
-        }
-        return element;
-    }
-
-    /**
-     * Deep merges source objects into target object.
-     * Mutates the target object.
-     *
-     * @param target - The target object to merge into
-     * @param source - The source object to merge from
-     * @returns The merged object (same as target)
-     * @description
-     * - Arrays are replaced entirely rather than merged
-     * - Objects are merged recursively
-     * - Primitive values are copied directly
-     * - The target object is mutated in place
-     */
-    function deepMerge(target, source) {
-        // Handle edge cases
-        if (!source)
-            return target;
-        if (!target)
-            return source;
-        // Iterate through source properties
-        for (const key in source) {
-            if (Object.prototype.hasOwnProperty.call(source, key)) {
-                // Handle arrays specially - replace entire array
-                if (Array.isArray(target[key]) && Array.isArray(source[key])) {
-                    target[key] = source[key];
-                }
-                // If property exists in target and both are objects, merge recursively
-                else if (key in target &&
-                    typeof target[key] === "object" &&
-                    typeof source[key] === "object" &&
-                    target[key] !== null &&
-                    source[key] !== null) {
-                    deepMerge(target[key], source[key]);
-                }
-                else {
-                    // Otherwise just copy the value
-                    target[key] = source[key];
-                }
-            }
-        }
-        return target;
-    }
-
-    const defaultConfig = {
-        debug: {
-            level: window.location.hostname.endsWith(".webflow.io") ||
-                window.location.hostname.endsWith(".canvas.webflow.com") ||
-                window.location.hostname.endsWith("localhost")
-                ? 3
-                : 1,
-        },
-        selectors: {
-            fp: [
-                "template",
-                "get",
-                "post",
-                "put",
-                "delete",
-                "patch",
-                "persist",
-                "instance",
-            ],
-        },
-        templates: {
-            cacheSize: 100,
-            precompile: true,
-        },
-        animation: {
-            enabled: true,
-            duration: 300,
-        },
-        htmx: {
-            timeout: 10000,
-            swapStyle: "innerHTML",
-            selfRequestsOnly: false,
-            ignoreTitle: true,
-        },
-        customTags: customTagList,
-        storage: {
-            enabled: false,
-            ttl: 30 * 24 * 60 * 60, // 30 days in seconds
-        },
-        performance: {
-            batchDomUpdates: true,
-            batchingDelay: 0, // 0 uses requestAnimationFrame, >0 uses setTimeout with delay
-        },
-        persistForm: true,
-        allowExecute: true,
-    };
-    /**
-     * Normalizes storage configuration to a standard format
-     * @param {boolean|number|Object} storageConfig - The storage configuration value
-     * @param {Object} defaultStorageConfig - The default storage configuration
-     * @returns {Object} Normalized storage configuration
-     */
-    function normalizeStorageConfig(storageConfig, defaultStorageConfig) {
-        if (typeof storageConfig === "boolean") {
-            return {
-                enabled: storageConfig,
-                ttl: defaultStorageConfig.ttl,
-            };
-        }
-        if (typeof storageConfig === "number") {
-            if (storageConfig === -1) {
-                return {
-                    enabled: true,
-                    ttl: -1, // Infinite TTL
-                };
-            }
-            return {
-                enabled: storageConfig > 0,
-                ttl: storageConfig > 0 ? storageConfig : defaultStorageConfig.ttl,
-            };
-        }
-        // Ensure enabled is boolean and ttl is number
-        if (typeof storageConfig === "object" && storageConfig !== null) {
-            return {
-                enabled: !!storageConfig.enabled,
-                ttl: typeof storageConfig.ttl === "number"
-                    ? storageConfig.ttl
-                    : defaultStorageConfig.ttl,
-            };
-        }
-        return defaultStorageConfig; // Fallback to default if invalid format
-    }
-    // Initialize state with default config
-    _state.config = JSON.parse(JSON.stringify(defaultConfig));
-    // Config queue system
-    let configQueue = [];
-    let isInitialized = false;
-    /**
-     * Internal function to apply configuration changes
-     * @param {Object} newConfig - Configuration options to apply
-     */
-    function applyConfigInternal(newConfig) {
-        if ("storage" in newConfig) {
-            newConfig.storage = normalizeStorageConfig(newConfig.storage, defaultConfig.storage);
-        }
-        // Use the imported deepMerge utility
-        _state.config = deepMerge(JSON.parse(JSON.stringify(_state.config)), newConfig);
-        // --- Apply configuration settings ---
-        // Apply debug level
-        Debug.level = _state.config.debug.level;
-        // Configure HTMX defaults if htmx is available
-        if (typeof htmx !== "undefined") {
-            htmx.config.timeout = _state.config.htmx.timeout;
-            htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
-            htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
-            htmx.config.ignoreTitle = _state.config.htmx.ignoreTitle;
-        }
-        // Set custom tags if provided in the new config
-        if (newConfig.customTags) {
-            setCustomTags(newConfig.customTags);
-        }
-    }
-    const ConfigManager = {
-        /**
-         * Sets the default configuration without logging
-         * @param {Object} defaultConfig - Default configuration to apply
-         */
-        setDefaultConfig(defaultConfig) {
-            applyConfigInternal(defaultConfig);
-        },
-        /**
-         * Sets or updates the FlowPlater configuration.
-         * Before initialization: queues the config change
-         * After initialization: applies immediately and logs
-         * @param {Object} newConfig - Configuration options to apply.
-         */
-        setConfig(newConfig = {}) {
-            if (isInitialized) {
-                // Apply immediately and log
-                applyConfigInternal(newConfig);
-                Debug.info("FlowPlater configuration updated:", this.getConfig());
-            }
-            else {
-                // Queue for later
-                configQueue.push(newConfig);
-            }
-        },
-        /**
-         * Submits all queued configuration changes and marks as initialized
-         * @internal
-         */
-        submitQueuedConfig() {
-            if (configQueue.length > 0) {
-                // Merge all queued configs
-                const finalConfig = configQueue.reduce((acc, config) => deepMerge(acc, config), {});
-                applyConfigInternal(finalConfig);
-                Debug.info("FlowPlater configuration updated:", this.getConfig());
-                configQueue = [];
-            }
-            isInitialized = true;
-        },
-        /**
-         * Gets the current configuration.
-         * @returns {Object} A deep copy of the current configuration.
-         */
-        getConfig() {
-            // Return a deep copy to prevent accidental modification of the state
-            return JSON.parse(JSON.stringify(_state.config));
-        },
-        /**
-         * Gets the default configuration.
-         * @returns {Object} A deep copy of the default configuration.
-         */
-        getDefaultConfig() {
-            return JSON.parse(JSON.stringify(defaultConfig));
-        },
-    };
-    // Apply initial debug level based on the default config loaded into state
-    Debug.level = _state.config.debug.level;
-
-    function compileTemplate(templateId, recompile = false) {
-        if (!recompile) {
-            return memoizedCompile(templateId);
-        }
-        // For recompile=true:
-        // 1. Clear template cache
-        delete _state.templateCache[templateId];
-        // 2. Compile without memoization
-        const compiledTemplate = memoizedCompile.original(templateId);
-        // 3. Update the memoized cache with the new template
-        memoizedCompile.cache.set(JSON.stringify([templateId]), compiledTemplate);
-        return compiledTemplate;
-    }
-    const memoizedCompile = memoize(function (templateId) {
-        // if templateId is empty or "self", use the current element
-        Performance.start("compile:" + templateId);
-        const helpers = Handlebars.helpers;
-        // Add # prefix if templateId doesn't start with it
-        const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
-        var templateElement = document.querySelector(selector);
-        Debug.debug("Trying to compile template: " + templateId);
-        if (!templateElement) {
-            Debug.error("Template not found: " + templateId);
-            Performance.end("compile:" + templateId);
-            return null;
-        }
-        // Check if template needs compilation
-        if (!_state.templateCache[templateId] ||
-            (AttributeMatcher._hasAttribute(templateElement, "dynamic") &&
-                AttributeMatcher._getRawAttribute(templateElement, "dynamic") !== "false")) {
-            Debug.debug("compiling template: " + templateId);
-            // Function to construct tag with attributes
-            function constructTagWithAttributes(element) {
-                let tagName = element.tagName.toLowerCase();
-                let fpTag = AttributeMatcher._getRawAttribute(element, "tag");
-                if (fpTag) {
-                    tagName = fpTag;
-                }
-                // Replace all custom tags
-                currentCustomTags.forEach((tag) => {
-                    if (tagName === tag.tag) {
-                        tagName = tag.replaceWith;
-                    }
-                });
-                let attributes = "";
-                for (let attr of element.attributes) {
-                    attributes += ` ${attr.name}="${attr.value}"`;
-                }
-                return `<${tagName}${attributes}>`;
-            }
-            function processNode(node) {
-                let result = "";
-                // Loop through each child node
-                node.childNodes.forEach((child) => {
-                    if (child.nodeType === Node.TEXT_NODE) {
-                        result += child.textContent;
-                    }
-                    else if (child.nodeType === Node.ELEMENT_NODE) {
-                        const element = child;
-                        let childTagName = element.tagName.toLowerCase();
-                        let fpTag = AttributeMatcher._getRawAttribute(element, "tag");
-                        if (fpTag) {
-                            childTagName = fpTag;
-                        }
-                        if (element.hasAttribute("fp") || childTagName in helpers) {
-                            // Process as a Handlebars helper
-                            const helperName = childTagName;
-                            const fpAttr = element.getAttribute("fp");
-                            const args = fpAttr
-                                ? fpAttr
-                                    .split(" ")
-                                    .map((arg) => arg.replace(/&quot;/g, '"'))
-                                    .join(" ")
-                                : "";
-                            const innerContent = processNode(element);
-                            switch (helperName) {
-                                case "log":
-                                case "lookup":
-                                case "execute":
-                                    if (innerContent) {
-                                        result += `{{${helperName} ${innerContent} ${args}}}`;
-                                    }
-                                    else {
-                                        result += `{{${helperName} ${args}}}`;
-                                    }
-                                    break;
-                                case "comment":
-                                    result += `{{!-- ${args} --}}`;
-                                    break;
-                                case "if":
-                                    const escapedArgs = args.replace(/"/g, '\\"');
-                                    result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
-                                    break;
-                                case "else":
-                                    result += `{{${helperName}}}${innerContent}`;
-                                    break;
-                                case "math":
-                                    if (innerContent) {
-                                        Debug.warn(`FlowPlater: The <${helperName}> helper does not accept inner content.`);
-                                    }
-                                    result += `{{#${helperName} "${args}"}}`;
-                                    break;
-                                default:
-                                    result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
-                                    break;
-                            }
-                        }
-                        else if (element.tagName === "else") {
-                            const innerContent = processNode(element);
-                            result += `{{${element.tagName.toLowerCase()}}}${innerContent}`;
-                        }
-                        else if (element.tagName === "template" ||
-                            element.tagName === "fptemplate" ||
-                            AttributeMatcher._hasAttribute(element, "template")) {
-                            result += element.outerHTML;
-                        }
-                        else {
-                            const childContent = processNode(element);
-                            const startTag = constructTagWithAttributes(element);
-                            const fpValAttribute = AttributeMatcher._getRawAttribute(element, "val");
-                            let processedContent = childContent;
-                            if (fpValAttribute) {
-                                processedContent = `{{{default ${fpValAttribute} "${childContent.replace(/"/g, '\\"')}"}}}`;
-                            }
-                            let endTagName = childTagName;
-                            currentCustomTags.forEach((tag) => {
-                                if (endTagName === tag.tag) {
-                                    endTagName = tag.replaceWith;
-                                }
-                            });
-                            const endTag = `</${endTagName}>`;
-                            result += `${startTag}${processedContent}${endTag}`;
-                        }
-                    }
-                });
-                return result;
-            }
-            const handlebarsTemplate = processNode(templateElement);
-            Debug.debug("Compiling Handlebars template: " + handlebarsTemplate);
-            try {
-                const compiledTemplate = Handlebars.compile(handlebarsTemplate);
-                // Check cache size limit before adding new template
-                const cacheSize = ConfigManager.getConfig().templates?.cacheSize || 100; // Default to 100 if not configured
-                if (Object.keys(_state.templateCache).length >= cacheSize) {
-                    // Remove oldest template
-                    const oldestKey = Object.keys(_state.templateCache)[0];
-                    delete _state.templateCache[oldestKey];
-                    Debug.info("Cache limit reached. Removed template: " + oldestKey);
-                }
-                // Add new template to cache
-                _state.templateCache[templateId] = compiledTemplate;
-                Performance.end("compile:" + templateId);
-                return compiledTemplate;
-            }
-            catch (e) {
-                Debug.error("Template not valid: " + handlebarsTemplate + " | Error: " + e.message);
-                Performance.end("compile:" + templateId);
-                return null;
-            }
-        }
-        Performance.end("compile:" + templateId);
-        return _state.templateCache[templateId];
-    });
-
-    /**
-     * DOM Batcher to reduce layout thrashing by batching DOM reads and writes
-     * Uses requestAnimationFrame to schedule operations at optimal times
-     */
-    class DomBatcher {
-        constructor() {
-            Object.defineProperty(this, "readQueue", {
-                enumerable: true,
-                configurable: true,
-                writable: true,
-                value: []
-            });
-            Object.defineProperty(this, "writeQueue", {
-                enumerable: true,
-                configurable: true,
-                writable: true,
-                value: []
-            });
-            Object.defineProperty(this, "isScheduled", {
-                enumerable: true,
-                configurable: true,
-                writable: true,
-                value: false
-            });
-            Object.defineProperty(this, "frameId", {
-                enumerable: true,
-                configurable: true,
-                writable: true,
-                value: null
-            });
-        }
-        /**
-         * Schedule a DOM read operation
-         */
-        read(operation, id) {
-            // If batching is disabled, execute immediately
-            if (!ConfigManager.getConfig().performance?.batchDomUpdates) {
-                return Promise.resolve(operation());
-            }
-            return new Promise((resolve, reject) => {
-                this.readQueue.push({
-                    id: id || `read-${Date.now()}-${Math.random()}`,
-                    type: 'read',
-                    operation,
-                    resolve,
-                    reject
-                });
-                this.scheduleFlush();
-            });
-        }
-        /**
-         * Schedule a DOM write operation
-         */
-        write(operation, id) {
-            // If batching is disabled, execute immediately
-            if (!ConfigManager.getConfig().performance?.batchDomUpdates) {
-                return Promise.resolve(operation());
-            }
-            return new Promise((resolve, reject) => {
-                this.writeQueue.push({
-                    id: id || `write-${Date.now()}-${Math.random()}`,
-                    type: 'write',
-                    operation,
-                    resolve,
-                    reject
-                });
-                this.scheduleFlush();
-            });
-        }
-        /**
-         * Schedule multiple operations to be batched together
-         */
-        batch(operations) {
-            const promises = operations.map(op => {
-                if (op.type === 'read') {
-                    return this.read(op.operation, op.id);
-                }
-                else {
-                    return this.write(op.operation, op.id);
-                }
-            });
-            return Promise.all(promises);
-        }
-        /**
-         * Execute a batch of DOM operations immediately (synchronously)
-         * Useful for operations that must be completed before the next frame
-         */
-        flush() {
-            this.conditionalFrameCancel();
-            this.isScheduled = false;
-            this.executeOperations();
-        }
-        /**
-         * Clear all pending operations
-         */
-        clear() {
-            this.conditionalFrameCancel();
-            this.isScheduled = false;
-            // Reject all pending operations
-            [...this.readQueue, ...this.writeQueue].forEach(op => {
-                op.reject(new Error('DOM operation cancelled'));
-            });
-            this.readQueue = [];
-            this.writeQueue = [];
-        }
-        /**
-         * Helper function to schedule execution based on configuration
-         */
-        conditionalFrameSchedule(callback) {
-            const config = ConfigManager.getConfig();
-            const batchingDelay = config.performance?.batchingDelay ?? 0;
-            if (batchingDelay > 0) {
-                // Use setTimeout with specified delay
-                this.frameId = setTimeout(callback, batchingDelay);
-            }
-            else {
-                // Use requestAnimationFrame for optimal timing
-                this.frameId = requestAnimationFrame(callback);
-            }
-        }
-        /**
-         * Helper function to cancel scheduled execution based on configuration
-         */
-        conditionalFrameCancel() {
-            if (!this.frameId)
+    const Performance = {
+        marks: {},
+        start: function (label) {
+            this.marks[label] = performance.now();
+        },
+        end: function (label) {
+            if (!this.marks[label])
                 return;
-            const config = ConfigManager.getConfig();
-            const batchingDelay = config.performance?.batchingDelay ?? 0;
-            if (batchingDelay > 0) {
-                clearTimeout(this.frameId);
-            }
-            else {
-                cancelAnimationFrame(this.frameId);
-            }
-            this.frameId = null;
-        }
-        scheduleFlush() {
-            if (this.isScheduled)
-                return;
-            this.isScheduled = true;
-            this.conditionalFrameSchedule(() => {
-                this.isScheduled = false;
-                this.frameId = null;
-                this.executeOperations();
-            });
-        }
-        executeOperations() {
-            Performance.start('DomBatcher.executeOperations');
-            try {
-                // First, execute all read operations
-                // This prevents layout thrashing by batching all reads together
-                const readResults = [];
-                while (this.readQueue.length > 0) {
-                    const operation = this.readQueue.shift();
-                    try {
-                        const result = operation.operation();
-                        operation.resolve(result);
-                        readResults.push(result);
-                    }
-                    catch (error) {
-                        operation.reject(error);
-                        Debug.error('DOM read operation failed:', error);
-                    }
-                }
-                // Then, execute all write operations
-                // This prevents layout thrashing by batching all writes together
-                const writeResults = [];
-                while (this.writeQueue.length > 0) {
-                    const operation = this.writeQueue.shift();
-                    try {
-                        const result = operation.operation();
-                        operation.resolve(result);
-                        writeResults.push(result);
-                    }
-                    catch (error) {
-                        operation.reject(error);
-                        Debug.error('DOM write operation failed:', error);
-                    }
-                }
-                Debug.debug(`DOM Batcher executed ${readResults.length} reads and ${writeResults.length} writes`);
-            }
-            catch (error) {
-                Debug.error('Error in DOM batcher execution:', error);
-            }
-            finally {
-                Performance.end('DomBatcher.executeOperations');
-            }
-        }
-    }
-    // Export a singleton instance
-    const domBatcher = new DomBatcher();
+            const duration = performance.now() - this.marks[label];
+            delete this.marks[label];
+            Debug.debug(`${label} took ${duration.toFixed(2)}ms`);
+            return duration;
+        },
+    };
 
     /**
      * Virtual DOM implementation for efficient DOM diffing and batched updates
@@ -2897,6 +1244,2144 @@ var FlowPlater = (function () {
         value: new WeakMap()
     });
 
+    /**
+     * @typedef {Object} ReadyState
+     * @property {boolean} isReady - Whether FlowPlater is ready
+     * @property {Function[]} queue - Queue of functions to execute when ready
+     * @property {Set<string>} plugins - Set of registered plugin names
+     * @property {Function} processQueue - Process all queued functions
+     */
+    /**
+     * Manages FlowPlater's ready state and initialization queue
+     */
+    const _readyState = {
+        isReady: false,
+        queue: [],
+        plugins: new Set(),
+        hasPluginsRegistered: false,
+        /**
+         * Process all queued functions in order
+         */
+        processQueue() {
+            Debug.debug(`Processing ${this.queue.length} queued operations`);
+            while (this.queue.length > 0) {
+                const fn = this.queue.shift();
+                try {
+                    fn();
+                }
+                catch (error) {
+                    Debug.error("Error processing queued operation:", error);
+                }
+            }
+        },
+        /**
+         * Add a function to the queue or execute immediately if ready
+         * @param {Function} fn - Function to queue or execute
+         */
+        enqueue(fn) {
+            if (this.isReady) {
+                try {
+                    fn();
+                }
+                catch (error) {
+                    Debug.error("Error executing operation:", error);
+                }
+            }
+            else {
+                this.queue.push(fn);
+            }
+        },
+        /**
+         * Mark FlowPlater as ready and process queue
+         */
+        markReady() {
+            // If no plugins have been registered at all, that's fine
+            if (this.plugins.size === 0 && !this.hasPluginsRegistered) {
+                Debug.info("No plugins registered, proceeding with initialization");
+            }
+            this.isReady = true;
+            this.processQueue();
+        },
+        /**
+         * Register a plugin and mark that we have plugins
+         * @param {string} pluginName - Name of the plugin being registered
+         */
+        registerPlugin(pluginName) {
+            this.hasPluginsRegistered = true;
+            this.plugins.add(pluginName);
+            Debug.debug(`Plugin registered: ${pluginName}, total plugins: ${this.plugins.size}`);
+        },
+        /**
+         * Unregister a plugin from the ready state
+         * @param {string} pluginName - Name of the plugin to unregister
+         * @returns {boolean} True if the plugin was unregistered, false if it wasn't registered
+         */
+        unregisterPlugin(pluginName) {
+            const wasRemoved = this.plugins.delete(pluginName);
+            if (wasRemoved) {
+                Debug.debug(`Plugin unregistered: ${pluginName}, remaining plugins: ${this.plugins.size}`);
+                // If this was the last plugin and we're resetting, update hasPluginsRegistered
+                if (this.plugins.size === 0) {
+                    this.hasPluginsRegistered = false;
+                    Debug.debug("All plugins unregistered, reset plugin registration state");
+                }
+            }
+            else {
+                Debug.warn(`Attempted to unregister non-existent plugin: ${pluginName}`);
+            }
+            return wasRemoved;
+        },
+        /**
+         * Reset the ready state completely
+         * @param {boolean} [maintainReadyStatus=true] - Whether to maintain the ready status
+         */
+        reset(maintainReadyStatus = true) {
+            this.queue = [];
+            this.plugins.clear();
+            this.hasPluginsRegistered = false;
+            // Only reset ready status if explicitly requested
+            if (!maintainReadyStatus) {
+                this.isReady = false;
+                Debug.info("ReadyState completely reset, FlowPlater needs re-initialization");
+            }
+            else {
+                Debug.info("ReadyState reset but maintains ready status for new plugins");
+            }
+        },
+        /**
+         * Complete cleanup of FlowPlater state
+         * This should only be called when completely shutting down FlowPlater
+         */
+        cleanup() {
+            this.reset(false);
+            Debug.info("FlowPlater ReadyState cleaned up completely");
+        },
+    };
+
+    // Version management utilities
+    const VersionManager = {
+        parseVersion(version) {
+            return version.split(".").map(Number);
+        },
+        compareVersions(v1, v2) {
+            const v1Parts = this.parseVersion(v1);
+            const v2Parts = this.parseVersion(v2);
+            for (let i = 0; i < 3; i++) {
+                if (v1Parts[i] > v2Parts[i])
+                    return 1;
+                if (v1Parts[i] < v2Parts[i])
+                    return -1;
+            }
+            return 0;
+        },
+        satisfiesVersion(required, actual) {
+            if (!required || !actual)
+                return false;
+            // Handle @ syntax (e.g., "plugin@2.1")
+            // @ts-ignore
+            const [pluginName, version] = required.split("@");
+            if (!version)
+                return true; // No version requirement
+            return this.compareVersions(actual, version) >= 0;
+        },
+    };
+    const PluginManager = {
+        plugins: new Map(),
+        globalMethods: new Map(),
+        instanceMethods: new Map(),
+        customTransformers: new Map(), // Store custom transformers by type (Map<string, NamedTransformer[]>)
+        registerPlugin(plugin, config = {}) {
+            let pluginFunction;
+            if (typeof plugin === "string") {
+                pluginFunction = window[plugin];
+            }
+            else {
+                pluginFunction = plugin;
+            }
+            if (!pluginFunction) {
+                throw new FlowPlaterError(`Plugin not found: ${plugin}`);
+            }
+            if (typeof pluginFunction !== "function") {
+                throw new FlowPlaterError("Plugin must be a valid function");
+            }
+            const pluginInstance = pluginFunction(config);
+            // Validate required config fields
+            const requiredFields = ["name", "enabled", "priority", "version"];
+            for (const field of requiredFields) {
+                if (!(field in pluginInstance.config)) {
+                    throw new FlowPlaterError(`Plugin config must contain '${field}'`);
+                }
+            }
+            // Validate version format
+            if (!/^\d+\.\d+\.\d+$/.test(pluginInstance.config.version)) {
+                throw new FlowPlaterError(`Plugin version must be in format 'x.y.z' (got ${pluginInstance.config.version})`);
+            }
+            if (this.plugins.has(pluginInstance.config.name)) {
+                throw new FlowPlaterError(`Plugin ${pluginInstance.config.name} already registered`);
+            }
+            // Check dependencies
+            if (pluginInstance.config.dependencies) {
+                for (const dep of pluginInstance.config.dependencies) {
+                    const [depName, depVersion] = dep.split("@");
+                    const depPlugin = this.getPlugin(depName);
+                    if (!depPlugin) {
+                        throw new FlowPlaterError(`Required dependency '${depName}' not found for plugin ${pluginInstance.config.name}`);
+                    }
+                    if (!VersionManager.satisfiesVersion(dep, depPlugin.config.version)) {
+                        throw new FlowPlaterError(`Plugin ${pluginInstance.config.name} requires ${depName} version ${depVersion || "any"}, but found version ${depPlugin.config.version}`);
+                    }
+                }
+            }
+            // Check optional dependencies
+            if (pluginInstance.config.optionalDependencies) {
+                for (const dep of pluginInstance.config.optionalDependencies) {
+                    const [depName, depVersion] = dep.split("@");
+                    const depPlugin = this.getPlugin(depName);
+                    if (depPlugin &&
+                        !VersionManager.satisfiesVersion(dep, depPlugin.config.version)) {
+                        Debug.warn(`Optional dependency '${depName}' version mismatch for plugin ${pluginInstance.config.name}. Required: ${depVersion || "any"}, Found: ${depPlugin.config.version}`);
+                    }
+                }
+            }
+            // Handle inheritable attributes
+            if (pluginInstance.inheritableAttributes &&
+                Array.isArray(pluginInstance.inheritableAttributes)) {
+                pluginInstance.inheritableAttributes.forEach((attributeName) => {
+                    AttributeMatcher.addInheritableAttribute("fp-", attributeName);
+                });
+            }
+            // Add to ready state tracking
+            _readyState.registerPlugin(pluginInstance.config.name);
+            // Register methods and helpers immediately
+            if (pluginInstance.globalMethods) {
+                for (const [methodName, method] of Object.entries(pluginInstance.globalMethods)) {
+                    if (typeof method !== "function") {
+                        throw new FlowPlaterError(`Global method ${methodName} must be a function`);
+                    }
+                    if (this.globalMethods.has(methodName)) {
+                        const existing = this.globalMethods.get(methodName);
+                        throw new FlowPlaterError(`Global method ${methodName} already registered by plugin ${existing.plugin}`);
+                    }
+                    this.globalMethods.set(methodName, {
+                        method,
+                        plugin: pluginInstance.config.name,
+                    });
+                    if (typeof window !== "undefined" && window.FlowPlater) {
+                        window.FlowPlater[methodName] = (...args) => this.executeGlobalMethod(methodName, ...args);
+                    }
+                }
+            }
+            if (pluginInstance.instanceMethods) {
+                for (const [methodName, method] of Object.entries(pluginInstance.instanceMethods)) {
+                    if (typeof method !== "function") {
+                        throw new FlowPlaterError(`Instance method ${methodName} must be a function`);
+                    }
+                    if (this.instanceMethods.has(methodName)) {
+                        const existing = this.instanceMethods.get(methodName);
+                        throw new FlowPlaterError(`Instance method ${methodName} already registered by plugin ${existing.plugin}`);
+                    }
+                    this.instanceMethods.set(methodName, {
+                        method,
+                        plugin: pluginInstance.config.name,
+                    });
+                }
+            }
+            if (pluginInstance.helpers && typeof pluginInstance.helpers === "object") {
+                for (const [helperName, helper] of Object.entries(pluginInstance.helpers)) {
+                    if (typeof helper !== "function") {
+                        Debug.warn(`Plugin ${pluginInstance.config.name} contains invalid helper ${helperName}:`, helper);
+                        continue;
+                    }
+                    try {
+                        Handlebars.registerHelper(helperName.toLowerCase(), helper);
+                    }
+                    catch (error) {
+                        Debug.error(`Plugin ${pluginInstance.config.name} failed registering helper ${helperName}:`, error);
+                    }
+                }
+            }
+            // Store the plugin instance
+            this.plugins.set(pluginInstance.config.name, pluginInstance);
+            // Queue initialization if FlowPlater isn't ready yet
+            if (!_readyState.isReady) {
+                _readyState.queue.push(() => {
+                    if (pluginInstance.config?.enabled &&
+                        typeof pluginInstance.init === "function") {
+                        pluginInstance.init();
+                    }
+                    // Update existing instances with new plugin methods
+                    this.updateExistingInstances();
+                    // Execute initComplete hook
+                    if (pluginInstance.hooks?.initComplete) {
+                        try {
+                            pluginInstance.hooks.initComplete(window.FlowPlater, Object.values(_state.instances));
+                        }
+                        catch (error) {
+                            Debug.error(`Plugin ${pluginInstance.config.name} failed executing initComplete:`, error);
+                        }
+                    }
+                });
+            }
+            else {
+                // Initialize immediately if FlowPlater is ready
+                if (pluginInstance.config?.enabled &&
+                    typeof pluginInstance.init === "function") {
+                    pluginInstance.init();
+                }
+                this.updateExistingInstances();
+                if (pluginInstance.hooks?.initComplete) {
+                    try {
+                        pluginInstance.hooks.initComplete(window.FlowPlater, Object.values(_state.instances));
+                    }
+                    catch (error) {
+                        Debug.error(`Plugin ${pluginInstance.config.name} failed executing initComplete:`, error);
+                    }
+                }
+            }
+            return pluginInstance;
+        },
+        updateExistingInstances() {
+            // Get all instances
+            const instances = Object.values(_state.instances);
+            // For each instance, add any missing plugin methods
+            instances.forEach((instance) => {
+                // @ts-ignore
+                for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
+                    if (!instance[methodName]) {
+                        instance[methodName] = (...args) => this.executeInstanceMethod(methodName, instance, ...args);
+                    }
+                }
+            });
+        },
+        getPlugin(name) {
+            return this.plugins.get(name);
+        },
+        getAllPlugins() {
+            return Array.from(this.plugins.values());
+        },
+        getEnabledPlugins() {
+            return this.getAllPlugins().filter((plugin) => plugin.config?.enabled);
+        },
+        removePlugin(name) {
+            const plugin = this.getPlugin(name);
+            if (!plugin) {
+                return false;
+            }
+            // Remove inheritable attributes
+            if (plugin.inheritableAttributes &&
+                Array.isArray(plugin.inheritableAttributes)) {
+                plugin.inheritableAttributes.forEach((attributeName) => {
+                    AttributeMatcher.removeInheritableAttribute("fp-", attributeName);
+                });
+            }
+            // Store methods to remove before deleting from maps
+            const methodsToRemove = new Set();
+            for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
+                if (methodInfo.plugin === name) {
+                    methodsToRemove.add(methodName);
+                }
+            }
+            // Remove global methods
+            for (const [methodName, methodInfo] of this.globalMethods.entries()) {
+                if (methodInfo.plugin === name) {
+                    this.globalMethods.delete(methodName);
+                    // Remove method from FlowPlater object
+                    if (typeof window !== "undefined" && window.FlowPlater) {
+                        delete window.FlowPlater[methodName];
+                    }
+                }
+            }
+            // Remove instance methods from the manager
+            for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
+                if (methodInfo.plugin === name) {
+                    this.instanceMethods.delete(methodName);
+                }
+            }
+            // Remove instance methods from all instances
+            const instances = Object.values(_state.instances);
+            instances.forEach((instance) => {
+                methodsToRemove.forEach((methodName) => {
+                    delete instance[methodName];
+                });
+            });
+            // Unregister from ready state
+            _readyState.unregisterPlugin(name);
+            return this.plugins.delete(name);
+        },
+        disablePlugin(name) {
+            const plugin = this.getPlugin(name);
+            if (!plugin)
+                return false;
+            plugin.config.enabled = false;
+            return true;
+        },
+        enablePlugin(name) {
+            const plugin = this.getPlugin(name);
+            if (!plugin)
+                return false;
+            plugin.config.enabled = true;
+            // Initialize if not already initialized
+            if (typeof plugin.init === "function" && !plugin.state?.initialized) {
+                plugin.init();
+                plugin.state.initialized = true;
+            }
+            return true;
+        },
+        pluginConfig(name) {
+            const plugin = this.getPlugin(name);
+            if (!plugin)
+                return null;
+            return plugin.config;
+        },
+        // Helper method to sort plugins by priority
+        getSortedPlugins() {
+            return this.getEnabledPlugins().sort((a, b) => {
+                const priorityA = a.config?.priority || 0;
+                const priorityB = b.config?.priority || 0;
+                return priorityB - priorityA; // Higher priority first
+            });
+        },
+        // Helper function to determine if data is JSON or HTML
+        _determineDataType(data) {
+            // If it's already an object, it's JSON
+            if (typeof data === "object" && data !== null) {
+                return "json";
+            }
+            // If it's a string, try to parse it as JSON
+            if (typeof data === "string") {
+                try {
+                    JSON.parse(data);
+                    return "json";
+                }
+                catch (e) {
+                    // If it's not parseable as JSON, assume it's HTML
+                    return "html";
+                }
+            }
+            // For any other type, assume it's JSON
+            return "json";
+        },
+        // Apply transformations from all enabled plugins in priority order
+        applyTransformations(instance, data, transformationType, dataType = "json") {
+            // Validate instance
+            if (!instance || typeof instance !== "object") {
+                Debug.error("Invalid instance provided to applyTransformations");
+                return data;
+            }
+            Debug.debug(`[Transform] Starting ${transformationType}`, {
+                instance: instance.instanceName,
+                isEvent: data instanceof Event,
+                dataType: typeof data,
+                isProxy: data && typeof data === "object" && "toJSON" in data,
+            });
+            // Get plugins in priority order
+            const plugins = this.getSortedPlugins();
+            // Apply each plugin's transformation if it exists
+            let transformedData = plugins.reduce((transformedData, plugin) => {
+                // Check if plugin has transformers and the specific transformation type
+                if (plugin.transformers &&
+                    typeof plugin.transformers[transformationType] === "function") {
+                    try {
+                        Debug.debug(`[Transform] Applying ${plugin.config.name}'s ${transformationType}`, {
+                            dataType: typeof transformedData,
+                            isEvent: transformedData instanceof Event,
+                        });
+                        // Apply the transformation
+                        const transformerFn = plugin.transformers[transformationType];
+                        const result = transformerFn?.(instance, transformedData, dataType);
+                        // If the result is undefined or null, return the original data
+                        if (result === undefined || result === null) {
+                            Debug.warn(`Plugin ${plugin.config.name} returned undefined/null for ${transformationType}, using original data`);
+                            return transformedData;
+                        }
+                        // For event transformations, ensure we preserve the event object structure
+                        if (transformedData instanceof Event && result instanceof Event) {
+                            // For events, we want to preserve the event object but update its properties
+                            Object.assign(transformedData.detail, result.detail);
+                            return transformedData;
+                        }
+                        Debug.debug(`[Transform] ${plugin.config.name}'s transform result:`, {
+                            resultType: typeof result,
+                            isEvent: result instanceof Event,
+                            isProxy: result && typeof result === "object" && "toJSON" in result,
+                        });
+                        return result;
+                    }
+                    catch (error) {
+                        Debug.error(`Plugin ${plugin.config.name} failed executing ${transformationType} transformation:`, error);
+                        return transformedData; // Return unmodified data if transformation fails
+                    }
+                }
+                return transformedData;
+            }, data);
+            // Apply custom transformers after plugin transformers
+            const customTransformers = this.customTransformers.get(transformationType) || [];
+            if (customTransformers.length > 0) {
+                Debug.debug(`[Transform] Applying ${customTransformers.length} custom transformers for ${transformationType}`);
+            }
+            transformedData = customTransformers.reduce((transformedData, namedTransformer, index) => {
+                try {
+                    Debug.debug(`[Transform] Applying custom transformer '${namedTransformer.name}' (${index + 1}/${customTransformers.length})`, {
+                        dataType: typeof transformedData,
+                        isEvent: transformedData instanceof Event,
+                    });
+                    // Apply the custom transformation with the instance context
+                    const result = namedTransformer.fn.call(null, instance, transformedData, dataType);
+                    // If the result is undefined or null, return the original data
+                    if (result === undefined || result === null) {
+                        Debug.warn(`Custom transformer '${namedTransformer.name}' returned undefined/null for ${transformationType}, using original data`);
+                        return transformedData;
+                    }
+                    // For event transformations, ensure we preserve the event object structure
+                    if (transformedData instanceof Event && result instanceof Event) {
+                        // For events, we want to preserve the event object but update its properties
+                        Object.assign(transformedData.detail, result.detail);
+                        return transformedData;
+                    }
+                    Debug.debug(`[Transform] Custom transformer '${namedTransformer.name}' result:`, {
+                        resultType: typeof result,
+                        isEvent: result instanceof Event,
+                        isProxy: result && typeof result === "object" && "toJSON" in result,
+                    });
+                    return result;
+                }
+                catch (error) {
+                    Debug.error(`Custom transformer '${namedTransformer.name}' failed executing ${transformationType} transformation:`, error);
+                    return transformedData; // Return unmodified data if transformation fails
+                }
+            }, transformedData);
+            Debug.debug(`[Transform] Completed ${transformationType}`, {
+                finalDataType: typeof transformedData,
+                isEvent: transformedData instanceof Event,
+                isProxy: transformedData &&
+                    typeof transformedData === "object" &&
+                    "toJSON" in transformedData,
+            });
+            return transformedData;
+        },
+        // Add a custom transformer function for a specific transformation type
+        addTransformer(transformationType, transformerFn, transformerName) {
+            if (typeof transformerFn !== "function") {
+                throw new FlowPlaterError("Transformer must be a function");
+            }
+            // Generate automatic name if not provided
+            if (!transformerName) {
+                // Get existing transformer count for this type
+                const existingTransformers = this.customTransformers.get(transformationType) || [];
+                transformerName = `${transformationType}_${existingTransformers.length + 1}_${Date.now()}`;
+            }
+            // Validate transformer function signature based on type
+            const fnStr = transformerFn.toString();
+            if (transformationType === "transformRequest") {
+                if (!fnStr.includes("instance") || !fnStr.includes("evt")) {
+                    Debug.warn("Request transformer function should accept (instance, evt) parameters");
+                }
+            }
+            else if (transformationType === "transformResponse") {
+                if (!fnStr.includes("instance") || !(fnStr.includes("response") || fnStr.includes("data"))) {
+                    Debug.warn("Response transformer function should accept (instance, response, dataType) parameters");
+                }
+            }
+            else {
+                if (!fnStr.includes("instance") || !fnStr.includes("data")) {
+                    Debug.warn("Transformer function should accept (instance, data, dataType) parameters");
+                }
+            }
+            // Initialize array for this transformation type if it doesn't exist
+            if (!this.customTransformers.has(transformationType)) {
+                this.customTransformers.set(transformationType, []);
+            }
+            // Check if a transformer with this name already exists
+            const existingTransformers = this.customTransformers.get(transformationType);
+            const existingIndex = existingTransformers.findIndex((t) => t.name === transformerName);
+            if (existingIndex !== -1) {
+                // Replace existing transformer with same name
+                existingTransformers[existingIndex] = { name: transformerName, fn: transformerFn };
+                Debug.debug(`Replaced custom transformer '${transformerName}' for ${transformationType}`);
+            }
+            else {
+                // Add new transformer
+                existingTransformers.push({ name: transformerName, fn: transformerFn });
+                Debug.debug(`Added custom transformer '${transformerName}' for ${transformationType}`);
+            }
+            return this; // For method chaining
+        },
+        // Remove a custom transformer function by name
+        removeTransformer(transformationType, transformerName) {
+            if (!this.customTransformers.has(transformationType)) {
+                return false;
+            }
+            const transformers = this.customTransformers.get(transformationType);
+            const index = transformers.findIndex((t) => t.name === transformerName);
+            if (index === -1) {
+                Debug.warn(`Transformer '${transformerName}' not found for type '${transformationType}'`);
+                return false;
+            }
+            transformers.splice(index, 1);
+            // Remove the transformation type if no transformers left
+            if (transformers.length === 0) {
+                this.customTransformers.delete(transformationType);
+            }
+            Debug.debug(`Removed custom transformer '${transformerName}' for ${transformationType}`);
+            return true;
+        },
+        // Clear all custom transformers for a specific type
+        clearTransformers(transformationType) {
+            if (!transformationType) {
+                // Clear all transformers if no type specified
+                this.customTransformers.clear();
+                Debug.debug("Cleared all custom transformers");
+            }
+            else {
+                this.customTransformers.delete(transformationType);
+                Debug.debug(`Cleared custom transformers for ${transformationType}`);
+            }
+            return this;
+        },
+        // List all custom transformers
+        listTransformers(transformationType) {
+            if (transformationType) {
+                return this.customTransformers.get(transformationType) || [];
+            }
+            else {
+                const result = {};
+                for (const [type, transformers] of this.customTransformers.entries()) {
+                    result[type] = transformers;
+                }
+                return result;
+            }
+        },
+        executeHook(hookName, ...args) {
+            Debug.debug("[PLUGIN] Executing hook:", hookName, args);
+            const plugins = this.getSortedPlugins();
+            let result = args[0]; // Store initial value
+            for (const plugin of plugins) {
+                if (plugin.hooks?.[hookName]) {
+                    try {
+                        const hookFn = plugin.hooks?.[hookName];
+                        const hookResult = hookFn?.(...args);
+                        // Allow hooks to modify the value
+                        if (hookResult !== undefined) {
+                            result = hookResult;
+                            args[0] = result; // Update for next plugin
+                        }
+                        else {
+                            // If hook returns undefined, use the previous result
+                            Debug.warn(`Plugin ${plugin.config.name} returned undefined for ${hookName}`, args[0]);
+                            result = args[0];
+                        }
+                    }
+                    catch (error) {
+                        Debug.error(`Plugin ${plugin.config.name} failed executing ${hookName}:`, error);
+                        // Continue with other plugins
+                    }
+                }
+            }
+            return result;
+        },
+        // Execute a global method
+        executeGlobalMethod(methodName, ...args) {
+            const methodInfo = this.globalMethods.get(methodName);
+            if (!methodInfo) {
+                throw new FlowPlaterError(`Global method ${methodName} not found`);
+            }
+            const plugin = this.getPlugin(methodInfo.plugin);
+            if (!plugin || !plugin.config?.enabled) {
+                throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+            }
+            return methodInfo.method.call(plugin, ...args);
+        },
+        // Execute an instance method
+        executeInstanceMethod(methodName, instance, ...args) {
+            const methodInfo = this.instanceMethods.get(methodName);
+            if (!methodInfo) {
+                throw new FlowPlaterError(`Instance method ${methodName} not found`);
+            }
+            const plugin = this.getPlugin(methodInfo.plugin);
+            if (!plugin || !plugin.config?.enabled) {
+                throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+            }
+            return methodInfo.method(instance, ...args);
+        },
+        async destroyPlugin(name) {
+            const plugin = this.getPlugin(name);
+            if (!plugin)
+                return false;
+            if (typeof plugin.destroy === "function") {
+                await plugin.destroy();
+            }
+            return this.removePlugin(name);
+        },
+        async destroyAll() {
+            const plugins = this.getAllPlugins();
+            await Promise.all(plugins.map((plugin) => typeof plugin.destroy === "function" ? plugin.destroy() : null));
+            plugins.forEach((plugin) => _readyState.unregisterPlugin(plugin.config.name));
+            // Clear plugin manager state
+            this.plugins.clear();
+            this.globalMethods.clear();
+            this.instanceMethods.clear();
+            Debug.info("All plugins destroyed, FlowPlater remains ready for new plugins");
+        },
+    };
+
+    function instanceMethods(instanceName) {
+        // Helper function to resolve a path within the data
+        function _resolvePath(path) {
+            const instance = _state.instances[instanceName];
+            if (!instance) {
+                Debug.error("Instance not found: " + instanceName);
+                return undefined;
+            }
+            const pathParts = path.split(/[\.\[\]'"]/);
+            let current = instance.data;
+            for (let i = 0; i < pathParts.length; i++) {
+                const part = pathParts[i];
+                if (part === "")
+                    continue;
+                if (current === undefined ||
+                    current === null ||
+                    !current.hasOwnProperty(part)) {
+                    return undefined;
+                }
+                current = current[part];
+            }
+            return current;
+        }
+        function _validateData(data) {
+            if (typeof data === "string" && data.trim().startsWith("<!DOCTYPE")) {
+                Debug.debug("Data is HTML, skipping validation", instanceName);
+                return { valid: true, isHtml: true };
+            }
+            if ((typeof data === "object" && data !== null) ||
+                Array.isArray(data) ||
+                typeof data === "number" ||
+                typeof data === "boolean") {
+                return { valid: true, isHtml: false };
+            }
+            Debug.error("Invalid data type: " + typeof data);
+            return { valid: false, isHtml: false };
+        }
+        return {
+            instanceName,
+            animate: _state.defaults.animation,
+            _updateDOM: async function () {
+                const instance = _state.instances[instanceName];
+                if (!instance) {
+                    Debug.error("Instance not found: " + instanceName);
+                    return;
+                }
+                try {
+                    let rendered;
+                    if (instance.templateId === "self" || instance.templateId === null) {
+                        // For "self" template, use the first element as the template
+                        const templateElement = Array.from(instance.elements)[0];
+                        if (!templateElement) {
+                            Debug.error("No template element found for self template", instance.instanceName);
+                            return;
+                        }
+                        rendered = templateElement.innerHTML;
+                    }
+                    else if (!instance.template) {
+                        Debug.error("No template found for instance", instance.instanceName);
+                        return;
+                    }
+                    else {
+                        // Check if data is valid
+                        const { valid, isHtml } = _validateData(instance.data);
+                        if (!valid) {
+                            Debug.error("Invalid data type for instance", instance.instanceName);
+                            return;
+                        }
+                        if (isHtml) {
+                            Debug.debug("Data is HTML, using as is", instance.instanceName);
+                            rendered = instance.data;
+                        }
+                        else {
+                            // Apply plugin transformations to the data before rendering
+                            Debug.debug("Before transformation - instance data:", {
+                                instanceName: instance.instanceName,
+                                rawData: instance.data,
+                                getData: instance.getData(),
+                            });
+                            const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
+                            Debug.debug("After transformation - transformed data:", {
+                                instanceName: instance.instanceName,
+                                transformedData,
+                                isNull: transformedData === null,
+                                isUndefined: transformedData === undefined,
+                                type: typeof transformedData,
+                            });
+                            // Use transformed data for reactive rendering
+                            rendered = instance.template(transformedData);
+                            Debug.debug("Rendered template with data:", {
+                                template: instance.templateId,
+                                data: transformedData,
+                                rendered: rendered,
+                            });
+                        }
+                    }
+                    // Filter out elements that are no longer in the DOM
+                    const activeElements = Array.from(instance.elements).filter((el) => document.body.contains(el));
+                    if (activeElements.length === 0) {
+                        Debug.error("No active elements found for instance", instance.instanceName);
+                        return;
+                    }
+                    // Batch DOM updates to reduce layout thrashing
+                    const updatePromises = activeElements.map((element) => domBatcher.write(() => updateDOM(element, rendered, instance.animate, instance), `update-${instance.instanceName}-${Date.now()}`));
+                    // Wait for all batched element updates to complete
+                    const results = await Promise.all(updatePromises);
+                    return results;
+                }
+                catch (error) {
+                    Debug.error("Error updating DOM for instance", instance.instanceName, error);
+                }
+            },
+            /**
+             * Replaces the entire instance data with newData,
+             * removing keys not present in newData.
+             * Triggers reactive updates via the proxy.
+             * @param {Object} newData The new data object.
+             */
+            setData: function (newData) {
+                const instance = _state.instances[instanceName];
+                if (!instance) {
+                    Debug.error("Instance not found: " + instanceName);
+                    return this;
+                }
+                // If newData is an unnamed root object (no data property), wrap it
+                if (typeof newData === "string" ||
+                    typeof newData === "number" ||
+                    Array.isArray(newData)) {
+                    Debug.warn(`[setData] Received raw value or unnamed root object, automatically wrapping in 'data' property`);
+                    newData = { data: newData };
+                }
+                // Validate newData type (allow empty objects)
+                if (typeof newData !== "object" ||
+                    newData === null ||
+                    Array.isArray(newData)) {
+                    Debug.error("Invalid newData type provided to setData: " + typeof newData);
+                    return this;
+                }
+                const currentData = instance.data; // The proxy's target
+                Debug.debug(`[setData] Replacing data for ${instanceName}. Current keys: ${Object.keys(currentData).join(", ")}, New keys: ${Object.keys(newData).join(", ")}`);
+                // Delete keys not present in newData
+                let deletedKeys = [];
+                for (const key in currentData) {
+                    if (Object.hasOwnProperty.call(currentData, key) &&
+                        !Object.hasOwnProperty.call(newData, key)) {
+                        deletedKeys.push(key);
+                        delete currentData[key]; // Triggers proxy delete trap
+                    }
+                }
+                if (deletedKeys.length > 0) {
+                    Debug.debug(`[setData] Deleted stale keys for ${instanceName}: ${deletedKeys.join(", ")}`);
+                }
+                // Update with new data - use deepMerge for proper handling of nested objects
+                deepMerge(currentData, newData);
+                Debug.debug(`[setData] Data replacement complete for ${instanceName}.`);
+                return this;
+            },
+            remove: function () {
+                const instance = _state.instances[instanceName];
+                if (!instance) {
+                    throw new Error("Instance not found: " + instanceName);
+                }
+                EventSystem.publish("beforeRemove", {
+                    instanceName,
+                    elements: instance.elements,
+                });
+                try {
+                    // Remove from localStorage if storage is enabled
+                    if (ConfigManager.getConfig().storage?.enabled) {
+                        localStorage.removeItem(`fp_${instanceName}`);
+                    }
+                    // Clear elements and remove from DOM
+                    instance.elements.forEach(function (element) {
+                        try {
+                            element.innerHTML = "";
+                        }
+                        catch (error) {
+                            Debug.error("Error removing instance: " + error.message);
+                        }
+                    });
+                    // Clear the elements array
+                    instance.elements = [];
+                    // Remove from state
+                    delete _state.instances[instanceName];
+                    delete _state.templateCache[instance.templateId];
+                    EventSystem.publish("afterRemove", {
+                        instanceName,
+                        elements: [],
+                    });
+                    Debug.info("Removed instance: " + instanceName);
+                    return true;
+                }
+                catch (error) {
+                    throw error;
+                }
+            },
+            refresh: async function (options = { remote: true, recompile: false, ignoreLocalData: false }) {
+                const instance = _state.instances[instanceName];
+                if (!instance) {
+                    Debug.error("Instance not found: " + instanceName);
+                    return Promise.reject(new Error("Instance not found: " + instanceName));
+                }
+                // Apply transformations before checking template
+                const transformedData = PluginManager.applyTransformations(instance, instance.data, "transformDataBeforeRender", "json");
+                // If recompile is true, recompile the template
+                const compiledTemplate = instance.template(transformedData);
+                const shouldRecompile = options.recompile || (!compiledTemplate && instance.data);
+                if (shouldRecompile) {
+                    instance.template = compileTemplate(instance.templateId, true);
+                }
+                Debug.debug("Refresh - Template check:", {
+                    templateId: instance.templateId,
+                    templateElement: document.querySelector(instance.templateId),
+                    compiledTemplate: instance.template(transformedData),
+                });
+                // Check for local variable at instance level first
+                let hasLocalVarUpdate = false;
+                if (instance.localVarName && !options.ignoreLocalData) {
+                    const localData = extractLocalData(instance.localVarName);
+                    if (localData) {
+                        deepMerge(instance.data, localData);
+                        hasLocalVarUpdate = true;
+                        Debug.debug(`Refreshed data from local variable "${instance.localVarName}"`);
+                    }
+                }
+                const promises = [];
+                instance.elements.forEach(async function (element) {
+                    try {
+                        if (options.remote && !hasLocalVarUpdate) {
+                            const htmxMethods = ["get", "post", "put", "patch", "delete"];
+                            const hasHtmxMethod = htmxMethods.some((method) => element.getAttribute(`hx-${method}`));
+                            if (hasHtmxMethod) {
+                                const method = htmxMethods.find((method) => element.getAttribute(`hx-${method}`));
+                                const url = element.getAttribute(`hx-${method}`);
+                                const promise = fetch(url, { method: method?.toUpperCase() })
+                                    .then((response) => {
+                                    if (!response.ok) {
+                                        throw new Error(`HTTP error! status: ${response.status}`);
+                                    }
+                                    return response.json();
+                                })
+                                    .then((data) => {
+                                    // Update data which will trigger render - use deepMerge instead of Object.assign
+                                    deepMerge(instance.data, data);
+                                    // Store data if storage is enabled
+                                    if (ConfigManager.getConfig().storage?.enabled) {
+                                        saveToLocalStorage(instanceName, instance.data, "instance");
+                                    }
+                                    return data;
+                                });
+                                promises.push(promise);
+                            }
+                        }
+                        else {
+                            // Apply transformations before updating DOM
+                            const transformedData = PluginManager.applyTransformations(instance, instance.data, "transformDataBeforeRender", "json");
+                            Debug.debug("Instance.refresh - Transformed data:", transformedData);
+                            promises.push(domBatcher.write(() => updateDOM(element, instance.template(transformedData), instance.animate, instance), `refresh-${instanceName}-${Date.now()}`));
+                        }
+                    }
+                    catch (error) {
+                        element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
+                        Debug.error(`Failed to refresh template: ${error.message}`);
+                        promises.push(Promise.reject(error));
+                    }
+                });
+                return Promise.all(promises);
+            },
+            getData: function () {
+                const proxy = _state.instances[instanceName].data;
+                return JSON.parse(JSON.stringify(proxy));
+            },
+            getElements: function () {
+                return _state.instances[instanceName].elements;
+            },
+            getTemplateElement: function () {
+                return _state.instances[instanceName].templateElement;
+            },
+            get: function (path) {
+                return !path ? this.getData?.() : _resolvePath.call(this, path);
+            },
+            refreshTemplate: function (templateId, recompile = false) {
+                Performance.start("refreshTemplate:" + templateId);
+                const compiledTemplate = compileTemplate(templateId, recompile);
+                if (!compiledTemplate) {
+                    Debug.error("Failed to compile template: " + templateId);
+                    Performance.end("refreshTemplate:" + templateId);
+                    return false;
+                }
+                return true;
+            },
+        };
+    }
+
+    const GroupManager = {
+        getOrCreateGroup(groupName, initialData = {}) {
+            let existingGroup = _state.groups[groupName];
+            if (existingGroup) {
+                // Merge any new initial data
+                if (Object.keys(initialData).length > 0) {
+                    deepMerge(existingGroup.data, initialData);
+                    Debug.debug(`[GroupManager] Merged initialData into existing group: ${groupName}`, initialData);
+                }
+                return existingGroup;
+            }
+            // --- Group doesn't exist in state, attempt to load from storage ---
+            let baseData = {}; // Start with empty base
+            if (ConfigManager.getConfig().storage?.enabled) {
+                // Check if storage is currently enabled
+                try {
+                    const loadedData = loadFromLocalStorage(groupName, "group");
+                    if (loadedData) {
+                        Debug.info(`[GroupManager] Loaded group data from storage for: ${groupName}`);
+                        baseData = loadedData; // Use loaded data as the base
+                    }
+                    else {
+                        Debug.debug(`[GroupManager] No group data found in storage for: ${groupName}`);
+                    }
+                }
+                catch (e) {
+                    Debug.error(`[GroupManager] Error loading group ${groupName} from storage: ${e.message}`);
+                    // Proceed with empty baseData on error
+                }
+            }
+            else {
+                Debug.debug(`[GroupManager] Storage is disabled, skipping loadFromLocalStorage for: ${groupName}`);
+            }
+            // Merge any explicitly passed initialData *on top* of the base (loaded or empty)
+            if (Object.keys(initialData).length > 0) {
+                baseData = deepMerge(baseData, initialData);
+                Debug.debug(`[GroupManager] Merged initialData onto base for new group: ${groupName}`, initialData);
+            }
+            // --- Create new group with the final baseData ---
+            Debug.info(`[GroupManager] Creating new group: ${groupName} with base data`, baseData);
+            const group = {
+                name: groupName,
+                elements: [],
+                addElement: (element) => {
+                    group.elements.push(element);
+                },
+                removeElement: (element) => {
+                    group.elements = group.elements.filter((e) => e !== element);
+                },
+                instances: new Set(),
+                _isEvaluating: false,
+                _lastRenderedOutputs: new Map(),
+                data: {}, // Will be replaced with proxy
+                getData: () => {
+                    return JSON.parse(JSON.stringify(_state.groups[groupName].data));
+                },
+                update: (data) => {
+                    deepMerge(group.data, data);
+                },
+                refresh: () => {
+                    group.update(group.data);
+                },
+                destroy: () => {
+                    delete _state.groups[groupName];
+                },
+            };
+            // Create proxy for group data using the final baseData
+            group.data = createDeepProxy(baseData, async () => {
+                // Skip if already evaluating to prevent circular updates
+                if (group._isEvaluating)
+                    return;
+                try {
+                    group._isEvaluating = true;
+                    Debug.info(`[Group Update] Updating all instances in group: ${groupName}`);
+                    // Get array of instances that are ready for updates
+                    const instances = Array.from(group.instances).filter((instance) => instance.template &&
+                        typeof instance.template === "function" &&
+                        !instance._htmxUpdateInProgress);
+                    // Create update promises for all instances
+                    const updatePromises = instances.map(async (instance) => {
+                        try {
+                            // Get transformed data
+                            const transformedData = PluginManager.applyTransformations(instance, group.getData(), "transformDataBeforeRender", "json");
+                            // Render template
+                            const newRenderedOutput = instance.template(transformedData);
+                            const previousOutput = group._lastRenderedOutputs.get(instance.instanceName);
+                            // Only update if output changed
+                            if (previousOutput !== newRenderedOutput) {
+                                // Execute hooks
+                                PluginManager.executeHook("updateData", instance, {
+                                    newData: group.data,
+                                    source: "group",
+                                });
+                                EventSystem.publish("updateData", {
+                                    instanceName: instance.instanceName,
+                                    groupName: groupName,
+                                    newData: group.data,
+                                    source: "group",
+                                });
+                                // Update DOM
+                                Debug.debug(`[Group Update] Updating DOM for ${instance.instanceName}`);
+                                return instance._updateDOM().then(() => {
+                                    // Store rendered output
+                                    group._lastRenderedOutputs.set(instance.instanceName, newRenderedOutput);
+                                });
+                            }
+                        }
+                        catch (error) {
+                            Debug.error(`Error updating ${instance.instanceName}:`, error);
+                        }
+                    });
+                    // Wait for all instance updates to complete
+                    await Promise.all(updatePromises);
+                    // Save to storage if enabled - dynamically checks ConfigManager.getConfig
+                    if (ConfigManager.getConfig().storage?.enabled) {
+                        Debug.debug(`[Group Update] Saving group data for ${groupName}`);
+                        saveToLocalStorage(groupName, group.data, "group");
+                    }
+                }
+                finally {
+                    group._isEvaluating = false;
+                }
+            });
+            // Store group in state
+            _state.groups[groupName] = group;
+            Debug.info(`[GroupManager] Created and stored new group: ${groupName}`);
+            return group;
+        },
+        getGroup(groupName) {
+            return _state.groups[groupName] || null;
+        },
+        getAllGroups() {
+            return _state.groups;
+        },
+        updateGroup(groupName, data) {
+            const group = this.getGroup(groupName);
+            if (group && group.data && typeof data === "object") {
+                deepMerge(group.data, data);
+                return group;
+            }
+            return null;
+        },
+        removeGroup(groupName) {
+            const group = this.getGroup(groupName);
+            if (group) {
+                delete _state.groups[groupName];
+                Debug.info(`Removed group: ${groupName}`);
+            }
+        },
+        removeAllGroups() {
+            _state.groups = {};
+            Debug.info("Removed all groups");
+        },
+        /**
+         * Adds an instance to a group
+         * @param {Object} instance - The instance to add
+         * @param {string} groupName - The name of the group
+         */
+        addInstanceToGroup(instance, groupName) {
+            const group = this.getOrCreateGroup(groupName);
+            if (group) {
+                // Set instance's group reference
+                instance.groupName = groupName;
+                // Add instance to group
+                group.instances.add(instance);
+                // Only try to render if the template is actually a function
+                if (instance.template && typeof instance.template === "function") {
+                    // Store instance's initial rendered output
+                    const transformedData = PluginManager.applyTransformations(instance, group.getData(), "transformDataBeforeRender", "json");
+                    try {
+                        const renderedOutput = instance.template(transformedData);
+                        group._lastRenderedOutputs.set(instance.instanceName, renderedOutput);
+                    }
+                    catch (error) {
+                        Debug.error(`Error rendering template for group member: ${error.message}`);
+                    }
+                }
+                else {
+                    Debug.debug(`Skipping initial render for group member: template not ready for ${instance.instanceName}`);
+                }
+                Debug.debug(`Added instance ${instance.instanceName} to group ${groupName}`);
+            }
+        },
+        /**
+         * Removes an instance from its group
+         * @param {Object} instance - The instance to remove
+         */
+        removeInstanceFromGroup(instance) {
+            if (!instance.groupName) {
+                return;
+            }
+            const group = _state.groups[instance.groupName];
+            if (group) {
+                group.instances.delete(instance);
+                group._lastRenderedOutputs.delete(instance.instanceName);
+                Debug.debug(`Removed instance ${instance.instanceName} from group ${instance.groupName}`);
+                // Clean up empty groups
+                if (group.instances.size === 0) {
+                    delete _state.groups[instance.groupName];
+                    Debug.info(`Removed empty group: ${instance.groupName}`);
+                }
+            }
+            // Remove group reference from instance
+            delete instance.groupName;
+        },
+    };
+
+    const InstanceManager = {
+        /**
+         * Gets an existing instance or creates a new one.
+         * The data proxy should be assigned by the caller AFTER getting the instance.
+         * @param {HTMLElement} element - The DOM element
+         * @param {Object} initialData - Initial data object (will be replaced by proxy later)
+         * @returns {Object} The instance
+         */
+        getOrCreateInstance(element, initialData = {}) {
+            // Skip if element is already indexed
+            if (AttributeMatcher._hasAttribute(element, "indexed")) {
+                Debug.debug(`Element already indexed: ${element.id || AttributeMatcher._getRawAttribute(element, "instance")}`);
+                return _state.instances[AttributeMatcher._getRawAttribute(element, "instance") || element.id];
+            }
+            const instanceName = AttributeMatcher._getRawAttribute(element, "instance") || element.id;
+            if (!instanceName) {
+                Debug.error("No instance name found for element");
+                return null;
+            }
+            // Check if this element belongs to a group
+            const groupName = AttributeMatcher._getRawAttribute(element, "group");
+            let instance = _state.instances[instanceName];
+            if (!instance) {
+                // If this is not a template element, look for a parent template element
+                if (!AttributeMatcher._hasAttribute(element, "template")) {
+                    const parentTemplateElement = AttributeMatcher.findMatchingElements("template")?.find((el) => AttributeMatcher._getRawAttribute(el, "instance") === instanceName);
+                    if (parentTemplateElement) {
+                        Debug.debug(`Found parent template element for instance ${instanceName}`);
+                        return this.getOrCreateInstance(parentTemplateElement, initialData);
+                    }
+                    else {
+                        Debug.error(`No template element found for instance ${instanceName}`);
+                        return null;
+                    }
+                }
+                // Create new instance with the template element
+                const baseInstance = {
+                    instanceName: instanceName,
+                    elements: [element],
+                    template: null, // Template will be assigned by caller
+                    templateId: AttributeMatcher._getRawAttribute(element, "template") || "",
+                    templateElement: element, // Store direct reference to the template element
+                    data: initialData, // Assign initial data, caller MUST replace with Proxy
+                    cleanup: () => {
+                        // Remove from group if part of one
+                        if (instance.groupName) {
+                            GroupManager.removeInstanceFromGroup(instance);
+                        }
+                        instance.elements = [];
+                    },
+                };
+                // Add instance methods to complete the FlowPlaterInstance interface
+                const instanceMethodsObj = instanceMethods(instanceName);
+                // Create the complete instance by merging base properties with methods
+                instance = Object.assign(baseInstance, instanceMethodsObj);
+                // Add plugin instance methods
+                const methods = PluginManager.instanceMethods;
+                for (const [methodName] of methods.entries()) {
+                    // Add method to instance
+                    instance[methodName] = (...args) => PluginManager.executeInstanceMethod(methodName, instance, ...args);
+                }
+                _state.instances[instanceName] = instance;
+                // Execute newInstance hook
+                PluginManager.executeHook("newInstance", instance);
+                Debug.info(`Created new instance: ${instanceName}`);
+                // Find all elements with matching fp-instance attribute
+                const matchingElements = AttributeMatcher.findMatchingElements("instance", instanceName);
+                // Add matching elements to the instance's elements Array
+                matchingElements.forEach((matchingElement) => {
+                    if (matchingElement !== element) {
+                        // Check for target attributes, including inherited ones
+                        const targetSelector = AttributeMatcher.findInheritedAttribute(matchingElement, "target");
+                        if (targetSelector) {
+                            let targetElements = [];
+                            switch (true) {
+                                case targetSelector === "this":
+                                    targetElements = [matchingElement];
+                                    break;
+                                case targetSelector.startsWith("closest "):
+                                    const closestSelector = targetSelector.substring(8);
+                                    const closestElement = matchingElement.closest(closestSelector);
+                                    if (closestElement)
+                                        targetElements = [closestElement];
+                                    break;
+                                case targetSelector.startsWith("find "):
+                                    const findSelector = targetSelector.substring(5);
+                                    const foundElement = matchingElement.querySelector(findSelector);
+                                    if (foundElement)
+                                        targetElements = [foundElement];
+                                    break;
+                                case targetSelector === "next":
+                                    const nextElement = matchingElement.nextElementSibling;
+                                    if (nextElement)
+                                        targetElements = [nextElement];
+                                    break;
+                                case targetSelector.startsWith("next "):
+                                    const nextSelector = targetSelector.substring(5);
+                                    let currentNext = matchingElement.nextElementSibling;
+                                    while (currentNext) {
+                                        if (currentNext.matches(nextSelector)) {
+                                            targetElements = [currentNext];
+                                            break;
+                                        }
+                                        currentNext = currentNext.nextElementSibling;
+                                    }
+                                    break;
+                                case targetSelector === "previous":
+                                    const prevElement = matchingElement.previousElementSibling;
+                                    if (prevElement)
+                                        targetElements = [prevElement];
+                                    break;
+                                case targetSelector.startsWith("previous "):
+                                    const prevSelector = targetSelector.substring(9);
+                                    let currentPrev = matchingElement.previousElementSibling;
+                                    while (currentPrev) {
+                                        if (currentPrev.matches(prevSelector)) {
+                                            targetElements = [currentPrev];
+                                            break;
+                                        }
+                                        currentPrev = currentPrev.previousElementSibling;
+                                    }
+                                    break;
+                                default:
+                                    // Regular CSS selector
+                                    targetElements = Array.from(document.querySelectorAll(targetSelector));
+                            }
+                            // Add all found target elements to the instance
+                            targetElements.forEach((targetElement) => {
+                                if (!instance.elements.includes(targetElement)) {
+                                    instance.elements.push(targetElement);
+                                }
+                                targetElement.setAttribute("fp-indexed", "true");
+                            });
+                        }
+                        else {
+                            if (!instance.elements.includes(matchingElement)) {
+                                instance.elements.push(matchingElement);
+                            }
+                        }
+                        // Mark the element as indexed
+                        matchingElement.setAttribute("fp-indexed", "true");
+                    }
+                });
+                // Mark the template element as indexed
+                element.setAttribute("fp-indexed", "true");
+                // Handle group membership, but don't set data proxy here - that happens in Template.js
+                if (groupName) {
+                    instance.groupName = groupName;
+                    Debug.info(`Instance ${instanceName} will be added to group ${groupName}`);
+                }
+            }
+            else {
+                // If instance exists, add the new element to its array (if not already present)
+                if (!instance.elements.includes(element)) {
+                    instance.elements.push(element);
+                }
+                // Mark the element as indexed
+                element.setAttribute("fp-indexed", "true");
+                Debug.debug(`Added element to existing instance: ${instanceName}`);
+                // Check for group membership
+                if (groupName && !instance.groupName) {
+                    instance.groupName = groupName;
+                    Debug.info(`Added existing instance ${instanceName} to group ${groupName}`);
+                }
+            }
+            return instance;
+        },
+        /**
+         * Updates an instance's data via the proxy. USE WITH CAUTION.
+         * Prefer direct proxy manipulation.
+         * @param {Object} instance - The instance to update
+         * @param {Object} newData - New data for the instance
+         */
+        updateInstanceData(instance, newData) {
+            if (!instance || !instance.data) {
+                Debug.error("Cannot update data: Instance or instance.data is invalid.");
+                return;
+            }
+            // Update data through the proxy to trigger reactivity
+            deepMerge(instance.data, newData);
+            // No explicit re-render needed here, proxy handler should trigger _updateDOM
+            // No explicit save needed here, proxy handler should save
+        },
+    };
+
+    function memoize(fn) {
+        const cache = new Map();
+        const memoized = (...args) => {
+            const key = JSON.stringify(args);
+            if (cache.has(key))
+                return cache.get(key);
+            const result = fn(...args);
+            cache.set(key, result);
+            return result;
+        };
+        memoized.original = fn;
+        memoized.cache = cache;
+        return memoized;
+    }
+
+    // Default customTags - can be overridden via meta config in init()
+    const customTagList = [{ tag: "fpselect", replaceWith: "select" }];
+    let currentCustomTags = customTagList; // Use default list initially - override in init()
+    function setCustomTags(tags) {
+        currentCustomTags = tags;
+    }
+    function replaceCustomTags(element) {
+        let replaced = false;
+        // Replace all custom tags in a single pass
+        for (const tag of currentCustomTags) {
+            const elements = element.getElementsByTagName(tag.tag);
+            if (elements.length > 0) {
+                replaced = true;
+                // Convert to array since the live HTMLCollection will change as we replace elements
+                const elementsArray = Array.from(elements);
+                for (const customElement of elementsArray) {
+                    const newElement = document.createElement(tag.replaceWith);
+                    newElement.innerHTML = customElement.innerHTML;
+                    // Copy all attributes from the custom element to the new element
+                    for (const attr of customElement.attributes) {
+                        newElement.setAttribute(attr.name, attr.value);
+                    }
+                    // Replace the custom element with the new element
+                    customElement.parentNode?.replaceChild(newElement, customElement);
+                }
+            }
+        }
+        if (replaced) {
+            Debug.info("replaced custom tags", element);
+        }
+        return element;
+    }
+
+    function compileTemplate(templateId, recompile = false) {
+        if (!recompile) {
+            return memoizedCompile(templateId);
+        }
+        // For recompile=true:
+        // 1. Clear template cache
+        delete _state.templateCache[templateId];
+        // 2. Compile without memoization
+        const compiledTemplate = memoizedCompile.original(templateId);
+        // 3. Update the memoized cache with the new template
+        memoizedCompile.cache.set(JSON.stringify([templateId]), compiledTemplate);
+        return compiledTemplate;
+    }
+    const memoizedCompile = memoize(function (templateId) {
+        // if templateId is empty or "self", use the current element
+        Performance.start("compile:" + templateId);
+        const helpers = Handlebars.helpers;
+        // Add # prefix if templateId doesn't start with it
+        const selector = templateId.startsWith("#") ? templateId : "#" + templateId;
+        var templateElement = document.querySelector(selector);
+        Debug.debug("Trying to compile template: " + templateId);
+        if (!templateElement) {
+            Debug.error("Template not found: " + templateId);
+            Performance.end("compile:" + templateId);
+            return null;
+        }
+        // Check if template needs compilation
+        if (!_state.templateCache[templateId] ||
+            (AttributeMatcher._hasAttribute(templateElement, "dynamic") &&
+                AttributeMatcher._getRawAttribute(templateElement, "dynamic") !== "false")) {
+            Debug.debug("compiling template: " + templateId);
+            // Function to construct tag with attributes
+            function constructTagWithAttributes(element) {
+                let tagName = element.tagName.toLowerCase();
+                let fpTag = AttributeMatcher._getRawAttribute(element, "tag");
+                if (fpTag) {
+                    tagName = fpTag;
+                }
+                // Replace all custom tags
+                currentCustomTags.forEach((tag) => {
+                    if (tagName === tag.tag) {
+                        tagName = tag.replaceWith;
+                    }
+                });
+                let attributes = "";
+                for (let attr of element.attributes) {
+                    attributes += ` ${attr.name}="${attr.value}"`;
+                }
+                return `<${tagName}${attributes}>`;
+            }
+            function processNode(node) {
+                let result = "";
+                // Loop through each child node
+                node.childNodes.forEach((child) => {
+                    if (child.nodeType === Node.TEXT_NODE) {
+                        result += child.textContent;
+                    }
+                    else if (child.nodeType === Node.ELEMENT_NODE) {
+                        const element = child;
+                        let childTagName = element.tagName.toLowerCase();
+                        let fpTag = AttributeMatcher._getRawAttribute(element, "tag");
+                        if (fpTag) {
+                            childTagName = fpTag;
+                        }
+                        if (element.hasAttribute("fp") || childTagName in helpers) {
+                            // Process as a Handlebars helper
+                            const helperName = childTagName;
+                            const fpAttr = element.getAttribute("fp");
+                            const args = fpAttr
+                                ? fpAttr
+                                    .split(" ")
+                                    .map((arg) => arg.replace(/&quot;/g, '"'))
+                                    .join(" ")
+                                : "";
+                            const innerContent = processNode(element);
+                            switch (helperName) {
+                                case "log":
+                                case "lookup":
+                                case "execute":
+                                    if (innerContent) {
+                                        result += `{{${helperName} ${innerContent} ${args}}}`;
+                                    }
+                                    else {
+                                        result += `{{${helperName} ${args}}}`;
+                                    }
+                                    break;
+                                case "comment":
+                                    result += `{{!-- ${args} --}}`;
+                                    break;
+                                case "if":
+                                    const escapedArgs = args.replace(/"/g, '\\"');
+                                    result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
+                                    break;
+                                case "else":
+                                    result += `{{${helperName}}}${innerContent}`;
+                                    break;
+                                case "math":
+                                    if (innerContent) {
+                                        Debug.warn(`FlowPlater: The <${helperName}> helper does not accept inner content.`);
+                                    }
+                                    result += `{{#${helperName} "${args}"}}`;
+                                    break;
+                                default:
+                                    result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
+                                    break;
+                            }
+                        }
+                        else if (element.tagName === "else") {
+                            const innerContent = processNode(element);
+                            result += `{{${element.tagName.toLowerCase()}}}${innerContent}`;
+                        }
+                        else if (element.tagName === "template" ||
+                            element.tagName === "fptemplate" ||
+                            AttributeMatcher._hasAttribute(element, "template")) {
+                            result += element.outerHTML;
+                        }
+                        else {
+                            const childContent = processNode(element);
+                            const startTag = constructTagWithAttributes(element);
+                            const fpValAttribute = AttributeMatcher._getRawAttribute(element, "val");
+                            let processedContent = childContent;
+                            if (fpValAttribute) {
+                                processedContent = `{{{default ${fpValAttribute} "${childContent.replace(/"/g, '\\"')}"}}}`;
+                            }
+                            let endTagName = childTagName;
+                            currentCustomTags.forEach((tag) => {
+                                if (endTagName === tag.tag) {
+                                    endTagName = tag.replaceWith;
+                                }
+                            });
+                            const endTag = `</${endTagName}>`;
+                            result += `${startTag}${processedContent}${endTag}`;
+                        }
+                    }
+                });
+                return result;
+            }
+            const handlebarsTemplate = processNode(templateElement);
+            Debug.debug("Compiling Handlebars template: " + handlebarsTemplate);
+            try {
+                const compiledTemplate = Handlebars.compile(handlebarsTemplate);
+                // Check cache size limit before adding new template
+                const cacheSize = ConfigManager.getConfig().templates?.cacheSize || 100; // Default to 100 if not configured
+                if (Object.keys(_state.templateCache).length >= cacheSize) {
+                    // Remove oldest template
+                    const oldestKey = Object.keys(_state.templateCache)[0];
+                    delete _state.templateCache[oldestKey];
+                    Debug.info("Cache limit reached. Removed template: " + oldestKey);
+                }
+                // Add new template to cache
+                _state.templateCache[templateId] = compiledTemplate;
+                Performance.end("compile:" + templateId);
+                return compiledTemplate;
+            }
+            catch (e) {
+                Debug.error("Template not valid: " + handlebarsTemplate + " | Error: " + e.message);
+                Performance.end("compile:" + templateId);
+                return null;
+            }
+        }
+        Performance.end("compile:" + templateId);
+        return _state.templateCache[templateId];
+    });
+
+    function render({ template, data, target, returnHtml = false, instanceName, animate = _state.defaults.animation, recompile = false, skipLocalStorageLoad = false, skipRender = false, isStoredDataRender = false, }) {
+        Performance.start("render:" + (instanceName || "anonymous"));
+        // Track initialization to prevent redundant initialization of the same instance
+        if (!_state._initTracking) {
+            _state._initTracking = {};
+        }
+        // Derive instance name early to use for tracking
+        let derivedInstanceName;
+        if (instanceName) {
+            derivedInstanceName = instanceName;
+        }
+        else if (target instanceof Element &&
+            AttributeMatcher._hasAttribute(target, "instance")) {
+            derivedInstanceName = AttributeMatcher._getRawAttribute(target, "instance");
+        }
+        else if (target instanceof Element && target.id) {
+            derivedInstanceName = target.id;
+        }
+        else if (typeof target === "string" && target.startsWith("#")) {
+            derivedInstanceName = target.substring(1);
+        }
+        // If this instance was recently initialized (within 100ms), skip
+        // BUT ONLY if this is not an explicit render with stored data
+        if (derivedInstanceName &&
+            _state._initTracking[derivedInstanceName] &&
+            !isStoredDataRender) {
+            const timeSinceLastInit = Date.now() - _state._initTracking[derivedInstanceName];
+            if (timeSinceLastInit < 100) {
+                // 100ms window to prevent duplicate initializations
+                Debug.warn(`[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`);
+                // Still return the existing instance
+                return _state.instances[derivedInstanceName] || null;
+            }
+        }
+        // Update tracking timestamp
+        if (derivedInstanceName) {
+            _state._initTracking[derivedInstanceName] = Date.now();
+        }
+        EventSystem.publish("beforeRender", {
+            instanceName,
+            template,
+            data,
+            target,
+            returnHtml,
+            recompile,
+        });
+        /* -------------------------------------------------------------------------- */
+        /*                                initial setup                               */
+        /* -------------------------------------------------------------------------- */
+        // Handle empty or "self" template
+        if (!template || template === "self") {
+            const targetElement = typeof target === "string" ? document.querySelector(target) : target;
+            if (targetElement) {
+                template = "#" + targetElement.id;
+            }
+        }
+        // First check for target attributes
+        let targetElements = [];
+        if (target instanceof Element) {
+            // Check for hx-target or fp-target attributes
+            const targetSelector = AttributeMatcher._getRawAttribute(target, "target");
+            if (targetSelector) {
+                if (targetSelector === "this") {
+                    targetElements = [target];
+                }
+                else {
+                    targetElements = Array.from(document.querySelectorAll(targetSelector));
+                }
+            }
+        }
+        // If no target elements found from attributes, use the normal target handling
+        if (targetElements.length === 0) {
+            if (target instanceof NodeList) {
+                targetElements = Array.from(target);
+            }
+            else if (typeof target === "string") {
+                targetElements = Array.from(document.querySelectorAll(target));
+            }
+            else if (target instanceof Element) {
+                targetElements = [target];
+            }
+        }
+        if (targetElements.length === 0) {
+            Debug.error("No target elements found");
+            return;
+        }
+        // Get the instance name
+        if (instanceName) {
+            instanceName = instanceName;
+        }
+        else if (AttributeMatcher._hasAttribute(targetElements[0], "instance")) {
+            instanceName = AttributeMatcher._getRawAttribute(targetElements[0], "instance") || undefined;
+        }
+        else if (targetElements[0].id) {
+            instanceName = targetElements[0].id;
+        }
+        else {
+            instanceName = _state.length.toString();
+        }
+        /* -------------------------------------------------------------------------- */
+        /*                              Compile template                              */
+        /* -------------------------------------------------------------------------- */
+        var compiledTemplate = compileTemplate(template, recompile);
+        _state.length++;
+        if (!compiledTemplate) {
+            Debug.error("Template not found: " + template);
+            return;
+        }
+        if (targetElements.length === 0) {
+            Debug.error("Target not found: " + target);
+            return;
+        }
+        /* -------------------------------------------------------------------------- */
+        /*                               Proxy creation                               */
+        /* -------------------------------------------------------------------------- */
+        // Initialize finalInitialData outside the if block so it's available throughout the function
+        let finalInitialData = data || {};
+        let persistedData = null;
+        let proxy = null; // Initialize proxy at function level
+        // Check for local variable at instance level first
+        const localVarName = AttributeMatcher._getRawAttribute(targetElements[0], "local");
+        let localData = null;
+        if (localVarName) {
+            // First check if it's a global variable
+            localData = extractLocalData(localVarName);
+            // If no global variable found, try as a selector
+            if (!localData) {
+                try {
+                    const selectorElement = document.querySelector(localVarName);
+                    if (selectorElement) {
+                        // Check if the element or its children have fp-data
+                        const hasDataElement = AttributeMatcher.findMatchingElements("data", null, false, selectorElement);
+                        if (hasDataElement) {
+                            const dataExtractor = PluginManager.getPlugin("data-extractor");
+                            if (dataExtractor) {
+                                localData =
+                                    dataExtractor.instanceMethods?.extractData?.(selectorElement);
+                            }
+                        }
+                    }
+                }
+                catch (e) {
+                    Debug.warn(`[Template] Invalid selector for fp-local: ${localVarName}`);
+                }
+            }
+            if (localData) {
+                finalInitialData = { ...finalInitialData, ...localData };
+            }
+            // Check if we should observe this local data
+            if (AttributeMatcher._hasAttribute(targetElements[0], "local-observe")) {
+                // Find all data elements within the instance
+                const dataElements = AttributeMatcher.findMatchingElements("data");
+                // Delegate observation to the DataExtractorPlugin
+                dataElements?.forEach((element) => {
+                    PluginManager.getPlugin("data-extractor")?.instanceMethods?.observeDataElement?.(element, localVarName, instanceName ? _state.instances[instanceName] : undefined);
+                });
+            }
+        }
+        if (!instanceName || !_state.instances[instanceName] || !_state.instances[instanceName].data) {
+            // Load persisted data if available and not skipped
+            if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
+                persistedData = loadFromLocalStorage(instanceName || "", "instance");
+                if (persistedData) {
+                    // Check if stored data is HTML
+                    if (persistedData.isHtml === true ||
+                        (typeof persistedData === "string" &&
+                            typeof persistedData.trim === "function" &&
+                            (persistedData.trim().startsWith("<!DOCTYPE html") ||
+                                persistedData.trim().startsWith("<html")))) {
+                        // Get swap specification from element
+                        const swapStyle = AttributeMatcher._getRawAttribute(targetElements[0], "swap", "innerHTML");
+                        const swapSpec = {
+                            swapStyle: swapStyle || "innerHTML",
+                            swapDelay: 0,
+                            settleDelay: 0,
+                            transition: swapStyle?.includes("transition:true") || false,
+                        };
+                        // Use htmx.swap with proper swap specification
+                        if (returnHtml) {
+                            return persistedData; // HTML string is now stored directly
+                        }
+                        targetElements.forEach((element) => {
+                            htmx.swap(element, persistedData, swapSpec);
+                        });
+                        return instanceName ? _state.instances[instanceName] : undefined;
+                    }
+                    // Extract actual data - if persistedData has a 'data' property, use that
+                    const actualData = persistedData?.data || persistedData;
+                    finalInitialData = { ...actualData, ...finalInitialData };
+                    Debug.debug(`[Template] Merged persisted data for ${instanceName}:`, finalInitialData);
+                }
+            }
+            // Find the template element (must have fp-template attribute)
+            const templateElement = targetElements.find((el) => AttributeMatcher._hasAttribute(el, "template"));
+            if (!templateElement) {
+                Debug.error("No template element found in target elements");
+                return null;
+            }
+            // 1. Get or create the instance shell using the template element
+            const instance = InstanceManager.getOrCreateInstance(templateElement, finalInitialData);
+            // If instance couldn't be created, exit
+            if (!instance) {
+                Debug.error("Failed to get or create instance: " + instanceName);
+                return null;
+            }
+            // Store local variable name if present
+            if (localVarName) {
+                instance.localVarName = localVarName;
+            }
+            // --- Debounce and Change Tracking Setup ---
+            // Store the timer ID on the instance
+            if (!instance._updateTimer) {
+                instance._updateTimer = null;
+            }
+            // Store the 'state before changes' within the current debounce cycle
+            if (!instance._stateBeforeDebounce) {
+                instance._stateBeforeDebounce = null;
+            }
+            // --- End Setup ---
+            // Check if this instance is part of a group
+            const groupName = AttributeMatcher._getRawAttribute(templateElement, "group");
+            if (groupName) {
+                // Check for persisted group data
+                let groupData = finalInitialData; // Start with the current data
+                if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
+                    const persistedGroupData = loadFromLocalStorage(groupName, "group");
+                    if (persistedGroupData) {
+                        // Merge persisted group data with any instance-specific data
+                        groupData = deepMerge(persistedGroupData, finalInitialData);
+                        Debug.debug(`Loaded persisted data for group ${groupName}`, groupData);
+                    }
+                }
+                // Get or create the group and add this instance
+                const group = GroupManager.getOrCreateGroup(groupName, groupData);
+                // Use the group's proxy for this instance
+                proxy = group.data;
+                // Add instance to the group
+                GroupManager.addInstanceToGroup(instance, groupName);
+                Debug.info(`Instance ${instanceName} is using group ${groupName} data`);
+            }
+            else {
+                // 2. Create the proxy with the final merged data and DEBOUNCED update handler
+                const DEBOUNCE_DELAY = 0;
+                proxy = createDeepProxy(finalInitialData, () => {
+                    if (instance) {
+                        // Skip if we're currently evaluating a template
+                        if (instance._isEvaluating) {
+                            return;
+                        }
+                        // Clear existing timer
+                        if (instance._updateTimer) {
+                            clearTimeout(instance._updateTimer);
+                        }
+                        // Schedule the update
+                        instance._updateTimer = setTimeout(() => {
+                            try {
+                                // Set flag to prevent recursive updates during evaluation
+                                instance._isEvaluating = true;
+                                // Get the current rendered output
+                                const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
+                                const newRenderedOutput = instance.template(transformedData);
+                                // Compare with previous render
+                                if (instance._lastRenderedOutput !== newRenderedOutput) {
+                                    Debug.info(`[Debounced Update] Output changed for ${instanceName}. Firing updateData hook.`);
+                                    // Execute hooks with current state
+                                    PluginManager.executeHook("updateData", instance, {
+                                        newData: proxy,
+                                        source: "proxy",
+                                    });
+                                    EventSystem.publish("updateData", {
+                                        instanceName,
+                                        newData: proxy,
+                                        source: "proxy",
+                                    });
+                                    // Update DOM since output changed
+                                    Debug.debug(`[Debounced Update] Triggering _updateDOM for ${instanceName}`);
+                                    instance._updateDOM();
+                                    // Save the new rendered output
+                                    instance._lastRenderedOutput = newRenderedOutput;
+                                    // Save to storage if enabled
+                                    if (ConfigManager.getConfig().storage?.enabled) {
+                                        const storageId = instance.instanceName.replace("#", "");
+                                        Debug.debug(`[Debounced Update] Saving data for ${storageId}`);
+                                        saveToLocalStorage(storageId, proxy, "instance");
+                                    }
+                                }
+                                else {
+                                    Debug.debug(`[Debounced Update] No output change for ${instanceName}. Skipping update.`);
+                                }
+                            }
+                            finally {
+                                // Always clear the evaluation flag
+                                instance._isEvaluating = false;
+                                // Clear timer
+                                instance._updateTimer = null;
+                            }
+                        }, DEBOUNCE_DELAY);
+                    }
+                });
+            }
+            // 3. Assign the proxy and template to the instance
+            instance.template = compiledTemplate;
+            instance.templateId =
+                AttributeMatcher._getRawAttribute(templateElement, "template") ||
+                    template;
+            instance.data = proxy; // Assign the proxy!
+            // 4. Trigger initial render - This should be OUTSIDE the debounce logic
+            Debug.debug(`[Initial Render] ${skipRender ? "Skipping" : "Triggering"} _updateDOM for ${instanceName}`);
+            // Only call _updateDOM if not skipRender
+            if (!skipRender) {
+                instance._updateDOM();
+            }
+            // Optional: Initial save if needed, OUTSIDE debounce
+            if (ConfigManager.getConfig().storage?.enabled &&
+                !persistedData &&
+                !instance.groupName) {
+                // Only save if not loaded and not in a group (groups handle their own saving)
+                const storageId = instanceName?.replace("#", "") || "";
+                Debug.debug(`[Initial Save] Saving initial data for ${storageId}`);
+                saveToLocalStorage(storageId, finalInitialData, // Save the data directly, not wrapped in an object
+                "instance"); // Save the raw initial merged data
+            }
+        }
+        else {
+            // If the instance already exists, get its proxy
+            proxy = _state.instances[instanceName].data;
+        }
+        // Return the instance from the state (might be the one just created or an existing one)
+        const finalInstance = instanceName ? _state.instances[instanceName] : undefined;
+        if (finalInstance) {
+            Debug.info("Final instance data: ", finalInstance.data);
+        }
+        /* -------------------------------------------------------------------------- */
+        /*                               Render template                              */
+        /* -------------------------------------------------------------------------- */
+        // Only create/setup instance if proxy is defined
+        if (proxy) {
+            // Find the template element (must have fp-template attribute)
+            const templateElement = targetElements.find((el) => AttributeMatcher._hasAttribute(el, "template"));
+            if (!templateElement) {
+                Debug.error("No template element found in target elements");
+                return null;
+            }
+            // Create/get instance and set up proxy regardless of skipRender
+            const instance = InstanceManager.getOrCreateInstance(templateElement, finalInitialData);
+            if (!instance) {
+                Debug.error("Failed to get or create instance: " + instanceName);
+                return null;
+            }
+            // Set up the instance but don't render automatically
+            instance.template = compiledTemplate; // Always store the template
+            instance.templateId =
+                AttributeMatcher._getRawAttribute(templateElement, "template") ||
+                    template;
+            instance.data = proxy;
+            // At this point do NOT call instance._updateDOM() to avoid automatic rendering
+            // Only perform actual rendering if explicitly requested
+            if (!skipRender) {
+                Debug.debug(`[Render Template] Executing render for ${instanceName}`);
+                try {
+                    if (returnHtml) {
+                        // Apply plugin transformations to the data before rendering
+                        const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
+                        return compiledTemplate(transformedData);
+                    }
+                    // Update all elements in the instance
+                    Array.from(instance.elements).forEach((element) => {
+                        // Apply plugin transformations to the data before rendering
+                        const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
+                        updateDOM(element, compiledTemplate(transformedData), animate, instance);
+                    });
+                }
+                catch (error) {
+                    if (!(error instanceof TemplateError)) {
+                        Debug.error(`Failed to render template: ${error.message}`);
+                    }
+                    throw error;
+                }
+            }
+            else {
+                Debug.debug(`[Render Template] Skipping render for ${instanceName} as requested`);
+            }
+        }
+        else if (!skipRender) {
+            // Log a debug message that we're skipping render due to no data
+            Debug.debug(`[Template] Skipping render for ${instanceName} because no data is available yet.`);
+        }
+        return finalInstance || null;
+    }
+
+    const defaultConfig = {
+        debug: {
+            level: window.location.hostname.endsWith(".webflow.io") ||
+                window.location.hostname.endsWith(".canvas.webflow.com") ||
+                window.location.hostname.endsWith("localhost")
+                ? 3
+                : 1,
+        },
+        selectors: {
+            fp: [
+                "template",
+                "get",
+                "post",
+                "put",
+                "delete",
+                "patch",
+                "persist",
+                "instance",
+            ],
+        },
+        templates: {
+            cacheSize: 100,
+            precompile: true,
+        },
+        animation: {
+            enabled: true,
+            duration: 300,
+        },
+        htmx: {
+            timeout: 10000,
+            swapStyle: "innerHTML",
+            selfRequestsOnly: false,
+            ignoreTitle: true,
+        },
+        customTags: customTagList,
+        storage: {
+            enabled: false,
+            ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+        },
+        performance: {
+            batchDomUpdates: true,
+            batchingDelay: 0, // 0 uses requestAnimationFrame, >0 uses setTimeout with delay
+        },
+        persistForm: true,
+        allowExecute: true,
+    };
+    /**
+     * Normalizes storage configuration to a standard format
+     * @param {boolean|number|Object} storageConfig - The storage configuration value
+     * @param {Object} defaultStorageConfig - The default storage configuration
+     * @returns {Object} Normalized storage configuration
+     */
+    function normalizeStorageConfig(storageConfig, defaultStorageConfig) {
+        if (typeof storageConfig === "boolean") {
+            return {
+                enabled: storageConfig,
+                ttl: defaultStorageConfig.ttl,
+            };
+        }
+        if (typeof storageConfig === "number") {
+            if (storageConfig === -1) {
+                return {
+                    enabled: true,
+                    ttl: -1, // Infinite TTL
+                };
+            }
+            return {
+                enabled: storageConfig > 0,
+                ttl: storageConfig > 0 ? storageConfig : defaultStorageConfig.ttl,
+            };
+        }
+        // Ensure enabled is boolean and ttl is number
+        if (typeof storageConfig === "object" && storageConfig !== null) {
+            return {
+                enabled: !!storageConfig.enabled,
+                ttl: typeof storageConfig.ttl === "number"
+                    ? storageConfig.ttl
+                    : defaultStorageConfig.ttl,
+            };
+        }
+        return defaultStorageConfig; // Fallback to default if invalid format
+    }
+    // Initialize state with default config
+    _state.config = JSON.parse(JSON.stringify(defaultConfig));
+    // Config queue system
+    let configQueue = [];
+    let isInitialized = false;
+    /**
+     * Internal function to apply configuration changes
+     * @param {Object} newConfig - Configuration options to apply
+     */
+    function applyConfigInternal(newConfig) {
+        if ("storage" in newConfig) {
+            newConfig.storage = normalizeStorageConfig(newConfig.storage, defaultConfig.storage);
+        }
+        // Use the imported deepMerge utility
+        _state.config = deepMerge(JSON.parse(JSON.stringify(_state.config)), newConfig);
+        // --- Apply configuration settings ---
+        // Apply debug level
+        Debug.level = _state.config.debug.level;
+        // Configure HTMX defaults if htmx is available
+        if (typeof htmx !== "undefined") {
+            htmx.config.timeout = _state.config.htmx.timeout;
+            htmx.config.defaultSwapStyle = _state.config.htmx.swapStyle;
+            htmx.config.selfRequestsOnly = _state.config.htmx.selfRequestsOnly;
+            htmx.config.ignoreTitle = _state.config.htmx.ignoreTitle;
+        }
+        // Set custom tags if provided in the new config
+        if (newConfig.customTags) {
+            setCustomTags(newConfig.customTags);
+        }
+    }
+    const ConfigManager = {
+        /**
+         * Sets the default configuration without logging
+         * @param {Object} defaultConfig - Default configuration to apply
+         */
+        setDefaultConfig(defaultConfig) {
+            applyConfigInternal(defaultConfig);
+        },
+        /**
+         * Sets or updates the FlowPlater configuration.
+         * Before initialization: queues the config change
+         * After initialization: applies immediately and logs
+         * @param {Object} newConfig - Configuration options to apply.
+         */
+        setConfig(newConfig = {}) {
+            if (isInitialized) {
+                // Apply immediately and log
+                applyConfigInternal(newConfig);
+                Debug.info("FlowPlater configuration updated:", this.getConfig());
+            }
+            else {
+                // Queue for later
+                configQueue.push(newConfig);
+            }
+        },
+        /**
+         * Submits all queued configuration changes and marks as initialized
+         * @internal
+         */
+        submitQueuedConfig() {
+            if (configQueue.length > 0) {
+                // Merge all queued configs
+                const finalConfig = configQueue.reduce((acc, config) => deepMerge(acc, config), {});
+                applyConfigInternal(finalConfig);
+                Debug.info("FlowPlater configuration updated:", this.getConfig());
+                configQueue = [];
+            }
+            isInitialized = true;
+        },
+        /**
+         * Gets the current configuration.
+         * @returns {Object} A deep copy of the current configuration.
+         */
+        getConfig() {
+            // Return a deep copy to prevent accidental modification of the state
+            return JSON.parse(JSON.stringify(_state.config));
+        },
+        /**
+         * Gets the default configuration.
+         * @returns {Object} A deep copy of the default configuration.
+         */
+        getDefaultConfig() {
+            return JSON.parse(JSON.stringify(defaultConfig));
+        },
+    };
+    // Apply initial debug level based on the default config loaded into state
+    Debug.level = _state.config.debug.level;
+
     // Helper function to handle Map serialization
     // @ts-ignore
     function replacer(key, value) {
@@ -2993,6 +3478,84 @@ var FlowPlater = (function () {
             Debug.error(`[LocalStorage] Failed to load or parse from localStorage for key ${key}: ${e.message}`);
             return null;
         }
+    }
+
+    /**
+     * Data transformation utilities for FlowPlater
+     */
+    /**
+     * Creates a deep proxy that tracks nested object changes
+     * @param target - The object to proxy
+     * @param handler - Function to call when changes occur
+     * @returns Proxied object that tracks deep changes
+     */
+    function createDeepProxy(target, handler) {
+        if (typeof target !== "object" || target === null) {
+            return target;
+        }
+        const proxyHandler = {
+            get(target, property) {
+                const value = target[property];
+                return value && typeof value === "object"
+                    ? createDeepProxy(value, handler)
+                    : value;
+            },
+            set(target, property, value) {
+                target[property] = value;
+                // Execute handler but don't block on it
+                Promise.resolve().then(() => handler(target));
+                return true;
+            },
+            deleteProperty(target, property) {
+                delete target[property];
+                // Execute handler but don't block on it
+                Promise.resolve().then(() => handler(target));
+                return true;
+            },
+        };
+        return new Proxy(target, proxyHandler);
+    }
+    /**
+     * Deep merges source objects into target object.
+     * Mutates the target object.
+     *
+     * @param target - The target object to merge into
+     * @param source - The source object to merge from
+     * @returns The merged object (same as target)
+     * @description
+     * - Arrays are replaced entirely rather than merged
+     * - Objects are merged recursively
+     * - Primitive values are copied directly
+     * - The target object is mutated in place
+     */
+    function deepMerge(target, source) {
+        // Handle edge cases
+        if (!source)
+            return target;
+        if (!target)
+            return source;
+        // Iterate through source properties
+        for (const key in source) {
+            if (Object.prototype.hasOwnProperty.call(source, key)) {
+                // Handle arrays specially - replace entire array
+                if (Array.isArray(target[key]) && Array.isArray(source[key])) {
+                    target[key] = source[key];
+                }
+                // If property exists in target and both are objects, merge recursively
+                else if (key in target &&
+                    typeof target[key] === "object" &&
+                    typeof source[key] === "object" &&
+                    target[key] !== null &&
+                    source[key] !== null) {
+                    deepMerge(target[key], source[key]);
+                }
+                else {
+                    // Otherwise just copy the value
+                    target[key] = source[key];
+                }
+            }
+        }
+        return target;
     }
 
     /**
@@ -3806,6 +4369,77 @@ var FlowPlater = (function () {
     }
 
     /**
+     * Checks if a string looks like a CSS selector
+     * @param {string} str - String to check
+     * @returns {boolean} True if the string looks like a CSS selector
+     */
+    function isCssSelector(str) {
+        // If it starts with # or . it's definitely a selector
+        if (str.startsWith("#") || str.startsWith(".")) {
+            return true;
+        }
+        // Other CSS selector patterns
+        return (/[[]>+~:()]/.test(str) || // Other CSS characters
+            /^[a-z]+[a-z-]+$/i.test(str)); // Element names like div, custom-element
+    }
+    /**
+     * Extracts data from a local variable or DOM element
+     * @param {string} varName - Variable name or CSS selector
+     * @param {boolean} [wrapPrimitive=true] - Whether to wrap primitive values in an object
+     * @returns {Object|null} The extracted data or null if not found/error
+     */
+    function extractLocalData(varName, wrapPrimitive = true) {
+        if (!varName)
+            return null;
+        try {
+            // If it looks like a CSS selector, try DOM first
+            if (isCssSelector(varName)) {
+                const element = document.querySelector(varName);
+                if (element) {
+                    // Check if DataExtractor plugin is available
+                    const dataExtractor = PluginManager.getPlugin("data-extractor");
+                    if (dataExtractor &&
+                        typeof dataExtractor.globalMethods?.processHtml === "function") {
+                        try {
+                            const extractedData = dataExtractor.globalMethods?.processHtml?.(element.outerHTML);
+                            Debug.debug(`Extracted data from element "${varName}":`, extractedData);
+                            return extractedData;
+                        }
+                        catch (e) {
+                            Debug.error(`DataExtractor failed for "${varName}": ${e.message}`);
+                            return null;
+                        }
+                    }
+                    else {
+                        Debug.warn("DataExtractor plugin not available for element extraction");
+                        return null;
+                    }
+                }
+            }
+            // If not a selector or element not found, try window scope
+            const value = window[varName];
+            if (value !== undefined) {
+                // If value is not an object and wrapping is enabled, wrap it
+                if (wrapPrimitive &&
+                    (typeof value !== "object" || value === null || Array.isArray(value))) {
+                    let wrappedValue = { [varName]: value };
+                    Debug.info(`Wrapped primitive value "${varName}":`, wrappedValue);
+                    return wrappedValue;
+                }
+                Debug.info(`Extracted value "${varName}":`, value);
+                return value;
+            }
+            // If we get here, neither variable nor element was found
+            Debug.warn(`Neither variable nor element found for "${varName}"`);
+            return null;
+        }
+        catch (e) {
+            Debug.info(`Error extracting local data "${varName}": ${e.message}`);
+            return null;
+        }
+    }
+
+    /**
      * Performs the actual DOM update logic
      */
     async function performDomUpdate(element, newHTML, forceFullUpdate, elementId, timestamp) {
@@ -3992,1178 +4626,708 @@ var FlowPlater = (function () {
     }
 
     /**
-     * Checks if a string looks like a CSS selector
-     * @param {string} str - String to check
-     * @returns {boolean} True if the string looks like a CSS selector
+     * DOM Batcher to reduce layout thrashing by batching DOM reads and writes
+     * Uses requestAnimationFrame to schedule operations at optimal times
      */
-    function isCssSelector(str) {
-        // If it starts with # or . it's definitely a selector
-        if (str.startsWith("#") || str.startsWith(".")) {
-            return true;
+    class DomBatcher {
+        constructor() {
+            Object.defineProperty(this, "readQueue", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: []
+            });
+            Object.defineProperty(this, "writeQueue", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: []
+            });
+            Object.defineProperty(this, "isScheduled", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: false
+            });
+            Object.defineProperty(this, "frameId", {
+                enumerable: true,
+                configurable: true,
+                writable: true,
+                value: null
+            });
         }
-        // Other CSS selector patterns
-        return (/[[]>+~:()]/.test(str) || // Other CSS characters
-            /^[a-z]+[a-z-]+$/i.test(str)); // Element names like div, custom-element
-    }
-    /**
-     * Extracts data from a local variable or DOM element
-     * @param {string} varName - Variable name or CSS selector
-     * @param {boolean} [wrapPrimitive=true] - Whether to wrap primitive values in an object
-     * @returns {Object|null} The extracted data or null if not found/error
-     */
-    function extractLocalData(varName, wrapPrimitive = true) {
-        if (!varName)
-            return null;
-        try {
-            // If it looks like a CSS selector, try DOM first
-            if (isCssSelector(varName)) {
-                const element = document.querySelector(varName);
-                if (element) {
-                    // Check if DataExtractor plugin is available
-                    const dataExtractor = PluginManager.getPlugin("data-extractor");
-                    if (dataExtractor &&
-                        typeof dataExtractor.globalMethods?.processHtml === "function") {
-                        try {
-                            const extractedData = dataExtractor.globalMethods?.processHtml?.(element.outerHTML);
-                            Debug.debug(`Extracted data from element "${varName}":`, extractedData);
-                            return extractedData;
-                        }
-                        catch (e) {
-                            Debug.error(`DataExtractor failed for "${varName}": ${e.message}`);
-                            return null;
-                        }
-                    }
-                    else {
-                        Debug.warn("DataExtractor plugin not available for element extraction");
-                        return null;
-                    }
-                }
+        /**
+         * Schedule a DOM read operation
+         */
+        read(operation, id) {
+            // If batching is disabled, execute immediately
+            if (!ConfigManager.getConfig().performance?.batchDomUpdates) {
+                return Promise.resolve(operation());
             }
-            // If not a selector or element not found, try window scope
-            const value = window[varName];
-            if (value !== undefined) {
-                // If value is not an object and wrapping is enabled, wrap it
-                if (wrapPrimitive &&
-                    (typeof value !== "object" || value === null || Array.isArray(value))) {
-                    let wrappedValue = { [varName]: value };
-                    Debug.info(`Wrapped primitive value "${varName}":`, wrappedValue);
-                    return wrappedValue;
-                }
-                Debug.info(`Extracted value "${varName}":`, value);
-                return value;
-            }
-            // If we get here, neither variable nor element was found
-            Debug.warn(`Neither variable nor element found for "${varName}"`);
-            return null;
-        }
-        catch (e) {
-            Debug.info(`Error extracting local data "${varName}": ${e.message}`);
-            return null;
-        }
-    }
-
-    function instanceMethods(instanceName) {
-        // Helper function to resolve a path within the data
-        function _resolvePath(path) {
-            const instance = _state.instances[instanceName];
-            if (!instance) {
-                Debug.error("Instance not found: " + instanceName);
-                return undefined;
-            }
-            const pathParts = path.split(/[\.\[\]'"]/);
-            let current = instance.data;
-            for (let i = 0; i < pathParts.length; i++) {
-                const part = pathParts[i];
-                if (part === "")
-                    continue;
-                if (current === undefined ||
-                    current === null ||
-                    !current.hasOwnProperty(part)) {
-                    return undefined;
-                }
-                current = current[part];
-            }
-            return current;
-        }
-        function _validateData(data) {
-            if (typeof data === "string" && data.trim().startsWith("<!DOCTYPE")) {
-                Debug.debug("Data is HTML, skipping validation", instanceName);
-                return { valid: true, isHtml: true };
-            }
-            if ((typeof data === "object" && data !== null) ||
-                Array.isArray(data) ||
-                typeof data === "number" ||
-                typeof data === "boolean") {
-                return { valid: true, isHtml: false };
-            }
-            Debug.error("Invalid data type: " + typeof data);
-            return { valid: false, isHtml: false };
-        }
-        return {
-            instanceName,
-            animate: _state.defaults.animation,
-            _updateDOM: async function () {
-                const instance = _state.instances[instanceName];
-                if (!instance) {
-                    Debug.error("Instance not found: " + instanceName);
-                    return;
-                }
-                try {
-                    let rendered;
-                    if (instance.templateId === "self" || instance.templateId === null) {
-                        // For "self" template, use the first element as the template
-                        const templateElement = Array.from(instance.elements)[0];
-                        if (!templateElement) {
-                            Debug.error("No template element found for self template", instance.instanceName);
-                            return;
-                        }
-                        rendered = templateElement.innerHTML;
-                    }
-                    else if (!instance.template) {
-                        Debug.error("No template found for instance", instance.instanceName);
-                        return;
-                    }
-                    else {
-                        // Check if data is valid
-                        const { valid, isHtml } = _validateData(instance.data);
-                        if (!valid) {
-                            Debug.error("Invalid data type for instance", instance.instanceName);
-                            return;
-                        }
-                        if (isHtml) {
-                            Debug.debug("Data is HTML, using as is", instance.instanceName);
-                            rendered = instance.data;
-                        }
-                        else {
-                            // Apply plugin transformations to the data before rendering
-                            Debug.debug("Before transformation - instance data:", {
-                                instanceName: instance.instanceName,
-                                rawData: instance.data,
-                                getData: instance.getData(),
-                            });
-                            const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
-                            Debug.debug("After transformation - transformed data:", {
-                                instanceName: instance.instanceName,
-                                transformedData,
-                                isNull: transformedData === null,
-                                isUndefined: transformedData === undefined,
-                                type: typeof transformedData,
-                            });
-                            // Use transformed data for reactive rendering
-                            rendered = instance.template(transformedData);
-                            Debug.debug("Rendered template with data:", {
-                                template: instance.templateId,
-                                data: transformedData,
-                                rendered: rendered,
-                            });
-                        }
-                    }
-                    // Filter out elements that are no longer in the DOM
-                    const activeElements = Array.from(instance.elements).filter((el) => document.body.contains(el));
-                    if (activeElements.length === 0) {
-                        Debug.error("No active elements found for instance", instance.instanceName);
-                        return;
-                    }
-                    // Batch DOM updates to reduce layout thrashing
-                    const updatePromises = activeElements.map((element) => domBatcher.write(() => updateDOM(element, rendered, instance.animate, instance), `update-${instance.instanceName}-${Date.now()}`));
-                    // Wait for all batched element updates to complete
-                    const results = await Promise.all(updatePromises);
-                    return results;
-                }
-                catch (error) {
-                    Debug.error("Error updating DOM for instance", instance.instanceName, error);
-                }
-            },
-            /**
-             * Replaces the entire instance data with newData,
-             * removing keys not present in newData.
-             * Triggers reactive updates via the proxy.
-             * @param {Object} newData The new data object.
-             */
-            setData: function (newData) {
-                const instance = _state.instances[instanceName];
-                if (!instance) {
-                    Debug.error("Instance not found: " + instanceName);
-                    return this;
-                }
-                // If newData is an unnamed root object (no data property), wrap it
-                if (typeof newData === "string" ||
-                    typeof newData === "number" ||
-                    Array.isArray(newData)) {
-                    Debug.warn(`[setData] Received raw value or unnamed root object, automatically wrapping in 'data' property`);
-                    newData = { data: newData };
-                }
-                // Validate newData type (allow empty objects)
-                if (typeof newData !== "object" ||
-                    newData === null ||
-                    Array.isArray(newData)) {
-                    Debug.error("Invalid newData type provided to setData: " + typeof newData);
-                    return this;
-                }
-                const currentData = instance.data; // The proxy's target
-                Debug.debug(`[setData] Replacing data for ${instanceName}. Current keys: ${Object.keys(currentData).join(", ")}, New keys: ${Object.keys(newData).join(", ")}`);
-                // Delete keys not present in newData
-                let deletedKeys = [];
-                for (const key in currentData) {
-                    if (Object.hasOwnProperty.call(currentData, key) &&
-                        !Object.hasOwnProperty.call(newData, key)) {
-                        deletedKeys.push(key);
-                        delete currentData[key]; // Triggers proxy delete trap
-                    }
-                }
-                if (deletedKeys.length > 0) {
-                    Debug.debug(`[setData] Deleted stale keys for ${instanceName}: ${deletedKeys.join(", ")}`);
-                }
-                // Update with new data - use deepMerge for proper handling of nested objects
-                deepMerge(currentData, newData);
-                Debug.debug(`[setData] Data replacement complete for ${instanceName}.`);
-                return this;
-            },
-            remove: function () {
-                const instance = _state.instances[instanceName];
-                if (!instance) {
-                    throw new Error("Instance not found: " + instanceName);
-                }
-                EventSystem.publish("beforeRemove", {
-                    instanceName,
-                    elements: instance.elements,
+            return new Promise((resolve, reject) => {
+                this.readQueue.push({
+                    id: id || `read-${Date.now()}-${Math.random()}`,
+                    type: 'read',
+                    operation,
+                    resolve,
+                    reject
                 });
-                try {
-                    // Remove from localStorage if storage is enabled
-                    if (ConfigManager.getConfig().storage?.enabled) {
-                        localStorage.removeItem(`fp_${instanceName}`);
-                    }
-                    // Clear elements and remove from DOM
-                    instance.elements.forEach(function (element) {
-                        try {
-                            element.innerHTML = "";
-                        }
-                        catch (error) {
-                            Debug.error("Error removing instance: " + error.message);
-                        }
-                    });
-                    // Clear the elements array
-                    instance.elements = [];
-                    // Remove from state
-                    delete _state.instances[instanceName];
-                    delete _state.templateCache[instance.templateId];
-                    EventSystem.publish("afterRemove", {
-                        instanceName,
-                        elements: [],
-                    });
-                    Debug.info("Removed instance: " + instanceName);
-                    return true;
-                }
-                catch (error) {
-                    throw error;
-                }
-            },
-            refresh: async function (options = { remote: true, recompile: false, ignoreLocalData: false }) {
-                const instance = _state.instances[instanceName];
-                if (!instance) {
-                    Debug.error("Instance not found: " + instanceName);
-                    return Promise.reject(new Error("Instance not found: " + instanceName));
-                }
-                // Apply transformations before checking template
-                const transformedData = PluginManager.applyTransformations(instance, instance.data, "transformDataBeforeRender", "json");
-                // If recompile is true, recompile the template
-                const compiledTemplate = instance.template(transformedData);
-                const shouldRecompile = options.recompile || (!compiledTemplate && instance.data);
-                if (shouldRecompile) {
-                    instance.template = compileTemplate(instance.templateId, true);
-                }
-                Debug.debug("Refresh - Template check:", {
-                    templateId: instance.templateId,
-                    templateElement: document.querySelector(instance.templateId),
-                    compiledTemplate: instance.template(transformedData),
-                });
-                // Check for local variable at instance level first
-                let hasLocalVarUpdate = false;
-                if (instance.localVarName && !options.ignoreLocalData) {
-                    const localData = extractLocalData(instance.localVarName);
-                    if (localData) {
-                        deepMerge(instance.data, localData);
-                        hasLocalVarUpdate = true;
-                        Debug.debug(`Refreshed data from local variable "${instance.localVarName}"`);
-                    }
-                }
-                const promises = [];
-                instance.elements.forEach(async function (element) {
-                    try {
-                        if (options.remote && !hasLocalVarUpdate) {
-                            const htmxMethods = ["get", "post", "put", "patch", "delete"];
-                            const hasHtmxMethod = htmxMethods.some((method) => element.getAttribute(`hx-${method}`));
-                            if (hasHtmxMethod) {
-                                const method = htmxMethods.find((method) => element.getAttribute(`hx-${method}`));
-                                const url = element.getAttribute(`hx-${method}`);
-                                const promise = fetch(url, { method: method?.toUpperCase() })
-                                    .then((response) => {
-                                    if (!response.ok) {
-                                        throw new Error(`HTTP error! status: ${response.status}`);
-                                    }
-                                    return response.json();
-                                })
-                                    .then((data) => {
-                                    // Update data which will trigger render - use deepMerge instead of Object.assign
-                                    deepMerge(instance.data, data);
-                                    // Store data if storage is enabled
-                                    if (ConfigManager.getConfig().storage?.enabled) {
-                                        saveToLocalStorage(instanceName, instance.data, "instance");
-                                    }
-                                    return data;
-                                });
-                                promises.push(promise);
-                            }
-                        }
-                        else {
-                            // Apply transformations before updating DOM
-                            const transformedData = PluginManager.applyTransformations(instance, instance.data, "transformDataBeforeRender", "json");
-                            Debug.debug("Instance.refresh - Transformed data:", transformedData);
-                            promises.push(domBatcher.write(() => updateDOM(element, instance.template(transformedData), instance.animate, instance), `refresh-${instanceName}-${Date.now()}`));
-                        }
-                    }
-                    catch (error) {
-                        element.innerHTML = `<div class="fp-error">Error refreshing template: ${error.message}</div>`;
-                        Debug.error(`Failed to refresh template: ${error.message}`);
-                        promises.push(Promise.reject(error));
-                    }
-                });
-                return Promise.all(promises);
-            },
-            getData: function () {
-                const proxy = _state.instances[instanceName].data;
-                return JSON.parse(JSON.stringify(proxy));
-            },
-            getElements: function () {
-                return _state.instances[instanceName].elements;
-            },
-            getTemplateElement: function () {
-                return _state.instances[instanceName].templateElement;
-            },
-            get: function (path) {
-                return !path ? this.getData?.() : _resolvePath.call(this, path);
-            },
-            refreshTemplate: function (templateId, recompile = false) {
-                Performance.start("refreshTemplate:" + templateId);
-                const compiledTemplate = compileTemplate(templateId, recompile);
-                if (!compiledTemplate) {
-                    Debug.error("Failed to compile template: " + templateId);
-                    Performance.end("refreshTemplate:" + templateId);
-                    return false;
-                }
-                return true;
-            },
-        };
-    }
-
-    function createDeepProxy(target, handler) {
-        if (typeof target !== "object" || target === null) {
-            return target;
+                this.scheduleFlush();
+            });
         }
-        const proxyHandler = {
-            get(target, property) {
-                const value = target[property];
-                return value && typeof value === "object"
-                    ? createDeepProxy(value, handler)
-                    : value;
-            },
-            set(target, property, value) {
-                target[property] = value;
-                // Execute handler but don't block on it
-                Promise.resolve().then(() => handler(target));
-                return true;
-            },
-            deleteProperty(target, property) {
-                delete target[property];
-                // Execute handler but don't block on it
-                Promise.resolve().then(() => handler(target));
-                return true;
-            },
-        };
-        return new Proxy(target, proxyHandler);
-    }
-
-    const GroupManager = {
-        getOrCreateGroup(groupName, initialData = {}) {
-            let existingGroup = _state.groups[groupName];
-            if (existingGroup) {
-                // Merge any new initial data
-                if (Object.keys(initialData).length > 0) {
-                    deepMerge(existingGroup.data, initialData);
-                    Debug.debug(`[GroupManager] Merged initialData into existing group: ${groupName}`, initialData);
-                }
-                return existingGroup;
+        /**
+         * Schedule a DOM write operation
+         */
+        write(operation, id) {
+            // If batching is disabled, execute immediately
+            if (!ConfigManager.getConfig().performance?.batchDomUpdates) {
+                return Promise.resolve(operation());
             }
-            // --- Group doesn't exist in state, attempt to load from storage ---
-            let baseData = {}; // Start with empty base
-            if (ConfigManager.getConfig().storage?.enabled) {
-                // Check if storage is currently enabled
-                try {
-                    const loadedData = loadFromLocalStorage(groupName, "group");
-                    if (loadedData) {
-                        Debug.info(`[GroupManager] Loaded group data from storage for: ${groupName}`);
-                        baseData = loadedData; // Use loaded data as the base
-                    }
-                    else {
-                        Debug.debug(`[GroupManager] No group data found in storage for: ${groupName}`);
-                    }
+            return new Promise((resolve, reject) => {
+                this.writeQueue.push({
+                    id: id || `write-${Date.now()}-${Math.random()}`,
+                    type: 'write',
+                    operation,
+                    resolve,
+                    reject
+                });
+                this.scheduleFlush();
+            });
+        }
+        /**
+         * Schedule multiple operations to be batched together
+         */
+        batch(operations) {
+            const promises = operations.map(op => {
+                if (op.type === 'read') {
+                    return this.read(op.operation, op.id);
                 }
-                catch (e) {
-                    Debug.error(`[GroupManager] Error loading group ${groupName} from storage: ${e.message}`);
-                    // Proceed with empty baseData on error
-                }
-            }
-            else {
-                Debug.debug(`[GroupManager] Storage is disabled, skipping loadFromLocalStorage for: ${groupName}`);
-            }
-            // Merge any explicitly passed initialData *on top* of the base (loaded or empty)
-            if (Object.keys(initialData).length > 0) {
-                baseData = deepMerge(baseData, initialData);
-                Debug.debug(`[GroupManager] Merged initialData onto base for new group: ${groupName}`, initialData);
-            }
-            // --- Create new group with the final baseData ---
-            Debug.info(`[GroupManager] Creating new group: ${groupName} with base data`, baseData);
-            const group = {
-                name: groupName,
-                elements: [],
-                addElement: (element) => {
-                    group.elements.push(element);
-                },
-                removeElement: (element) => {
-                    group.elements = group.elements.filter((e) => e !== element);
-                },
-                instances: new Set(),
-                _isEvaluating: false,
-                _lastRenderedOutputs: new Map(),
-                data: {}, // Will be replaced with proxy
-                getData: () => {
-                    return JSON.parse(JSON.stringify(_state.groups[groupName].data));
-                },
-                update: (data) => {
-                    deepMerge(group.data, data);
-                },
-                refresh: () => {
-                    group.update(group.data);
-                },
-                destroy: () => {
-                    delete _state.groups[groupName];
-                },
-            };
-            // Create proxy for group data using the final baseData
-            group.data = createDeepProxy(baseData, async () => {
-                // Skip if already evaluating to prevent circular updates
-                if (group._isEvaluating)
-                    return;
-                try {
-                    group._isEvaluating = true;
-                    Debug.info(`[Group Update] Updating all instances in group: ${groupName}`);
-                    // Get array of instances that are ready for updates
-                    const instances = Array.from(group.instances).filter((instance) => instance.template &&
-                        typeof instance.template === "function" &&
-                        !instance._htmxUpdateInProgress);
-                    // Create update promises for all instances
-                    const updatePromises = instances.map(async (instance) => {
-                        try {
-                            // Get transformed data
-                            const transformedData = PluginManager.applyTransformations(instance, group.getData(), "transformDataBeforeRender", "json");
-                            // Render template
-                            const newRenderedOutput = instance.template(transformedData);
-                            const previousOutput = group._lastRenderedOutputs.get(instance.instanceName);
-                            // Only update if output changed
-                            if (previousOutput !== newRenderedOutput) {
-                                // Execute hooks
-                                PluginManager.executeHook("updateData", instance, {
-                                    newData: group.data,
-                                    source: "group",
-                                });
-                                EventSystem.publish("updateData", {
-                                    instanceName: instance.instanceName,
-                                    groupName: groupName,
-                                    newData: group.data,
-                                    source: "group",
-                                });
-                                // Update DOM
-                                Debug.debug(`[Group Update] Updating DOM for ${instance.instanceName}`);
-                                return instance._updateDOM().then(() => {
-                                    // Store rendered output
-                                    group._lastRenderedOutputs.set(instance.instanceName, newRenderedOutput);
-                                });
-                            }
-                        }
-                        catch (error) {
-                            Debug.error(`Error updating ${instance.instanceName}:`, error);
-                        }
-                    });
-                    // Wait for all instance updates to complete
-                    await Promise.all(updatePromises);
-                    // Save to storage if enabled - dynamically checks ConfigManager.getConfig
-                    if (ConfigManager.getConfig().storage?.enabled) {
-                        Debug.debug(`[Group Update] Saving group data for ${groupName}`);
-                        saveToLocalStorage(groupName, group.data, "group");
-                    }
-                }
-                finally {
-                    group._isEvaluating = false;
+                else {
+                    return this.write(op.operation, op.id);
                 }
             });
-            // Store group in state
-            _state.groups[groupName] = group;
-            Debug.info(`[GroupManager] Created and stored new group: ${groupName}`);
-            return group;
-        },
-        getGroup(groupName) {
-            return _state.groups[groupName] || null;
-        },
-        getAllGroups() {
-            return _state.groups;
-        },
-        updateGroup(groupName, data) {
-            const group = this.getGroup(groupName);
-            if (group && group.data && typeof data === "object") {
-                deepMerge(group.data, data);
-                return group;
-            }
-            return null;
-        },
-        removeGroup(groupName) {
-            const group = this.getGroup(groupName);
-            if (group) {
-                delete _state.groups[groupName];
-                Debug.info(`Removed group: ${groupName}`);
-            }
-        },
-        removeAllGroups() {
-            _state.groups = {};
-            Debug.info("Removed all groups");
-        },
+            return Promise.all(promises);
+        }
         /**
-         * Adds an instance to a group
-         * @param {Object} instance - The instance to add
-         * @param {string} groupName - The name of the group
+         * Execute a batch of DOM operations immediately (synchronously)
+         * Useful for operations that must be completed before the next frame
          */
-        addInstanceToGroup(instance, groupName) {
-            const group = this.getOrCreateGroup(groupName);
-            if (group) {
-                // Set instance's group reference
-                instance.groupName = groupName;
-                // Add instance to group
-                group.instances.add(instance);
-                // Only try to render if the template is actually a function
-                if (instance.template && typeof instance.template === "function") {
-                    // Store instance's initial rendered output
-                    const transformedData = PluginManager.applyTransformations(instance, group.getData(), "transformDataBeforeRender", "json");
+        flush() {
+            this.conditionalFrameCancel();
+            this.isScheduled = false;
+            this.executeOperations();
+        }
+        /**
+         * Clear all pending operations
+         */
+        clear() {
+            this.conditionalFrameCancel();
+            this.isScheduled = false;
+            // Reject all pending operations
+            [...this.readQueue, ...this.writeQueue].forEach(op => {
+                op.reject(new Error('DOM operation cancelled'));
+            });
+            this.readQueue = [];
+            this.writeQueue = [];
+        }
+        /**
+         * Helper function to schedule execution based on configuration
+         */
+        conditionalFrameSchedule(callback) {
+            const config = ConfigManager.getConfig();
+            const batchingDelay = config.performance?.batchingDelay ?? 0;
+            if (batchingDelay > 0) {
+                // Use setTimeout with specified delay
+                this.frameId = setTimeout(callback, batchingDelay);
+            }
+            else {
+                // Use requestAnimationFrame for optimal timing
+                this.frameId = requestAnimationFrame(callback);
+            }
+        }
+        /**
+         * Helper function to cancel scheduled execution based on configuration
+         */
+        conditionalFrameCancel() {
+            if (!this.frameId)
+                return;
+            const config = ConfigManager.getConfig();
+            const batchingDelay = config.performance?.batchingDelay ?? 0;
+            if (batchingDelay > 0) {
+                clearTimeout(this.frameId);
+            }
+            else {
+                cancelAnimationFrame(this.frameId);
+            }
+            this.frameId = null;
+        }
+        scheduleFlush() {
+            if (this.isScheduled)
+                return;
+            this.isScheduled = true;
+            this.conditionalFrameSchedule(() => {
+                this.isScheduled = false;
+                this.frameId = null;
+                this.executeOperations();
+            });
+        }
+        executeOperations() {
+            Performance.start('DomBatcher.executeOperations');
+            try {
+                // First, execute all read operations
+                // This prevents layout thrashing by batching all reads together
+                const readResults = [];
+                while (this.readQueue.length > 0) {
+                    const operation = this.readQueue.shift();
                     try {
-                        const renderedOutput = instance.template(transformedData);
-                        group._lastRenderedOutputs.set(instance.instanceName, renderedOutput);
+                        const result = operation.operation();
+                        operation.resolve(result);
+                        readResults.push(result);
                     }
                     catch (error) {
-                        Debug.error(`Error rendering template for group member: ${error.message}`);
+                        operation.reject(error);
+                        Debug.error('DOM read operation failed:', error);
                     }
                 }
-                else {
-                    Debug.debug(`Skipping initial render for group member: template not ready for ${instance.instanceName}`);
+                // Then, execute all write operations
+                // This prevents layout thrashing by batching all writes together
+                const writeResults = [];
+                while (this.writeQueue.length > 0) {
+                    const operation = this.writeQueue.shift();
+                    try {
+                        const result = operation.operation();
+                        operation.resolve(result);
+                        writeResults.push(result);
+                    }
+                    catch (error) {
+                        operation.reject(error);
+                        Debug.error('DOM write operation failed:', error);
+                    }
                 }
-                Debug.debug(`Added instance ${instance.instanceName} to group ${groupName}`);
+                Debug.debug(`DOM Batcher executed ${readResults.length} reads and ${writeResults.length} writes`);
             }
+            catch (error) {
+                Debug.error('Error in DOM batcher execution:', error);
+            }
+            finally {
+                Performance.end('DomBatcher.executeOperations');
+            }
+        }
+    }
+    // Export a singleton instance
+    const domBatcher = new DomBatcher();
+
+    const AttributeMatcher = {
+        INHERITABLE_ATTRIBUTES: {
+            "hx-": [
+                "boost",
+                "push-url",
+                "select",
+                "select-oob",
+                "swap",
+                "target",
+                "vals",
+                "confirm",
+                "disable",
+                "disabled-elt",
+                "encoding",
+                "ext",
+                "headers",
+                "include",
+                "indicator",
+                "params",
+                "prompt",
+                "replace-url",
+                "request",
+                "sync",
+                "vars",
+            ],
+            "fp-": ["prepend", "append", "persist", "target"],
+        },
+        _prefixes() {
+            return Object.keys(this.INHERITABLE_ATTRIBUTES);
+        },
+        _normalizeAttributeName(attributeName) {
+            // Remove any existing prefix
+            return attributeName.replace(/^(hx-|fp-)/, "").replace(/^data-/, "");
         },
         /**
-         * Removes an instance from its group
-         * @param {Object} instance - The instance to remove
+         * Gets all possible attribute names for a given attribute
+         * @private
+         * @param {string} attributeName - The base attribute name
+         * @returns {string[]} Array of all possible attribute names
          */
-        removeInstanceFromGroup(instance) {
-            if (!instance.groupName) {
-                return;
+        _getAllAttributeNames(attributeName) {
+            const normalizedName = this._normalizeAttributeName(attributeName);
+            const names = [];
+            for (const prefix of this._prefixes()) {
+                names.push(`${prefix}${normalizedName}`);
+                names.push(`data-${prefix}${normalizedName}`);
             }
-            const group = _state.groups[instance.groupName];
-            if (group) {
-                group.instances.delete(instance);
-                group._lastRenderedOutputs.delete(instance.instanceName);
-                Debug.debug(`Removed instance ${instance.instanceName} from group ${instance.groupName}`);
-                // Clean up empty groups
-                if (group.instances.size === 0) {
-                    delete _state.groups[instance.groupName];
-                    Debug.info(`Removed empty group: ${instance.groupName}`);
+            return names;
+        },
+        /**
+         * Gets the raw attribute value, checking all possible attribute names
+         * @private
+         * @param {Element} element - The element to check
+         * @param {string} name - The attribute name
+         * @returns {string|null} The attribute value or null if not found
+         */
+        _getRawAttribute(element, name, defaultValue = null) {
+            for (const attrName of this._getAllAttributeNames(name)) {
+                const value = element.getAttribute(attrName);
+                if (value !== null) {
+                    return value;
                 }
             }
-            // Remove group reference from instance
-            delete instance.groupName;
+            return defaultValue;
+        },
+        /**
+         * Checks if an element has an attribute, checking all possible attribute names
+         * @private
+         * @param {Element} element - The element to check
+         * @param {string} name - The attribute name
+         * @returns {boolean} Whether the element has the attribute
+         */
+        _hasAttribute(element, name) {
+            return this._getAllAttributeNames(name).some((attrName) => element.hasAttribute(attrName));
+        },
+        /**
+         * Finds elements with a given attribute and optional value
+         * @param {string} attributeName - The attribute to look for
+         * @param {string} [value] - Optional value to match
+         * @param {boolean} [exactMatch=true] - Whether to match the value exactly or just include it
+         * @param {Element} [element=document] - The element to search within
+         * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
+         * @param {boolean} [getFirst=false] - Whether to return the first matching element or all matching elements
+         * @returns {Element[]|Element|null} Array of elements if no value specified, first matching element if value specified
+         */
+        findMatchingElements(attributeName, value = null, exactMatch = true, element = document, includeSelf = true, getFirst = false) {
+            const attrNames = this._getAllAttributeNames(attributeName);
+            let selector = attrNames.map((name) => `[${name}]`).join(",");
+            if (value !== undefined && value !== null) {
+                const valueSelector = exactMatch ? `="${value}"` : `*="${value}"`;
+                selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
+            }
+            const results = Array.from(element.querySelectorAll(selector));
+            if (includeSelf && element instanceof Element) {
+                const selfValue = this._getRawAttribute(element, attributeName);
+                if (selfValue !== null) {
+                    if (value === undefined ||
+                        value === null ||
+                        (exactMatch ? selfValue === value : selfValue.includes(value))) {
+                        results.unshift(element);
+                    }
+                }
+            }
+            return value !== undefined && value !== null
+                ? getFirst
+                    ? results[0]
+                    : results
+                : results;
+        },
+        findClosestParent(attributeName, element, value = null, exactMatch = true) {
+            if (!attributeName) {
+                Debug.error("Attribute name is required");
+                return null;
+            }
+            if (!element) {
+                Debug.error("Element is required to find closest parent (" + attributeName + ")");
+                return null;
+            }
+            const normalizedName = this._normalizeAttributeName(attributeName);
+            const attrNames = this._getAllAttributeNames(normalizedName);
+            let selector = attrNames.map((name) => `[${name}]`).join(",");
+            if (value !== undefined && value !== null) {
+                const valueSelector = exactMatch ? `="${value}"` : `*="${value}"`;
+                selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
+            }
+            let closestElement = element.closest(selector);
+            // check if there is no disinherit attribute on the closest element
+            if (closestElement && this.isInheritable(normalizedName)) {
+                const disinherit = this._getRawAttribute(closestElement, "disinherit");
+                if (disinherit &&
+                    (disinherit === "*" || disinherit.split(" ").includes(normalizedName))) {
+                    return null;
+                }
+            }
+            return closestElement;
+        },
+        /**
+         * Gets the first element with a given attribute
+         * @param {string} attributeName - The attribute to look for
+         * @param {Element} [element=document] - The element to search within
+         * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
+         * @returns {Element|null} The first element with the attribute or null if none found
+         */
+        getElementWithAttribute(attributeName, element = document, includeSelf = true) {
+            if (includeSelf &&
+                element instanceof Element &&
+                this._hasAttribute(element, attributeName)) {
+                return element;
+            }
+            const selectors = this._getAllAttributeNames(attributeName)
+                .map((name) => `[${name}]`)
+                .join(",");
+            return element.querySelector(selectors);
+        },
+        /**
+         * Gets the parent element, handling Shadow DOM
+         * @private
+         * @param {Node} element - The element to get the parent of
+         * @returns {Node|null} The parent element or null if none
+         */
+        _parentElement(element) {
+            const parent = element.parentElement;
+            if (!parent && element.parentNode instanceof ShadowRoot) {
+                return element.parentNode;
+            }
+            return parent;
+        },
+        /**
+         * Gets the root node of an element, handling Shadow DOM
+         * @private
+         * @param {HTMLElement} element - The element to get the root of
+         * @param {boolean} [composed=false] - Whether to get the composed root
+         * @returns {Node} The root node
+         */
+        _getRootNode(element, composed = false) {
+            return element.getRootNode ? element.getRootNode({ composed }) : document;
+        },
+        /**
+         * Finds the closest element matching a condition
+         * @private
+         * @param {Node} element - The element to start from
+         * @param {function(Node): boolean} condition - The condition to match
+         * @returns {Node|null} The closest matching element or null if none
+         */
+        _getClosestMatch(element, condition) {
+            while (element && !condition(element)) {
+                element = this._parentElement(element);
+            }
+            return element || null;
+        },
+        _attributeMatchesNormalizedName(attributeName, normalizedName) {
+            // Remove any existing prefix
+            const name = attributeName
+                .replace(/^data-/, "")
+                .replace(/^hx-/, "")
+                .replace(/^fp-/, "");
+            return name === normalizedName;
+        },
+        /**
+         * Gets an attribute value with inheritance and disinheritance
+         * @private
+         * @param {Element} startElement - The element to start from
+         * @param {Element} ancestor - The ancestor element to check
+         * @param {string} attributeName - The attribute name
+         * @returns {string|null} The attribute value or null if not found
+         */
+        _getAttributeValueWithInheritance(startElement, ancestor, attributeName) {
+            const attributeValue = this._getRawAttribute(ancestor, attributeName);
+            const disinherit = this._getRawAttribute(ancestor, "disinherit");
+            const inherit = this._getRawAttribute(ancestor, "inherit");
+            if (startElement !== ancestor) {
+                if (htmx.config.disableInheritance) {
+                    if (inherit &&
+                        (inherit === "*" || inherit.split(" ").includes(attributeName))) {
+                        return attributeValue;
+                    }
+                    return null;
+                }
+                if (disinherit &&
+                    (disinherit === "*" || disinherit.split(" ").includes(attributeName))) {
+                    return "unset";
+                }
+            }
+            return attributeValue;
+        },
+        /**
+         * Finds the value of an inheritable attribute
+         * @param {HTMLElement} element - The element to start searching from
+         * @param {string} attributeName - The name of the attribute to find
+         * @returns {string|null} The attribute value or null if not found
+         */
+        findInheritedAttribute(element, attributeName) {
+            const normalizedName = this._normalizeAttributeName(attributeName);
+            let closestValue = null;
+            this._getClosestMatch(element, (ancestor) => {
+                const value = this._getAttributeValueWithInheritance(element, ancestor, normalizedName);
+                if (value) {
+                    closestValue = value;
+                    return true;
+                }
+                return false;
+            });
+            return closestValue === "unset" ? null : closestValue;
+        },
+        findAttribute(element, attributeName) {
+            const normalizedName = this._normalizeAttributeName(attributeName);
+            // First check direct attributes
+            for (const prefix of this._prefixes()) {
+                const value = this._getRawAttribute(element, `${prefix}${normalizedName}`);
+                if (value) {
+                    return value;
+                }
+            }
+            // Then check inherited attributes
+            return this.findInheritedAttribute(element, normalizedName) || null;
+        },
+        _validateAttributeName(attributeName) {
+            if (!attributeName) {
+                Debug.error("Attribute name is required");
+                return false;
+            }
+            const isInheritable = this.isInheritable(attributeName);
+            if (!isInheritable) {
+                Debug.info(`Attribute ${attributeName} is not inheritable`);
+                return false;
+            }
+            return true;
+        },
+        /**
+         * Adds an inheritable attribute to the list
+         * @param {string} prefix - The prefix to use (hx- or fp-)
+         * @param {string} attributeName - The name of the attribute to add
+         */
+        addInheritableAttribute(prefix, attributeName) {
+            if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
+                this.INHERITABLE_ATTRIBUTES[prefix] = [];
+            }
+            this.INHERITABLE_ATTRIBUTES[prefix].push(attributeName);
+        },
+        /**
+         * Removes an inheritable attribute from the list
+         * @param {string} prefix - The prefix to use (hx- or fp-)
+         * @param {string} attributeName - The name of the attribute to remove
+         * @returns {boolean} True if the attribute was removed, false if it wasn't found
+         */
+        removeInheritableAttribute(prefix, attributeName) {
+            if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
+                return false;
+            }
+            const index = this.INHERITABLE_ATTRIBUTES[prefix].indexOf(attributeName);
+            if (index === -1) {
+                return false;
+            }
+            this.INHERITABLE_ATTRIBUTES[prefix].splice(index, 1);
+            return true;
+        },
+        isInheritable(attributeName) {
+            const normalizedName = this._normalizeAttributeName(attributeName);
+            return Object.values(this.INHERITABLE_ATTRIBUTES)
+                .flat()
+                .includes(normalizedName);
+        },
+        /**
+         * Find the template element for a given instance name or ID selector
+         * @param {string} instanceName - The instance name or ID selector (#elementId)
+         * @returns {FlowPlaterElement | null} The template element or null if not found
+         * @description Finds the element that has both the matching instance name/ID and the fp-template attribute.
+         * This is the "template element" that defines the template for an instance.
+         *
+         * Note: For existing instances, it's more efficient to use instance.getTemplateElement()
+         * instead of calling this method, as it avoids DOM searches.
+         */
+        findTemplateElementByInstanceName(instanceName) {
+            // Handle ID selector format (#elementId)
+            if (instanceName.startsWith("#")) {
+                const elementId = instanceName.slice(1);
+                const element = document.getElementById(elementId);
+                // For ID selectors, the element itself should have the template
+                if (element && this._hasAttribute(element, "template")) {
+                    return element;
+                }
+                return null;
+            }
+            // Handle instance name format - find the template element with this instance name
+            // Look for elements that have both fp-instance matching the name AND fp-template
+            const allTemplateElements = this.findMatchingElements("template");
+            if (!Array.isArray(allTemplateElements)) {
+                return null;
+            }
+            // Find the template element that also has the matching instance name
+            const templateElement = allTemplateElements.find((element) => {
+                const elementInstanceName = this._getRawAttribute(element, "instance");
+                return elementInstanceName === instanceName;
+            });
+            return templateElement || null;
+        },
+        /**
+         * Find any element by instance name or ID selector (template or non-template)
+         * @param {string} instanceName - The instance name or ID selector (#elementId)
+         * @returns {FlowPlaterElement | null} The found element or null if not found
+         * @description Finds any element matching the instance name or ID, regardless of whether it has a template.
+         * This is useful for finding any element associated with an instance.
+         */
+        findElementByInstanceName(instanceName) {
+            // Handle ID selector format (#elementId)
+            if (instanceName.startsWith("#")) {
+                const elementId = instanceName.slice(1);
+                const element = document.getElementById(elementId);
+                return element;
+            }
+            // Handle instance name format (search by fp-instance attribute)
+            const element = this.findMatchingElements("instance", instanceName, false, document, false, true);
+            return element;
         },
     };
 
-    const InstanceManager = {
+    // * For each element with an fp-animation attribute set to true, or if defaults.animation is true, get the hx-swap attribute.
+    // if the value is empty, set it to innerHTML transition:true
+    // if the value is not empty, append transition:true
+    // if the value is set to false, do nothing
+    function setupAnimation(element) {
+        try {
+            var shouldAnimate = AttributeMatcher._getRawAttribute(element, "animation") ||
+                _state.defaults.animation;
+            if (shouldAnimate === "true") {
+                var swap = element.getAttribute("hx-swap");
+                if (!swap) {
+                    element.setAttribute("hx-swap", "innerHTML transition:true");
+                }
+                else {
+                    element.setAttribute("hx-swap", swap + " transition:true");
+                }
+            }
+            return element;
+        }
+        catch (error) {
+            Debug.error(`Error in setupAnimation: ${error.message}`);
+            return element;
+        }
+    }
+
+    /**
+     * @module RequestHandler
+     * @description Manages HTMX request processing and lifecycle events for form processing elements
+     */
+    const RequestHandler = {
+        /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
+        processingElements: new Map(),
+        /** @type {number} Counter for generating unique request IDs */
+        currentRequestId: 0,
         /**
-         * Gets an existing instance or creates a new one.
-         * The data proxy should be assigned by the caller AFTER getting the instance.
-         * @param {HTMLElement} element - The DOM element
-         * @param {Object} initialData - Initial data object (will be replaced by proxy later)
-         * @returns {Object} The instance
+         * Generates a unique request ID using timestamp and counter
+         * @returns {string} Unique request identifier
          */
-        getOrCreateInstance(element, initialData = {}) {
-            // Skip if element is already indexed
-            if (AttributeMatcher._hasAttribute(element, "indexed")) {
-                Debug.debug(`Element already indexed: ${element.id || AttributeMatcher._getRawAttribute(element, "instance")}`);
-                return _state.instances[AttributeMatcher._getRawAttribute(element, "instance") || element.id];
-            }
-            const instanceName = AttributeMatcher._getRawAttribute(element, "instance") || element.id;
-            if (!instanceName) {
-                Debug.error("No instance name found for element");
-                return null;
-            }
-            // Check if this element belongs to a group
-            const groupName = AttributeMatcher._getRawAttribute(element, "group");
-            let instance = _state.instances[instanceName];
-            if (!instance) {
-                // If this is not a template element, look for a parent template element
-                if (!AttributeMatcher._hasAttribute(element, "template")) {
-                    const parentTemplateElement = AttributeMatcher.findMatchingElements("template")?.find((el) => AttributeMatcher._getRawAttribute(el, "instance") === instanceName);
-                    if (parentTemplateElement) {
-                        Debug.debug(`Found parent template element for instance ${instanceName}`);
-                        return this.getOrCreateInstance(parentTemplateElement, initialData);
+        generateRequestId() {
+            return `fp-${Date.now()}-${this.currentRequestId++}`;
+        },
+        /**
+         * Handles different stages of request processing for a target element
+         * @param {HTMLElement} target - The DOM element being processed
+         * @param {string} requestId - Unique identifier for the request
+         * @param {'start'|'process'|'cleanup'} action - The action to perform
+         * @returns {boolean|void} Returns true if processing succeeded for 'process' action
+         */
+        handleRequest(target, requestId, action) {
+            if (!target || !AttributeMatcher._hasAttribute(target, "template"))
+                return;
+            const currentInfo = this.processingElements.get(target);
+            requestId = requestId || this.generateRequestId();
+            switch (action) {
+                case "start":
+                    if (!currentInfo || currentInfo.requestId !== requestId) {
+                        this.processingElements.set(target, {
+                            requestId: requestId,
+                            timestamp: Date.now(),
+                            processed: false,
+                        });
+                        Debug.debug("Added element to processing set", target, requestId);
+                    }
+                    break;
+                case "process":
+                    // Mark as processed during HTMX transformResponse
+                    if (currentInfo && currentInfo.requestId === requestId) {
+                        currentInfo.processed = true;
+                        this.processingElements.set(target, currentInfo);
+                        Debug.debug(`Marked request ${requestId} as processed for ${target.id || "unknown"}`);
+                        return true;
+                    }
+                    return false;
+                case "cleanup":
+                    // Always clean up if we have the same requestId, regardless of processed state
+                    // This ensures cleanup happens even if group updates are still in progress
+                    if (currentInfo && currentInfo.requestId === requestId) {
+                        this.processingElements.delete(target);
+                        Debug.debug("Cleaned up after request", target, requestId);
                     }
                     else {
-                        Debug.error(`No template element found for instance ${instanceName}`);
-                        return null;
+                        Debug.debug("Skipping cleanup - request mismatch", {
+                            current: currentInfo?.requestId,
+                            received: requestId,
+                        });
                     }
-                }
-                // Create new instance with the template element
-                const baseInstance = {
-                    instanceName: instanceName,
-                    elements: [element],
-                    template: null, // Template will be assigned by caller
-                    templateId: AttributeMatcher._getRawAttribute(element, "template") || "",
-                    templateElement: element, // Store direct reference to the template element
-                    data: initialData, // Assign initial data, caller MUST replace with Proxy
-                    cleanup: () => {
-                        // Remove from group if part of one
-                        if (instance.groupName) {
-                            GroupManager.removeInstanceFromGroup(instance);
-                        }
-                        instance.elements = [];
-                    },
-                };
-                // Add instance methods to complete the FlowPlaterInstance interface
-                const instanceMethodsObj = instanceMethods(instanceName);
-                // Create the complete instance by merging base properties with methods
-                instance = Object.assign(baseInstance, instanceMethodsObj);
-                // Add plugin instance methods
-                const methods = PluginManager.instanceMethods;
-                for (const [methodName] of methods.entries()) {
-                    // Add method to instance
-                    instance[methodName] = (...args) => PluginManager.executeInstanceMethod(methodName, instance, ...args);
-                }
-                _state.instances[instanceName] = instance;
-                // Execute newInstance hook
-                PluginManager.executeHook("newInstance", instance);
-                Debug.info(`Created new instance: ${instanceName}`);
-                // Find all elements with matching fp-instance attribute
-                const matchingElements = AttributeMatcher.findMatchingElements("instance", instanceName);
-                // Add matching elements to the instance's elements Array
-                matchingElements.forEach((matchingElement) => {
-                    if (matchingElement !== element) {
-                        // Check for target attributes, including inherited ones
-                        const targetSelector = AttributeMatcher.findInheritedAttribute(matchingElement, "target");
-                        if (targetSelector) {
-                            let targetElements = [];
-                            switch (true) {
-                                case targetSelector === "this":
-                                    targetElements = [matchingElement];
-                                    break;
-                                case targetSelector.startsWith("closest "):
-                                    const closestSelector = targetSelector.substring(8);
-                                    const closestElement = matchingElement.closest(closestSelector);
-                                    if (closestElement)
-                                        targetElements = [closestElement];
-                                    break;
-                                case targetSelector.startsWith("find "):
-                                    const findSelector = targetSelector.substring(5);
-                                    const foundElement = matchingElement.querySelector(findSelector);
-                                    if (foundElement)
-                                        targetElements = [foundElement];
-                                    break;
-                                case targetSelector === "next":
-                                    const nextElement = matchingElement.nextElementSibling;
-                                    if (nextElement)
-                                        targetElements = [nextElement];
-                                    break;
-                                case targetSelector.startsWith("next "):
-                                    const nextSelector = targetSelector.substring(5);
-                                    let currentNext = matchingElement.nextElementSibling;
-                                    while (currentNext) {
-                                        if (currentNext.matches(nextSelector)) {
-                                            targetElements = [currentNext];
-                                            break;
-                                        }
-                                        currentNext = currentNext.nextElementSibling;
-                                    }
-                                    break;
-                                case targetSelector === "previous":
-                                    const prevElement = matchingElement.previousElementSibling;
-                                    if (prevElement)
-                                        targetElements = [prevElement];
-                                    break;
-                                case targetSelector.startsWith("previous "):
-                                    const prevSelector = targetSelector.substring(9);
-                                    let currentPrev = matchingElement.previousElementSibling;
-                                    while (currentPrev) {
-                                        if (currentPrev.matches(prevSelector)) {
-                                            targetElements = [currentPrev];
-                                            break;
-                                        }
-                                        currentPrev = currentPrev.previousElementSibling;
-                                    }
-                                    break;
-                                default:
-                                    // Regular CSS selector
-                                    targetElements = Array.from(document.querySelectorAll(targetSelector));
-                            }
-                            // Add all found target elements to the instance
-                            targetElements.forEach((targetElement) => {
-                                if (!instance.elements.includes(targetElement)) {
-                                    instance.elements.push(targetElement);
-                                }
-                                targetElement.setAttribute("fp-indexed", "true");
-                            });
-                        }
-                        else {
-                            if (!instance.elements.includes(matchingElement)) {
-                                instance.elements.push(matchingElement);
-                            }
-                        }
-                        // Mark the element as indexed
-                        matchingElement.setAttribute("fp-indexed", "true");
-                    }
-                });
-                // Mark the template element as indexed
-                element.setAttribute("fp-indexed", "true");
-                // Handle group membership, but don't set data proxy here - that happens in Template.js
-                if (groupName) {
-                    instance.groupName = groupName;
-                    Debug.info(`Instance ${instanceName} will be added to group ${groupName}`);
-                }
+                    break;
             }
-            else {
-                // If instance exists, add the new element to its array (if not already present)
-                if (!instance.elements.includes(element)) {
-                    instance.elements.push(element);
-                }
-                // Mark the element as indexed
-                element.setAttribute("fp-indexed", "true");
-                Debug.debug(`Added element to existing instance: ${instanceName}`);
-                // Check for group membership
-                if (groupName && !instance.groupName) {
-                    instance.groupName = groupName;
-                    Debug.info(`Added existing instance ${instanceName} to group ${groupName}`);
-                }
-            }
-            return instance;
         },
         /**
-         * Updates an instance's data via the proxy. USE WITH CAUTION.
-         * Prefer direct proxy manipulation.
-         * @param {Object} instance - The instance to update
-         * @param {Object} newData - New data for the instance
+         * Removes stale processing entries that are older than the timeout threshold
          */
-        updateInstanceData(instance, newData) {
-            if (!instance || !instance.data) {
-                Debug.error("Cannot update data: Instance or instance.data is invalid.");
-                return;
+        cleanupStale() {
+            const now = Date.now();
+            const staleTimeout = 10000; // 10 seconds
+            for (const [target, info] of this.processingElements.entries()) {
+                if (now - info.timestamp > staleTimeout) {
+                    this.processingElements.delete(target);
+                    Debug.debug("Cleaned up stale processing entry", target, info.requestId);
+                }
             }
-            // Update data through the proxy to trigger reactivity
-            deepMerge(instance.data, newData);
-            // No explicit re-render needed here, proxy handler should trigger _updateDOM
-            // No explicit save needed here, proxy handler should save
         },
-    };
-
-    function render({ template, data, target, returnHtml = false, instanceName, animate = _state.defaults.animation, recompile = false, skipLocalStorageLoad = false, skipRender = false, isStoredDataRender = false, }) {
-        Performance.start("render:" + (instanceName || "anonymous"));
-        // Track initialization to prevent redundant initialization of the same instance
-        if (!_state._initTracking) {
-            _state._initTracking = {};
-        }
-        // Derive instance name early to use for tracking
-        let derivedInstanceName;
-        if (instanceName) {
-            derivedInstanceName = instanceName;
-        }
-        else if (target instanceof Element &&
-            AttributeMatcher._hasAttribute(target, "instance")) {
-            derivedInstanceName = AttributeMatcher._getRawAttribute(target, "instance");
-        }
-        else if (target instanceof Element && target.id) {
-            derivedInstanceName = target.id;
-        }
-        else if (typeof target === "string" && target.startsWith("#")) {
-            derivedInstanceName = target.substring(1);
-        }
-        // If this instance was recently initialized (within 100ms), skip
-        // BUT ONLY if this is not an explicit render with stored data
-        if (derivedInstanceName &&
-            _state._initTracking[derivedInstanceName] &&
-            !isStoredDataRender) {
-            const timeSinceLastInit = Date.now() - _state._initTracking[derivedInstanceName];
-            if (timeSinceLastInit < 100) {
-                // 100ms window to prevent duplicate initializations
-                Debug.warn(`[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`);
-                // Still return the existing instance
-                return _state.instances[derivedInstanceName] || null;
-            }
-        }
-        // Update tracking timestamp
-        if (derivedInstanceName) {
-            _state._initTracking[derivedInstanceName] = Date.now();
-        }
-        EventSystem.publish("beforeRender", {
-            instanceName,
-            template,
-            data,
-            target,
-            returnHtml,
-            recompile,
-        });
-        /* -------------------------------------------------------------------------- */
-        /*                                initial setup                               */
-        /* -------------------------------------------------------------------------- */
-        // Handle empty or "self" template
-        if (!template || template === "self") {
-            const targetElement = typeof target === "string" ? document.querySelector(target) : target;
-            if (targetElement) {
-                template = "#" + targetElement.id;
-            }
-        }
-        // First check for target attributes
-        let targetElements = [];
-        if (target instanceof Element) {
-            // Check for hx-target or fp-target attributes
-            const targetSelector = AttributeMatcher._getRawAttribute(target, "target");
-            if (targetSelector) {
-                if (targetSelector === "this") {
-                    targetElements = [target];
-                }
-                else {
-                    targetElements = Array.from(document.querySelectorAll(targetSelector));
-                }
-            }
-        }
-        // If no target elements found from attributes, use the normal target handling
-        if (targetElements.length === 0) {
-            if (target instanceof NodeList) {
-                targetElements = Array.from(target);
-            }
-            else if (typeof target === "string") {
-                targetElements = Array.from(document.querySelectorAll(target));
-            }
-            else if (target instanceof Element) {
-                targetElements = [target];
-            }
-        }
-        if (targetElements.length === 0) {
-            Debug.error("No target elements found");
-            return;
-        }
-        // Get the instance name
-        if (instanceName) {
-            instanceName = instanceName;
-        }
-        else if (AttributeMatcher._hasAttribute(targetElements[0], "instance")) {
-            instanceName = AttributeMatcher._getRawAttribute(targetElements[0], "instance") || undefined;
-        }
-        else if (targetElements[0].id) {
-            instanceName = targetElements[0].id;
-        }
-        else {
-            instanceName = _state.length.toString();
-        }
-        /* -------------------------------------------------------------------------- */
-        /*                              Compile template                              */
-        /* -------------------------------------------------------------------------- */
-        var compiledTemplate = compileTemplate(template, recompile);
-        _state.length++;
-        if (!compiledTemplate) {
-            Debug.error("Template not found: " + template);
-            return;
-        }
-        if (targetElements.length === 0) {
-            Debug.error("Target not found: " + target);
-            return;
-        }
-        /* -------------------------------------------------------------------------- */
-        /*                               Proxy creation                               */
-        /* -------------------------------------------------------------------------- */
-        // Initialize finalInitialData outside the if block so it's available throughout the function
-        let finalInitialData = data || {};
-        let persistedData = null;
-        let proxy = null; // Initialize proxy at function level
-        // Check for local variable at instance level first
-        const localVarName = AttributeMatcher._getRawAttribute(targetElements[0], "local");
-        let localData = null;
-        if (localVarName) {
-            // First check if it's a global variable
-            localData = extractLocalData(localVarName);
-            // If no global variable found, try as a selector
-            if (!localData) {
-                try {
-                    const selectorElement = document.querySelector(localVarName);
-                    if (selectorElement) {
-                        // Check if the element or its children have fp-data
-                        const hasDataElement = AttributeMatcher.findMatchingElements("data", null, false, selectorElement);
-                        if (hasDataElement) {
-                            const dataExtractor = PluginManager.getPlugin("data-extractor");
-                            if (dataExtractor) {
-                                localData =
-                                    dataExtractor.instanceMethods?.extractData?.(selectorElement);
-                            }
-                        }
+        /**
+         * Sets up all necessary event listeners for HTMX integration and request handling
+         */
+        setupEventListeners() {
+            // Add consolidated event listeners
+            document.body.addEventListener("htmx:beforeRequest", (event) => {
+                const target = event.detail.elt;
+                const requestId = event.detail.requestId || this.generateRequestId();
+                event.detail.requestId = requestId; // Ensure requestId is set
+                this.handleRequest(target, requestId, "start");
+                // Find instance that contains this element
+                let instance = null;
+                let instanceName = null;
+                for (const [name, inst] of Object.entries(_state.instances)) {
+                    if (Array.from(inst.elements).some((el) => el.contains(target))) {
+                        instance = inst;
+                        instanceName = name;
+                        break;
                     }
                 }
-                catch (e) {
-                    Debug.warn(`[Template] Invalid selector for fp-local: ${localVarName}`);
-                }
-            }
-            if (localData) {
-                finalInitialData = { ...finalInitialData, ...localData };
-            }
-            // Check if we should observe this local data
-            if (AttributeMatcher._hasAttribute(targetElements[0], "local-observe")) {
-                // Find all data elements within the instance
-                const dataElements = AttributeMatcher.findMatchingElements("data");
-                // Delegate observation to the DataExtractorPlugin
-                dataElements?.forEach((element) => {
-                    PluginManager.getPlugin("data-extractor")?.instanceMethods?.observeDataElement?.(element, localVarName, instanceName ? _state.instances[instanceName] : undefined);
-                });
-            }
-        }
-        if (!instanceName || !_state.instances[instanceName] || !_state.instances[instanceName].data) {
-            // Load persisted data if available and not skipped
-            if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
-                persistedData = loadFromLocalStorage(instanceName || "", "instance");
-                if (persistedData) {
-                    // Check if stored data is HTML
-                    if (persistedData.isHtml === true ||
-                        (typeof persistedData === "string" &&
-                            typeof persistedData.trim === "function" &&
-                            (persistedData.trim().startsWith("<!DOCTYPE html") ||
-                                persistedData.trim().startsWith("<html")))) {
-                        // Get swap specification from element
-                        const swapStyle = AttributeMatcher._getRawAttribute(targetElements[0], "swap", "innerHTML");
-                        const swapSpec = {
-                            swapStyle: swapStyle || "innerHTML",
-                            swapDelay: 0,
-                            settleDelay: 0,
-                            transition: swapStyle?.includes("transition:true") || false,
-                        };
-                        // Use htmx.swap with proper swap specification
-                        if (returnHtml) {
-                            return persistedData; // HTML string is now stored directly
-                        }
-                        targetElements.forEach((element) => {
-                            htmx.swap(element, persistedData, swapSpec);
-                        });
-                        return instanceName ? _state.instances[instanceName] : undefined;
-                    }
-                    // Extract actual data - if persistedData has a 'data' property, use that
-                    const actualData = persistedData?.data || persistedData;
-                    finalInitialData = { ...actualData, ...finalInitialData };
-                    Debug.debug(`[Template] Merged persisted data for ${instanceName}:`, finalInitialData);
-                }
-            }
-            // Find the template element (must have fp-template attribute)
-            const templateElement = targetElements.find((el) => AttributeMatcher._hasAttribute(el, "template"));
-            if (!templateElement) {
-                Debug.error("No template element found in target elements");
-                return null;
-            }
-            // 1. Get or create the instance shell using the template element
-            const instance = InstanceManager.getOrCreateInstance(templateElement, finalInitialData);
-            // If instance couldn't be created, exit
-            if (!instance) {
-                Debug.error("Failed to get or create instance: " + instanceName);
-                return null;
-            }
-            // Store local variable name if present
-            if (localVarName) {
-                instance.localVarName = localVarName;
-            }
-            // --- Debounce and Change Tracking Setup ---
-            // Store the timer ID on the instance
-            if (!instance._updateTimer) {
-                instance._updateTimer = null;
-            }
-            // Store the 'state before changes' within the current debounce cycle
-            if (!instance._stateBeforeDebounce) {
-                instance._stateBeforeDebounce = null;
-            }
-            // --- End Setup ---
-            // Check if this instance is part of a group
-            const groupName = AttributeMatcher._getRawAttribute(templateElement, "group");
-            if (groupName) {
-                // Check for persisted group data
-                let groupData = finalInitialData; // Start with the current data
-                if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
-                    const persistedGroupData = loadFromLocalStorage(groupName, "group");
-                    if (persistedGroupData) {
-                        // Merge persisted group data with any instance-specific data
-                        groupData = deepMerge(persistedGroupData, finalInitialData);
-                        Debug.debug(`Loaded persisted data for group ${groupName}`, groupData);
-                    }
-                }
-                // Get or create the group and add this instance
-                const group = GroupManager.getOrCreateGroup(groupName, groupData);
-                // Use the group's proxy for this instance
-                proxy = group.data;
-                // Add instance to the group
-                GroupManager.addInstanceToGroup(instance, groupName);
-                Debug.info(`Instance ${instanceName} is using group ${groupName} data`);
-            }
-            else {
-                // 2. Create the proxy with the final merged data and DEBOUNCED update handler
-                const DEBOUNCE_DELAY = 0;
-                proxy = createDeepProxy(finalInitialData, () => {
-                    if (instance) {
-                        // Skip if we're currently evaluating a template
-                        if (instance._isEvaluating) {
-                            return;
-                        }
-                        // Clear existing timer
-                        if (instance._updateTimer) {
-                            clearTimeout(instance._updateTimer);
-                        }
-                        // Schedule the update
-                        instance._updateTimer = setTimeout(() => {
-                            try {
-                                // Set flag to prevent recursive updates during evaluation
-                                instance._isEvaluating = true;
-                                // Get the current rendered output
-                                const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
-                                const newRenderedOutput = instance.template(transformedData);
-                                // Compare with previous render
-                                if (instance._lastRenderedOutput !== newRenderedOutput) {
-                                    Debug.info(`[Debounced Update] Output changed for ${instanceName}. Firing updateData hook.`);
-                                    // Execute hooks with current state
-                                    PluginManager.executeHook("updateData", instance, {
-                                        newData: proxy,
-                                        source: "proxy",
-                                    });
-                                    EventSystem.publish("updateData", {
-                                        instanceName,
-                                        newData: proxy,
-                                        source: "proxy",
-                                    });
-                                    // Update DOM since output changed
-                                    Debug.debug(`[Debounced Update] Triggering _updateDOM for ${instanceName}`);
-                                    instance._updateDOM();
-                                    // Save the new rendered output
-                                    instance._lastRenderedOutput = newRenderedOutput;
-                                    // Save to storage if enabled
-                                    if (ConfigManager.getConfig().storage?.enabled) {
-                                        const storageId = instance.instanceName.replace("#", "");
-                                        Debug.debug(`[Debounced Update] Saving data for ${storageId}`);
-                                        saveToLocalStorage(storageId, proxy, "instance");
-                                    }
-                                }
-                                else {
-                                    Debug.debug(`[Debounced Update] No output change for ${instanceName}. Skipping update.`);
-                                }
-                            }
-                            finally {
-                                // Always clear the evaluation flag
-                                instance._isEvaluating = false;
-                                // Clear timer
-                                instance._updateTimer = null;
-                            }
-                        }, DEBOUNCE_DELAY);
-                    }
-                });
-            }
-            // 3. Assign the proxy and template to the instance
-            instance.template = compiledTemplate;
-            instance.templateId =
-                AttributeMatcher._getRawAttribute(templateElement, "template") ||
-                    template;
-            instance.data = proxy; // Assign the proxy!
-            // 4. Trigger initial render - This should be OUTSIDE the debounce logic
-            Debug.debug(`[Initial Render] ${skipRender ? "Skipping" : "Triggering"} _updateDOM for ${instanceName}`);
-            // Only call _updateDOM if not skipRender
-            if (!skipRender) {
-                instance._updateDOM();
-            }
-            // Optional: Initial save if needed, OUTSIDE debounce
-            if (ConfigManager.getConfig().storage?.enabled &&
-                !persistedData &&
-                !instance.groupName) {
-                // Only save if not loaded and not in a group (groups handle their own saving)
-                const storageId = instanceName?.replace("#", "") || "";
-                Debug.debug(`[Initial Save] Saving initial data for ${storageId}`);
-                saveToLocalStorage(storageId, finalInitialData, // Save the data directly, not wrapped in an object
-                "instance"); // Save the raw initial merged data
-            }
-        }
-        else {
-            // If the instance already exists, get its proxy
-            proxy = _state.instances[instanceName].data;
-        }
-        // Return the instance from the state (might be the one just created or an existing one)
-        const finalInstance = instanceName ? _state.instances[instanceName] : undefined;
-        if (finalInstance) {
-            Debug.info("Final instance data: ", finalInstance.data);
-        }
-        /* -------------------------------------------------------------------------- */
-        /*                               Render template                              */
-        /* -------------------------------------------------------------------------- */
-        // Only create/setup instance if proxy is defined
-        if (proxy) {
-            // Find the template element (must have fp-template attribute)
-            const templateElement = targetElements.find((el) => AttributeMatcher._hasAttribute(el, "template"));
-            if (!templateElement) {
-                Debug.error("No template element found in target elements");
-                return null;
-            }
-            // Create/get instance and set up proxy regardless of skipRender
-            const instance = InstanceManager.getOrCreateInstance(templateElement, finalInitialData);
-            if (!instance) {
-                Debug.error("Failed to get or create instance: " + instanceName);
-                return null;
-            }
-            // Set up the instance but don't render automatically
-            instance.template = compiledTemplate; // Always store the template
-            instance.templateId =
-                AttributeMatcher._getRawAttribute(templateElement, "template") ||
-                    template;
-            instance.data = proxy;
-            // At this point do NOT call instance._updateDOM() to avoid automatic rendering
-            // Only perform actual rendering if explicitly requested
-            if (!skipRender) {
-                Debug.debug(`[Render Template] Executing render for ${instanceName}`);
-                try {
-                    if (returnHtml) {
-                        // Apply plugin transformations to the data before rendering
-                        const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
-                        return compiledTemplate(transformedData);
-                    }
-                    // Update all elements in the instance
-                    Array.from(instance.elements).forEach((element) => {
-                        // Apply plugin transformations to the data before rendering
-                        const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
-                        updateDOM(element, compiledTemplate(transformedData), animate, instance);
+                if (instance) {
+                    // Execute beforeRequest hook
+                    EventSystem.publish("requestStart", {
+                        instanceName,
+                        ...event.detail,
                     });
                 }
-                catch (error) {
-                    if (!(error instanceof TemplateError)) {
-                        Debug.error(`Failed to render template: ${error.message}`);
-                    }
-                    throw error;
+            });
+            document.body.addEventListener("htmx:beforeSwap", (event) => {
+                const target = event.detail.elt;
+                const requestId = event.detail.requestId;
+                const info = this.processingElements.get(target);
+                // Only prevent swap if request IDs don't match
+                if (info && info.requestId !== requestId) {
+                    event.preventDefault();
+                    Debug.debug("Prevented swap - request ID mismatch");
                 }
-            }
-            else {
-                Debug.debug(`[Render Template] Skipping render for ${instanceName} as requested`);
-            }
-        }
-        else if (!skipRender) {
-            // Log a debug message that we're skipping render due to no data
-            Debug.debug(`[Template] Skipping render for ${instanceName} because no data is available yet.`);
-        }
-        return finalInstance || null;
-    }
+            });
+            // Cleanup handlers
+            document.body.addEventListener("htmx:responseError", (event) => {
+                // Only cleanup on actual errors, not on successful responses
+                if (event.detail.failed) {
+                    this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
+                }
+            });
+            // Set up stale cleanup interval
+            setInterval(() => this.cleanupStale(), 10000);
+            // Clear all on unload
+            window.addEventListener("unload", () => {
+                this.processingElements.clear();
+            });
+        },
+    };
 
     function compare(left, operator, right) {
         // Convert string numbers to actual numbers for comparison
@@ -5621,137 +5785,6 @@ var FlowPlater = (function () {
         defaultHelper();
     }
 
-    /**
-     * @module RequestHandler
-     * @description Manages HTMX request processing and lifecycle events for form processing elements
-     */
-    const RequestHandler = {
-        /** @type {Map<HTMLElement, {requestId: string, timestamp: number, processed: boolean}>} */
-        processingElements: new Map(),
-        /** @type {number} Counter for generating unique request IDs */
-        currentRequestId: 0,
-        /**
-         * Generates a unique request ID using timestamp and counter
-         * @returns {string} Unique request identifier
-         */
-        generateRequestId() {
-            return `fp-${Date.now()}-${this.currentRequestId++}`;
-        },
-        /**
-         * Handles different stages of request processing for a target element
-         * @param {HTMLElement} target - The DOM element being processed
-         * @param {string} requestId - Unique identifier for the request
-         * @param {'start'|'process'|'cleanup'} action - The action to perform
-         * @returns {boolean|void} Returns true if processing succeeded for 'process' action
-         */
-        handleRequest(target, requestId, action) {
-            if (!target || !AttributeMatcher._hasAttribute(target, "template"))
-                return;
-            const currentInfo = this.processingElements.get(target);
-            requestId = requestId || this.generateRequestId();
-            switch (action) {
-                case "start":
-                    if (!currentInfo || currentInfo.requestId !== requestId) {
-                        this.processingElements.set(target, {
-                            requestId: requestId,
-                            timestamp: Date.now(),
-                            processed: false,
-                        });
-                        Debug.debug("Added element to processing set", target, requestId);
-                    }
-                    break;
-                case "process":
-                    // Mark as processed during HTMX transformResponse
-                    if (currentInfo && currentInfo.requestId === requestId) {
-                        currentInfo.processed = true;
-                        this.processingElements.set(target, currentInfo);
-                        Debug.debug(`Marked request ${requestId} as processed for ${target.id || "unknown"}`);
-                        return true;
-                    }
-                    return false;
-                case "cleanup":
-                    // Always clean up if we have the same requestId, regardless of processed state
-                    // This ensures cleanup happens even if group updates are still in progress
-                    if (currentInfo && currentInfo.requestId === requestId) {
-                        this.processingElements.delete(target);
-                        Debug.debug("Cleaned up after request", target, requestId);
-                    }
-                    else {
-                        Debug.debug("Skipping cleanup - request mismatch", {
-                            current: currentInfo?.requestId,
-                            received: requestId,
-                        });
-                    }
-                    break;
-            }
-        },
-        /**
-         * Removes stale processing entries that are older than the timeout threshold
-         */
-        cleanupStale() {
-            const now = Date.now();
-            const staleTimeout = 10000; // 10 seconds
-            for (const [target, info] of this.processingElements.entries()) {
-                if (now - info.timestamp > staleTimeout) {
-                    this.processingElements.delete(target);
-                    Debug.debug("Cleaned up stale processing entry", target, info.requestId);
-                }
-            }
-        },
-        /**
-         * Sets up all necessary event listeners for HTMX integration and request handling
-         */
-        setupEventListeners() {
-            // Add consolidated event listeners
-            document.body.addEventListener("htmx:beforeRequest", (event) => {
-                const target = event.detail.elt;
-                const requestId = event.detail.requestId || this.generateRequestId();
-                event.detail.requestId = requestId; // Ensure requestId is set
-                this.handleRequest(target, requestId, "start");
-                // Find instance that contains this element
-                let instance = null;
-                let instanceName = null;
-                for (const [name, inst] of Object.entries(_state.instances)) {
-                    if (Array.from(inst.elements).some((el) => el.contains(target))) {
-                        instance = inst;
-                        instanceName = name;
-                        break;
-                    }
-                }
-                if (instance) {
-                    // Execute beforeRequest hook
-                    EventSystem.publish("requestStart", {
-                        instanceName,
-                        ...event.detail,
-                    });
-                }
-            });
-            document.body.addEventListener("htmx:beforeSwap", (event) => {
-                const target = event.detail.elt;
-                const requestId = event.detail.requestId;
-                const info = this.processingElements.get(target);
-                // Only prevent swap if request IDs don't match
-                if (info && info.requestId !== requestId) {
-                    event.preventDefault();
-                    Debug.debug("Prevented swap - request ID mismatch");
-                }
-            });
-            // Cleanup handlers
-            document.body.addEventListener("htmx:responseError", (event) => {
-                // Only cleanup on actual errors, not on successful responses
-                if (event.detail.failed) {
-                    this.handleRequest(event.detail.elt, event.detail.requestId, "cleanup");
-                }
-            });
-            // Set up stale cleanup interval
-            setInterval(() => this.cleanupStale(), 10000);
-            // Clear all on unload
-            window.addEventListener("unload", () => {
-                this.processingElements.clear();
-            });
-        },
-    };
-
     function parseXmlToJson(xmlString) {
         function xmlToJson(node) {
             var obj = {};
@@ -6087,6 +6120,102 @@ var FlowPlater = (function () {
         FormStateManager.restoreFormStates(target);
     }
 
+    // prettier-ignore
+    const htmxAttributes = ["boost", "get", "post", "on", "push-url", "select", "select-oob",
+        "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable",
+        "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt",
+        "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url",
+        "request", "sync", "validate", "vars",
+    ];
+    // * For every element with an fp-[htmxAttribute] attribute, translate to hx-[htmxAttribute]
+    function translateCustomHTMXAttributes(element) {
+        try {
+            Debug.debug("translateCustomHTMXAttributes", element);
+            const customPrefix = "fp-";
+            const htmxPrefix = "hx-";
+            htmxAttributes.forEach((attr) => {
+                const customAttr = customPrefix + attr;
+                if (element.hasAttribute(customAttr) ||
+                    element.hasAttribute("data-" + customAttr)) {
+                    const attrValue = element.getAttribute(customAttr);
+                    if (attrValue) {
+                        element.setAttribute(htmxPrefix + attr, attrValue);
+                    }
+                    element.removeAttribute(customAttr);
+                }
+            });
+            return element;
+        }
+        catch (error) {
+            Debug.error(`Error in translateCustomHTMXAttributes: ${error.message}`);
+            return element;
+        }
+    }
+
+    // Add hx-ext="flowplater" attribute to elements that need the extension
+    function addHtmxExtensionAttribute(element) {
+        try {
+            // Check if the element already has the flowplater extension
+            const currentExt = element.getAttribute("hx-ext") || "";
+            if (!currentExt.includes("flowplater")) {
+                // Add flowplater to hx-ext
+                const newExt = currentExt ? currentExt + ", flowplater" : "flowplater";
+                element.setAttribute("hx-ext", newExt);
+                Debug.info("Added hx-ext attribute to " + element.id);
+            }
+            return element;
+        }
+        catch (error) {
+            Debug.error(`Error in addHtmxExtensionAttribute: ${error.message}`);
+            return element;
+        }
+    }
+
+    function processUrlAffixes(element) {
+        try {
+            const methods = ["get", "post", "put", "patch", "delete"];
+            function processElement(el) {
+                methods.forEach(function (method) {
+                    var attr = "hx-" + method;
+                    if (el.hasAttribute(attr)) {
+                        var originalUrl = el.getAttribute(attr);
+                        Debug.info("Original URL: " + originalUrl);
+                        var prepend = AttributeMatcher.findAttribute(el, "prepend");
+                        var append = AttributeMatcher.findAttribute(el, "append");
+                        var modifiedUrl = originalUrl;
+                        if (prepend) {
+                            modifiedUrl = prepend + modifiedUrl;
+                        }
+                        if (append) {
+                            modifiedUrl += append;
+                        }
+                        if (modifiedUrl) {
+                            el.setAttribute(attr, modifiedUrl);
+                        }
+                        Debug.info("Modified URL: " + modifiedUrl);
+                        if (modifiedUrl !== originalUrl) {
+                            Debug.info("Modification successful for", method, "on element", el);
+                        }
+                        else {
+                            Debug.error("Modification failed for", method, "on element", el);
+                        }
+                    }
+                });
+            }
+            // Process the passed element
+            if ((AttributeMatcher._hasAttribute(element, "prepend") ||
+                AttributeMatcher._hasAttribute(element, "append")) &&
+                methods.some((method) => element.hasAttribute("hx-" + method))) {
+                processElement(element);
+            }
+            return element;
+        }
+        catch (error) {
+            Debug.error(`Error in processUrlAffixes: ${error.message}`);
+            return element;
+        }
+    }
+
     function preloadUrl(url) {
         if (!url) {
             Debug.error("No URL provided for preloading");
@@ -6175,127 +6304,6 @@ var FlowPlater = (function () {
         }
         catch (error) {
             Debug.error(`Error in processPreload: ${error.message}`);
-            return element;
-        }
-    }
-
-    // prettier-ignore
-    const htmxAttributes = ["boost", "get", "post", "on", "push-url", "select", "select-oob",
-        "swap", "swap-oob", "target", "trigger", "vals", "confirm", "delete", "disable",
-        "disabled-elt", "disinherit", "encoding", "ext", "headers", "history", "history-elt",
-        "include", "indicator", "params", "patch", "preserve", "prompt", "put", "replace-url",
-        "request", "sync", "validate", "vars",
-    ];
-    // * For every element with an fp-[htmxAttribute] attribute, translate to hx-[htmxAttribute]
-    function translateCustomHTMXAttributes(element) {
-        try {
-            Debug.debug("translateCustomHTMXAttributes", element);
-            const customPrefix = "fp-";
-            const htmxPrefix = "hx-";
-            htmxAttributes.forEach((attr) => {
-                const customAttr = customPrefix + attr;
-                if (element.hasAttribute(customAttr) ||
-                    element.hasAttribute("data-" + customAttr)) {
-                    const attrValue = element.getAttribute(customAttr);
-                    if (attrValue) {
-                        element.setAttribute(htmxPrefix + attr, attrValue);
-                    }
-                    element.removeAttribute(customAttr);
-                }
-            });
-            return element;
-        }
-        catch (error) {
-            Debug.error(`Error in translateCustomHTMXAttributes: ${error.message}`);
-            return element;
-        }
-    }
-
-    function processUrlAffixes(element) {
-        try {
-            const methods = ["get", "post", "put", "patch", "delete"];
-            function processElement(el) {
-                methods.forEach(function (method) {
-                    var attr = "hx-" + method;
-                    if (el.hasAttribute(attr)) {
-                        var originalUrl = el.getAttribute(attr);
-                        Debug.info("Original URL: " + originalUrl);
-                        var prepend = AttributeMatcher.findAttribute(el, "prepend");
-                        var append = AttributeMatcher.findAttribute(el, "append");
-                        var modifiedUrl = originalUrl;
-                        if (prepend) {
-                            modifiedUrl = prepend + modifiedUrl;
-                        }
-                        if (append) {
-                            modifiedUrl += append;
-                        }
-                        if (modifiedUrl) {
-                            el.setAttribute(attr, modifiedUrl);
-                        }
-                        Debug.info("Modified URL: " + modifiedUrl);
-                        if (modifiedUrl !== originalUrl) {
-                            Debug.info("Modification successful for", method, "on element", el);
-                        }
-                        else {
-                            Debug.error("Modification failed for", method, "on element", el);
-                        }
-                    }
-                });
-            }
-            // Process the passed element
-            if ((AttributeMatcher._hasAttribute(element, "prepend") ||
-                AttributeMatcher._hasAttribute(element, "append")) &&
-                methods.some((method) => element.hasAttribute("hx-" + method))) {
-                processElement(element);
-            }
-            return element;
-        }
-        catch (error) {
-            Debug.error(`Error in processUrlAffixes: ${error.message}`);
-            return element;
-        }
-    }
-
-    // * For each element with an fp-animation attribute set to true, or if defaults.animation is true, get the hx-swap attribute.
-    // if the value is empty, set it to innerHTML transition:true
-    // if the value is not empty, append transition:true
-    // if the value is set to false, do nothing
-    function setupAnimation(element) {
-        try {
-            var shouldAnimate = AttributeMatcher._getRawAttribute(element, "animation") ||
-                _state.defaults.animation;
-            if (shouldAnimate === "true") {
-                var swap = element.getAttribute("hx-swap");
-                if (!swap) {
-                    element.setAttribute("hx-swap", "innerHTML transition:true");
-                }
-                else {
-                    element.setAttribute("hx-swap", swap + " transition:true");
-                }
-            }
-            return element;
-        }
-        catch (error) {
-            Debug.error(`Error in setupAnimation: ${error.message}`);
-            return element;
-        }
-    }
-
-    // Add hx-ext="flowplater" attribute to elements that need the extension
-    function addHtmxExtensionAttribute(element) {
-        try {
-            // Check if the element already has the flowplater extension
-            const currentExt = element.getAttribute("hx-ext") || "";
-            if (!currentExt.includes("flowplater")) {
-                // Add flowplater to hx-ext
-                const newExt = currentExt ? currentExt + ", flowplater" : "flowplater";
-                element.setAttribute("hx-ext", newExt);
-                Debug.info("Added hx-ext attribute to " + element.id);
-            }
-            return element;
-        }
-        catch (error) {
-            Debug.error(`Error in addHtmxExtensionAttribute: ${error.message}`);
             return element;
         }
     }

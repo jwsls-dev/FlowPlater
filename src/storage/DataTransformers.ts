@@ -1,4 +1,43 @@
 /**
+ * Data transformation utilities for FlowPlater
+ */
+
+/**
+ * Creates a deep proxy that tracks nested object changes
+ * @param target - The object to proxy
+ * @param handler - Function to call when changes occur
+ * @returns Proxied object that tracks deep changes
+ */
+export function createDeepProxy(target: any, handler: (target: any) => void) {
+  if (typeof target !== "object" || target === null) {
+    return target;
+  }
+
+  const proxyHandler = {
+    get(target: any, property: string | number | symbol) {
+      const value = target[property];
+      return value && typeof value === "object"
+        ? createDeepProxy(value, handler)
+        : value;
+    },
+    set(target: any, property: string | number | symbol, value: any) {
+      target[property] = value;
+      // Execute handler but don't block on it
+      Promise.resolve().then(() => handler(target));
+      return true;
+    },
+    deleteProperty(target: any, property: string | number | symbol) {
+      delete target[property];
+      // Execute handler but don't block on it
+      Promise.resolve().then(() => handler(target));
+      return true;
+    },
+  };
+
+  return new Proxy(target, proxyHandler);
+}
+
+/**
  * Deep merges source objects into target object.
  * Mutates the target object.
  *
@@ -40,4 +79,4 @@ export function deepMerge<T extends Record<string, any>>(target: T, source: Part
   }
 
   return target;
-}
+} 

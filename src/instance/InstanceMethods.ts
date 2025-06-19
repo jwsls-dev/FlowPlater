@@ -1,17 +1,13 @@
-import { _state } from "./State";
-import { Debug } from "./Debug";
-import { EventSystem } from "./EventSystem";
-import { compileTemplate } from "./TemplateCompiler";
-import { updateDOM } from "../utils/UpdateDom";
-import {
-  saveToLocalStorage,
-} from "../utils/LocalStorage";
+import { _state } from "../core/State";
+import { Debug } from "../core/Debug";
+import { EventSystem } from "../events";
+import { compileTemplate } from "../template";
+import { updateDOM, domBatcher } from "../dom";
+import { saveToLocalStorage, deepMerge } from "../storage";
 import { Performance } from "../utils/Performance";
-import { extractLocalData } from "../utils/LocalVariableExtractor";
-import { PluginManager } from "./PluginManager";
-import { ConfigManager } from "./ConfigManager";
-import { deepMerge } from "../utils/DeepMerge";
-import { domBatcher } from "../utils/DomBatcher";
+import { extractLocalData } from "../forms";
+import { PluginManager } from "../core/PluginManager";
+import { ConfigManager } from "../core/ConfigManager";
 
 import { FlowPlaterInstance } from "../types";
 

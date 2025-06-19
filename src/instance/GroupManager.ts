@@ -1,14 +1,9 @@
-import { _state } from "./State";
-import { Debug } from "./Debug";
-import { createDeepProxy } from "../utils/CreateDeepProxy";
-import { deepMerge } from "../utils/DeepMerge";
-import {
-  saveToLocalStorage,
-  loadFromLocalStorage,
-} from "../utils/LocalStorage";
-import { EventSystem } from "./EventSystem";
-import { PluginManager } from "./PluginManager";
-import { ConfigManager } from "./ConfigManager";
+import { _state } from "../core/State";
+import { Debug } from "../core/Debug";
+import { createDeepProxy, deepMerge, saveToLocalStorage, loadFromLocalStorage } from "../storage";
+import { EventSystem } from "../events";
+import { PluginManager } from "../core/PluginManager";
+import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterGroup, FlowPlaterInstance, FlowPlaterElement } from "../types";
 
 export const GroupManager = {

@@ -3,8 +3,8 @@
  * @description Plugin for filtering data based on form inputs
  */
 
-import { FormStateManager } from "../utils/FormStateManager";
-import { EventSystem } from "../core/EventSystem";
+import { FormStateManager } from "../forms";
+import { EventSystem } from "../events";
 import { FlowPlaterObj, FlowPlaterInstance, TransformerDataType } from "../types";
 
 declare const FlowPlater: FlowPlaterObj;

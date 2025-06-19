@@ -1,19 +1,14 @@
-import { Debug, TemplateError } from "./Debug";
-import { EventSystem } from "./EventSystem";
-import { _state } from "./State";
+import { Debug, TemplateError } from "../core/Debug";
+import { EventSystem } from "../events";
+import { _state } from "../core/State";
 import { Performance } from "../utils/Performance";
-import { InstanceManager } from "./InstanceManager";
-import { extractLocalData } from "../utils/LocalVariableExtractor";
-import { updateDOM } from "../utils/UpdateDom";
-import { loadFromLocalStorage } from "../utils/LocalStorage";
-import { saveToLocalStorage } from "../utils/LocalStorage";
+import { InstanceManager, GroupManager } from "../instance";
+import { extractLocalData } from "../forms";
+import { updateDOM, AttributeMatcher } from "../dom";
+import { loadFromLocalStorage, saveToLocalStorage, createDeepProxy, deepMerge } from "../storage";
 import { compileTemplate, memoizedCompile } from "./TemplateCompiler";
-import { createDeepProxy } from "../utils/CreateDeepProxy";
-import { PluginManager } from "./PluginManager";
-import { GroupManager } from "./GroupManager";
-import { deepMerge } from "../utils/DeepMerge";
-import { AttributeMatcher } from "../utils/AttributeMatcher";
-import { ConfigManager } from "./ConfigManager";
+import { PluginManager } from "../core/PluginManager";
+import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
 
 export { compileTemplate, memoizedCompile };

@@ -1,5 +1,5 @@
-import { _state } from "./State";
-import { Debug } from "./Debug";
+import { _state } from "../core/State";
+import { Debug } from "../core/Debug";
 
 import { FlowPlaterElement } from "../types";
 

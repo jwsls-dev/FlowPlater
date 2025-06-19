@@ -1,17 +1,16 @@
 import { Debug } from "../core/Debug";
-import { Performance } from "./Performance";
+import { Performance } from "../utils/Performance";
 import { _state } from "../core/State";
-import { EventSystem } from "../core/EventSystem";
+import { EventSystem } from "../events";
 import { PluginManager } from "../core/PluginManager";
-import { domBatcher } from "./DomBatcher";
-import { VirtualDOM } from "./VirtualDom";
+import { domBatcher, VirtualDOM } from "../dom";
 import {
   captureFormStates,
   setupFormSubmitHandlers,
   setupDynamicFormObserver,
-} from "./FormPersistence";
-import { FormStateManager } from "./FormStateManager";
-import { AttributeMatcher } from "./AttributeMatcher";
+  FormStateManager
+} from "../forms";
+import { AttributeMatcher } from "../dom";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterInstance } from "../types";
 

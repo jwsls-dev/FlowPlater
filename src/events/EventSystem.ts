@@ -1,4 +1,4 @@
-import { Debug, FlowPlaterError } from "./Debug";
+import { Debug, FlowPlaterError } from "../core/Debug";
 
 /**
  * @module EventSystem

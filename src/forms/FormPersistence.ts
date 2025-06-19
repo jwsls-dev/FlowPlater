@@ -1,10 +1,10 @@
 import { _state } from "../core/State";
-import { EventSystem } from "../core/EventSystem";
-import { saveToLocalStorage, loadFromLocalStorage } from "./LocalStorage";
+import { EventSystem } from "../events";
+import { saveToLocalStorage, loadFromLocalStorage } from "../storage";
 import { Debug } from "../core/Debug";
 import { PluginManager } from "../core/PluginManager";
 import { FormStateManager } from "./FormStateManager";
-import { AttributeMatcher } from "./AttributeMatcher";
+import { AttributeMatcher } from "../dom";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterElement } from "../types";
 

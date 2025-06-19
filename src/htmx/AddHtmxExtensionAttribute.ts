@@ -1,4 +1,4 @@
-import { Debug } from "./Debug";
+import { Debug } from "../core/Debug";
 import { FlowPlaterElement } from "../types";
 
 // Add hx-ext="flowplater" attribute to elements that need the extension

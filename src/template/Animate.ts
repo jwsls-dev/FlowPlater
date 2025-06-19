@@ -1,5 +1,5 @@
-import { AttributeMatcher } from "../utils/AttributeMatcher";
-import { _state } from "./State";
+import { AttributeMatcher } from "../dom";
+import { _state } from "../core/State";
 import { FlowPlaterElement } from "../types";
 
 export function animate(element: FlowPlaterElement, callback: () => void) {
