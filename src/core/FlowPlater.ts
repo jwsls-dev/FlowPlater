@@ -443,12 +443,14 @@ const FlowPlaterObj: FlowPlaterObj = {
   init(element: Document | FlowPlaterElement = document, options: { render: boolean } = { render: true }) {
     // If already initialized, just process the element
     if (_state.initialized) {
-      Performance.start("init-element");
-      Debug.info("Re-initializing FlowPlater for element:", element);
       if (element !== document) {
+        Performance.start("init-element");
+        Debug.info("Re-initializing FlowPlater for element:", element);
         process(element);
+        Performance.end("init-element");
+      } else {
+        Debug.debug("FlowPlater already initialized, skipping document re-initialization");
       }
-      Performance.end("init-element");
       return this;
     }
 
@@ -884,7 +886,7 @@ EventSystem.publish("loaded");
  * @description Automatically initializes FlowPlater when the DOM is ready.
  * Uses the ready state system to ensure proper initialization order.
  */
-if (document.readyState === "complete" || document.readyState !== "loading") {
+if (document.readyState === "complete" || document.readyState === "interactive") {
   FlowPlaterObj.init();
 } else {
   document.addEventListener("DOMContentLoaded", () => FlowPlaterObj.init());
