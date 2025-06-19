@@ -51,12 +51,7 @@ const readJsFile = (filename) => {
 // Serve FlowPlater script
 app.get("/flowplater", (req, res) => {
   try {
-    const scriptPath = path.join(
-      __dirname,
-      "..",
-      "dist",
-      "flowplater_bundled.js",
-    );
+    const scriptPath = path.join(__dirname, "..", "dist", "flowplater.js");
     const script = fs.readFileSync(scriptPath, "utf8");
     res.type("application/javascript");
     res.send(script);
