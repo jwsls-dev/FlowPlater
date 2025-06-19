@@ -4,7 +4,7 @@ import { Performance } from "../utils/Performance";
 import { memoize } from "../utils/Memoize";
 import { currentCustomTags } from "./ReplaceCustomTags";
 import { AttributeMatcher } from "../dom";
-import { ConfigManager } from "../core/ConfigManager";
+import { TemplateCache } from "./TemplateCache";
 
 export function compileTemplate(templateId: string, recompile: boolean = false) {
   if (!recompile) {
@@ -13,7 +13,7 @@ export function compileTemplate(templateId: string, recompile: boolean = false) 
 
   // For recompile=true:
   // 1. Clear template cache
-  delete _state.templateCache[templateId];
+  TemplateCache.clear(templateId);
   // 2. Compile without memoization
   const compiledTemplate = memoizedCompile.original(templateId);
   // 3. Update the memoized cache with the new template
@@ -42,7 +42,7 @@ export const memoizedCompile = memoize(function (templateId) {
 
   // Check if template needs compilation
   if (
-    !_state.templateCache[templateId] ||
+    !TemplateCache.isCached(templateId) ||
     (AttributeMatcher._hasAttribute(templateElement, "dynamic") &&
       AttributeMatcher._getRawAttribute(templateElement, "dynamic") !== "false")
   ) {
@@ -175,17 +175,8 @@ export const memoizedCompile = memoize(function (templateId) {
     try {
       const compiledTemplate = Handlebars.compile(handlebarsTemplate);
 
-      // Check cache size limit before adding new template
-      const cacheSize = ConfigManager.getConfig().templates?.cacheSize || 100; // Default to 100 if not configured
-      if (Object.keys(_state.templateCache).length >= cacheSize) {
-        // Remove oldest template
-        const oldestKey = Object.keys(_state.templateCache)[0];
-        delete _state.templateCache[oldestKey];
-        Debug.info("Cache limit reached. Removed template: " + oldestKey);
-      }
-
-      // Add new template to cache
-      _state.templateCache[templateId] = compiledTemplate;
+      // Add new template to cache with automatic size management
+      TemplateCache.set(templateId, compiledTemplate);
       Performance.end("compile:" + templateId);
       return compiledTemplate;
     } catch (e: unknown) {
@@ -197,5 +188,5 @@ export const memoizedCompile = memoize(function (templateId) {
     }
   }
   Performance.end("compile:" + templateId);
-  return _state.templateCache[templateId];
+  return TemplateCache.get(templateId);
 });

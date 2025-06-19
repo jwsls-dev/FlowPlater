@@ -11,7 +11,7 @@ import { loadFromLocalStorage } from "../storage";
 import { AttributeMatcher } from "../dom";
 import { ConfigManager } from "./ConfigManager";
 
-import { compileTemplate, render, replaceCustomTags, setCustomTags } from "../template";
+import { compileTemplate, render, replaceCustomTags, setCustomTags, TemplateCache } from "../template";
 import { registerHelpers } from "../helpers/index";
 import { RequestHandler } from "../events";
 import { 
@@ -369,65 +369,7 @@ const FlowPlaterObj: FlowPlaterObj = {
     return this;
   },
 
-  templateCache: {
-    set(templateId: string, template: any) {
-      const cacheSize = ConfigManager.getConfig().templates.cacheSize;
-      const cache = _state.templateCache;
-
-      // If cache is at limit, remove oldest entry
-      if (Object.keys(cache).length >= cacheSize) {
-        const oldestKey = Object.keys(cache)[0];
-        delete cache[oldestKey];
-        Debug.info(`Cache limit reached. Removed template: ${oldestKey}`);
-      }
-
-      cache[templateId] = template;
-      return template;
-    },
-
-    /**
-     * Get a template from the cache
-     * @param {string} templateId - The ID of the template to get
-     * @returns {Object} The template object or all templates if no ID is provided
-     */
-    get(templateId?: string) {
-      if (templateId) {
-        return _state.templateCache[templateId];
-      }
-      return _state.templateCache;
-    },
-
-    /**
-     * Check if a template is cached
-     * @param {string} templateId - The ID of the template to check
-     * @returns {boolean} True if the template is cached, false otherwise
-     */
-    isCached(templateId: string) {
-      return !!_state.templateCache[templateId];
-    },
-
-    /**
-     * Clear a template from the cache
-     * @param {string} templateId - The ID of the template to clear
-     */
-    clear(templateId?: string) {
-      if (templateId) {
-        delete _state.templateCache[templateId];
-        Debug.info(`Cleared template cache for: ${templateId}`);
-      } else {
-        _state.templateCache = {};
-        Debug.info("Cleared entire template cache");
-      }
-    },
-
-    /**
-     * Get the size of the template cache
-     * @returns {number} The number of templates in the cache
-     */
-    size() {
-      return Object.keys(_state.templateCache).length;
-    },
-  },
+  templateCache: TemplateCache,
 
   /**
    * @function init
@@ -736,7 +678,7 @@ const FlowPlaterObj: FlowPlaterObj = {
     });
 
     // Clean up template cache
-    _state.templateCache = {};
+    TemplateCache.clear();
     _state.instances = {};
 
     // Clean up event listeners
