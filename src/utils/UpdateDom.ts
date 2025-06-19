@@ -4,11 +4,10 @@ import { _state } from "../core/State";
 import { EventSystem } from "../core/EventSystem";
 import { PluginManager } from "../core/PluginManager";
 import { domBatcher } from "./DomBatcher";
+import { VirtualDOM } from "./VirtualDom";
 import {
   captureFormStates,
   setupFormSubmitHandlers,
-  preserveElementState,
-  updateElementAttributes,
   setupDynamicFormObserver,
 } from "./FormPersistence";
 import { FormStateManager } from "./FormStateManager";
@@ -17,201 +16,81 @@ import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterInstance } from "../types";
 
 /**
- * Optimized children morphing with keyed element handling
+ * Performs the actual DOM update logic
  */
-function morphChildren(fromEl: HTMLElement, toEl: HTMLElement, oldKeyedElements: Map<string, HTMLElement>, newKeyedElements: Map<string, HTMLElement>) {
-  // Handle empty initial state
-  if (!fromEl.childNodes.length) {
-    fromEl.innerHTML = toEl.innerHTML;
-
-    // Setup form persistence if enabled
-    if (ConfigManager.getConfig().persistForm) {
-      setupFormSubmitHandlers(
-        fromEl,
-        "updateDOM - form state restoration - setupFormSubmitHandlers",
-      );
-    }
-    return;
-  }
-
-  // Special handling for form inputs - preserve their state completely
-  if (fromEl instanceof HTMLInputElement) {
-    preserveElementState(fromEl, toEl);
-    return;
-  }
-
-  // Special handling for SVG elements
-  const isSVG = fromEl instanceof SVGElement;
-
-  // Handle special elements (form inputs, iframes, scripts)
-  if (isSpecialElement(fromEl)) {
-    if (
-      fromEl instanceof HTMLIFrameElement ||
-      fromEl instanceof HTMLScriptElement
-    ) {
-      updateElementAttributes(fromEl, toEl);
-    } else {
-      preserveElementState(fromEl as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, toEl);
-    }
-    return;
-  }
-
-  // If either element has no children but has content, handle as mixed content
-  if (
-    (!fromEl.children.length && fromEl.childNodes.length) ||
-    (!toEl.children.length && toEl.childNodes.length)
-  ) {
-    handleMixedContent(fromEl, toEl);
-    return;
-  }
-
-  const oldNodes = Array.from(fromEl.childNodes);
-  const newNodes = Array.from(toEl.childNodes);
-
-  // If we have exactly one child on both sides, recurse into it
-  if (
-    oldNodes.length === 1 &&
-    newNodes.length === 1 &&
-    oldNodes[0].nodeType === newNodes[0].nodeType &&
-    oldNodes[0].nodeName === newNodes[0].nodeName
-  ) {
-    morphChildren(oldNodes[0] as HTMLElement, newNodes[0] as HTMLElement, oldKeyedElements, newKeyedElements);
-    return;
-  }
-
-  // Track which old nodes have been processed
-  const processedNodes = new Set();
-
-  // First pass: handle keyed elements
-  newNodes.forEach((newNode, newIndex) => {
-    if (newNode.nodeType === Node.ELEMENT_NODE) {
-      const key = (newNode as HTMLElement).getAttribute("data-key");
-      if (key) {
-        const existingNode = oldKeyedElements.get(key);
-        if (existingNode) {
-          const oldIndex = oldNodes.indexOf(existingNode);
-          if (oldIndex !== -1) {
-            // Move keyed element to correct position
-            fromEl.insertBefore(existingNode, oldNodes[newIndex] || null);
-            processedNodes.add(oldIndex);
-          }
-        }
-      }
-    }
-  });
-
-  // Second pass: handle remaining elements
-  newNodes.forEach((newNode, newIndex) => {
-    // Try to find a matching node that hasn't been processed yet
-    const matchIndex = oldNodes.findIndex(
-      (oldNode, index) =>
-        !processedNodes.has(index) && nodesAreEqual(oldNode, newNode),
+async function performDomUpdate(
+  element: HTMLElement,
+  newHTML: string,
+  forceFullUpdate: boolean,
+  elementId: string,
+  timestamp: number
+): Promise<void> {
+  if (forceFullUpdate) {
+    // For forced updates, simply set innerHTML
+    await domBatcher.write(
+      () => {
+        element.innerHTML = newHTML;
+        Debug.debug(`performDomUpdate: Force full update completed for ${elementId}`);
+      },
+      `full-update-${elementId}-${timestamp}`
     );
+    return;
+  }
 
-    if (matchIndex !== -1) {
-      // Found a match - only move it if absolutely necessary
-      processedNodes.add(matchIndex);
-      const oldNode = oldNodes[matchIndex];
+  // For non-forced updates, check if HTML is empty
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = newHTML;
+  const hasElements = tempDiv.children.length > 0;
+  const hasNonWhitespaceText = tempDiv.textContent && tempDiv.textContent.trim().length > 0;
+  
+  if (!hasElements && !hasNonWhitespaceText) {
+    // Clear the container for empty HTML
+    Debug.debug(`performDomUpdate: Empty newHTML detected, clearing container for element ${elementId}`);
+    await domBatcher.write(
+      () => {
+        element.innerHTML = '';
+      },
+      `clear-empty-${elementId}-${timestamp}`
+    );
+    return;
+  }
 
-      // Find the actual current index of the node in the DOM
-      const currentIndex = Array.from(fromEl.childNodes).indexOf(oldNode);
-
-      // Only move if the node is not already in the correct position
-      if (currentIndex !== newIndex) {
-        const referenceNode = oldNodes[newIndex];
-        // Only move if the reference node exists and is different
-        if (referenceNode && referenceNode !== oldNode) {
-          fromEl.insertBefore(oldNode, referenceNode);
+  // Use Virtual DOM for efficient diffing and patching
+  Debug.debug(`performDomUpdate: Using Virtual DOM for element ${elementId} with ${element.childNodes.length} child nodes`);
+  Debug.debug(`performDomUpdate: Element innerHTML length: ${element.innerHTML.length}`);
+  Debug.debug(`performDomUpdate: Element innerHTML preview:`, element.innerHTML.substring(0, 200));
+  
+  // Read phase: capture current DOM state
+  const oldVNodes = VirtualDOM.domToVNodes(element) || [];
+  Debug.debug(`performDomUpdate: Captured initial DOM state with ${oldVNodes.length} nodes`);
+  Debug.debug(`performDomUpdate: Initial DOM nodes:`, oldVNodes.map((vn, i) => 
+    typeof vn === 'string' ? `${i}: "${vn}"` : `${i}: <${vn.tag}${vn.attrs.class ? ` class="${vn.attrs.class}"` : ''}>`
+  ));
+  
+  // Parse new HTML and compare
+  const newVNodes = VirtualDOM.parseHTML(newHTML) || [];
+  Debug.debug(`performDomUpdate: Parsed new HTML into ${newVNodes.length} nodes`);
+  Debug.debug(`performDomUpdate: New DOM nodes:`, newVNodes.map((vn, i) => 
+    typeof vn === 'string' ? `${i}: "${vn}"` : `${i}: <${vn.tag}${vn.attrs.class ? ` class="${vn.attrs.class}"` : ''}>`
+  ));
+  
+  // Write phase: diff and apply patches
+  await domBatcher.batch([
+    {
+      type: 'write',
+      operation: () => {
+        const patches = VirtualDOM.diff(oldVNodes, newVNodes);
+        Debug.debug(`performDomUpdate: Generated ${patches.length} patches`);
+        
+        if (patches.length > 0) {
+          VirtualDOM.patch(element, patches);
+        } else {
+          Debug.debug(`performDomUpdate: No patches to apply - content is identical`);
         }
-      }
-    } else {
-      // No match found - insert new node
-      const clonedNode = isSVG
-        ? cloneWithNamespace(newNode)
-        : newNode.cloneNode(true);
-      const referenceNode = oldNodes[newIndex] || null;
-      fromEl.insertBefore(clonedNode, referenceNode);
+      },
+      id: `vdom-patch-${elementId}-${timestamp}`
     }
-  });
-
-  // Remove any unprocessed old nodes
-  oldNodes.forEach((node, index) => {
-    if (!processedNodes.has(index)) {
-      fromEl.removeChild(node);
-    }
-  });
-}
-
-function isSpecialElement(el: HTMLElement) : boolean {
-  const specialTags = ["INPUT", "SELECT", "TEXTAREA", "IFRAME", "SCRIPT"];
-  return specialTags.includes(el.tagName);
-}
-
-function handleMixedContent(fromEl: HTMLElement, toEl: HTMLElement) {
-  const oldNodes = Array.from(fromEl.childNodes);
-  const newNodes = Array.from(toEl.childNodes);
-
-  // Compare each node type appropriately
-  if (oldNodes.length === newNodes.length) {
-    oldNodes.forEach((oldNode, i) => {
-      const newNode = newNodes[i];
-      if (!nodesAreEqual(oldNode, newNode)) {
-        fromEl.replaceChild(newNode.cloneNode(true), oldNode);
-      }
-    });
-  } else {
-    fromEl.innerHTML = toEl.innerHTML;
-  }
-}
-
-function nodesAreEqual(node1: Node, node2: Node) : boolean {
-  if (node1.nodeType !== node2.nodeType) return false;
-
-  if (node1.nodeType === Node.TEXT_NODE) {
-    return node1.textContent?.trim() === node2.textContent?.trim();
-  }
-
-  if (node1.nodeType === Node.COMMENT_NODE) {
-    return node1.textContent === node2.textContent;
-  }
-
-  // Skip comparison for Webflow-specific elements
-  if (
-    node1 instanceof Element &&
-    [(node1 as HTMLElement).className ?? "", (node2 as HTMLElement).className ?? ""].some(
-      (c) => typeof c === "string" && c.includes("w-"),
-    )
-  ) {
-    return true;
-  }
-
-  return node1.isEqualNode(node2);
-}
-
-function cloneWithNamespace(node: Node) {
-  if (!(node instanceof Element)) return node.cloneNode(true);
-
-  const ns = node.namespaceURI;
-  const clone = ns
-    ? document.createElementNS(ns, node.tagName)
-    : document.createElement(node.tagName);
-
-  // Copy attributes
-  Array.from(node.attributes).forEach((attr) => {
-    const nsURI = attr.namespaceURI;
-    if (nsURI) {
-      clone.setAttributeNS(nsURI, attr.name, attr.value);
-    } else {
-      clone.setAttribute(attr.name, attr.value);
-    }
-  });
-
-  // Clone children
-  Array.from(node.childNodes).forEach((child) => {
-    clone.appendChild(cloneWithNamespace(child));
-  });
-
-  return clone;
+  ]);
 }
 
 /**
@@ -220,18 +99,26 @@ function cloneWithNamespace(node: Node) {
 async function updateDOM(element: HTMLElement, newHTML: string, animate = false, instance: FlowPlaterInstance | null = null) {
   Performance.start("updateDOM");
 
-  let forceFullUpdate = AttributeMatcher._hasAttribute(
-    element,
-    "force-full-update",
-  );
+  const forceFullUpdate = AttributeMatcher._hasAttribute(element, "force-full-update");
+  const config = ConfigManager.getConfig();
+  const elementId = element.id || 'unknown';
+  const timestamp = Date.now();
+  
+  Debug.debug(`UpdateDOM: ===== STARTING UPDATE for ${elementId} at ${timestamp} =====`);
 
   // Add a flag to prevent multiple restorations
   const isAlreadyRestoring = element.hasAttribute("fp-restoring");
   if (isAlreadyRestoring && !forceFullUpdate) {
-    Debug.debug("Already restoring, skipping");
+    Debug.debug(`UpdateDOM: Already restoring element ${elementId}, skipping update`);
     return;
   }
+  
+  // Add update counter to track multiple rapid calls
+  const updateCounter = parseInt(element.getAttribute("fp-update-counter") || "0") + 1;
+  element.setAttribute("fp-update-counter", updateCounter.toString());
   element.setAttribute("fp-restoring", "true");
+  
+  Debug.debug(`UpdateDOM: This is update #${updateCounter} for element ${elementId}`);
 
   try {
     if (!element || !(element instanceof HTMLElement)) {
@@ -241,36 +128,38 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
     if (typeof newHTML !== "string") {
       throw new Error("newHTML must be a string");
     }
+    
+    Debug.debug(`UpdateDOM called for element ${elementId} with newHTML length: ${newHTML.length}`);
+    if (newHTML.length === 0) {
+      Debug.warn(`UpdateDOM: Empty newHTML provided for element ${elementId}`);
+    } else {
+      Debug.debug(`UpdateDOM: newHTML preview (first 200 chars): ${newHTML.substring(0, 200)}`);
+    }
 
-    Debug.debug("Starting updateDOM with config:", ConfigManager.getConfig());
+    // Check form persistence requirements
+    const shouldHandleFormState = config.persistForm && FormStateManager.shouldRestoreForm(element);
+    
+    // Only capture and restore form state manually when doing force update
+    // Virtual DOM already preserves form element state during normal updates
+    const needsManualStatePreservation = shouldHandleFormState && forceFullUpdate;
+    
+    Debug.debug("Starting updateDOM with config:", config);
+    Debug.debug(`Form persistence enabled: ${config.persistForm}, Should handle form state: ${shouldHandleFormState}, Needs manual preservation (force update): ${needsManualStatePreservation}`);
 
-    // Log form persistence state
-    Debug.debug(
-      `Form persistence enabled: ${
-        ConfigManager.getConfig().persistForm
-      }, Should restore form: ${FormStateManager.shouldRestoreForm(element)}`,
-    );
-
-    // Capture form states if form restoration is needed (DOM read operation)
+    // Capture form states if manual preservation is needed (single DOM read operation)
     let formStates = null;
-    if (
-      ConfigManager.getConfig().persistForm &&
-      FormStateManager.shouldRestoreForm(element)
-    ) {
-      Debug.debug("Capturing form states before update");
+    let formObserver = null;
+    
+    if (needsManualStatePreservation) {
+      Debug.debug("Capturing form states before update (manual preservation needed)");
       formStates = await domBatcher.read(
         () => captureFormStates(element),
-        `capture-form-${element.id || 'unknown'}-${Date.now()}`
+        `capture-form-${elementId}-${timestamp}`
       );
       Debug.debug("Captured form states:", formStates);
     }
-
-    // Single observer setup
-    let formObserver = null;
-    if (
-      ConfigManager.getConfig().persistForm &&
-      FormStateManager.shouldRestoreForm(element)
-    ) {
+    
+    if (shouldHandleFormState) {
       Debug.debug("Setting up dynamic form observer");
       formObserver = setupDynamicFormObserver(element);
     }
@@ -295,68 +184,34 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
           });
         }
 
-        if (!forceFullUpdate) {
-          // Batch DOM operations for morphing
-          await domBatcher.batch([
-            {
-              type: 'read',
-              operation: () => {
-                const oldKeyedElements = new Map();
-                indexTree(element, oldKeyedElements);
-                return oldKeyedElements;
-              },
-              id: `index-old-${element.id || 'unknown'}-${Date.now()}`
-            },
-            {
-              type: 'write',
-              operation: () => {
-                const virtualContainer = document.createElement("div");
-                virtualContainer.innerHTML = newHTML.trim();
-                
-                const oldKeyedElements = new Map();
-                const newKeyedElements = new Map();
-                indexTree(element, oldKeyedElements);
-                indexTree(virtualContainer, newKeyedElements);
+        // Perform the actual DOM update
+        await performDomUpdate(element, newHTML, forceFullUpdate, elementId, timestamp);
 
-                morphChildren(
+        // Form state handling after DOM update
+        if (shouldHandleFormState) {
+          if (needsManualStatePreservation && formStates) {
+            Debug.debug("Restoring form states after update (manual preservation)");
+            await domBatcher.write(
+              () => {
+                FormStateManager.restoreFormStates(
                   element,
-                  virtualContainer,
-                  oldKeyedElements,
-                  newKeyedElements,
+                  "updateDOM - form state restoration - restoreFormStates",
                 );
               },
-              id: `morph-${element.id || 'unknown'}-${Date.now()}`
-            }
-          ]);
-        } else {
+              `restore-form-${elementId}-${timestamp}`
+            );
+          }
+          
+          // Always set up form submit handlers when form persistence is enabled
+          Debug.debug("Setting up form submit handlers");
           await domBatcher.write(
             () => {
-              element.innerHTML = newHTML.trim();
-              Debug.debug("Force full update, skipping morphChildren");
-            },
-            `full-update-${element.id || 'unknown'}-${Date.now()}`
-          );
-        }
-
-        // Single form restoration (DOM write operation)
-        if (
-          ConfigManager.getConfig().persistForm &&
-          FormStateManager.shouldRestoreForm(element) &&
-          formStates
-        ) {
-          Debug.debug("Restoring form states after update");
-          await domBatcher.write(
-            () => {
-              FormStateManager.restoreFormStates(
-                element,
-                "updateDOM - form state restoration - restoreFormStates",
-              );
               setupFormSubmitHandlers(
                 element,
                 "updateDOM - form state restoration - setupFormSubmitHandlers",
               );
             },
-            `restore-form-${element.id || 'unknown'}-${Date.now()}`
+            `setup-form-handlers-${elementId}-${timestamp}`
           );
         }
 
@@ -382,44 +237,11 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
       });
     };
 
+    // Handle view transitions for animations
     if (document.startViewTransition && animate) {
       await document.startViewTransition(() => updateContent()).finished;
     } else {
       await updateContent();
-    }
-
-    // Final form state restoration if needed (batched DOM operations)
-    if (
-      ConfigManager.getConfig().persistForm &&
-      FormStateManager.shouldRestoreForm(element)
-    ) {
-      Debug.debug("Restoring form states after update");
-      await domBatcher.batch([
-        {
-          type: 'read',
-          operation: () => {
-            const n = AttributeMatcher.findMatchingElements("persist", "true");
-            const elements = Array.isArray(n) ? n : [n];
-            Debug.debug(`Found ${elements.length} inputs to restore`);
-            return elements;
-          },
-          id: `find-persist-${element.id || 'unknown'}-${Date.now()}`
-        },
-        {
-          type: 'write',
-          operation: () => {
-            FormStateManager.restoreFormStates(
-              element,
-              "updateDOM - final form state restoration - restoreFormStates",
-            );
-            setupFormSubmitHandlers(
-              element,
-              "updateDOM - final form state restoration - setupFormSubmitHandlers",
-            );
-          },
-          id: `final-restore-${element.id || 'unknown'}-${Date.now()}`
-        }
-      ]);
     }
 
     if (formObserver) {
@@ -432,27 +254,9 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
     throw error;
   } finally {
     element.removeAttribute("fp-restoring");
+    Debug.debug(`UpdateDOM: ===== COMPLETED UPDATE #${updateCounter} for ${elementId} =====`);
     Performance.end("updateDOM");
   }
 }
 
 export { updateDOM };
-
-/**
- * Enhanced tree indexing with optimized traversal
- */
-function indexTree(node: Node, keyedElements: Map<string, Node>) {
-  const walker = document.createTreeWalker(
-    node,
-    NodeFilter.SHOW_ELEMENT,
-    null
-  );
-
-  let currentNode;
-  while ((currentNode = walker.nextNode())) {
-    const key = (currentNode as HTMLElement).getAttribute("data-key");
-    if (key) {
-      keyedElements.set(key, currentNode);
-    }
-  }
-}

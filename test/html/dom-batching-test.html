@@ -69,6 +69,7 @@
             </select>
         </label>
         <br><br>
+        <p><em>Note: Virtual DOM is now always enabled for optimal performance</em></p>
         <button onclick="updateConfig()">Update Configuration</button>
     </div>
 
@@ -136,7 +137,8 @@
             
             console.log('Configuration updated:', {
                 enableBatching,
-                batchingDelay
+                batchingDelay,
+                virtualDOM: 'always enabled'
             });
         }
 
@@ -212,6 +214,7 @@
                 <p><strong>Configuration:</strong></p>
                 <ul>
                     <li>DOM Batching: ${config.performance?.batchDomUpdates ? 'Enabled' : 'Disabled'}</li>
+                    <li>Virtual DOM: Always Enabled</li>
                     <li>Batching Delay: ${config.performance?.batchingDelay || 0}ms</li>
                 </ul>
                 <p><strong>Results (Average over ${testRuns} runs):</strong></p>
