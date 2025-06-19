@@ -291,960 +291,6 @@ var FlowPlater = (function () {
     };
 
     /**
-     * Virtual DOM implementation for efficient DOM diffing and batched updates
-     */
-    class VirtualDOM {
-        /**
-         * Parse HTML string into virtual DOM tree
-         */
-        static parseHTML(html) {
-            Performance.start('VirtualDOM.parseHTML');
-            console.debug(`VirtualDOM.parseHTML: Input HTML length: ${html.length}`);
-            const container = document.createElement('div');
-            // Don't trim the HTML - preserve original spacing
-            container.innerHTML = html;
-            const vnodes = Array.from(container.childNodes).map(node => this.nodeToVNode(node)).filter(Boolean);
-            console.debug(`VirtualDOM.parseHTML: Generated ${vnodes.length} vnodes`);
-            Performance.end('VirtualDOM.parseHTML');
-            return vnodes;
-        }
-        /**
-         * Convert DOM node to virtual node
-         */
-        static nodeToVNode(node) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent;
-                // Skip empty text nodes
-                if (text === null || text === undefined || text === '') {
-                    return null;
-                }
-                // For whitespace-only text nodes, be more selective about preservation
-                if (text.trim() === '') {
-                    // Check if this whitespace might be meaningful (between inline elements)
-                    const parent = node.parentElement;
-                    const hasPrevSibling = !!node.previousSibling;
-                    const hasNextSibling = !!node.nextSibling;
-                    // Elements that typically contain inline content where whitespace matters
-                    const inlineContainerTags = new Set([
-                        'p', 'div', 'li', 'td', 'th', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                        'span', 'label', 'a', 'strong', 'em', 'b', 'i', 'small', 'mark'
-                    ]);
-                    const isInInlineContainer = parent && inlineContainerTags.has(parent.tagName.toLowerCase());
-                    const isBetweenElements = hasPrevSibling && hasNextSibling;
-                    if (isInInlineContainer && isBetweenElements) {
-                        // Preserve whitespace that might be meaningful between inline elements
-                        console.debug(`VirtualDOM: Preserving whitespace between elements in <${parent?.tagName.toLowerCase()}>`);
-                        return text;
-                    }
-                    else {
-                        // Skip formatting whitespace
-                        console.debug(`VirtualDOM: Skipping formatting whitespace (parent: ${parent?.tagName.toLowerCase() || 'none'}, between: ${isBetweenElements})`);
-                        return null;
-                    }
-                }
-                // Preserve the original text content for meaningful text
-                return text;
-            }
-            if (node.nodeType === Node.COMMENT_NODE) {
-                console.debug(`VirtualDOM.nodeToVNode: Skipping comment node: ${node.textContent}`);
-                return null; // Skip comments
-            }
-            if (node.nodeType === Node.ELEMENT_NODE) {
-                const element = node;
-                const tag = element.tagName.toLowerCase();
-                const isSVG = this.SVG_ELEMENTS.has(tag) || element.namespaceURI === this.SVG_NAMESPACE;
-                // Extract attributes and event handlers
-                const attrs = {};
-                const events = {};
-                const specialElements = ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'];
-                const isFormElement = specialElements.includes(tag.toUpperCase());
-                Array.from(element.attributes).forEach(attr => {
-                    if (attr.name.startsWith('on')) {
-                        // Capture event handler attributes
-                        events[attr.name] = attr.value;
-                    }
-                    else {
-                        attrs[attr.name] = attr.value;
-                    }
-                });
-                // Extract children (skip void elements)
-                let children = [];
-                if (!this.VOID_ELEMENTS.has(tag)) {
-                    children = Array.from(element.childNodes)
-                        .map(child => this.nodeToVNode(child))
-                        .filter(Boolean);
-                }
-                return {
-                    tag,
-                    attrs,
-                    children,
-                    events: Object.keys(events).length > 0 ? events : undefined,
-                    key: attrs['data-key'],
-                    element,
-                    isSVG,
-                    isFormElement
-                };
-            }
-            return null;
-        }
-        /**
-         * Convert existing DOM element to virtual DOM tree
-         */
-        static domToVNodes(element) {
-            Performance.start('VirtualDOM.domToVNodes');
-            console.debug(`VirtualDOM.domToVNodes: Processing element with ${element.childNodes.length} child nodes`);
-            const vnodes = Array.from(element.childNodes)
-                .map(node => this.nodeToVNode(node))
-                .filter(Boolean);
-            console.debug(`VirtualDOM.domToVNodes: Generated ${vnodes.length} vnodes`);
-            Performance.end('VirtualDOM.domToVNodes');
-            return vnodes;
-        }
-        /**
-         * Check if two VNode trees are structurally identical
-         */
-        static areVNodeTreesEqual(oldVNodes, newVNodes) {
-            if (oldVNodes.length !== newVNodes.length) {
-                return false;
-            }
-            for (let i = 0; i < oldVNodes.length; i++) {
-                if (!this.areVNodesEqual(oldVNodes[i], newVNodes[i])) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        /**
-         * Check if two VNodes are equal
-         */
-        static areVNodesEqual(oldVNode, newVNode) {
-            // Handle text nodes
-            if (typeof oldVNode === 'string' && typeof newVNode === 'string') {
-                // Special handling for whitespace-only text nodes
-                const oldIsWhitespace = oldVNode.trim() === '';
-                const newIsWhitespace = newVNode.trim() === '';
-                if (oldIsWhitespace && newIsWhitespace) {
-                    // Consider all whitespace-only text nodes equal to each other
-                    console.debug('VirtualDOM: Treating whitespace-only text nodes as equal');
-                    return true;
-                }
-                // For non-whitespace text, use exact equality
-                return oldVNode === newVNode;
-            }
-            // Handle mixed types
-            if (typeof oldVNode !== typeof newVNode) {
-                return false;
-            }
-            // Handle element nodes
-            if (typeof oldVNode === 'object' && typeof newVNode === 'object') {
-                // Check tag
-                if (oldVNode.tag !== newVNode.tag) {
-                    return false;
-                }
-                // Check attributes (shallow comparison)
-                const oldAttrs = oldVNode.attrs || {};
-                const newAttrs = newVNode.attrs || {};
-                const oldKeys = Object.keys(oldAttrs).sort();
-                const newKeys = Object.keys(newAttrs).sort();
-                if (oldKeys.length !== newKeys.length) {
-                    return false;
-                }
-                for (let i = 0; i < oldKeys.length; i++) {
-                    if (oldKeys[i] !== newKeys[i] || oldAttrs[oldKeys[i]] !== newAttrs[newKeys[i]]) {
-                        return false;
-                    }
-                }
-                // Check events (shallow comparison)
-                const oldEvents = oldVNode.events || {};
-                const newEvents = newVNode.events || {};
-                const oldEventKeys = Object.keys(oldEvents).sort();
-                const newEventKeys = Object.keys(newEvents).sort();
-                if (oldEventKeys.length !== newEventKeys.length) {
-                    return false;
-                }
-                for (let i = 0; i < oldEventKeys.length; i++) {
-                    if (oldEventKeys[i] !== newEventKeys[i] || oldEvents[oldEventKeys[i]] !== newEvents[newEventKeys[i]]) {
-                        return false;
-                    }
-                }
-                // Check children recursively
-                return this.areVNodeTreesEqual(oldVNode.children, newVNode.children);
-            }
-            return false;
-        }
-        /**
-         * Diff two virtual DOM trees and generate patch operations
-         */
-        static diff(oldVNodes, newVNodes) {
-            Performance.start('VirtualDOM.diff');
-            // Add null/undefined checks
-            if (!oldVNodes || !Array.isArray(oldVNodes)) {
-                Performance.end('VirtualDOM.diff');
-                console.warn('VirtualDOM.diff: oldVNodes is not a valid array', oldVNodes);
-                return [];
-            }
-            if (!newVNodes || !Array.isArray(newVNodes)) {
-                Performance.end('VirtualDOM.diff');
-                console.warn('VirtualDOM.diff: newVNodes is not a valid array', newVNodes);
-                return [];
-            }
-            console.debug(`VirtualDOM: Diffing ${oldVNodes.length} old nodes vs ${newVNodes.length} new nodes`);
-            // Quick check: if the trees are structurally identical, skip diffing
-            if (this.areVNodeTreesEqual(oldVNodes, newVNodes)) {
-                console.debug('VirtualDOM: Trees are identical, skipping diff');
-                Performance.end('VirtualDOM.diff');
-                return [];
-            }
-            const patches = [];
-            // Create keyed element maps for efficient lookup
-            const oldKeyed = new Map();
-            const newKeyed = new Map();
-            oldVNodes.forEach((vnode, index) => {
-                if (typeof vnode === 'object' && vnode.key) {
-                    oldKeyed.set(vnode.key, { vnode, index });
-                }
-            });
-            newVNodes.forEach((vnode, index) => {
-                if (typeof vnode === 'object' && vnode.key) {
-                    newKeyed.set(vnode.key, { vnode, index });
-                }
-            });
-            // Track processed indices
-            const processedOld = new Set();
-            const processedNew = new Set();
-            // First pass: Handle keyed elements
-            newKeyed.forEach(({ vnode: newVNode, index: newIndex }, key) => {
-                const oldEntry = oldKeyed.get(key);
-                if (oldEntry) {
-                    const { vnode: oldVNode, index: oldIndex } = oldEntry;
-                    // Mark as processed
-                    processedOld.add(oldIndex);
-                    processedNew.add(newIndex);
-                    // Check if element needs to move
-                    if (oldIndex !== newIndex) {
-                        patches.push({
-                            type: 'MOVE',
-                            target: oldVNode.element,
-                            oldIndex,
-                            newIndex
-                        });
-                    }
-                    // Check for attribute/content changes
-                    const subPatches = this.diffVNode(oldVNode, newVNode);
-                    patches.push(...subPatches);
-                }
-            });
-            // Second pass: Handle non-keyed elements with improved matching
-            const unprocessedOld = oldVNodes.filter((_, i) => !processedOld.has(i));
-            const unprocessedNew = newVNodes.filter((_, i) => !processedNew.has(i));
-            const usedOldIndices = new Set();
-            console.debug(`VirtualDOM: After keyed matching - Unprocessed old: ${unprocessedOld.length}, Unprocessed new: ${unprocessedNew.length}`);
-            // Try to match remaining new elements with remaining old elements
-            unprocessedNew.forEach((newVNode) => {
-                const actualNewIndex = newVNodes.findIndex(vn => vn === newVNode);
-                const bestMatchIndex = this.findBestMatch(newVNode, unprocessedOld, usedOldIndices);
-                if (bestMatchIndex !== -1) {
-                    // Found a good match
-                    const oldVNode = unprocessedOld[bestMatchIndex];
-                    usedOldIndices.add(bestMatchIndex);
-                    // Calculate actual old index
-                    let actualOldIndex = -1;
-                    let relativeIndex = 0;
-                    for (let i = 0; i < oldVNodes.length; i++) {
-                        if (!processedOld.has(i)) {
-                            if (relativeIndex === bestMatchIndex) {
-                                actualOldIndex = i;
-                                break;
-                            }
-                            relativeIndex++;
-                        }
-                    }
-                    if (actualOldIndex !== actualNewIndex) {
-                        // Element needs to move
-                        patches.push({
-                            type: 'MOVE',
-                            target: typeof oldVNode === 'object' ? oldVNode.element : undefined,
-                            oldIndex: actualOldIndex,
-                            newIndex: actualNewIndex
-                        });
-                    }
-                    // Diff the matched elements
-                    const subPatches = this.diffVNode(oldVNode, newVNode);
-                    patches.push(...subPatches);
-                }
-                else {
-                    // No good match found, create new element at the correct position
-                    patches.push({
-                        type: 'CREATE',
-                        vnode: newVNode,
-                        newIndex: actualNewIndex
-                    });
-                }
-            });
-            // Remove any unmatched old elements
-            unprocessedOld.forEach((oldVNode, oldRelativeIndex) => {
-                if (!usedOldIndices.has(oldRelativeIndex)) {
-                    // Calculate the actual index in the original oldVNodes array
-                    let actualOldIndex = -1;
-                    let relativeIndex = 0;
-                    for (let i = 0; i < oldVNodes.length; i++) {
-                        if (!processedOld.has(i)) {
-                            if (relativeIndex === oldRelativeIndex) {
-                                actualOldIndex = i;
-                                break;
-                            }
-                            relativeIndex++;
-                        }
-                    }
-                    const removeTarget = typeof oldVNode === 'object' ? oldVNode.element : undefined;
-                    patches.push({
-                        type: 'REMOVE',
-                        target: removeTarget,
-                        textNodeIndex: typeof oldVNode === 'string' ? actualOldIndex : undefined,
-                        // Add elementIndex for elements without direct references
-                        oldIndex: typeof oldVNode === 'object' && !oldVNode.element ? actualOldIndex : undefined
-                    });
-                }
-            });
-            console.debug(`VirtualDOM: Diff complete. Generated ${patches.length} patches`);
-            Performance.end('VirtualDOM.diff');
-            return patches;
-        }
-        /**
-         * Diff two individual virtual nodes
-         */
-        static diffVNode(oldVNode, newVNode) {
-            // Handle text nodes - text changes should be handled by remove/create operations
-            if (typeof oldVNode === 'string' || typeof newVNode === 'string') {
-                // Text node changes are handled at the parent level by removing old and creating new
-                // Don't generate patches here - let the parent handle this via REMOVE/CREATE
-                return [];
-            }
-            // Handle different element types
-            if (oldVNode.tag !== newVNode.tag) {
-                return [{
-                        type: 'REPLACE',
-                        target: oldVNode.element,
-                        vnode: newVNode
-                    }];
-            }
-            // Skip comparison for Webflow-specific elements to preserve their state
-            if (this.isWebflowElement(oldVNode) || this.isWebflowElement(newVNode)) {
-                return []; // Skip updates for Webflow elements to preserve their state
-            }
-            // Special handling for form elements - preserve their state
-            if (oldVNode.isFormElement || newVNode.isFormElement) {
-                return this.diffFormElement(oldVNode, newVNode);
-            }
-            const patches = [];
-            // Check if content has changed significantly - if so, replace the entire element
-            if (this.hasSignificantContentChange(oldVNode, newVNode)) {
-                return [{
-                        type: 'REPLACE',
-                        target: oldVNode.element,
-                        vnode: newVNode
-                    }];
-            }
-            // Check attributes
-            const attrPatches = this.diffAttributes(oldVNode.attrs, newVNode.attrs);
-            if (attrPatches) {
-                patches.push({
-                    type: 'UPDATE_ATTRS',
-                    target: oldVNode.element,
-                    attrs: attrPatches
-                });
-            }
-            // Check events
-            const eventPatches = this.diffEvents(oldVNode.events || {}, newVNode.events || {});
-            if (eventPatches) {
-                patches.push({
-                    type: 'UPDATE_EVENTS',
-                    target: oldVNode.element,
-                    events: eventPatches
-                });
-            }
-            // Only recursively diff children if we're not replacing the whole element
-            const childPatches = this.diff(oldVNode.children, newVNode.children);
-            patches.push(...childPatches);
-            return patches;
-        }
-        /**
-         * Check if two vnodes have significant content changes that warrant replacement
-         */
-        static hasSignificantContentChange(oldVNode, newVNode) {
-            // For course cards and similar complex elements, be more aggressive about replacement
-            if (oldVNode.attrs.class && oldVNode.attrs.class.includes('course-card')) {
-                // Always replace course cards - they have complex nested structure
-                return true;
-            }
-            // If the structure is different, replace
-            if (Math.abs(oldVNode.children.length - newVNode.children.length) > 1) {
-                return true;
-            }
-            // If most of the text content is different, replace
-            const oldText = this.extractTextContent(oldVNode);
-            const newText = this.extractTextContent(newVNode);
-            if (oldText.length > 0 && newText.length > 0) {
-                const similarity = this.calculateTextSimilarity(oldText, newText);
-                if (similarity < 0.5) { // Less than 50% similar
-                    return true;
-                }
-            }
-            // If text content lengths are very different, replace
-            if (oldText.length > 0 && newText.length > 0) {
-                const lengthRatio = Math.min(oldText.length, newText.length) / Math.max(oldText.length, newText.length);
-                if (lengthRatio < 0.5) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        /**
-         * Extract all text content from a vnode
-         */
-        static extractTextContent(vnode) {
-            let text = '';
-            for (const child of vnode.children) {
-                if (typeof child === 'string') {
-                    text += child;
-                }
-                else {
-                    text += this.extractTextContent(child);
-                }
-            }
-            // Only trim for comparison purposes, but preserve original spacing in actual content
-            return text.trim();
-        }
-        /**
-         * Calculate text similarity between two strings
-         */
-        static calculateTextSimilarity(text1, text2) {
-            const words1 = text1.toLowerCase().split(/\s+/);
-            const words2 = text2.toLowerCase().split(/\s+/);
-            const commonWords = words1.filter(word => words2.includes(word));
-            const totalWords = Math.max(words1.length, words2.length);
-            return totalWords > 0 ? commonWords.length / totalWords : 0;
-        }
-        /**
-         * Check if a virtual node represents a Webflow element that should be handled specially
-         */
-        static isWebflowElement(vnode) {
-            const className = vnode.attrs.class || vnode.attrs.className || '';
-            // Check for Webflow classes
-            if (typeof className === 'string' && className.includes('w-')) {
-                return true;
-            }
-            // Check for Webflow-specific attributes
-            const hasWebflowAttrs = Object.keys(vnode.attrs).some(attr => attr.startsWith('w-'));
-            if (hasWebflowAttrs) {
-                return true;
-            }
-            // Check for Webflow form wrapper patterns
-            const webflowFormClasses = [
-                'w-checkbox', 'w-radio', 'w-checkbox-input', 'w-radio-input',
-                'w-form', 'w-input', 'w-select', 'w-textarea'
-            ];
-            if (typeof className === 'string') {
-                const classes = className.split(' ');
-                if (classes.some(cls => webflowFormClasses.includes(cls))) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        /**
-         * Special diffing for form elements to preserve their state and handle Webflow patterns
-         */
-        static diffFormElement(oldVNode, newVNode) {
-            const patches = [];
-            // For form elements, exclude value/state attributes AND Webflow-specific attributes
-            const excludedAttrs = new Set(['value', 'checked', 'selected']);
-            const filteredNewAttrs = {};
-            Object.entries(newVNode.attrs).forEach(([key, value]) => {
-                // Skip form state attributes and Webflow-specific attributes (w-*)
-                if (!excludedAttrs.has(key) && !key.startsWith('w-')) {
-                    filteredNewAttrs[key] = value;
-                }
-            });
-            const attrPatches = this.diffAttributes(oldVNode.attrs, filteredNewAttrs);
-            if (attrPatches) {
-                patches.push({
-                    type: 'UPDATE_ATTRS',
-                    target: oldVNode.element,
-                    attrs: attrPatches
-                });
-            }
-            // Still check events for form elements
-            const eventPatches = this.diffEvents(oldVNode.events || {}, newVNode.events || {});
-            if (eventPatches) {
-                patches.push({
-                    type: 'UPDATE_EVENTS',
-                    target: oldVNode.element,
-                    events: eventPatches
-                });
-            }
-            // CRITICAL: Always sync Webflow visual state for form elements
-            // This ensures that even if the template changes, the visual state matches the actual DOM state
-            if (oldVNode.element && (oldVNode.tag === 'input' || oldVNode.tag === 'select' || oldVNode.tag === 'textarea')) {
-                patches.push({
-                    type: 'UPDATE_WEBFLOW_STATE',
-                    target: oldVNode.element
-                });
-            }
-            // Don't diff children for form inputs (they typically don't have meaningful children)
-            if (oldVNode.tag !== 'input' && oldVNode.tag !== 'textarea') {
-                const childPatches = this.diff(oldVNode.children, newVNode.children);
-                patches.push(...childPatches);
-            }
-            return patches;
-        }
-        /**
-         * Find best match for non-keyed element using similarity scoring
-         */
-        static findBestMatch(targetVNode, candidates, processedIndices) {
-            if (typeof targetVNode === 'string') {
-                // For text nodes, find exact or similar text
-                for (let i = 0; i < candidates.length; i++) {
-                    if (processedIndices.has(i))
-                        continue;
-                    if (typeof candidates[i] === 'string' && candidates[i] === targetVNode) {
-                        return i;
-                    }
-                }
-                return -1;
-            }
-            let bestMatch = -1;
-            let bestScore = 0;
-            for (let i = 0; i < candidates.length; i++) {
-                if (processedIndices.has(i))
-                    continue;
-                const candidate = candidates[i];
-                if (typeof candidate === 'string')
-                    continue;
-                let score = 0;
-                // Same tag type (highest priority)
-                if (candidate.tag === targetVNode.tag)
-                    score += 10;
-                // Same ID (high priority)
-                if (candidate.attrs.id && targetVNode.attrs.id && candidate.attrs.id === targetVNode.attrs.id)
-                    score += 8;
-                // Similar class names (medium priority)
-                const candidateClasses = (candidate.attrs.class || '').split(' ');
-                const targetClasses = (targetVNode.attrs.class || '').split(' ');
-                const commonClasses = candidateClasses.filter(c => targetClasses.includes(c));
-                score += commonClasses.length * 2;
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMatch = i;
-                }
-            }
-            // Only return match if it's a reasonably good match
-            // Require more than just tag matching - need additional attributes or content similarity
-            return bestScore > 10 ? bestMatch : -1;
-        }
-        /**
-         * Diff attributes between old and new virtual nodes with Webflow-aware handling
-         */
-        static diffAttributes(oldAttrs, newAttrs) {
-            const changes = {};
-            let hasChanges = false;
-            // Check for changed/new attributes
-            for (const [key, value] of Object.entries(newAttrs)) {
-                if (oldAttrs[key] !== value) {
-                    changes[key] = value;
-                    hasChanges = true;
-                }
-            }
-            // Check for removed attributes, but preserve Webflow-specific attributes
-            for (const key of Object.keys(oldAttrs)) {
-                if (!(key in newAttrs)) {
-                    // Don't remove Webflow-specific attributes or classes that might include Webflow state
-                    if (!key.startsWith('w-') && key !== 'class') {
-                        changes[key] = ''; // Empty string indicates removal
-                        hasChanges = true;
-                    }
-                    else if (key === 'class') {
-                        // For class attribute, we need to be more careful with Webflow classes
-                        const oldClasses = (oldAttrs[key] || '').split(' ').filter(Boolean);
-                        const newClasses = (newAttrs[key] || '').split(' ').filter(Boolean);
-                        // Preserve Webflow classes (w-*) and only remove non-Webflow classes
-                        const preservedWebflowClasses = oldClasses.filter(cls => cls.startsWith('w-'));
-                        const finalClasses = [...new Set([...newClasses, ...preservedWebflowClasses])];
-                        if (finalClasses.join(' ') !== oldAttrs[key]) {
-                            changes[key] = finalClasses.join(' ');
-                            hasChanges = true;
-                        }
-                    }
-                }
-            }
-            return hasChanges ? changes : null;
-        }
-        /**
-         * Diff event handlers between old and new virtual nodes
-         */
-        static diffEvents(oldEvents, newEvents) {
-            const toAdd = {};
-            const toRemove = [];
-            let hasChanges = false;
-            // Check for new/changed events
-            for (const [eventType, handler] of Object.entries(newEvents)) {
-                if (oldEvents[eventType] !== handler) {
-                    toAdd[eventType] = handler;
-                    hasChanges = true;
-                }
-            }
-            // Check for removed events
-            for (const eventType of Object.keys(oldEvents)) {
-                if (!(eventType in newEvents)) {
-                    toRemove.push(eventType);
-                    hasChanges = true;
-                }
-            }
-            if (!hasChanges)
-                return null;
-            return {
-                ...(Object.keys(toAdd).length > 0 && { add: toAdd }),
-                ...(toRemove.length > 0 && { remove: toRemove })
-            };
-        }
-        /**
-         * Apply patch operations to the DOM
-         */
-        static patch(container, patches) {
-            Performance.start('VirtualDOM.patch');
-            console.debug(`VirtualDOM: Processing ${patches.length} total patches`);
-            // Group patches by type for optimal batching
-            const patchGroups = {
-                replaces: [],
-                moves: [],
-                removes: [],
-                creates: [],
-                updates: []
-            };
-            patches.forEach((patch) => {
-                switch (patch.type) {
-                    case 'REPLACE':
-                        patchGroups.replaces.push(patch);
-                        break;
-                    case 'MOVE':
-                        patchGroups.moves.push(patch);
-                        break;
-                    case 'REMOVE':
-                        patchGroups.removes.push(patch);
-                        break;
-                    case 'CREATE':
-                        patchGroups.creates.push(patch);
-                        break;
-                    default:
-                        patchGroups.updates.push(patch);
-                }
-            });
-            console.debug(`VirtualDOM: Patch groups:`, {
-                replaces: patchGroups.replaces.length,
-                moves: patchGroups.moves.length,
-                removes: patchGroups.removes.length,
-                creates: patchGroups.creates.length,
-                updates: patchGroups.updates.length
-            });
-            // Apply patches in optimal order: replaces first, then removes, then creates, then moves, then updates
-            this.applyReplaces(patchGroups.replaces);
-            this.applyRemoves(container, patchGroups.removes);
-            this.applyCreates(container, patchGroups.creates);
-            this.applyMoves(container, patchGroups.moves);
-            this.applyUpdates(patchGroups.updates);
-            Performance.end('VirtualDOM.patch');
-        }
-        static applyReplaces(replaces) {
-            replaces.forEach(patch => {
-                if (patch.target && patch.vnode && patch.target.parentNode) {
-                    const newElement = this.createElementFromVNode(patch.vnode);
-                    this.cleanupElement(patch.target);
-                    patch.target.parentNode.replaceChild(newElement, patch.target);
-                    console.debug(`VirtualDOM: Successfully replaced element`);
-                }
-            });
-        }
-        static applyMoves(container, moves) {
-            moves.forEach(patch => {
-                if (patch.target && patch.newIndex !== undefined) {
-                    const children = Array.from(container.childNodes);
-                    const referenceNode = children[patch.newIndex] || null;
-                    container.insertBefore(patch.target, referenceNode);
-                }
-            });
-        }
-        static applyUpdates(updates) {
-            updates.forEach(patch => {
-                switch (patch.type) {
-                    case 'UPDATE_ATTRS':
-                        if (patch.target && patch.attrs) {
-                            this.updateElementAttributes(patch.target, patch.attrs);
-                        }
-                        break;
-                    case 'UPDATE_EVENTS':
-                        if (patch.target && patch.events) {
-                            this.updateElementEvents(patch.target, patch.events);
-                        }
-                        break;
-                    case 'UPDATE_WEBFLOW_STATE':
-                        if (patch.target) {
-                            this.updateWebflowFormVisualState(patch.target);
-                        }
-                        break;
-                }
-            });
-        }
-        static applyCreates(container, creates) {
-            // Sort creates by newIndex to maintain proper order
-            const sortedCreates = creates.sort((a, b) => (a.newIndex ?? 0) - (b.newIndex ?? 0));
-            sortedCreates.forEach(patch => {
-                if (patch.vnode) {
-                    const element = this.createElementFromVNode(patch.vnode);
-                    if (patch.newIndex !== undefined) {
-                        // Insert at specific position
-                        const children = Array.from(container.childNodes);
-                        const referenceNode = children[patch.newIndex] || null;
-                        container.insertBefore(element, referenceNode);
-                    }
-                    else {
-                        // Fallback to append if no position specified
-                        container.appendChild(element);
-                    }
-                }
-            });
-        }
-        static applyRemoves(container, removes) {
-            console.debug(`VirtualDOM: Attempting to remove ${removes.length} elements`);
-            // Separate different types of removes
-            const elementRemoves = removes.filter(patch => patch.target && patch.target.parentNode);
-            const textNodeRemoves = removes.filter(patch => patch.textNodeIndex !== undefined);
-            const indexRemoves = removes.filter(patch => !patch.target && patch.oldIndex !== undefined);
-            console.debug(`VirtualDOM: Remove breakdown:`, {
-                elementRemoves: elementRemoves.length,
-                textNodeRemoves: textNodeRemoves.length,
-                indexRemoves: indexRemoves.length
-            });
-            // Combine all index-based removals (both elements and text nodes) and sort by index descending
-            // This prevents index shifting issues
-            const allIndexRemoves = [
-                ...textNodeRemoves.map(patch => ({ ...patch, isTextNode: true })),
-                ...indexRemoves.map(patch => ({ ...patch, isTextNode: false }))
-            ].sort((a, b) => {
-                const aIndex = a.textNodeIndex ?? a.oldIndex ?? -1;
-                const bIndex = b.textNodeIndex ?? b.oldIndex ?? -1;
-                return bIndex - aIndex; // Descending order
-            });
-            // Remove elements with direct references first
-            elementRemoves.forEach((patch, index) => {
-                console.debug(`VirtualDOM: Remove element operation ${index + 1}:`, {
-                    hasTarget: !!patch.target,
-                    hasParent: !!(patch.target && patch.target.parentNode),
-                    targetElement: patch.target
-                });
-                if (patch.target && patch.target.parentNode) {
-                    this.cleanupElement(patch.target);
-                    patch.target.parentNode.removeChild(patch.target);
-                    console.debug(`VirtualDOM: Successfully removed element:`, patch.target);
-                }
-            });
-            // Remove by index (both elements and text nodes) in descending order
-            allIndexRemoves.forEach((patch) => {
-                const childNodes = Array.from(container.childNodes);
-                const indexToRemove = patch.textNodeIndex ?? patch.oldIndex;
-                const nodeToRemove = childNodes[indexToRemove];
-                if (nodeToRemove) {
-                    if (patch.isTextNode && nodeToRemove.nodeType === Node.TEXT_NODE) {
-                        container.removeChild(nodeToRemove);
-                        console.debug(`VirtualDOM: Successfully removed text node at index ${indexToRemove}: "${nodeToRemove.textContent}"`);
-                    }
-                    else if (!patch.isTextNode && nodeToRemove.nodeType === Node.ELEMENT_NODE) {
-                        this.cleanupElement(nodeToRemove);
-                        container.removeChild(nodeToRemove);
-                        console.debug(`VirtualDOM: Successfully removed element by index ${indexToRemove}:`, nodeToRemove);
-                    }
-                    else {
-                        console.warn(`VirtualDOM: Node type mismatch at index ${indexToRemove}. Expected ${patch.isTextNode ? 'text' : 'element'}, found:`, nodeToRemove);
-                    }
-                }
-                else {
-                    console.warn(`VirtualDOM: Failed to find node at index ${indexToRemove}`);
-                }
-            });
-        }
-        /**
-         * Create DOM element from virtual node
-         */
-        static createElementFromVNode(vnode) {
-            if (typeof vnode === 'string') {
-                return document.createTextNode(vnode);
-            }
-            // Create element with proper namespace support
-            const element = vnode.isSVG
-                ? document.createElementNS(this.SVG_NAMESPACE, vnode.tag)
-                : document.createElement(vnode.tag);
-            // Set attributes with namespace support
-            this.updateElementAttributes(element, vnode.attrs);
-            // Set up event handlers
-            if (vnode.events) {
-                this.updateElementEvents(element, { add: vnode.events });
-            }
-            // Add children
-            vnode.children.forEach(child => {
-                const childElement = this.createElementFromVNode(child);
-                element.appendChild(childElement);
-            });
-            // Handle Webflow form visual state if this is a form element
-            if (vnode.isFormElement) {
-                this.updateWebflowFormVisualState(element);
-            }
-            // Store reference for future diffing
-            vnode.element = element;
-            return element;
-        }
-        /**
-         * Update element attributes with SVG namespace support and Webflow form handling
-         */
-        static updateElementAttributes(element, attrs) {
-            const isSVG = element.namespaceURI === this.SVG_NAMESPACE;
-            let shouldUpdateWebflowState = false;
-            Object.entries(attrs).forEach(([key, value]) => {
-                if (value === '') {
-                    element.removeAttribute(key);
-                }
-                else if (isSVG) {
-                    // SVG attributes may need special handling
-                    element.setAttributeNS(null, key, value);
-                }
-                else {
-                    element.setAttribute(key, value);
-                }
-                // Check if we need to update Webflow visual state
-                if (key === 'checked' && element instanceof HTMLInputElement) {
-                    shouldUpdateWebflowState = true;
-                }
-            });
-            // Update Webflow visual state if needed
-            if (shouldUpdateWebflowState) {
-                this.updateWebflowFormVisualState(element);
-            }
-        }
-        /**
-         * Update element event handlers with proper cleanup
-         */
-        static updateElementEvents(element, events) {
-            // Get current event listeners for this element
-            let currentEvents = this.elementEventMap.get(element);
-            if (!currentEvents) {
-                currentEvents = new Set();
-                this.elementEventMap.set(element, currentEvents);
-            }
-            // Remove old event handlers (set to null to remove)
-            if (events.remove) {
-                events.remove.forEach(eventType => {
-                    if (currentEvents.has(eventType)) {
-                        // Remove the event handler attribute
-                        element.removeAttribute(eventType);
-                        currentEvents.delete(eventType);
-                    }
-                });
-            }
-            // Add new event handlers as attributes
-            if (events.add) {
-                Object.entries(events.add).forEach(([eventType, handler]) => {
-                    element.setAttribute(eventType, handler);
-                    currentEvents.add(eventType);
-                });
-            }
-        }
-        /**
-         * Update Webflow custom visual state for form elements
-         * This ensures the visual state matches the actual DOM state, regardless of template changes
-         */
-        static updateWebflowFormVisualState(element) {
-            if (!(element instanceof HTMLInputElement))
-                return;
-            // Only handle checkbox and radio inputs
-            if (element.type !== 'checkbox' && element.type !== 'radio')
-                return;
-            // Find the Webflow wrapper
-            const wrapper = element.closest(element.type === 'checkbox' ? '.w-checkbox' : '.w-radio');
-            if (!wrapper)
-                return;
-            // Find the custom visual input element
-            const customInput = wrapper.querySelector(`.w-${element.type}-input`);
-            if (customInput) {
-                // CRITICAL: Always sync based on the ACTUAL DOM element's current state
-                // This preserves user interactions even when templates change
-                const isCurrentlyChecked = element.checked;
-                console.debug(`VirtualDOM: Syncing Webflow visual state for ${element.type} - checked: ${isCurrentlyChecked}`);
-                // Update the visual state class based on the actual input's current checked state
-                if (isCurrentlyChecked) {
-                    customInput.classList.add('w--redirected-checked');
-                }
-                else {
-                    customInput.classList.remove('w--redirected-checked');
-                }
-            }
-        }
-        /**
-         * Clean up all event listeners for an element (for memory management)
-         */
-        static cleanupElement(element) {
-            const events = this.elementEventMap.get(element);
-            if (events) {
-                // Remove all event handler attributes tracked for this element
-                events.forEach(eventType => {
-                    element.removeAttribute(eventType);
-                });
-                this.elementEventMap.delete(element);
-            }
-            // Also clean up any child elements recursively
-            const childElements = element.querySelectorAll('*');
-            childElements.forEach(child => {
-                const childEvents = this.elementEventMap.get(child);
-                if (childEvents) {
-                    childEvents.forEach(eventType => {
-                        child.removeAttribute(eventType);
-                    });
-                    this.elementEventMap.delete(child);
-                }
-            });
-        }
-    }
-    Object.defineProperty(VirtualDOM, "VOID_ELEMENTS", {
-        enumerable: true,
-        configurable: true,
-        writable: true,
-        value: new Set([
-            'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-            'link', 'meta', 'param', 'source', 'track', 'wbr'
-        ])
-    });
-    Object.defineProperty(VirtualDOM, "SVG_NAMESPACE", {
-        enumerable: true,
-        configurable: true,
-        writable: true,
-        value: 'http://www.w3.org/2000/svg'
-    });
-    Object.defineProperty(VirtualDOM, "SVG_ELEMENTS", {
-        enumerable: true,
-        configurable: true,
-        writable: true,
-        value: new Set([
-            'svg', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'rect', 'path',
-            'g', 'text', 'tspan', 'defs', 'use', 'symbol', 'marker', 'clipPath',
-            'mask', 'pattern', 'image', 'foreignObject'
-        ])
-    });
-    // Track elements with event listeners for cleanup
-    Object.defineProperty(VirtualDOM, "elementEventMap", {
-        enumerable: true,
-        configurable: true,
-        writable: true,
-        value: new WeakMap()
-    });
-
-    /**
      * @typedef {Object} ReadyState
      * @property {boolean} isReady - Whether FlowPlater is ready
      * @property {Function[]} queue - Queue of functions to execute when ready
@@ -1923,6 +969,631 @@ var FlowPlater = (function () {
             Debug.info("All plugins destroyed, FlowPlater remains ready for new plugins");
         },
     };
+
+    /**
+     * Helper function to collect debug information consistently
+     */
+    function collectDebugInfo(form, type, details = {}) {
+        return {
+            formId: form.id,
+            type,
+            persistenceEnabled: isPersistenceEnabledForElement(form),
+            restoredElements: details.restoredElements || [],
+            customVisualUpdates: details.customVisualUpdates || [],
+            skippedElements: details.skippedElements || [],
+            storageType: details.storageType
+        };
+    }
+    /**
+     * Helper function to handle storage operations
+     */
+    function handleFormStorage(form, state = {}, operation = "save") {
+        const useLocal = shouldUseLocalStorage(form);
+        const key = `fp_form_${form.id}`;
+        if (operation === "save") {
+            if (useLocal) {
+                saveToLocalStorage(form.id, state, "form");
+            }
+            else {
+                sessionStorage.setItem(key, JSON.stringify(state));
+            }
+        }
+        else if (operation === "load") {
+            return useLocal
+                ? loadFromLocalStorage(form.id, "form")
+                : JSON.parse(sessionStorage.getItem(key) || "{}");
+        }
+        else if (operation === "clear") {
+            if (useLocal)
+                localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
+        }
+    }
+    /**
+     * Helper function to process form elements consistently
+     */
+    function processFormElements(form, callback) {
+        Array.from(form.elements).forEach((element) => {
+            if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement))
+                return;
+            if (!element.name || element.type === "file")
+                return;
+            if (!isPersistenceEnabledForElement(element))
+                return;
+            callback(element);
+        });
+    }
+    /**
+     * Helper function to manage event listeners
+     */
+    function manageEventListener(element, eventType, handler, operation = "add") {
+        const events = eventType === "change"
+            ? [
+                "change",
+                element.type !== "checkbox" && element.type !== "radio"
+                    ? "input"
+                    : null,
+            ]
+            : [eventType];
+        events.filter(Boolean).forEach((event) => {
+            const method = operation === "add" ? "addEventListener" : "removeEventListener";
+            element[method](event, handler);
+        });
+    }
+    /**
+     * Helper function to restore element values
+     */
+    function restoreElementValue(element, value) {
+        if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
+            element.checked = value === "true";
+            updateCustomVisualState(element);
+        }
+        else if (element instanceof HTMLSelectElement && element.multiple) {
+            Array.from(element.options).forEach((option) => {
+                option.selected = value.includes(option.value);
+            });
+        }
+        else {
+            element.value = value;
+        }
+    }
+    /**
+     * Helper function to update custom visual state
+     */
+    function updateCustomVisualState(element) {
+        const wrapper = element.closest(element.type === "checkbox" ? ".w-checkbox" : ".w-radio");
+        if (!wrapper)
+            return;
+        const customInput = wrapper.querySelector(`.w-${element.type}-input`);
+        if (customInput) {
+            customInput.classList.toggle("w--redirected-checked", element.checked);
+        }
+    }
+    /**
+     * Gets persistence settings for an element
+     * @param {HTMLElement} element - The element to check
+     * @returns {Object} - Object containing persistence settings
+     */
+    function getPersistenceSettings(element) {
+        let shouldPersist = false;
+        let useLocalStorage = false;
+        // Check persistence settings
+        if (AttributeMatcher._hasAttribute(element, "persist")) {
+            shouldPersist =
+                AttributeMatcher._getRawAttribute(element, "persist") !== "false";
+            useLocalStorage =
+                AttributeMatcher._getRawAttribute(element, "persist") === "true";
+        }
+        else {
+            const form = element.closest("form");
+            if (form && AttributeMatcher._hasAttribute(form, "persist")) {
+                shouldPersist =
+                    AttributeMatcher._getRawAttribute(form, "persist") !== "false";
+                useLocalStorage =
+                    AttributeMatcher._getRawAttribute(form, "persist") === "true";
+            }
+            else if (ConfigManager.getConfig().storage?.enabled &&
+                !ConfigManager.getConfig().persistForm) {
+                shouldPersist = false;
+                useLocalStorage = false;
+            }
+            else {
+                shouldPersist = ConfigManager.getConfig().persistForm;
+                useLocalStorage =
+                    ConfigManager.getConfig().storage?.enabled &&
+                        ConfigManager.getConfig().persistForm;
+            }
+        }
+        // For forms, check if any elements have explicit persistence
+        if (element instanceof HTMLFormElement) {
+            const hasPersistentElements = Array.from(element.elements).some((input) => AttributeMatcher._getRawAttribute(input, "persist") === "true");
+            if (hasPersistentElements) {
+                useLocalStorage = ConfigManager.getConfig().storage?.enabled;
+            }
+        }
+        return {
+            shouldPersist,
+            useLocalStorage: useLocalStorage && ConfigManager.getConfig().storage?.enabled,
+        };
+    }
+    /**
+     * Checks if persistence is enabled for an element
+     * @param {HTMLElement} element - The element to check
+     * @returns {boolean} - Whether persistence is enabled for this element
+     */
+    function isPersistenceEnabledForElement(element) {
+        return getPersistenceSettings(element).shouldPersist;
+    }
+    /**
+     * Determines which storage to use based on configuration
+     * @param {HTMLElement} element - The element to check
+     * @returns {boolean} - true for localStorage, false for sessionStorage
+     */
+    function shouldUseLocalStorage(element) {
+        return getPersistenceSettings(element).useLocalStorage;
+    }
+    /**
+     * Captures the state of all forms within an element
+     * @param {HTMLElement} element - The container element
+     * @returns {Object} - Map of form states by form ID
+     */
+    function captureFormStates(element) {
+        try {
+            const forms = element.getElementsByTagName("form");
+            const formStates = {};
+            Array.from(forms).forEach((form) => {
+                if (!form.id)
+                    return;
+                const formState = {};
+                const formElements = form.elements;
+                Array.from(formElements).forEach((input) => {
+                    if (!input.name || input.type === "file")
+                        return;
+                    // Skip if persistence is disabled for this element
+                    if (!isPersistenceEnabledForElement(input))
+                        return;
+                    if (input.type === "checkbox" || input.type === "radio") {
+                        formState[input.name] = input.checked;
+                    }
+                    else if (input instanceof HTMLSelectElement) {
+                        if (input.multiple) {
+                            formState[input.name] = Array.from(input.selectedOptions).map((opt) => opt.value);
+                        }
+                        else {
+                            formState[input.name] = input.value;
+                        }
+                    }
+                    else {
+                        formState[input.name] = input.value;
+                    }
+                });
+                // Only store if there are elements to store
+                if (Object.keys(formState).length > 0) {
+                    // Emit event before storing
+                    EventSystem.publish("formState:beforeCapture", {
+                        formId: form.id,
+                        formElement: form,
+                        state: formState,
+                    });
+                    formStates[form.id] = formState;
+                    // Store based on configuration
+                    if (shouldUseLocalStorage(form)) {
+                        saveToLocalStorage(form.id, formState, "form");
+                    }
+                    else {
+                        sessionStorage.setItem(`fp_form_${form.id}`, JSON.stringify(formState));
+                    }
+                }
+            });
+            return formStates;
+        }
+        catch (error) {
+            Debug.error(`Error capturing form states: ${error.message}`);
+            return {};
+        }
+    }
+    /**
+     * Restores the state of a single form from storage
+     * @param {HTMLFormElement} form - The form to restore state for
+     * @param {string} [source] - The source of the call to restoreSingleFormState
+     * @returns {boolean} - Whether state was restored
+     */
+    function restoreSingleFormState(form, source) {
+        if (!form.id)
+            return false;
+        // Try to get state from storage
+        const formState = handleFormStorage(form, {}, "load");
+        if (!formState) {
+            Debug.debug(`No stored state found for form: ${form.id}`);
+            return false;
+        }
+        const debugInfo = collectDebugInfo(form, "restore", {
+            restoredElements: [],
+            customVisualUpdates: [],
+            skippedElements: [],
+            storageType: shouldUseLocalStorage(form)
+                ? "localStorage"
+                : "sessionStorage",
+        });
+        // Restore state directly for this form
+        processFormElements(form, (input) => {
+            if (!(input.name in formState))
+                return;
+            debugInfo.restoredElements.push({
+                name: input.name,
+                value: formState[input.name],
+            });
+            restoreElementValue(input, formState[input.name]);
+        });
+        // Single debug log with all information
+        Debug.debug(`Form state restoration summary for ${form.id}`, {
+            storageType: debugInfo.storageType,
+            source: source || "unknown",
+            restoredElements: debugInfo.restoredElements.map((el) => ({
+                name: el.name,
+                value: el.value,
+            })),
+            updatedCustomVisualStates: debugInfo.customVisualUpdates,
+            skippedElements: debugInfo.skippedElements,
+        });
+        // Emit event after restoration
+        EventSystem.publish("formState:afterRestore", {
+            formId: form.id,
+            formElement: form,
+            state: formState,
+            source: source || "unknown",
+        });
+        return true;
+    }
+    /**
+     * Clears stored form state
+     * @param {string} formId - ID of the form to clear
+     */
+    function clearFormState(formId) {
+        FormStateManager.clearFormState(formId);
+    }
+    /**
+     * Sets up change event listeners for form elements
+     * @param {HTMLElement} form - The form element to set up listeners for
+     */
+    function setupFormChangeListeners(form) {
+        try {
+            if (!form.id) {
+                Debug.debug("Skipping form without ID");
+                return;
+            }
+            const debugInfo = collectDebugInfo(form, "setup", {
+                formElements: form.elements.length,
+                checkboxWrappers: form.querySelectorAll(".w-checkbox").length,
+                listenersAdded: [],
+                skippedElements: [],
+            });
+            // Initialize new listeners array if it doesn't exist
+            if (!form._fpChangeListeners) {
+                form._fpChangeListeners = [];
+            }
+            // Handle regular form elements
+            processFormElements(form, (element) => {
+                // Skip if element already has a listener
+                if (form._fpChangeListeners.some(({ element: el }) => el === element)) {
+                    return;
+                }
+                const changeHandler = (event) => handleFormElementChange(event);
+                manageEventListener(element, "change", changeHandler);
+                // Store the handler reference
+                form._fpChangeListeners.push({ element, handler: changeHandler });
+                debugInfo.listenersAdded?.push(element.name);
+            });
+            // Output collected debug information
+            Debug.debug(`Form setup summary for ${form.id}`, {
+                totalFormElements: debugInfo.formElements,
+                checkboxWrappers: debugInfo.checkboxWrappers,
+                formPersistence: debugInfo.persistenceEnabled ? "enabled" : "disabled",
+                listenersAdded: debugInfo.listenersAdded?.join(", "),
+                skippedElements: debugInfo.skippedElements.join(", "),
+            });
+        }
+        catch (error) {
+            Debug.error(`Error setting up form change listeners: ${error.message}`);
+        }
+    }
+    /**
+     * Cleans up change event listeners for form elements
+     * @param {HTMLElement} form - The form element to clean up listeners for
+     */
+    function cleanupFormChangeListeners(form) {
+        try {
+            if (!form._fpChangeListeners)
+                return;
+            form._fpChangeListeners.forEach(({ element, handler }) => {
+                element.removeEventListener("change", handler);
+                element.removeEventListener("input", handler);
+            });
+            form._fpChangeListeners = [];
+        }
+        catch (error) {
+            Debug.error(`Error cleaning up form change listeners: ${error.message}`);
+        }
+    }
+    function handleFormElementChange(event) {
+        try {
+            const element = event.target;
+            const form = element.closest("form");
+            if (!form || !form.id) {
+                Debug.debug("Skipping change handler - no form or form ID");
+                return;
+            }
+            const debugInfo = collectDebugInfo(form, "change", {
+                changedValues: {},
+                skippedElements: [],
+            });
+            // Helper function to check if a value is a template
+            function isTemplateValue(value) {
+                if (typeof value !== "string")
+                    return false;
+                // Check for Handlebars syntax
+                if (value.includes("{{") || value.includes("}}"))
+                    return true;
+                // Check for alternative syntax
+                if (value.includes("[[") || value.includes("]]"))
+                    return true;
+                // Check for this. references which indicate template binding
+                if (value.includes("this."))
+                    return true;
+                return false;
+            }
+            // Helper function to check if an input is template-bound
+            function isTemplateInput(input) {
+                // Check if the input name itself is a template
+                if (isTemplateValue(input.name))
+                    return true;
+                // Check if the input has a template value
+                if (isTemplateValue(input.value))
+                    return true;
+                // Check for data-binding attributes that indicate template usage
+                if (AttributeMatcher._hasAttribute(input, "bind"))
+                    return true;
+                return false;
+            }
+            // Capture the current state of the form
+            const formState = {};
+            processFormElements(form, (input) => {
+                // First check if this is a template-bound input
+                if (isTemplateInput(input)) {
+                    debugInfo.skippedElements.push({
+                        name: input.name,
+                        reason: "Template binding detected",
+                        value: input.value,
+                    });
+                    return;
+                }
+                const value = input.type === "checkbox" || input.type === "radio"
+                    ? input.checked
+                    : input instanceof HTMLSelectElement && input.multiple
+                        ? Array.from(input.selectedOptions).map((opt) => opt.value)
+                        : input.value;
+                formState[input.name] = value;
+                if (!debugInfo.changedValues)
+                    debugInfo.changedValues = {};
+                debugInfo.changedValues[input.name] = value;
+            });
+            // Only store if there are elements to store
+            if (Object.keys(formState).length > 0) {
+                handleFormStorage(form, formState, "save");
+                // Output collected debug information
+                Debug.debug("Form state update for " + form.id + ":", {
+                    "Changed element": element.name,
+                    "Storage type": shouldUseLocalStorage(form)
+                        ? "localStorage"
+                        : "sessionStorage",
+                    "Updated values": debugInfo.changedValues,
+                    "Skipped elements": debugInfo.skippedElements,
+                });
+                // Find instance that contains this form or whose elements are contained by this form
+                let instance = null;
+                // @ts-ignore
+                for (const [instanceName, inst] of Object.entries(_state.instances)) {
+                    if (Array.from(inst.elements).some((el) => el.contains(form) || form.contains(el) || el === form)) {
+                        instance = inst;
+                        break;
+                    }
+                }
+                // Execute updateForm hook
+                PluginManager.executeHook("updateForm", instance, {
+                    element: form,
+                    id: form.id,
+                    data: formState,
+                    changedElement: element,
+                });
+                // Emit event
+                EventSystem.publish("formState:changed", {
+                    formId: form.id,
+                    formElement: form,
+                    state: formState,
+                    changedElement: element,
+                });
+            }
+        }
+        catch (error) {
+            Debug.error(`Error handling form element change: ${error.message}`);
+        }
+    }
+    /**
+     * Gets all relevant forms for an element (target, parent, and children)
+     * @param {HTMLElement} element - The element to get forms for
+     * @returns {Set<HTMLFormElement>} - Set of unique form elements
+     */
+    function getAllRelevantForms(element) {
+        const forms = new Set();
+        // Add the target if it's a form
+        if (element instanceof HTMLFormElement) {
+            forms.add(element);
+        }
+        // Add parent forms
+        const parentForm = element.closest("form");
+        if (parentForm) {
+            forms.add(parentForm);
+        }
+        // Add child forms
+        const childForms = element.getElementsByTagName("form");
+        Array.from(childForms).forEach((form) => forms.add(form));
+        return forms;
+    }
+    /**
+     * Sets up form submission handlers to clear state on submit
+     * @param {HTMLElement} element - The container element
+     * @param {string} [source] - The source of the call to setupFormSubmitHandlers
+     */
+    function setupFormSubmitHandlers(element, source) {
+        try {
+            Debug.debug("Setting up form submit handlers for element:", element);
+            // Get all relevant forms
+            const forms = getAllRelevantForms(element);
+            Debug.debug(`Found ${forms.size} forms`);
+            forms.forEach((form) => {
+                setupSingleFormHandlers(form, source || "setupFormSubmitHandlers");
+            });
+        }
+        catch (error) {
+            Debug.error(`Error setting up form submit handlers: ${error.message}`);
+        }
+    }
+    function setupSingleFormHandlers(form, source) {
+        if (!form.id) {
+            Debug.debug("Skipping form without ID");
+            return;
+        }
+        // Always set up handlers for forms that have been updated by HTMX
+        Debug.debug(`Setting up handlers for form: ${form.id}`);
+        // Remove existing listener if any
+        form.removeEventListener("submit", handleFormSubmit);
+        // Add new listener
+        form.addEventListener("submit", handleFormSubmit);
+        // Set up change listeners for form elements
+        setupFormChangeListeners(form);
+        // Mark form as having handlers set up
+        form._fpHandlersSetup = true;
+        // Check if form restoration is needed
+        if (shouldRestoreForm(form)) {
+            Debug.debug(`Restoring state for form: ${form.id}`);
+            restoreSingleFormState(form, source || "setupSingleFormHandlers");
+        }
+        else {
+            Debug.debug(`Skipping form restoration - no persistent elements: ${form.id}`);
+        }
+    }
+    function handleFormSubmit(event) {
+        try {
+            const form = event.target.closest("form");
+            if (form && form.id) {
+                clearFormState(form.id);
+            }
+        }
+        catch (error) {
+            Debug.error(`Error handling form submit: ${error.message}`);
+        }
+    }
+    function setupDynamicFormObserver(container) {
+        try {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node instanceof HTMLFormElement) {
+                            setupFormSubmitHandlers(node, "setupDynamicFormObserver");
+                        }
+                    });
+                });
+            });
+            observer.observe(container, {
+                childList: true,
+                subtree: true,
+            });
+            return observer;
+        }
+        catch (error) {
+            Debug.error(`Error setting up dynamic form observer: ${error.message}`);
+            return null;
+        }
+    }
+    /**
+     * Checks if form restoration should be performed for a form or its elements
+     * @param {HTMLElement} element - The form or container element to check
+     * @returns {boolean} - Whether form restoration should be performed
+     */
+    function shouldRestoreForm(element) {
+        return FormStateManager.shouldRestoreForm(element);
+    }
+
+    /**
+     * Checks if a string looks like a CSS selector
+     * @param {string} str - String to check
+     * @returns {boolean} True if the string looks like a CSS selector
+     */
+    function isCssSelector(str) {
+        // If it starts with # or . it's definitely a selector
+        if (str.startsWith("#") || str.startsWith(".")) {
+            return true;
+        }
+        // Other CSS selector patterns
+        return (/[[]>+~:()]/.test(str) || // Other CSS characters
+            /^[a-z]+[a-z-]+$/i.test(str)); // Element names like div, custom-element
+    }
+    /**
+     * Extracts data from a local variable or DOM element
+     * @param {string} varName - Variable name or CSS selector
+     * @param {boolean} [wrapPrimitive=true] - Whether to wrap primitive values in an object
+     * @returns {Object|null} The extracted data or null if not found/error
+     */
+    function extractLocalData(varName, wrapPrimitive = true) {
+        if (!varName)
+            return null;
+        try {
+            // If it looks like a CSS selector, try DOM first
+            if (isCssSelector(varName)) {
+                const element = document.querySelector(varName);
+                if (element) {
+                    // Check if DataExtractor plugin is available
+                    const dataExtractor = PluginManager.getPlugin("data-extractor");
+                    if (dataExtractor &&
+                        typeof dataExtractor.globalMethods?.processHtml === "function") {
+                        try {
+                            const extractedData = dataExtractor.globalMethods?.processHtml?.(element.outerHTML);
+                            Debug.debug(`Extracted data from element "${varName}":`, extractedData);
+                            return extractedData;
+                        }
+                        catch (e) {
+                            Debug.error(`DataExtractor failed for "${varName}": ${e.message}`);
+                            return null;
+                        }
+                    }
+                    else {
+                        Debug.warn("DataExtractor plugin not available for element extraction");
+                        return null;
+                    }
+                }
+            }
+            // If not a selector or element not found, try window scope
+            const value = window[varName];
+            if (value !== undefined) {
+                // If value is not an object and wrapping is enabled, wrap it
+                if (wrapPrimitive &&
+                    (typeof value !== "object" || value === null || Array.isArray(value))) {
+                    let wrappedValue = { [varName]: value };
+                    Debug.info(`Wrapped primitive value "${varName}":`, wrappedValue);
+                    return wrappedValue;
+                }
+                Debug.info(`Extracted value "${varName}":`, value);
+                return value;
+            }
+            // If we get here, neither variable nor element was found
+            Debug.warn(`Neither variable nor element found for "${varName}"`);
+            return null;
+        }
+        catch (e) {
+            Debug.info(`Error extracting local data "${varName}": ${e.message}`);
+            return null;
+        }
+    }
 
     function instanceMethods(instanceName) {
         // Helper function to resolve a path within the data
@@ -2658,13 +2329,284 @@ var FlowPlater = (function () {
         return element;
     }
 
+    /**
+     * Centralized default configuration values for FlowPlater
+     * This file consolidates all scattered default values to improve maintainability
+     */
+    // Core FlowPlater defaults
+    const DEFAULTS = {
+        // Template system
+        TEMPLATE: {
+            CACHE_SIZE: 100,
+            PRECOMPILE: true,
+            ANONYMOUS_INSTANCE_NAME: "anonymous",
+            SELF_TEMPLATE_ID: "self",
+        },
+        // Animation settings  
+        ANIMATION: {
+            ENABLED: true,
+            DURATION: 300,
+        },
+        // Debug and logging
+        DEBUG: {
+            LEVEL: 1, // Production default
+            DEVELOPMENT_LEVEL: 3, // Development/localhost default
+        },
+        // HTMX integration
+        HTMX: {
+            TIMEOUT: 10000,
+            SWAP_STYLE: "innerHTML",
+            SELF_REQUESTS_ONLY: false,
+            IGNORE_TITLE: true,
+            DEFAULT_TRIGGER: "mouseover", // For preload
+            SWAP_DELAY: 0,
+            SETTLE_DELAY: 0,
+            TRANSITION: false,
+        },
+        // Storage configuration
+        STORAGE: {
+            ENABLED: false,
+            TTL: 30 * 24 * 60 * 60, // 30 days in seconds
+            INFINITE_TTL: -1,
+        },
+        // Performance settings
+        PERFORMANCE: {
+            BATCH_DOM_UPDATES: true,
+            BATCHING_DELAY: 0, // 0 uses requestAnimationFrame
+            DEBOUNCE_DELAY: 0,
+        },
+        // Form handling
+        FORMS: {
+            PERSIST_FORMS: true,
+            DEFAULT_SOURCE: "unknown",
+            TRIGGER_EVENTS: "change",
+            EXCLUDED_INPUT_TYPES: ["file"],
+            CHECKBOX_RADIO_TYPES: ["checkbox", "radio"],
+            TEXT_INPUT_TYPES: ["text"],
+            FORM_INPUT_TYPES: ["INPUT", "SELECT", "TEXTAREA"],
+        },
+        // Plugin system
+        PLUGINS: {
+            DEFAULT_PRIORITY: 0,
+            DEFAULT_VERSION: "1.0.0",
+            DEBUG: false,
+        },
+        // Cart plugin defaults
+        CART: {
+            ENABLED: true,
+            PRIORITY: 50,
+            DATA_ATTRIBUTE: "product",
+            GROUP_NAME: "cart",
+            REQUIRED_KEYS: ["id", "name"],
+            CURRENCY: {
+                NAME: "USD",
+                SYMBOL: "$",
+                PRECISION: 2,
+                SEPARATOR: ",",
+                DECIMAL: ".",
+            },
+            TAX_RATES: [{ name: "VAT", value: 1.21 }],
+            LOCALE: "en-US",
+            STOCK: {
+                INFINITE: Infinity,
+                MIN_AMOUNT: 0,
+            },
+        },
+        // Filter plugin defaults
+        FILTER: {
+            ENABLED: true,
+            PRIORITY: 0,
+            DEFAULT_SELECT_OPTION: "Select tags...",
+            PRESERVE_DEFAULT: false,
+        },
+        // Data extractor defaults
+        DATA_EXTRACTOR: {
+            VALUE_SOURCES: {
+                ATTRIBUTE: "attribute",
+                TEXT: "text",
+            },
+        },
+        // Proxy plugin defaults
+        PROXY: {
+            DEFAULT_URL: "",
+        },
+        // Math plugin defaults
+        MATH: {
+            OPERATORS: {
+                ADD: "+",
+                SUBTRACT: "-",
+                MULTIPLY: "*",
+                DIVIDE: "/",
+            },
+        },
+        // DOM and Virtual DOM
+        DOM: {
+            UPDATE_COUNTER_INITIAL: 0,
+            UNKNOWN_ELEMENT_ID: "unknown",
+            INTEGRITY_CHECK_ENABLED: true, // Enable post-update DOM integrity verification
+            VOID_ELEMENTS: [
+                'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+                'link', 'meta', 'param', 'source', 'track', 'wbr'
+            ],
+            SVG_NAMESPACE: 'http://www.w3.org/2000/svg',
+            SVG_ELEMENTS: [
+                'svg', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'rect', 'path',
+                'g', 'text', 'tspan', 'defs', 'use', 'symbol', 'marker', 'clipPath',
+                'mask', 'pattern', 'image', 'foreignObject'
+            ],
+            WEBFLOW_CLASSES: [
+                'w-checkbox', 'w-radio', 'w-checkbox-input', 'w-radio-input',
+                'w-form', 'w-input', 'w-select', 'w-textarea'
+            ],
+            SIMILARITY_THRESHOLD: 0.5, // For text similarity comparison
+            LENGTH_RATIO_THRESHOLD: 0.5, // For content length comparison
+        },
+        // Instance management
+        INSTANCES: {
+            DUPLICATE_INIT_WINDOW: 100, // ms window to prevent duplicate initialization
+        },
+        // Event system
+        EVENTS: {
+            HTTP_METHODS: ["get", "post", "put", "patch", "delete"],
+            HTTP_TRIGGER_ATTRIBUTES: ["trigger", "boost", "ws", "sse"],
+        },
+        // Helper defaults
+        HELPERS: {
+            EACH: {
+                START_AT: 0,
+                SORT_KEY: "",
+                DESCENDING: false,
+                SORT_BEFORE_LIMIT: true,
+            },
+            COMPARISON: {
+                DEFAULT_OPERATOR: "==",
+            },
+        },
+        // Content types
+        CONTENT_TYPES: {
+            UNKNOWN: "unknown",
+            JSON: "json",
+            HTML: "html",
+            XML: "xml",
+        },
+        // Error handling
+        ERRORS: {
+            XML_PARSER_ERROR: "Unknown parser error",
+        },
+        // URL and routing
+        URL: {
+            WEBFLOW_DOMAINS: [".webflow.io", ".canvas.webflow.com"],
+            LOCALHOST: "localhost",
+        },
+        // Element selectors and attributes
+        SELECTORS: {
+            FP_ATTRIBUTES: [
+                "template", "get", "post", "put", "delete", "patch",
+                "persist", "instance", "data", "local", "group",
+                "target", "swap", "trigger", "dynamic"
+            ],
+            TEMPLATE_ELEMENTS: ["template", "fptemplate"],
+            EXTENSION_ATTRIBUTE: "hx-ext",
+        },
+        // Security
+        SECURITY: {
+            ALLOW_EXECUTE: true,
+            FORBIDDEN_REGISTRATIONS: new Set([
+                "if", "unless", "each", "with", "lookup", "log", "blockHelperMissing", "helperMissing"
+            ]),
+        },
+    };
+    /**
+     * Helper function to check if a value should use a default
+     * @param value - The value to check
+     * @param defaultValue - The default value to use
+     * @returns The original value or the default if value is null/undefined
+     */
+    function withDefault(value, defaultValue) {
+        return value ?? defaultValue;
+    }
+
+    /**
+     * Centralized template cache management utility
+     * Handles all template caching operations with size limits and eviction policies
+     */
+    class TemplateCache {
+        /**
+         * Add a template to the cache with automatic size management
+         * @param templateId - The ID of the template
+         * @param template - The compiled template
+         * @returns The template that was added
+         */
+        static set(templateId, template) {
+            const cacheSize = ConfigManager.getConfig().templates?.cacheSize || DEFAULTS.TEMPLATE.CACHE_SIZE;
+            const cache = _state.templateCache;
+            // If cache is at limit, remove oldest entry (FIFO eviction)
+            if (Object.keys(cache).length >= cacheSize) {
+                const oldestKey = Object.keys(cache)[0];
+                delete cache[oldestKey];
+                Debug.info(`Cache limit reached. Removed template: ${oldestKey}`);
+            }
+            // Add new template to cache
+            cache[templateId] = template;
+            return template;
+        }
+        /**
+         * Get a template from the cache
+         * @param templateId - The ID of the template to get, or undefined to get all templates
+         * @returns The template object or all templates if no ID is provided
+         */
+        static get(templateId) {
+            if (templateId) {
+                return _state.templateCache[templateId];
+            }
+            return _state.templateCache;
+        }
+        /**
+         * Check if a template is cached
+         * @param templateId - The ID of the template to check
+         * @returns True if the template is cached, false otherwise
+         */
+        static isCached(templateId) {
+            return !!_state.templateCache[templateId];
+        }
+        /**
+         * Clear a template from the cache
+         * @param templateId - The ID of the template to clear, or undefined to clear all
+         */
+        static clear(templateId) {
+            if (templateId) {
+                delete _state.templateCache[templateId];
+                Debug.info(`Cleared template cache for: ${templateId}`);
+            }
+            else {
+                _state.templateCache = {};
+                Debug.info("Cleared entire template cache");
+            }
+        }
+        /**
+         * Get the size of the template cache
+         * @returns The number of templates in the cache
+         */
+        static size() {
+            return Object.keys(_state.templateCache).length;
+        }
+        /**
+         * Check if cache is at capacity
+         * @returns True if cache is at or over capacity
+         */
+        static isAtCapacity() {
+            const cacheSize = ConfigManager.getConfig().templates?.cacheSize || DEFAULTS.TEMPLATE.CACHE_SIZE;
+            return Object.keys(_state.templateCache).length >= cacheSize;
+        }
+    }
+
     function compileTemplate(templateId, recompile = false) {
         if (!recompile) {
             return memoizedCompile(templateId);
         }
         // For recompile=true:
         // 1. Clear template cache
-        delete _state.templateCache[templateId];
+        TemplateCache.clear(templateId);
         // 2. Compile without memoization
         const compiledTemplate = memoizedCompile.original(templateId);
         // 3. Update the memoized cache with the new template
@@ -2685,7 +2627,7 @@ var FlowPlater = (function () {
             return null;
         }
         // Check if template needs compilation
-        if (!_state.templateCache[templateId] ||
+        if (!TemplateCache.isCached(templateId) ||
             (AttributeMatcher._hasAttribute(templateElement, "dynamic") &&
                 AttributeMatcher._getRawAttribute(templateElement, "dynamic") !== "false")) {
             Debug.debug("compiling template: " + templateId);
@@ -2799,16 +2741,8 @@ var FlowPlater = (function () {
             Debug.debug("Compiling Handlebars template: " + handlebarsTemplate);
             try {
                 const compiledTemplate = Handlebars.compile(handlebarsTemplate);
-                // Check cache size limit before adding new template
-                const cacheSize = ConfigManager.getConfig().templates?.cacheSize || 100; // Default to 100 if not configured
-                if (Object.keys(_state.templateCache).length >= cacheSize) {
-                    // Remove oldest template
-                    const oldestKey = Object.keys(_state.templateCache)[0];
-                    delete _state.templateCache[oldestKey];
-                    Debug.info("Cache limit reached. Removed template: " + oldestKey);
-                }
-                // Add new template to cache
-                _state.templateCache[templateId] = compiledTemplate;
+                // Add new template to cache with automatic size management
+                TemplateCache.set(templateId, compiledTemplate);
                 Performance.end("compile:" + templateId);
                 return compiledTemplate;
             }
@@ -2819,11 +2753,11 @@ var FlowPlater = (function () {
             }
         }
         Performance.end("compile:" + templateId);
-        return _state.templateCache[templateId];
+        return TemplateCache.get(templateId);
     });
 
     function render({ template, data, target, returnHtml = false, instanceName, animate = _state.defaults.animation, recompile = false, skipLocalStorageLoad = false, skipRender = false, isStoredDataRender = false, }) {
-        Performance.start("render:" + (instanceName || "anonymous"));
+        Performance.start("render:" + withDefault(instanceName, DEFAULTS.TEMPLATE.ANONYMOUS_INSTANCE_NAME));
         // Track initialization to prevent redundant initialization of the same instance
         if (!_state._initTracking) {
             _state._initTracking = {};
@@ -2849,8 +2783,8 @@ var FlowPlater = (function () {
             _state._initTracking[derivedInstanceName] &&
             !isStoredDataRender) {
             const timeSinceLastInit = Date.now() - _state._initTracking[derivedInstanceName];
-            if (timeSinceLastInit < 100) {
-                // 100ms window to prevent duplicate initializations
+            if (timeSinceLastInit < DEFAULTS.INSTANCES.DUPLICATE_INIT_WINDOW) {
+                // Prevent duplicate initializations within the configured window
                 Debug.warn(`[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`);
                 // Still return the existing instance
                 return _state.instances[derivedInstanceName] || null;
@@ -2872,7 +2806,7 @@ var FlowPlater = (function () {
         /*                                initial setup                               */
         /* -------------------------------------------------------------------------- */
         // Handle empty or "self" template
-        if (!template || template === "self") {
+        if (!template || template === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID) {
             const targetElement = typeof target === "string" ? document.querySelector(target) : target;
             if (targetElement) {
                 template = "#" + targetElement.id;
@@ -2994,10 +2928,10 @@ var FlowPlater = (function () {
                         // Get swap specification from element
                         const swapStyle = AttributeMatcher._getRawAttribute(targetElements[0], "swap", "innerHTML");
                         const swapSpec = {
-                            swapStyle: swapStyle || "innerHTML",
-                            swapDelay: 0,
-                            settleDelay: 0,
-                            transition: swapStyle?.includes("transition:true") || false,
+                            swapStyle: withDefault(swapStyle, DEFAULTS.HTMX.SWAP_STYLE),
+                            swapDelay: DEFAULTS.HTMX.SWAP_DELAY,
+                            settleDelay: DEFAULTS.HTMX.SETTLE_DELAY,
+                            transition: swapStyle?.includes("transition:true") || DEFAULTS.HTMX.TRANSITION,
                         };
                         // Use htmx.swap with proper swap specification
                         if (returnHtml) {
@@ -3064,7 +2998,7 @@ var FlowPlater = (function () {
             }
             else {
                 // 2. Create the proxy with the final merged data and DEBOUNCED update handler
-                const DEBOUNCE_DELAY = 0;
+                const DEBOUNCE_DELAY = DEFAULTS.PERFORMANCE.DEBOUNCE_DELAY;
                 proxy = createDeepProxy(finalInitialData, () => {
                     if (instance) {
                         // Skip if we're currently evaluating a template
@@ -3212,51 +3146,40 @@ var FlowPlater = (function () {
         return finalInstance || null;
     }
 
+    // Determine debug level based on environment
+    const isDevEnvironment = DEFAULTS.URL.WEBFLOW_DOMAINS.some(domain => window.location.hostname.endsWith(domain)) || window.location.hostname.includes(DEFAULTS.URL.LOCALHOST);
     const defaultConfig = {
         debug: {
-            level: window.location.hostname.endsWith(".webflow.io") ||
-                window.location.hostname.endsWith(".canvas.webflow.com") ||
-                window.location.hostname.endsWith("localhost")
-                ? 3
-                : 1,
+            level: isDevEnvironment ? DEFAULTS.DEBUG.DEVELOPMENT_LEVEL : DEFAULTS.DEBUG.LEVEL,
         },
         selectors: {
-            fp: [
-                "template",
-                "get",
-                "post",
-                "put",
-                "delete",
-                "patch",
-                "persist",
-                "instance",
-            ],
+            fp: DEFAULTS.SELECTORS.FP_ATTRIBUTES,
         },
         templates: {
-            cacheSize: 100,
-            precompile: true,
+            cacheSize: DEFAULTS.TEMPLATE.CACHE_SIZE,
+            precompile: DEFAULTS.TEMPLATE.PRECOMPILE,
         },
         animation: {
-            enabled: true,
-            duration: 300,
+            enabled: DEFAULTS.ANIMATION.ENABLED,
+            duration: DEFAULTS.ANIMATION.DURATION,
         },
         htmx: {
-            timeout: 10000,
-            swapStyle: "innerHTML",
-            selfRequestsOnly: false,
-            ignoreTitle: true,
+            timeout: DEFAULTS.HTMX.TIMEOUT,
+            swapStyle: DEFAULTS.HTMX.SWAP_STYLE,
+            selfRequestsOnly: DEFAULTS.HTMX.SELF_REQUESTS_ONLY,
+            ignoreTitle: DEFAULTS.HTMX.IGNORE_TITLE,
         },
         customTags: customTagList,
         storage: {
-            enabled: false,
-            ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+            enabled: DEFAULTS.STORAGE.ENABLED,
+            ttl: DEFAULTS.STORAGE.TTL,
         },
         performance: {
-            batchDomUpdates: true,
-            batchingDelay: 0, // 0 uses requestAnimationFrame, >0 uses setTimeout with delay
+            batchDomUpdates: DEFAULTS.PERFORMANCE.BATCH_DOM_UPDATES,
+            batchingDelay: DEFAULTS.PERFORMANCE.BATCHING_DELAY,
         },
-        persistForm: true,
-        allowExecute: true,
+        persistForm: DEFAULTS.FORMS.PERSIST_FORMS,
+        allowExecute: DEFAULTS.SECURITY.ALLOW_EXECUTE,
     };
     /**
      * Normalizes storage configuration to a standard format
@@ -3815,629 +3738,971 @@ var FlowPlater = (function () {
     };
 
     /**
-     * Helper function to collect debug information consistently
+     * Virtual DOM implementation for efficient DOM diffing and batched updates
      */
-    function collectDebugInfo(form, type, details = {}) {
-        return {
-            formId: form.id,
-            type,
-            persistenceEnabled: isPersistenceEnabledForElement(form),
-            restoredElements: details.restoredElements || [],
-            customVisualUpdates: details.customVisualUpdates || [],
-            skippedElements: details.skippedElements || [],
-            storageType: details.storageType
-        };
-    }
-    /**
-     * Helper function to handle storage operations
-     */
-    function handleFormStorage(form, state = {}, operation = "save") {
-        const useLocal = shouldUseLocalStorage(form);
-        const key = `fp_form_${form.id}`;
-        if (operation === "save") {
-            if (useLocal) {
-                saveToLocalStorage(form.id, state, "form");
-            }
-            else {
-                sessionStorage.setItem(key, JSON.stringify(state));
-            }
+    class VirtualDOM {
+        /**
+         * Parse HTML string into virtual DOM tree
+         */
+        static parseHTML(html) {
+            Performance.start('VirtualDOM.parseHTML');
+            const container = document.createElement('div');
+            // Don't trim the HTML - preserve original spacing
+            container.innerHTML = html;
+            const vnodes = Array.from(container.childNodes).map(node => this.nodeToVNode(node)).filter(Boolean);
+            Performance.end('VirtualDOM.parseHTML');
+            return vnodes;
         }
-        else if (operation === "load") {
-            return useLocal
-                ? loadFromLocalStorage(form.id, "form")
-                : JSON.parse(sessionStorage.getItem(key) || "{}");
-        }
-        else if (operation === "clear") {
-            if (useLocal)
-                localStorage.removeItem(key);
-            sessionStorage.removeItem(key);
-        }
-    }
-    /**
-     * Helper function to process form elements consistently
-     */
-    function processFormElements(form, callback) {
-        Array.from(form.elements).forEach((element) => {
-            if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement))
-                return;
-            if (!element.name || element.type === "file")
-                return;
-            if (!isPersistenceEnabledForElement(element))
-                return;
-            callback(element);
-        });
-    }
-    /**
-     * Helper function to manage event listeners
-     */
-    function manageEventListener(element, eventType, handler, operation = "add") {
-        const events = eventType === "change"
-            ? [
-                "change",
-                element.type !== "checkbox" && element.type !== "radio"
-                    ? "input"
-                    : null,
-            ]
-            : [eventType];
-        events.filter(Boolean).forEach((event) => {
-            const method = operation === "add" ? "addEventListener" : "removeEventListener";
-            element[method](event, handler);
-        });
-    }
-    /**
-     * Helper function to restore element values
-     */
-    function restoreElementValue(element, value) {
-        if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
-            element.checked = value === "true";
-            updateCustomVisualState(element);
-        }
-        else if (element instanceof HTMLSelectElement && element.multiple) {
-            Array.from(element.options).forEach((option) => {
-                option.selected = value.includes(option.value);
-            });
-        }
-        else {
-            element.value = value;
-        }
-    }
-    /**
-     * Helper function to update custom visual state
-     */
-    function updateCustomVisualState(element) {
-        const wrapper = element.closest(element.type === "checkbox" ? ".w-checkbox" : ".w-radio");
-        if (!wrapper)
-            return;
-        const customInput = wrapper.querySelector(`.w-${element.type}-input`);
-        if (customInput) {
-            customInput.classList.toggle("w--redirected-checked", element.checked);
-        }
-    }
-    /**
-     * Gets persistence settings for an element
-     * @param {HTMLElement} element - The element to check
-     * @returns {Object} - Object containing persistence settings
-     */
-    function getPersistenceSettings(element) {
-        let shouldPersist = false;
-        let useLocalStorage = false;
-        // Check persistence settings
-        if (AttributeMatcher._hasAttribute(element, "persist")) {
-            shouldPersist =
-                AttributeMatcher._getRawAttribute(element, "persist") !== "false";
-            useLocalStorage =
-                AttributeMatcher._getRawAttribute(element, "persist") === "true";
-        }
-        else {
-            const form = element.closest("form");
-            if (form && AttributeMatcher._hasAttribute(form, "persist")) {
-                shouldPersist =
-                    AttributeMatcher._getRawAttribute(form, "persist") !== "false";
-                useLocalStorage =
-                    AttributeMatcher._getRawAttribute(form, "persist") === "true";
-            }
-            else if (ConfigManager.getConfig().storage?.enabled &&
-                !ConfigManager.getConfig().persistForm) {
-                shouldPersist = false;
-                useLocalStorage = false;
-            }
-            else {
-                shouldPersist = ConfigManager.getConfig().persistForm;
-                useLocalStorage =
-                    ConfigManager.getConfig().storage?.enabled &&
-                        ConfigManager.getConfig().persistForm;
-            }
-        }
-        // For forms, check if any elements have explicit persistence
-        if (element instanceof HTMLFormElement) {
-            const hasPersistentElements = Array.from(element.elements).some((input) => AttributeMatcher._getRawAttribute(input, "persist") === "true");
-            if (hasPersistentElements) {
-                useLocalStorage = ConfigManager.getConfig().storage?.enabled;
-            }
-        }
-        return {
-            shouldPersist,
-            useLocalStorage: useLocalStorage && ConfigManager.getConfig().storage?.enabled,
-        };
-    }
-    /**
-     * Checks if persistence is enabled for an element
-     * @param {HTMLElement} element - The element to check
-     * @returns {boolean} - Whether persistence is enabled for this element
-     */
-    function isPersistenceEnabledForElement(element) {
-        return getPersistenceSettings(element).shouldPersist;
-    }
-    /**
-     * Determines which storage to use based on configuration
-     * @param {HTMLElement} element - The element to check
-     * @returns {boolean} - true for localStorage, false for sessionStorage
-     */
-    function shouldUseLocalStorage(element) {
-        return getPersistenceSettings(element).useLocalStorage;
-    }
-    /**
-     * Captures the state of all forms within an element
-     * @param {HTMLElement} element - The container element
-     * @returns {Object} - Map of form states by form ID
-     */
-    function captureFormStates(element) {
-        try {
-            const forms = element.getElementsByTagName("form");
-            const formStates = {};
-            Array.from(forms).forEach((form) => {
-                if (!form.id)
-                    return;
-                const formState = {};
-                const formElements = form.elements;
-                Array.from(formElements).forEach((input) => {
-                    if (!input.name || input.type === "file")
-                        return;
-                    // Skip if persistence is disabled for this element
-                    if (!isPersistenceEnabledForElement(input))
-                        return;
-                    if (input.type === "checkbox" || input.type === "radio") {
-                        formState[input.name] = input.checked;
-                    }
-                    else if (input instanceof HTMLSelectElement) {
-                        if (input.multiple) {
-                            formState[input.name] = Array.from(input.selectedOptions).map((opt) => opt.value);
-                        }
-                        else {
-                            formState[input.name] = input.value;
-                        }
+        /**
+         * Convert DOM node to virtual node
+         */
+        static nodeToVNode(node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                const text = node.textContent;
+                // Skip empty text nodes
+                if (text === null || text === undefined || text === '') {
+                    return null;
+                }
+                // For whitespace-only text nodes, be more selective about preservation
+                if (text.trim() === '') {
+                    // Check if this whitespace might be meaningful (between inline elements)
+                    const parent = node.parentElement;
+                    const hasPrevSibling = !!node.previousSibling;
+                    const hasNextSibling = !!node.nextSibling;
+                    // Elements that typically contain inline content where whitespace matters
+                    const inlineContainerTags = new Set([
+                        'p', 'div', 'li', 'td', 'th', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                        'span', 'label', 'a', 'strong', 'em', 'b', 'i', 'small', 'mark'
+                    ]);
+                    const isInInlineContainer = parent && inlineContainerTags.has(parent.tagName.toLowerCase());
+                    const isBetweenElements = hasPrevSibling && hasNextSibling;
+                    if (isInInlineContainer && isBetweenElements) {
+                        // Preserve whitespace that might be meaningful between inline elements
+                        return text;
                     }
                     else {
-                        formState[input.name] = input.value;
-                    }
-                });
-                // Only store if there are elements to store
-                if (Object.keys(formState).length > 0) {
-                    // Emit event before storing
-                    EventSystem.publish("formState:beforeCapture", {
-                        formId: form.id,
-                        formElement: form,
-                        state: formState,
-                    });
-                    formStates[form.id] = formState;
-                    // Store based on configuration
-                    if (shouldUseLocalStorage(form)) {
-                        saveToLocalStorage(form.id, formState, "form");
-                    }
-                    else {
-                        sessionStorage.setItem(`fp_form_${form.id}`, JSON.stringify(formState));
-                    }
-                }
-            });
-            return formStates;
-        }
-        catch (error) {
-            Debug.error(`Error capturing form states: ${error.message}`);
-            return {};
-        }
-    }
-    /**
-     * Restores the state of a single form from storage
-     * @param {HTMLFormElement} form - The form to restore state for
-     * @param {string} [source] - The source of the call to restoreSingleFormState
-     * @returns {boolean} - Whether state was restored
-     */
-    function restoreSingleFormState(form, source) {
-        if (!form.id)
-            return false;
-        // Try to get state from storage
-        const formState = handleFormStorage(form, {}, "load");
-        if (!formState) {
-            Debug.debug(`No stored state found for form: ${form.id}`);
-            return false;
-        }
-        const debugInfo = collectDebugInfo(form, "restore", {
-            restoredElements: [],
-            customVisualUpdates: [],
-            skippedElements: [],
-            storageType: shouldUseLocalStorage(form)
-                ? "localStorage"
-                : "sessionStorage",
-        });
-        // Restore state directly for this form
-        processFormElements(form, (input) => {
-            if (!(input.name in formState))
-                return;
-            debugInfo.restoredElements.push({
-                name: input.name,
-                value: formState[input.name],
-            });
-            restoreElementValue(input, formState[input.name]);
-        });
-        // Single debug log with all information
-        Debug.debug(`Form state restoration summary for ${form.id}`, {
-            storageType: debugInfo.storageType,
-            source: source || "unknown",
-            restoredElements: debugInfo.restoredElements.map((el) => ({
-                name: el.name,
-                value: el.value,
-            })),
-            updatedCustomVisualStates: debugInfo.customVisualUpdates,
-            skippedElements: debugInfo.skippedElements,
-        });
-        // Emit event after restoration
-        EventSystem.publish("formState:afterRestore", {
-            formId: form.id,
-            formElement: form,
-            state: formState,
-            source: source || "unknown",
-        });
-        return true;
-    }
-    /**
-     * Clears stored form state
-     * @param {string} formId - ID of the form to clear
-     */
-    function clearFormState(formId) {
-        FormStateManager.clearFormState(formId);
-    }
-    /**
-     * Sets up change event listeners for form elements
-     * @param {HTMLElement} form - The form element to set up listeners for
-     */
-    function setupFormChangeListeners(form) {
-        try {
-            if (!form.id) {
-                Debug.debug("Skipping form without ID");
-                return;
-            }
-            const debugInfo = collectDebugInfo(form, "setup", {
-                formElements: form.elements.length,
-                checkboxWrappers: form.querySelectorAll(".w-checkbox").length,
-                listenersAdded: [],
-                skippedElements: [],
-            });
-            // Initialize new listeners array if it doesn't exist
-            if (!form._fpChangeListeners) {
-                form._fpChangeListeners = [];
-            }
-            // Handle regular form elements
-            processFormElements(form, (element) => {
-                // Skip if element already has a listener
-                if (form._fpChangeListeners.some(({ element: el }) => el === element)) {
-                    return;
-                }
-                const changeHandler = (event) => handleFormElementChange(event);
-                manageEventListener(element, "change", changeHandler);
-                // Store the handler reference
-                form._fpChangeListeners.push({ element, handler: changeHandler });
-                debugInfo.listenersAdded?.push(element.name);
-            });
-            // Output collected debug information
-            Debug.debug(`Form setup summary for ${form.id}`, {
-                totalFormElements: debugInfo.formElements,
-                checkboxWrappers: debugInfo.checkboxWrappers,
-                formPersistence: debugInfo.persistenceEnabled ? "enabled" : "disabled",
-                listenersAdded: debugInfo.listenersAdded?.join(", "),
-                skippedElements: debugInfo.skippedElements.join(", "),
-            });
-        }
-        catch (error) {
-            Debug.error(`Error setting up form change listeners: ${error.message}`);
-        }
-    }
-    /**
-     * Cleans up change event listeners for form elements
-     * @param {HTMLElement} form - The form element to clean up listeners for
-     */
-    function cleanupFormChangeListeners(form) {
-        try {
-            if (!form._fpChangeListeners)
-                return;
-            form._fpChangeListeners.forEach(({ element, handler }) => {
-                element.removeEventListener("change", handler);
-                element.removeEventListener("input", handler);
-            });
-            form._fpChangeListeners = [];
-        }
-        catch (error) {
-            Debug.error(`Error cleaning up form change listeners: ${error.message}`);
-        }
-    }
-    function handleFormElementChange(event) {
-        try {
-            const element = event.target;
-            const form = element.closest("form");
-            if (!form || !form.id) {
-                Debug.debug("Skipping change handler - no form or form ID");
-                return;
-            }
-            const debugInfo = collectDebugInfo(form, "change", {
-                changedValues: {},
-                skippedElements: [],
-            });
-            // Helper function to check if a value is a template
-            function isTemplateValue(value) {
-                if (typeof value !== "string")
-                    return false;
-                // Check for Handlebars syntax
-                if (value.includes("{{") || value.includes("}}"))
-                    return true;
-                // Check for alternative syntax
-                if (value.includes("[[") || value.includes("]]"))
-                    return true;
-                // Check for this. references which indicate template binding
-                if (value.includes("this."))
-                    return true;
-                return false;
-            }
-            // Helper function to check if an input is template-bound
-            function isTemplateInput(input) {
-                // Check if the input name itself is a template
-                if (isTemplateValue(input.name))
-                    return true;
-                // Check if the input has a template value
-                if (isTemplateValue(input.value))
-                    return true;
-                // Check for data-binding attributes that indicate template usage
-                if (AttributeMatcher._hasAttribute(input, "bind"))
-                    return true;
-                return false;
-            }
-            // Capture the current state of the form
-            const formState = {};
-            processFormElements(form, (input) => {
-                // First check if this is a template-bound input
-                if (isTemplateInput(input)) {
-                    debugInfo.skippedElements.push({
-                        name: input.name,
-                        reason: "Template binding detected",
-                        value: input.value,
-                    });
-                    return;
-                }
-                const value = input.type === "checkbox" || input.type === "radio"
-                    ? input.checked
-                    : input instanceof HTMLSelectElement && input.multiple
-                        ? Array.from(input.selectedOptions).map((opt) => opt.value)
-                        : input.value;
-                formState[input.name] = value;
-                if (!debugInfo.changedValues)
-                    debugInfo.changedValues = {};
-                debugInfo.changedValues[input.name] = value;
-            });
-            // Only store if there are elements to store
-            if (Object.keys(formState).length > 0) {
-                handleFormStorage(form, formState, "save");
-                // Output collected debug information
-                Debug.debug("Form state update for " + form.id + ":", {
-                    "Changed element": element.name,
-                    "Storage type": shouldUseLocalStorage(form)
-                        ? "localStorage"
-                        : "sessionStorage",
-                    "Updated values": debugInfo.changedValues,
-                    "Skipped elements": debugInfo.skippedElements,
-                });
-                // Find instance that contains this form or whose elements are contained by this form
-                let instance = null;
-                // @ts-ignore
-                for (const [instanceName, inst] of Object.entries(_state.instances)) {
-                    if (Array.from(inst.elements).some((el) => el.contains(form) || form.contains(el) || el === form)) {
-                        instance = inst;
-                        break;
-                    }
-                }
-                // Execute updateForm hook
-                PluginManager.executeHook("updateForm", instance, {
-                    element: form,
-                    id: form.id,
-                    data: formState,
-                    changedElement: element,
-                });
-                // Emit event
-                EventSystem.publish("formState:changed", {
-                    formId: form.id,
-                    formElement: form,
-                    state: formState,
-                    changedElement: element,
-                });
-            }
-        }
-        catch (error) {
-            Debug.error(`Error handling form element change: ${error.message}`);
-        }
-    }
-    /**
-     * Gets all relevant forms for an element (target, parent, and children)
-     * @param {HTMLElement} element - The element to get forms for
-     * @returns {Set<HTMLFormElement>} - Set of unique form elements
-     */
-    function getAllRelevantForms(element) {
-        const forms = new Set();
-        // Add the target if it's a form
-        if (element instanceof HTMLFormElement) {
-            forms.add(element);
-        }
-        // Add parent forms
-        const parentForm = element.closest("form");
-        if (parentForm) {
-            forms.add(parentForm);
-        }
-        // Add child forms
-        const childForms = element.getElementsByTagName("form");
-        Array.from(childForms).forEach((form) => forms.add(form));
-        return forms;
-    }
-    /**
-     * Sets up form submission handlers to clear state on submit
-     * @param {HTMLElement} element - The container element
-     * @param {string} [source] - The source of the call to setupFormSubmitHandlers
-     */
-    function setupFormSubmitHandlers(element, source) {
-        try {
-            Debug.debug("Setting up form submit handlers for element:", element);
-            // Get all relevant forms
-            const forms = getAllRelevantForms(element);
-            Debug.debug(`Found ${forms.size} forms`);
-            forms.forEach((form) => {
-                setupSingleFormHandlers(form, source || "setupFormSubmitHandlers");
-            });
-        }
-        catch (error) {
-            Debug.error(`Error setting up form submit handlers: ${error.message}`);
-        }
-    }
-    function setupSingleFormHandlers(form, source) {
-        if (!form.id) {
-            Debug.debug("Skipping form without ID");
-            return;
-        }
-        // Always set up handlers for forms that have been updated by HTMX
-        Debug.debug(`Setting up handlers for form: ${form.id}`);
-        // Remove existing listener if any
-        form.removeEventListener("submit", handleFormSubmit);
-        // Add new listener
-        form.addEventListener("submit", handleFormSubmit);
-        // Set up change listeners for form elements
-        setupFormChangeListeners(form);
-        // Mark form as having handlers set up
-        form._fpHandlersSetup = true;
-        // Check if form restoration is needed
-        if (shouldRestoreForm(form)) {
-            Debug.debug(`Restoring state for form: ${form.id}`);
-            restoreSingleFormState(form, source || "setupSingleFormHandlers");
-        }
-        else {
-            Debug.debug(`Skipping form restoration - no persistent elements: ${form.id}`);
-        }
-    }
-    function handleFormSubmit(event) {
-        try {
-            const form = event.target.closest("form");
-            if (form && form.id) {
-                clearFormState(form.id);
-            }
-        }
-        catch (error) {
-            Debug.error(`Error handling form submit: ${error.message}`);
-        }
-    }
-    function setupDynamicFormObserver(container) {
-        try {
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    mutation.addedNodes.forEach((node) => {
-                        if (node instanceof HTMLFormElement) {
-                            setupFormSubmitHandlers(node, "setupDynamicFormObserver");
-                        }
-                    });
-                });
-            });
-            observer.observe(container, {
-                childList: true,
-                subtree: true,
-            });
-            return observer;
-        }
-        catch (error) {
-            Debug.error(`Error setting up dynamic form observer: ${error.message}`);
-            return null;
-        }
-    }
-    /**
-     * Checks if form restoration should be performed for a form or its elements
-     * @param {HTMLElement} element - The form or container element to check
-     * @returns {boolean} - Whether form restoration should be performed
-     */
-    function shouldRestoreForm(element) {
-        return FormStateManager.shouldRestoreForm(element);
-    }
-
-    /**
-     * Checks if a string looks like a CSS selector
-     * @param {string} str - String to check
-     * @returns {boolean} True if the string looks like a CSS selector
-     */
-    function isCssSelector(str) {
-        // If it starts with # or . it's definitely a selector
-        if (str.startsWith("#") || str.startsWith(".")) {
-            return true;
-        }
-        // Other CSS selector patterns
-        return (/[[]>+~:()]/.test(str) || // Other CSS characters
-            /^[a-z]+[a-z-]+$/i.test(str)); // Element names like div, custom-element
-    }
-    /**
-     * Extracts data from a local variable or DOM element
-     * @param {string} varName - Variable name or CSS selector
-     * @param {boolean} [wrapPrimitive=true] - Whether to wrap primitive values in an object
-     * @returns {Object|null} The extracted data or null if not found/error
-     */
-    function extractLocalData(varName, wrapPrimitive = true) {
-        if (!varName)
-            return null;
-        try {
-            // If it looks like a CSS selector, try DOM first
-            if (isCssSelector(varName)) {
-                const element = document.querySelector(varName);
-                if (element) {
-                    // Check if DataExtractor plugin is available
-                    const dataExtractor = PluginManager.getPlugin("data-extractor");
-                    if (dataExtractor &&
-                        typeof dataExtractor.globalMethods?.processHtml === "function") {
-                        try {
-                            const extractedData = dataExtractor.globalMethods?.processHtml?.(element.outerHTML);
-                            Debug.debug(`Extracted data from element "${varName}":`, extractedData);
-                            return extractedData;
-                        }
-                        catch (e) {
-                            Debug.error(`DataExtractor failed for "${varName}": ${e.message}`);
-                            return null;
-                        }
-                    }
-                    else {
-                        Debug.warn("DataExtractor plugin not available for element extraction");
+                        // Skip formatting whitespace
                         return null;
                     }
                 }
+                // Preserve the original text content for meaningful text
+                return text;
             }
-            // If not a selector or element not found, try window scope
-            const value = window[varName];
-            if (value !== undefined) {
-                // If value is not an object and wrapping is enabled, wrap it
-                if (wrapPrimitive &&
-                    (typeof value !== "object" || value === null || Array.isArray(value))) {
-                    let wrappedValue = { [varName]: value };
-                    Debug.info(`Wrapped primitive value "${varName}":`, wrappedValue);
-                    return wrappedValue;
+            if (node.nodeType === Node.COMMENT_NODE) {
+                return null; // Skip comments
+            }
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node;
+                const tag = element.tagName.toLowerCase();
+                const isSVG = this.SVG_ELEMENTS.has(tag) || element.namespaceURI === this.SVG_NAMESPACE;
+                // Extract attributes and event handlers
+                const attrs = {};
+                const events = {};
+                const specialElements = ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'];
+                const isFormElement = specialElements.includes(tag.toUpperCase());
+                Array.from(element.attributes).forEach(attr => {
+                    if (attr.name.startsWith('on')) {
+                        // Capture event handler attributes
+                        events[attr.name] = attr.value;
+                    }
+                    else {
+                        attrs[attr.name] = attr.value;
+                    }
+                });
+                // Extract children (skip void elements)
+                let children = [];
+                if (!this.VOID_ELEMENTS.has(tag)) {
+                    children = Array.from(element.childNodes)
+                        .map(child => this.nodeToVNode(child))
+                        .filter(Boolean);
                 }
-                Debug.info(`Extracted value "${varName}":`, value);
-                return value;
+                return {
+                    tag,
+                    attrs,
+                    children,
+                    events: Object.keys(events).length > 0 ? events : undefined,
+                    key: attrs['data-key'],
+                    element,
+                    isSVG,
+                    isFormElement
+                };
             }
-            // If we get here, neither variable nor element was found
-            Debug.warn(`Neither variable nor element found for "${varName}"`);
             return null;
         }
-        catch (e) {
-            Debug.info(`Error extracting local data "${varName}": ${e.message}`);
-            return null;
+        /**
+         * Convert existing DOM element to virtual DOM tree
+         */
+        static domToVNodes(element) {
+            Performance.start('VirtualDOM.domToVNodes');
+            const vnodes = Array.from(element.childNodes)
+                .map(node => this.nodeToVNode(node))
+                .filter(Boolean);
+            Performance.end('VirtualDOM.domToVNodes');
+            return vnodes;
+        }
+        /**
+         * Check if two VNode trees are structurally identical
+         */
+        static areVNodeTreesEqual(oldVNodes, newVNodes) {
+            if (oldVNodes.length !== newVNodes.length) {
+                return false;
+            }
+            for (let i = 0; i < oldVNodes.length; i++) {
+                if (!this.areVNodesEqual(oldVNodes[i], newVNodes[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        /**
+         * Check if two VNodes are equal
+         */
+        static areVNodesEqual(oldVNode, newVNode) {
+            // Handle text nodes
+            if (typeof oldVNode === 'string' && typeof newVNode === 'string') {
+                // Special handling for whitespace-only text nodes
+                const oldIsWhitespace = oldVNode.trim() === '';
+                const newIsWhitespace = newVNode.trim() === '';
+                if (oldIsWhitespace && newIsWhitespace) {
+                    // Consider all whitespace-only text nodes equal to each other
+                    return true;
+                }
+                // For non-whitespace text, use exact equality
+                return oldVNode === newVNode;
+            }
+            // Handle mixed types
+            if (typeof oldVNode !== typeof newVNode) {
+                return false;
+            }
+            // Handle element nodes
+            if (typeof oldVNode === 'object' && typeof newVNode === 'object') {
+                // Check tag
+                if (oldVNode.tag !== newVNode.tag) {
+                    return false;
+                }
+                // Check attributes (shallow comparison)
+                const oldAttrs = oldVNode.attrs || {};
+                const newAttrs = newVNode.attrs || {};
+                const oldKeys = Object.keys(oldAttrs).sort();
+                const newKeys = Object.keys(newAttrs).sort();
+                if (oldKeys.length !== newKeys.length) {
+                    return false;
+                }
+                for (let i = 0; i < oldKeys.length; i++) {
+                    if (oldKeys[i] !== newKeys[i] || oldAttrs[oldKeys[i]] !== newAttrs[newKeys[i]]) {
+                        return false;
+                    }
+                }
+                // Check events (shallow comparison)
+                const oldEvents = oldVNode.events || {};
+                const newEvents = newVNode.events || {};
+                const oldEventKeys = Object.keys(oldEvents).sort();
+                const newEventKeys = Object.keys(newEvents).sort();
+                if (oldEventKeys.length !== newEventKeys.length) {
+                    return false;
+                }
+                for (let i = 0; i < oldEventKeys.length; i++) {
+                    if (oldEventKeys[i] !== newEventKeys[i] || oldEvents[oldEventKeys[i]] !== newEvents[newEventKeys[i]]) {
+                        return false;
+                    }
+                }
+                // Check children recursively
+                return this.areVNodeTreesEqual(oldVNode.children, newVNode.children);
+            }
+            return false;
+        }
+        /**
+         * Diff two virtual DOM trees and generate patch operations
+         */
+        static diff(oldVNodes, newVNodes) {
+            Performance.start('VirtualDOM.diff');
+            // Add null/undefined checks
+            if (!oldVNodes || !Array.isArray(oldVNodes)) {
+                Performance.end('VirtualDOM.diff');
+                return [];
+            }
+            if (!newVNodes || !Array.isArray(newVNodes)) {
+                Performance.end('VirtualDOM.diff');
+                return [];
+            }
+            // Quick check: if the trees are structurally identical, skip diffing
+            if (this.areVNodeTreesEqual(oldVNodes, newVNodes)) {
+                Performance.end('VirtualDOM.diff');
+                return [];
+            }
+            const patches = [];
+            // Create keyed element maps for efficient lookup
+            const oldKeyed = new Map();
+            const newKeyed = new Map();
+            oldVNodes.forEach((vnode, index) => {
+                if (typeof vnode === 'object' && vnode.key) {
+                    oldKeyed.set(vnode.key, { vnode, index });
+                }
+            });
+            newVNodes.forEach((vnode, index) => {
+                if (typeof vnode === 'object' && vnode.key) {
+                    newKeyed.set(vnode.key, { vnode, index });
+                }
+            });
+            // Track processed indices
+            const processedOld = new Set();
+            const processedNew = new Set();
+            // First pass: Handle keyed elements
+            newKeyed.forEach(({ vnode: newVNode, index: newIndex }, key) => {
+                const oldEntry = oldKeyed.get(key);
+                if (oldEntry) {
+                    const { vnode: oldVNode, index: oldIndex } = oldEntry;
+                    // Mark as processed
+                    processedOld.add(oldIndex);
+                    processedNew.add(newIndex);
+                    // Check if element needs to move
+                    if (oldIndex !== newIndex) {
+                        patches.push({
+                            type: 'MOVE',
+                            target: oldVNode.element,
+                            oldIndex,
+                            newIndex
+                        });
+                    }
+                    // Check for attribute/content changes
+                    const subPatches = this.diffVNode(oldVNode, newVNode);
+                    patches.push(...subPatches);
+                }
+            });
+            // Second pass: Handle non-keyed elements with improved matching
+            const unprocessedOld = oldVNodes.filter((_, i) => !processedOld.has(i));
+            const unprocessedNew = newVNodes.filter((_, i) => !processedNew.has(i));
+            const usedOldIndices = new Set();
+            // Try to match remaining new elements with remaining old elements
+            unprocessedNew.forEach((newVNode) => {
+                const actualNewIndex = newVNodes.findIndex(vn => vn === newVNode);
+                const bestMatchIndex = this.findBestMatch(newVNode, unprocessedOld, usedOldIndices);
+                if (bestMatchIndex !== -1) {
+                    // Found a good match
+                    const oldVNode = unprocessedOld[bestMatchIndex];
+                    usedOldIndices.add(bestMatchIndex);
+                    // Calculate actual old index
+                    let actualOldIndex = -1;
+                    let relativeIndex = 0;
+                    for (let i = 0; i < oldVNodes.length; i++) {
+                        if (!processedOld.has(i)) {
+                            if (relativeIndex === bestMatchIndex) {
+                                actualOldIndex = i;
+                                break;
+                            }
+                            relativeIndex++;
+                        }
+                    }
+                    if (actualOldIndex !== actualNewIndex) {
+                        // Element needs to move
+                        patches.push({
+                            type: 'MOVE',
+                            target: typeof oldVNode === 'object' ? oldVNode.element : undefined,
+                            oldIndex: actualOldIndex,
+                            newIndex: actualNewIndex
+                        });
+                    }
+                    // Diff the matched elements
+                    const subPatches = this.diffVNode(oldVNode, newVNode);
+                    patches.push(...subPatches);
+                }
+                else {
+                    // No good match found, create new element at the correct position
+                    patches.push({
+                        type: 'CREATE',
+                        vnode: newVNode,
+                        newIndex: actualNewIndex
+                    });
+                }
+            });
+            // Remove any unmatched old elements
+            unprocessedOld.forEach((oldVNode, oldRelativeIndex) => {
+                if (!usedOldIndices.has(oldRelativeIndex)) {
+                    // Calculate the actual index in the original oldVNodes array
+                    let actualOldIndex = -1;
+                    let relativeIndex = 0;
+                    for (let i = 0; i < oldVNodes.length; i++) {
+                        if (!processedOld.has(i)) {
+                            if (relativeIndex === oldRelativeIndex) {
+                                actualOldIndex = i;
+                                break;
+                            }
+                            relativeIndex++;
+                        }
+                    }
+                    const removeTarget = typeof oldVNode === 'object' ? oldVNode.element : undefined;
+                    patches.push({
+                        type: 'REMOVE',
+                        target: removeTarget,
+                        textNodeIndex: typeof oldVNode === 'string' ? actualOldIndex : undefined,
+                        // Add elementIndex for elements without direct references
+                        oldIndex: typeof oldVNode === 'object' && !oldVNode.element ? actualOldIndex : undefined
+                    });
+                }
+            });
+            Performance.end('VirtualDOM.diff');
+            return patches;
+        }
+        /**
+         * Diff two individual virtual nodes
+         */
+        static diffVNode(oldVNode, newVNode) {
+            // Handle text nodes - text changes should be handled by remove/create operations
+            if (typeof oldVNode === 'string' || typeof newVNode === 'string') {
+                // Text node changes are handled at the parent level by removing old and creating new
+                // Don't generate patches here - let the parent handle this via REMOVE/CREATE
+                return [];
+            }
+            // Handle different element types
+            if (oldVNode.tag !== newVNode.tag) {
+                return [{
+                        type: 'REPLACE',
+                        target: oldVNode.element,
+                        vnode: newVNode
+                    }];
+            }
+            // Skip comparison for Webflow-specific elements to preserve their state
+            if (this.isWebflowElement(oldVNode) || this.isWebflowElement(newVNode)) {
+                return []; // Skip updates for Webflow elements to preserve their state
+            }
+            // Special handling for form elements - preserve their state
+            if (oldVNode.isFormElement || newVNode.isFormElement) {
+                return this.diffFormElement(oldVNode, newVNode);
+            }
+            const patches = [];
+            // Check if content has changed significantly - if so, replace the entire element
+            if (this.hasSignificantContentChange(oldVNode, newVNode)) {
+                return [{
+                        type: 'REPLACE',
+                        target: oldVNode.element,
+                        vnode: newVNode
+                    }];
+            }
+            // Check attributes
+            const attrPatches = this.diffAttributes(oldVNode.attrs, newVNode.attrs);
+            if (attrPatches) {
+                patches.push({
+                    type: 'UPDATE_ATTRS',
+                    target: oldVNode.element,
+                    attrs: attrPatches
+                });
+            }
+            // Check events
+            const eventPatches = this.diffEvents(oldVNode.events || {}, newVNode.events || {});
+            if (eventPatches) {
+                patches.push({
+                    type: 'UPDATE_EVENTS',
+                    target: oldVNode.element,
+                    events: eventPatches
+                });
+            }
+            // Only recursively diff children if we're not replacing the whole element
+            const childPatches = this.diff(oldVNode.children, newVNode.children);
+            patches.push(...childPatches);
+            return patches;
+        }
+        /**
+         * Check if two vnodes have significant content changes that warrant replacement
+         */
+        static hasSignificantContentChange(oldVNode, newVNode) {
+            // For course cards and similar complex elements, be more aggressive about replacement
+            if (oldVNode.attrs.class && oldVNode.attrs.class.includes('course-card')) {
+                // Always replace course cards - they have complex nested structure
+                return true;
+            }
+            // If the structure is different, replace
+            if (Math.abs(oldVNode.children.length - newVNode.children.length) > 1) {
+                return true;
+            }
+            // If most of the text content is different, replace
+            const oldText = this.extractTextContent(oldVNode);
+            const newText = this.extractTextContent(newVNode);
+            if (oldText.length > 0 && newText.length > 0) {
+                const similarity = this.calculateTextSimilarity(oldText, newText);
+                if (similarity < 0.5) { // Less than 50% similar
+                    return true;
+                }
+            }
+            // If text content lengths are very different, replace
+            if (oldText.length > 0 && newText.length > 0) {
+                const lengthRatio = Math.min(oldText.length, newText.length) / Math.max(oldText.length, newText.length);
+                if (lengthRatio < 0.5) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        /**
+         * Extract all text content from a vnode
+         */
+        static extractTextContent(vnode) {
+            let text = '';
+            for (const child of vnode.children) {
+                if (typeof child === 'string') {
+                    text += child;
+                }
+                else {
+                    text += this.extractTextContent(child);
+                }
+            }
+            // Only trim for comparison purposes, but preserve original spacing in actual content
+            return text.trim();
+        }
+        /**
+         * Calculate text similarity between two strings
+         */
+        static calculateTextSimilarity(text1, text2) {
+            const words1 = text1.toLowerCase().split(/\s+/);
+            const words2 = text2.toLowerCase().split(/\s+/);
+            const commonWords = words1.filter(word => words2.includes(word));
+            const totalWords = Math.max(words1.length, words2.length);
+            return totalWords > 0 ? commonWords.length / totalWords : 0;
+        }
+        /**
+         * Check if a virtual node represents a Webflow element that should be handled specially
+         */
+        static isWebflowElement(vnode) {
+            const className = vnode.attrs.class || vnode.attrs.className || '';
+            // Check for Webflow classes
+            if (typeof className === 'string' && className.includes('w-')) {
+                return true;
+            }
+            // Check for Webflow-specific attributes
+            const hasWebflowAttrs = Object.keys(vnode.attrs).some(attr => attr.startsWith('w-'));
+            if (hasWebflowAttrs) {
+                return true;
+            }
+            // Check for Webflow form wrapper patterns
+            const webflowFormClasses = [
+                'w-checkbox', 'w-radio', 'w-checkbox-input', 'w-radio-input',
+                'w-form', 'w-input', 'w-select', 'w-textarea'
+            ];
+            if (typeof className === 'string') {
+                const classes = className.split(' ');
+                if (classes.some(cls => webflowFormClasses.includes(cls))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        /**
+         * Special diffing for form elements to preserve their state and handle Webflow patterns
+         */
+        static diffFormElement(oldVNode, newVNode) {
+            const patches = [];
+            // For form elements, exclude value/state attributes AND Webflow-specific attributes
+            const excludedAttrs = new Set(['value', 'checked', 'selected']);
+            const filteredNewAttrs = {};
+            Object.entries(newVNode.attrs).forEach(([key, value]) => {
+                // Skip form state attributes and Webflow-specific attributes (w-*)
+                if (!excludedAttrs.has(key) && !key.startsWith('w-')) {
+                    filteredNewAttrs[key] = value;
+                }
+            });
+            const attrPatches = this.diffAttributes(oldVNode.attrs, filteredNewAttrs);
+            if (attrPatches) {
+                patches.push({
+                    type: 'UPDATE_ATTRS',
+                    target: oldVNode.element,
+                    attrs: attrPatches
+                });
+            }
+            // Still check events for form elements
+            const eventPatches = this.diffEvents(oldVNode.events || {}, newVNode.events || {});
+            if (eventPatches) {
+                patches.push({
+                    type: 'UPDATE_EVENTS',
+                    target: oldVNode.element,
+                    events: eventPatches
+                });
+            }
+            // CRITICAL: Always sync Webflow visual state for form elements
+            // This ensures that even if the template changes, the visual state matches the actual DOM state
+            if (oldVNode.element && (oldVNode.tag === 'input' || oldVNode.tag === 'select' || oldVNode.tag === 'textarea')) {
+                patches.push({
+                    type: 'UPDATE_WEBFLOW_STATE',
+                    target: oldVNode.element
+                });
+            }
+            // Don't diff children for form inputs (they typically don't have meaningful children)
+            if (oldVNode.tag !== 'input' && oldVNode.tag !== 'textarea') {
+                const childPatches = this.diff(oldVNode.children, newVNode.children);
+                patches.push(...childPatches);
+            }
+            return patches;
+        }
+        /**
+         * Find best match for non-keyed element using similarity scoring
+         */
+        static findBestMatch(targetVNode, candidates, processedIndices) {
+            if (typeof targetVNode === 'string') {
+                // For text nodes, find exact or similar text
+                for (let i = 0; i < candidates.length; i++) {
+                    if (processedIndices.has(i))
+                        continue;
+                    if (typeof candidates[i] === 'string' && candidates[i] === targetVNode) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+            let bestMatch = -1;
+            let bestScore = 0;
+            for (let i = 0; i < candidates.length; i++) {
+                if (processedIndices.has(i))
+                    continue;
+                const candidate = candidates[i];
+                if (typeof candidate === 'string')
+                    continue;
+                let score = 0;
+                // Same tag type (highest priority)
+                if (candidate.tag === targetVNode.tag)
+                    score += 10;
+                // Same ID (high priority)
+                if (candidate.attrs.id && targetVNode.attrs.id && candidate.attrs.id === targetVNode.attrs.id)
+                    score += 8;
+                // Similar class names (medium priority)
+                const candidateClasses = (candidate.attrs.class || '').split(' ');
+                const targetClasses = (targetVNode.attrs.class || '').split(' ');
+                const commonClasses = candidateClasses.filter(c => targetClasses.includes(c));
+                score += commonClasses.length * 2;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = i;
+                }
+            }
+            // Only return match if it's a reasonably good match
+            // Require more than just tag matching - need additional attributes or content similarity
+            return bestScore > 10 ? bestMatch : -1;
+        }
+        /**
+         * Diff attributes between old and new virtual nodes with Webflow-aware handling
+         */
+        static diffAttributes(oldAttrs, newAttrs) {
+            const changes = {};
+            let hasChanges = false;
+            // Check for changed/new attributes
+            for (const [key, value] of Object.entries(newAttrs)) {
+                if (oldAttrs[key] !== value) {
+                    changes[key] = value;
+                    hasChanges = true;
+                }
+            }
+            // Check for removed attributes, but preserve Webflow-specific attributes
+            for (const key of Object.keys(oldAttrs)) {
+                if (!(key in newAttrs)) {
+                    // Don't remove Webflow-specific attributes or classes that might include Webflow state
+                    if (!key.startsWith('w-') && key !== 'class') {
+                        changes[key] = ''; // Empty string indicates removal
+                        hasChanges = true;
+                    }
+                    else if (key === 'class') {
+                        // For class attribute, we need to be more careful with Webflow classes
+                        const oldClasses = (oldAttrs[key] || '').split(' ').filter(Boolean);
+                        const newClasses = (newAttrs[key] || '').split(' ').filter(Boolean);
+                        // Preserve Webflow classes (w-*) and only remove non-Webflow classes
+                        const preservedWebflowClasses = oldClasses.filter(cls => cls.startsWith('w-'));
+                        const finalClasses = [...new Set([...newClasses, ...preservedWebflowClasses])];
+                        if (finalClasses.join(' ') !== oldAttrs[key]) {
+                            changes[key] = finalClasses.join(' ');
+                            hasChanges = true;
+                        }
+                    }
+                }
+            }
+            return hasChanges ? changes : null;
+        }
+        /**
+         * Diff event handlers between old and new virtual nodes
+         */
+        static diffEvents(oldEvents, newEvents) {
+            const toAdd = {};
+            const toRemove = [];
+            let hasChanges = false;
+            // Check for new/changed events
+            for (const [eventType, handler] of Object.entries(newEvents)) {
+                if (oldEvents[eventType] !== handler) {
+                    toAdd[eventType] = handler;
+                    hasChanges = true;
+                }
+            }
+            // Check for removed events
+            for (const eventType of Object.keys(oldEvents)) {
+                if (!(eventType in newEvents)) {
+                    toRemove.push(eventType);
+                    hasChanges = true;
+                }
+            }
+            if (!hasChanges)
+                return null;
+            return {
+                ...(Object.keys(toAdd).length > 0 && { add: toAdd }),
+                ...(toRemove.length > 0 && { remove: toRemove })
+            };
+        }
+        /**
+         * Apply patch operations to the DOM
+         */
+        static patch(container, patches, expectedVNodes, capturedFormStates) {
+            Performance.start('VirtualDOM.patch');
+            // Group patches by type for optimal batching
+            const patchGroups = {
+                replaces: [],
+                moves: [],
+                removes: [],
+                creates: [],
+                updates: []
+            };
+            patches.forEach((patch) => {
+                switch (patch.type) {
+                    case 'REPLACE':
+                        patchGroups.replaces.push(patch);
+                        break;
+                    case 'MOVE':
+                        patchGroups.moves.push(patch);
+                        break;
+                    case 'REMOVE':
+                        patchGroups.removes.push(patch);
+                        break;
+                    case 'CREATE':
+                        patchGroups.creates.push(patch);
+                        break;
+                    default:
+                        patchGroups.updates.push(patch);
+                }
+            });
+            // Apply patches in optimal order: replaces first, then removes, then creates, then moves, then updates
+            this.applyReplaces(patchGroups.replaces);
+            this.applyRemoves(container, patchGroups.removes);
+            this.applyCreates(container, patchGroups.creates);
+            this.applyMoves(container, patchGroups.moves);
+            this.applyUpdates(patchGroups.updates);
+            // Perform post-update verification if expected state is provided and enabled
+            if (expectedVNodes && expectedVNodes.length > 0) {
+                try {
+                    this.verifyDOMIntegrity(container, expectedVNodes, capturedFormStates);
+                }
+                catch (error) {
+                    Debug.error('VirtualDOM: Error during integrity check:', error);
+                }
+            }
+            Performance.end('VirtualDOM.patch');
+        }
+        /**
+       * Verify that the actual DOM matches the expected HTML
+       * If there's a mismatch, force update the DOM to match the expected state
+       */
+        static verifyDOMIntegrity(container, expectedVNodes, capturedFormStates) {
+            Performance.start('VirtualDOM.verifyDOMIntegrity');
+            // Convert expected VNodes back to HTML string
+            const expectedHTML = this.vNodesToHTML(expectedVNodes);
+            // Get current DOM as HTML string
+            const currentHTML = container.innerHTML;
+            // Normalize both for comparison (remove extra whitespace, line breaks)
+            const normalize = (html) => html.replace(/\s+/g, ' ').trim();
+            if (normalize(expectedHTML) !== normalize(currentHTML)) {
+                Debug.warn(`VirtualDOM: DOM integrity check failed - forcing innerHTML update`);
+                // Force update with expected HTML
+                container.innerHTML = expectedHTML;
+                // Only restore form values if we have captured states and verification failed
+                if (capturedFormStates && Object.keys(capturedFormStates).length > 0) {
+                    Debug.debug(`VirtualDOM: Restoring form states after integrity fix`);
+                    FormStateManager.restoreFormStates(container, 'VirtualDOM.verifyDOMIntegrity');
+                }
+                Debug.debug(`VirtualDOM: DOM integrity restored via innerHTML`);
+            }
+            else {
+                Debug.debug(`VirtualDOM: DOM integrity check passed`);
+            }
+            Performance.end('VirtualDOM.verifyDOMIntegrity');
+        }
+        /**
+         * Convert VNodes back to HTML string
+         */
+        static vNodesToHTML(vnodes) {
+            return vnodes.map(vnode => {
+                if (typeof vnode === 'string') {
+                    return vnode;
+                }
+                const attrs = Object.entries(vnode.attrs || {})
+                    .map(([key, value]) => `${key}="${value}"`)
+                    .join(' ');
+                const attrsStr = attrs ? ` ${attrs}` : '';
+                const childrenHTML = this.vNodesToHTML(vnode.children);
+                if (this.VOID_ELEMENTS.has(vnode.tag)) {
+                    return `<${vnode.tag}${attrsStr}>`;
+                }
+                return `<${vnode.tag}${attrsStr}>${childrenHTML}</${vnode.tag}>`;
+            }).join('');
+        }
+        static applyReplaces(replaces) {
+            replaces.forEach(patch => {
+                if (patch.target && patch.vnode && patch.target.parentNode) {
+                    const newElement = this.createElementFromVNode(patch.vnode);
+                    this.cleanupElement(patch.target);
+                    patch.target.parentNode.replaceChild(newElement, patch.target);
+                }
+            });
+        }
+        static applyMoves(container, moves) {
+            moves.forEach(patch => {
+                if (patch.target && patch.newIndex !== undefined) {
+                    const children = Array.from(container.childNodes);
+                    const referenceNode = children[patch.newIndex] || null;
+                    container.insertBefore(patch.target, referenceNode);
+                }
+            });
+        }
+        static applyUpdates(updates) {
+            updates.forEach(patch => {
+                switch (patch.type) {
+                    case 'UPDATE_ATTRS':
+                        if (patch.target && patch.attrs) {
+                            this.updateElementAttributes(patch.target, patch.attrs);
+                        }
+                        break;
+                    case 'UPDATE_EVENTS':
+                        if (patch.target && patch.events) {
+                            this.updateElementEvents(patch.target, patch.events);
+                        }
+                        break;
+                    case 'UPDATE_WEBFLOW_STATE':
+                        if (patch.target) {
+                            this.updateWebflowFormVisualState(patch.target);
+                        }
+                        break;
+                }
+            });
+        }
+        static applyCreates(container, creates) {
+            // Sort creates by newIndex to maintain proper order
+            const sortedCreates = creates.sort((a, b) => (a.newIndex ?? 0) - (b.newIndex ?? 0));
+            sortedCreates.forEach(patch => {
+                if (patch.vnode) {
+                    const element = this.createElementFromVNode(patch.vnode);
+                    if (patch.newIndex !== undefined) {
+                        // Insert at specific position
+                        const children = Array.from(container.childNodes);
+                        const referenceNode = children[patch.newIndex] || null;
+                        container.insertBefore(element, referenceNode);
+                    }
+                    else {
+                        // Fallback to append if no position specified
+                        container.appendChild(element);
+                    }
+                }
+            });
+        }
+        static applyRemoves(container, removes) {
+            // Separate different types of removes
+            const elementRemoves = removes.filter(patch => patch.target && patch.target.parentNode);
+            const textNodeRemoves = removes.filter(patch => patch.textNodeIndex !== undefined);
+            const indexRemoves = removes.filter(patch => !patch.target && patch.oldIndex !== undefined);
+            // Combine all index-based removals (both elements and text nodes) and sort by index descending
+            // This prevents index shifting issues
+            const allIndexRemoves = [
+                ...textNodeRemoves.map(patch => ({ ...patch, isTextNode: true })),
+                ...indexRemoves.map(patch => ({ ...patch, isTextNode: false }))
+            ].sort((a, b) => {
+                const aIndex = a.textNodeIndex ?? a.oldIndex ?? -1;
+                const bIndex = b.textNodeIndex ?? b.oldIndex ?? -1;
+                return bIndex - aIndex; // Descending order
+            });
+            // Remove elements with direct references first
+            elementRemoves.forEach((patch) => {
+                if (patch.target && patch.target.parentNode) {
+                    this.cleanupElement(patch.target);
+                    patch.target.parentNode.removeChild(patch.target);
+                }
+            });
+            // Remove by index (both elements and text nodes) in descending order
+            allIndexRemoves.forEach((patch) => {
+                const childNodes = Array.from(container.childNodes);
+                const indexToRemove = patch.textNodeIndex ?? patch.oldIndex;
+                const nodeToRemove = childNodes[indexToRemove];
+                if (nodeToRemove) {
+                    if (patch.isTextNode && nodeToRemove.nodeType === Node.TEXT_NODE) {
+                        container.removeChild(nodeToRemove);
+                    }
+                    else if (!patch.isTextNode && nodeToRemove.nodeType === Node.ELEMENT_NODE) {
+                        this.cleanupElement(nodeToRemove);
+                        container.removeChild(nodeToRemove);
+                    }
+                }
+            });
+        }
+        /**
+         * Create DOM element from virtual node
+         */
+        static createElementFromVNode(vnode) {
+            if (typeof vnode === 'string') {
+                return document.createTextNode(vnode);
+            }
+            // Create element with proper namespace support
+            const element = vnode.isSVG
+                ? document.createElementNS(this.SVG_NAMESPACE, vnode.tag)
+                : document.createElement(vnode.tag);
+            // Set attributes with namespace support
+            this.updateElementAttributes(element, vnode.attrs);
+            // Set up event handlers
+            if (vnode.events) {
+                this.updateElementEvents(element, { add: vnode.events });
+            }
+            // Add children
+            vnode.children.forEach(child => {
+                const childElement = this.createElementFromVNode(child);
+                element.appendChild(childElement);
+            });
+            // Handle Webflow form visual state if this is a form element
+            if (vnode.isFormElement) {
+                this.updateWebflowFormVisualState(element);
+            }
+            // Store reference for future diffing
+            vnode.element = element;
+            return element;
+        }
+        /**
+         * Update element attributes with SVG namespace support and Webflow form handling
+         */
+        static updateElementAttributes(element, attrs) {
+            const isSVG = element.namespaceURI === this.SVG_NAMESPACE;
+            let shouldUpdateWebflowState = false;
+            Object.entries(attrs).forEach(([key, value]) => {
+                if (value === '') {
+                    element.removeAttribute(key);
+                }
+                else if (isSVG) {
+                    // SVG attributes may need special handling
+                    element.setAttributeNS(null, key, value);
+                }
+                else {
+                    element.setAttribute(key, value);
+                }
+                // Check if we need to update Webflow visual state
+                if (key === 'checked' && element instanceof HTMLInputElement) {
+                    shouldUpdateWebflowState = true;
+                }
+            });
+            // Update Webflow visual state if needed
+            if (shouldUpdateWebflowState) {
+                this.updateWebflowFormVisualState(element);
+            }
+        }
+        /**
+         * Update element event handlers with proper cleanup
+         */
+        static updateElementEvents(element, events) {
+            // Get current event listeners for this element
+            let currentEvents = this.elementEventMap.get(element);
+            if (!currentEvents) {
+                currentEvents = new Set();
+                this.elementEventMap.set(element, currentEvents);
+            }
+            // Remove old event handlers (set to null to remove)
+            if (events.remove) {
+                events.remove.forEach(eventType => {
+                    if (currentEvents.has(eventType)) {
+                        // Remove the event handler attribute
+                        element.removeAttribute(eventType);
+                        currentEvents.delete(eventType);
+                    }
+                });
+            }
+            // Add new event handlers as attributes
+            if (events.add) {
+                Object.entries(events.add).forEach(([eventType, handler]) => {
+                    element.setAttribute(eventType, handler);
+                    currentEvents.add(eventType);
+                });
+            }
+        }
+        /**
+         * Update Webflow custom visual state for form elements
+         * This ensures the visual state matches the actual DOM state, regardless of template changes
+         */
+        static updateWebflowFormVisualState(element) {
+            if (!(element instanceof HTMLInputElement))
+                return;
+            // Only handle checkbox and radio inputs
+            if (element.type !== 'checkbox' && element.type !== 'radio')
+                return;
+            // Find the Webflow wrapper
+            const wrapper = element.closest(element.type === 'checkbox' ? '.w-checkbox' : '.w-radio');
+            if (!wrapper)
+                return;
+            // Find the custom visual input element
+            const customInput = wrapper.querySelector(`.w-${element.type}-input`);
+            if (customInput) {
+                // CRITICAL: Always sync based on the ACTUAL DOM element's current state
+                // This preserves user interactions even when templates change
+                const isCurrentlyChecked = element.checked;
+                Debug.debug(`VirtualDOM: Syncing Webflow visual state for ${element.type} - checked: ${isCurrentlyChecked}`);
+                // Update the visual state class based on the actual input's current checked state
+                if (isCurrentlyChecked) {
+                    customInput.classList.add('w--redirected-checked');
+                }
+                else {
+                    customInput.classList.remove('w--redirected-checked');
+                }
+            }
+        }
+        /**
+         * Clean up all event listeners for an element (for memory management)
+         */
+        static cleanupElement(element) {
+            const events = this.elementEventMap.get(element);
+            if (events) {
+                // Remove all event handler attributes tracked for this element
+                events.forEach(eventType => {
+                    element.removeAttribute(eventType);
+                });
+                this.elementEventMap.delete(element);
+            }
+            // Also clean up any child elements recursively
+            const childElements = element.querySelectorAll('*');
+            childElements.forEach(child => {
+                const childEvents = this.elementEventMap.get(child);
+                if (childEvents) {
+                    childEvents.forEach(eventType => {
+                        child.removeAttribute(eventType);
+                    });
+                    this.elementEventMap.delete(child);
+                }
+            });
         }
     }
+    Object.defineProperty(VirtualDOM, "VOID_ELEMENTS", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: new Set([
+            'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+            'link', 'meta', 'param', 'source', 'track', 'wbr'
+        ])
+    });
+    Object.defineProperty(VirtualDOM, "SVG_NAMESPACE", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: 'http://www.w3.org/2000/svg'
+    });
+    Object.defineProperty(VirtualDOM, "SVG_ELEMENTS", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: new Set([
+            'svg', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'rect', 'path',
+            'g', 'text', 'tspan', 'defs', 'use', 'symbol', 'marker', 'clipPath',
+            'mask', 'pattern', 'image', 'foreignObject'
+        ])
+    });
+    // Track elements with event listeners for cleanup
+    Object.defineProperty(VirtualDOM, "elementEventMap", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: new WeakMap()
+    });
 
     /**
      * Performs the actual DOM update logic
@@ -4476,6 +4741,9 @@ var FlowPlater = (function () {
         const newVNodes = VirtualDOM.parseHTML(newHTML) || [];
         Debug.debug(`performDomUpdate: Parsed new HTML into ${newVNodes.length} nodes`);
         Debug.debug(`performDomUpdate: New DOM nodes:`, newVNodes.map((vn, i) => typeof vn === 'string' ? `${i}: "${vn}"` : `${i}: <${vn.tag}${vn.attrs.class ? ` class="${vn.attrs.class}"` : ''}>`));
+        // Capture form states before making any changes (for integrity check fallback)
+        const formStates = await domBatcher.read(() => captureFormStates(element), `capture-form-integrity-${elementId}-${timestamp}`);
+        Debug.debug(`performDomUpdate: Captured form states for integrity check:`, formStates);
         // Write phase: diff and apply patches
         await domBatcher.batch([
             {
@@ -4484,7 +4752,8 @@ var FlowPlater = (function () {
                     const patches = VirtualDOM.diff(oldVNodes, newVNodes);
                     Debug.debug(`performDomUpdate: Generated ${patches.length} patches`);
                     if (patches.length > 0) {
-                        VirtualDOM.patch(element, patches);
+                        // Pass the expected newVNodes and captured form states for post-update verification
+                        VirtualDOM.patch(element, patches, newVNodes, formStates);
                     }
                     else {
                         Debug.debug(`performDomUpdate: No patches to apply - content is identical`);
@@ -5472,7 +5741,7 @@ var FlowPlater = (function () {
                 const rightValue = rightToken
                     ? resolveValue(rightToken, options.data.root, this)
                     : true;
-                operator = operator || "==";
+                operator = operator || DEFAULTS.HELPERS.COMPARISON.DEFAULT_OPERATOR;
                 // Log resolved values for debugging
                 Debug.info("Evaluating expression:", {
                     raw: expression,
@@ -5565,10 +5834,10 @@ var FlowPlater = (function () {
             // sortBeforeLimit: sort before limiting (default: true)
             var result = "";
             var limit = options.hash.limit || undefined;
-            var startAt = options.hash.startAt || 0;
-            var key = options.hash.sortBy || "";
-            var descending = options.hash.descending || false;
-            var sortBeforeLimit = options.hash.sortBeforeLimit || true;
+            var startAt = options.hash.startAt || DEFAULTS.HELPERS.EACH.START_AT;
+            var key = options.hash.sortBy || DEFAULTS.HELPERS.EACH.SORT_KEY;
+            var descending = options.hash.descending || DEFAULTS.HELPERS.EACH.DESCENDING;
+            var sortBeforeLimit = options.hash.sortBeforeLimit || DEFAULTS.HELPERS.EACH.SORT_BEFORE_LIMIT;
             var inverse = options.inverse;
             var fn = options.fn;
             var data;
@@ -20063,60 +20332,7 @@ var FlowPlater = (function () {
             ConfigManager.setConfig({ debug: { level } });
             return this;
         },
-        templateCache: {
-            set(templateId, template) {
-                const cacheSize = ConfigManager.getConfig().templates.cacheSize;
-                const cache = _state.templateCache;
-                // If cache is at limit, remove oldest entry
-                if (Object.keys(cache).length >= cacheSize) {
-                    const oldestKey = Object.keys(cache)[0];
-                    delete cache[oldestKey];
-                    Debug.info(`Cache limit reached. Removed template: ${oldestKey}`);
-                }
-                cache[templateId] = template;
-                return template;
-            },
-            /**
-             * Get a template from the cache
-             * @param {string} templateId - The ID of the template to get
-             * @returns {Object} The template object or all templates if no ID is provided
-             */
-            get(templateId) {
-                if (templateId) {
-                    return _state.templateCache[templateId];
-                }
-                return _state.templateCache;
-            },
-            /**
-             * Check if a template is cached
-             * @param {string} templateId - The ID of the template to check
-             * @returns {boolean} True if the template is cached, false otherwise
-             */
-            isCached(templateId) {
-                return !!_state.templateCache[templateId];
-            },
-            /**
-             * Clear a template from the cache
-             * @param {string} templateId - The ID of the template to clear
-             */
-            clear(templateId) {
-                if (templateId) {
-                    delete _state.templateCache[templateId];
-                    Debug.info(`Cleared template cache for: ${templateId}`);
-                }
-                else {
-                    _state.templateCache = {};
-                    Debug.info("Cleared entire template cache");
-                }
-            },
-            /**
-             * Get the size of the template cache
-             * @returns {number} The number of templates in the cache
-             */
-            size() {
-                return Object.keys(_state.templateCache).length;
-            },
-        },
+        templateCache: TemplateCache,
         /**
          * @function init
          * @param {HTMLElement} [element=document] - Root element to initialize
@@ -20149,7 +20365,7 @@ var FlowPlater = (function () {
             // Initialize each template
             templates.forEach((template) => {
                 let templateId = AttributeMatcher._getRawAttribute(template, "template");
-                if (templateId === "self" || templateId === "") {
+                if (templateId === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID || templateId === "") {
                     templateId = template.id;
                 }
                 if (templateId) {
@@ -20367,7 +20583,7 @@ var FlowPlater = (function () {
                 this.cleanup(name);
             });
             // Clean up template cache
-            _state.templateCache = {};
+            TemplateCache.clear();
             _state.instances = {};
             // Clean up event listeners
             EventSystem.unsubscribeAll();
