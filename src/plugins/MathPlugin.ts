@@ -1,5 +1,12 @@
-import { Debug } from "../../core/Debug";
+import { FlowPlaterInstance, FlowPlaterObj, FlowPlaterPlugin } from "../types";
+import { TemplateError, Debug } from "../core/Debug";
 
+declare const FlowPlater: FlowPlaterObj;
+
+/**
+ * JSCalc - JavaScript Calculator Expression Evaluator
+ * Supports arithmetic operations, functions, and mathematical constants
+ */
 function* Lexer(expr: string) {
   var _regex = new RegExp(Lexer.lang, "g");
   var x;
@@ -55,10 +62,8 @@ class Calc {
   _next() {
     const next = this.l.next();
     if (next.done) {
-      //   console.debug("End of expression reached");
       return null;
     }
-    // console.debug("Next token:", next.value);
     return next.value;
   }
 
@@ -315,4 +320,205 @@ class Calc {
 }
 Calc.ans = 0;
 
-export { Calc };
+/**
+ * @module MathPlugin
+ * @description Math plugin that provides mathematical expression evaluation capabilities
+ */
+
+/**
+ * Math plugin for FlowPlater providing mathematical expression evaluation through the math helper
+ * 
+ * @function MathPlugin
+ * @returns {Object} Plugin object containing math calculation functionality
+ */
+const MathPlugin = (customConfig = {}) => {
+  /**
+   * Plugin configuration object
+   */
+  const config = {
+    name: "math",
+    enabled: true,
+    priority: 100, // Higher priority since other plugins might depend on math helpers
+    version: "1.0.0",
+    dependencies: [],
+    optionalDependencies: [],
+    settings: {
+      debug: false,
+    },
+    description: "Provides mathematical expression evaluation capabilities through the math helper",
+    author: "FlowPlater Team",
+  };
+
+  // Merge custom config with default config
+  Object.assign(config, customConfig);
+
+  /**
+   * Plugin state object
+   */
+  let state = {
+    initialized: false,
+    data: {},
+  };
+
+  /**
+   * Global methods that can be called from FlowPlater
+   */
+  const globalMethods = {
+    /**
+     * Evaluate a mathematical expression directly
+     * @param {Object} plugin - The plugin instance
+     * @param {string} expression - The mathematical expression to evaluate
+     * @returns {number} The result of the evaluation
+     */
+    evaluateExpression(_plugin: FlowPlaterPlugin, expression: string) {
+      try {
+        const c = new Calc();
+        return c.exec(expression);
+      } catch (error: any) {
+        Debug.error("Error evaluating math expression:", error);
+        throw error;
+      }
+    },
+  };
+
+  /**
+   * Instance methods that can be called from instances
+   */
+  const instanceMethods = {};
+
+  /**
+   * Plugin hooks
+   */
+  const hooks = {
+    /**
+     * Called after FlowPlater has fully initialized
+     */
+    initComplete: function (flowplater: FlowPlaterObj, _instances: FlowPlaterInstance[]) {
+      if (config.enabled) {
+        Debug.debug(`${config.name} plugin initialized successfully`);
+      }
+      return flowplater;
+    },
+  };
+
+  /**
+   * Transformers
+   */
+  const transformers = {};
+
+  /**
+   * Custom Handlebars helpers
+   */
+  const helpers = {
+    /**
+     * Math helper that evaluates mathematical expressions
+     * Supports variables, functions (min, max, sqrt, abs, log, ln, sin, cos, tan), and constants (pi, e)
+     * 
+     * Usage examples:
+     * {{math "2 + 3 * 4"}} -> 14
+     * {{math "sqrt(16) + 2"}} -> 6
+     * {{math "max(price, 10)"}} -> uses the 'price' variable from context
+     * {{math "@{forced.variable} + 5"}} -> forces variable resolution with @{} syntax
+     * 
+     * @param {string} expression - The mathematical expression to evaluate
+     * @param {Object} options - Handlebars options object containing context data
+     * @returns {number} The result of the mathematical evaluation
+     */
+    math: function (this: any, expression: string, options: any) {
+      // First, identify and protect function names
+      const functionNames = [
+        "min",
+        "max",
+        "sqrt",
+        "abs",
+        "log",
+        "ln",
+        "sin",
+        "cos",
+        "tan",
+      ];
+
+      // First pass: resolve forced variable references like @{max}
+      const resolvedForced = expression.replace(
+        /@{([^}]+)}/g,
+        // @ts-ignore
+        (match: string, varPath: string) => {
+          try {
+            let value;
+            if (varPath.includes(".")) {
+              value = varPath
+                .split(".")
+                .reduce((acc, part) => acc[part], options.data.root);
+            } else {
+              value = options.data.root[varPath] || options.hash[varPath];
+            }
+            return value;
+          } catch (error) {
+            console.warn(`Could not resolve ${varPath}`);
+            return NaN;
+          }
+        },
+      );
+
+      // Second pass: normal variable resolution with function name protection
+      const resolvedExpression = resolvedForced.replace(
+        /[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z0-9_]+)*/g,
+        (match: string) => {
+          // Skip if it's a standalone function name (not part of a property path)
+          if (functionNames.includes(match) && !match.includes(".")) {
+            return match;
+          }
+
+          try {
+            // Resolve context paths like 'this.data' or 'object.sum'
+            let value;
+            if (match.includes(".")) {
+              value = match
+                .split(".")
+                .reduce((acc: any, part: any) => acc[part], options.data.root);
+            } else {
+              value = options.data.root[match] || options.hash[match];
+            }
+            return value;
+          } catch (error) {
+            console.warn(`Could not resolve ${match}`);
+            return NaN;
+          }
+        },
+      );
+
+      Debug.debug("Evaluating expression:", resolvedExpression);
+
+      try {
+        // Evaluate the expression using jscalc
+        const c = new Calc();
+        const result = c.exec(resolvedExpression);
+        return result;
+      } catch (error: any) {
+        // Only log and throw once
+        if (!(error instanceof TemplateError)) {
+          throw new TemplateError(
+            `Error evaluating expression: ${error.message}`,
+            error.stack,
+          );
+        }
+        throw error; // Re-throw TemplateErrors without wrapping
+      }
+    },
+  };
+
+  /**
+   * Return the plugin object
+   */
+  return {
+    config,
+    state,
+    globalMethods,
+    instanceMethods,
+    hooks,
+    transformers,
+    helpers,
+  };
+};
+
+export default MathPlugin; 
