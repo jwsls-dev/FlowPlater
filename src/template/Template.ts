@@ -6,12 +6,10 @@ import { InstanceManager, GroupManager } from "../instance";
 import { extractLocalData } from "../forms";
 import { updateDOM, AttributeMatcher } from "../dom";
 import { loadFromLocalStorage, saveToLocalStorage, createDeepProxy, deepMerge } from "../storage";
-import { compileTemplate, memoizedCompile } from "./TemplateCompiler";
+import { compileTemplate } from "./TemplateCompiler";
 import { PluginManager } from "../core/PluginManager";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
-
-export { compileTemplate, memoizedCompile };
 
 declare const htmx: any;
 
