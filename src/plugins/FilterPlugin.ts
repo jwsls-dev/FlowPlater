@@ -3,10 +3,10 @@
  * @description Plugin for filtering data based on form inputs
  */
 
-import { FormStateManager } from "../forms";
 import { EventSystem } from "../events";
 import { DEFAULTS } from "../core/DefaultConfig";
 import { FlowPlaterObj, FlowPlaterInstance, TransformerDataType } from "../types";
+import { handleFormStorage, isPersistenceEnabledForElement } from '../forms/FormPersistence';
 
 declare const FlowPlater: FlowPlaterObj;
 
@@ -116,7 +116,7 @@ const FilterPlugin = (customConfig = {}) => {
           });
 
           // Restore select state if it exists
-          const formState = FormStateManager.handleFormStorage(
+          const formState = handleFormStorage(
             form,
             {} as any,
             "load",
@@ -218,7 +218,7 @@ const FilterPlugin = (customConfig = {}) => {
           });
 
           // Restore form state after all inputs are created
-          const formState = FormStateManager.handleFormStorage(
+          const formState = handleFormStorage(
             form,
             {} as any,
             "load",
@@ -398,7 +398,7 @@ const FilterPlugin = (customConfig = {}) => {
         state: formState,
       });
 
-      FormStateManager.handleFormStorage(form, formState, "save");
+      handleFormStorage(form, formState, "save");
 
       EventSystem.publish("formState:changed", {
         formId: form.id,
@@ -452,7 +452,7 @@ const FilterPlugin = (customConfig = {}) => {
       form.reset();
 
       // Clear form state
-      FormStateManager.handleFormStorage(form, {}, "save");
+      handleFormStorage(form, {}, "save");
 
       // Trigger form update to refresh the view
       handleFormUpdate({ isTrusted: true, type: "reset", target: e.target } as any);
@@ -575,7 +575,7 @@ const FilterPlugin = (customConfig = {}) => {
         // Load from URL parameters after dynamic filters are set up
         if (
           form.hasAttribute("fp-filter-usequery") &&
-          FormStateManager.isPersistenceEnabledForElement(form as HTMLFormElement)
+          isPersistenceEnabledForElement(form as HTMLFormElement)
         ) {
           const formState = getFormStateFromUrl();
           if (formState && Object.keys(formState).length > 0) {

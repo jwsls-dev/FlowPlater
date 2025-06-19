@@ -971,560 +971,6 @@ var FlowPlater = (function () {
     };
 
     /**
-     * Helper function to collect debug information consistently
-     */
-    function collectDebugInfo(form, type, details = {}) {
-        return {
-            formId: form.id,
-            type,
-            persistenceEnabled: isPersistenceEnabledForElement(form),
-            restoredElements: details.restoredElements || [],
-            customVisualUpdates: details.customVisualUpdates || [],
-            skippedElements: details.skippedElements || [],
-            storageType: details.storageType
-        };
-    }
-    /**
-     * Helper function to handle storage operations
-     */
-    function handleFormStorage(form, state = {}, operation = "save") {
-        const useLocal = shouldUseLocalStorage(form);
-        const key = `fp_form_${form.id}`;
-        if (operation === "save") {
-            if (useLocal) {
-                saveToLocalStorage(form.id, state, "form");
-            }
-            else {
-                sessionStorage.setItem(key, JSON.stringify(state));
-            }
-        }
-        else if (operation === "load") {
-            return useLocal
-                ? loadFromLocalStorage(form.id, "form")
-                : JSON.parse(sessionStorage.getItem(key) || "{}");
-        }
-        else if (operation === "clear") {
-            if (useLocal)
-                localStorage.removeItem(key);
-            sessionStorage.removeItem(key);
-        }
-    }
-    /**
-     * Helper function to process form elements consistently
-     */
-    function processFormElements(form, callback) {
-        Array.from(form.elements).forEach((element) => {
-            if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement))
-                return;
-            if (!element.name || element.type === "file")
-                return;
-            if (!isPersistenceEnabledForElement(element))
-                return;
-            callback(element);
-        });
-    }
-    /**
-     * Helper function to manage event listeners
-     */
-    function manageEventListener(element, eventType, handler, operation = "add") {
-        const events = eventType === "change"
-            ? [
-                "change",
-                element.type !== "checkbox" && element.type !== "radio"
-                    ? "input"
-                    : null,
-            ]
-            : [eventType];
-        events.filter(Boolean).forEach((event) => {
-            const method = operation === "add" ? "addEventListener" : "removeEventListener";
-            element[method](event, handler);
-        });
-    }
-    /**
-     * Helper function to restore element values
-     */
-    function restoreElementValue(element, value) {
-        if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
-            element.checked = value === "true";
-            updateCustomVisualState(element);
-        }
-        else if (element instanceof HTMLSelectElement && element.multiple) {
-            Array.from(element.options).forEach((option) => {
-                option.selected = value.includes(option.value);
-            });
-        }
-        else {
-            element.value = value;
-        }
-    }
-    /**
-     * Helper function to update custom visual state
-     */
-    function updateCustomVisualState(element) {
-        const wrapper = element.closest(element.type === "checkbox" ? ".w-checkbox" : ".w-radio");
-        if (!wrapper)
-            return;
-        const customInput = wrapper.querySelector(`.w-${element.type}-input`);
-        if (customInput) {
-            customInput.classList.toggle("w--redirected-checked", element.checked);
-        }
-    }
-    /**
-     * Gets persistence settings for an element
-     * @param {HTMLElement} element - The element to check
-     * @returns {Object} - Object containing persistence settings
-     */
-    function getPersistenceSettings(element) {
-        let shouldPersist = false;
-        let useLocalStorage = false;
-        // Check persistence settings
-        if (AttributeMatcher._hasAttribute(element, "persist")) {
-            shouldPersist =
-                AttributeMatcher._getRawAttribute(element, "persist") !== "false";
-            useLocalStorage =
-                AttributeMatcher._getRawAttribute(element, "persist") === "true";
-        }
-        else {
-            const form = element.closest("form");
-            if (form && AttributeMatcher._hasAttribute(form, "persist")) {
-                shouldPersist =
-                    AttributeMatcher._getRawAttribute(form, "persist") !== "false";
-                useLocalStorage =
-                    AttributeMatcher._getRawAttribute(form, "persist") === "true";
-            }
-            else if (ConfigManager.getConfig().storage?.enabled &&
-                !ConfigManager.getConfig().persistForm) {
-                shouldPersist = false;
-                useLocalStorage = false;
-            }
-            else {
-                shouldPersist = ConfigManager.getConfig().persistForm;
-                useLocalStorage =
-                    ConfigManager.getConfig().storage?.enabled &&
-                        ConfigManager.getConfig().persistForm;
-            }
-        }
-        // For forms, check if any elements have explicit persistence
-        if (element instanceof HTMLFormElement) {
-            const hasPersistentElements = Array.from(element.elements).some((input) => AttributeMatcher._getRawAttribute(input, "persist") === "true");
-            if (hasPersistentElements) {
-                useLocalStorage = ConfigManager.getConfig().storage?.enabled;
-            }
-        }
-        return {
-            shouldPersist,
-            useLocalStorage: useLocalStorage && ConfigManager.getConfig().storage?.enabled,
-        };
-    }
-    /**
-     * Checks if persistence is enabled for an element
-     * @param {HTMLElement} element - The element to check
-     * @returns {boolean} - Whether persistence is enabled for this element
-     */
-    function isPersistenceEnabledForElement(element) {
-        return getPersistenceSettings(element).shouldPersist;
-    }
-    /**
-     * Determines which storage to use based on configuration
-     * @param {HTMLElement} element - The element to check
-     * @returns {boolean} - true for localStorage, false for sessionStorage
-     */
-    function shouldUseLocalStorage(element) {
-        return getPersistenceSettings(element).useLocalStorage;
-    }
-    /**
-     * Captures the state of all forms within an element
-     * @param {HTMLElement} element - The container element
-     * @returns {Object} - Map of form states by form ID
-     */
-    function captureFormStates(element) {
-        try {
-            const forms = element.getElementsByTagName("form");
-            const formStates = {};
-            Array.from(forms).forEach((form) => {
-                if (!form.id)
-                    return;
-                const formState = {};
-                const formElements = form.elements;
-                Array.from(formElements).forEach((input) => {
-                    if (!input.name || input.type === "file")
-                        return;
-                    // Skip if persistence is disabled for this element
-                    if (!isPersistenceEnabledForElement(input))
-                        return;
-                    if (input.type === "checkbox" || input.type === "radio") {
-                        formState[input.name] = input.checked;
-                    }
-                    else if (input instanceof HTMLSelectElement) {
-                        if (input.multiple) {
-                            formState[input.name] = Array.from(input.selectedOptions).map((opt) => opt.value);
-                        }
-                        else {
-                            formState[input.name] = input.value;
-                        }
-                    }
-                    else {
-                        formState[input.name] = input.value;
-                    }
-                });
-                // Only store if there are elements to store
-                if (Object.keys(formState).length > 0) {
-                    // Emit event before storing
-                    EventSystem.publish("formState:beforeCapture", {
-                        formId: form.id,
-                        formElement: form,
-                        state: formState,
-                    });
-                    formStates[form.id] = formState;
-                    // Store based on configuration
-                    if (shouldUseLocalStorage(form)) {
-                        saveToLocalStorage(form.id, formState, "form");
-                    }
-                    else {
-                        sessionStorage.setItem(`fp_form_${form.id}`, JSON.stringify(formState));
-                    }
-                }
-            });
-            return formStates;
-        }
-        catch (error) {
-            Debug.error(`Error capturing form states: ${error.message}`);
-            return {};
-        }
-    }
-    /**
-     * Restores the state of a single form from storage
-     * @param {HTMLFormElement} form - The form to restore state for
-     * @param {string} [source] - The source of the call to restoreSingleFormState
-     * @returns {boolean} - Whether state was restored
-     */
-    function restoreSingleFormState(form, source) {
-        if (!form.id)
-            return false;
-        // Try to get state from storage
-        const formState = handleFormStorage(form, {}, "load");
-        if (!formState) {
-            Debug.debug(`No stored state found for form: ${form.id}`);
-            return false;
-        }
-        const debugInfo = collectDebugInfo(form, "restore", {
-            restoredElements: [],
-            customVisualUpdates: [],
-            skippedElements: [],
-            storageType: shouldUseLocalStorage(form)
-                ? "localStorage"
-                : "sessionStorage",
-        });
-        // Restore state directly for this form
-        processFormElements(form, (input) => {
-            if (!(input.name in formState))
-                return;
-            debugInfo.restoredElements.push({
-                name: input.name,
-                value: formState[input.name],
-            });
-            restoreElementValue(input, formState[input.name]);
-        });
-        // Single debug log with all information
-        Debug.debug(`Form state restoration summary for ${form.id}`, {
-            storageType: debugInfo.storageType,
-            source: source || "unknown",
-            restoredElements: debugInfo.restoredElements.map((el) => ({
-                name: el.name,
-                value: el.value,
-            })),
-            updatedCustomVisualStates: debugInfo.customVisualUpdates,
-            skippedElements: debugInfo.skippedElements,
-        });
-        // Emit event after restoration
-        EventSystem.publish("formState:afterRestore", {
-            formId: form.id,
-            formElement: form,
-            state: formState,
-            source: source || "unknown",
-        });
-        return true;
-    }
-    /**
-     * Clears stored form state
-     * @param {string} formId - ID of the form to clear
-     */
-    function clearFormState(formId) {
-        FormStateManager.clearFormState(formId);
-    }
-    /**
-     * Sets up change event listeners for form elements
-     * @param {HTMLElement} form - The form element to set up listeners for
-     */
-    function setupFormChangeListeners(form) {
-        try {
-            if (!form.id) {
-                Debug.debug("Skipping form without ID");
-                return;
-            }
-            const debugInfo = collectDebugInfo(form, "setup", {
-                formElements: form.elements.length,
-                checkboxWrappers: form.querySelectorAll(".w-checkbox").length,
-                listenersAdded: [],
-                skippedElements: [],
-            });
-            // Initialize new listeners array if it doesn't exist
-            if (!form._fpChangeListeners) {
-                form._fpChangeListeners = [];
-            }
-            // Handle regular form elements
-            processFormElements(form, (element) => {
-                // Skip if element already has a listener
-                if (form._fpChangeListeners.some(({ element: el }) => el === element)) {
-                    return;
-                }
-                const changeHandler = (event) => handleFormElementChange(event);
-                manageEventListener(element, "change", changeHandler);
-                // Store the handler reference
-                form._fpChangeListeners.push({ element, handler: changeHandler });
-                debugInfo.listenersAdded?.push(element.name);
-            });
-            // Output collected debug information
-            Debug.debug(`Form setup summary for ${form.id}`, {
-                totalFormElements: debugInfo.formElements,
-                checkboxWrappers: debugInfo.checkboxWrappers,
-                formPersistence: debugInfo.persistenceEnabled ? "enabled" : "disabled",
-                listenersAdded: debugInfo.listenersAdded?.join(", "),
-                skippedElements: debugInfo.skippedElements.join(", "),
-            });
-        }
-        catch (error) {
-            Debug.error(`Error setting up form change listeners: ${error.message}`);
-        }
-    }
-    /**
-     * Cleans up change event listeners for form elements
-     * @param {HTMLElement} form - The form element to clean up listeners for
-     */
-    function cleanupFormChangeListeners(form) {
-        try {
-            if (!form._fpChangeListeners)
-                return;
-            form._fpChangeListeners.forEach(({ element, handler }) => {
-                element.removeEventListener("change", handler);
-                element.removeEventListener("input", handler);
-            });
-            form._fpChangeListeners = [];
-        }
-        catch (error) {
-            Debug.error(`Error cleaning up form change listeners: ${error.message}`);
-        }
-    }
-    function handleFormElementChange(event) {
-        try {
-            const element = event.target;
-            const form = element.closest("form");
-            if (!form || !form.id) {
-                Debug.debug("Skipping change handler - no form or form ID");
-                return;
-            }
-            const debugInfo = collectDebugInfo(form, "change", {
-                changedValues: {},
-                skippedElements: [],
-            });
-            // Helper function to check if a value is a template
-            function isTemplateValue(value) {
-                if (typeof value !== "string")
-                    return false;
-                // Check for Handlebars syntax
-                if (value.includes("{{") || value.includes("}}"))
-                    return true;
-                // Check for alternative syntax
-                if (value.includes("[[") || value.includes("]]"))
-                    return true;
-                // Check for this. references which indicate template binding
-                if (value.includes("this."))
-                    return true;
-                return false;
-            }
-            // Helper function to check if an input is template-bound
-            function isTemplateInput(input) {
-                // Check if the input name itself is a template
-                if (isTemplateValue(input.name))
-                    return true;
-                // Check if the input has a template value
-                if (isTemplateValue(input.value))
-                    return true;
-                // Check for data-binding attributes that indicate template usage
-                if (AttributeMatcher._hasAttribute(input, "bind"))
-                    return true;
-                return false;
-            }
-            // Capture the current state of the form
-            const formState = {};
-            processFormElements(form, (input) => {
-                // First check if this is a template-bound input
-                if (isTemplateInput(input)) {
-                    debugInfo.skippedElements.push({
-                        name: input.name,
-                        reason: "Template binding detected",
-                        value: input.value,
-                    });
-                    return;
-                }
-                const value = input.type === "checkbox" || input.type === "radio"
-                    ? input.checked
-                    : input instanceof HTMLSelectElement && input.multiple
-                        ? Array.from(input.selectedOptions).map((opt) => opt.value)
-                        : input.value;
-                formState[input.name] = value;
-                if (!debugInfo.changedValues)
-                    debugInfo.changedValues = {};
-                debugInfo.changedValues[input.name] = value;
-            });
-            // Only store if there are elements to store
-            if (Object.keys(formState).length > 0) {
-                handleFormStorage(form, formState, "save");
-                // Output collected debug information
-                Debug.debug("Form state update for " + form.id + ":", {
-                    "Changed element": element.name,
-                    "Storage type": shouldUseLocalStorage(form)
-                        ? "localStorage"
-                        : "sessionStorage",
-                    "Updated values": debugInfo.changedValues,
-                    "Skipped elements": debugInfo.skippedElements,
-                });
-                // Find instance that contains this form or whose elements are contained by this form
-                let instance = null;
-                // @ts-ignore
-                for (const [instanceName, inst] of Object.entries(_state.instances)) {
-                    if (Array.from(inst.elements).some((el) => el.contains(form) || form.contains(el) || el === form)) {
-                        instance = inst;
-                        break;
-                    }
-                }
-                // Execute updateForm hook
-                PluginManager.executeHook("updateForm", instance, {
-                    element: form,
-                    id: form.id,
-                    data: formState,
-                    changedElement: element,
-                });
-                // Emit event
-                EventSystem.publish("formState:changed", {
-                    formId: form.id,
-                    formElement: form,
-                    state: formState,
-                    changedElement: element,
-                });
-            }
-        }
-        catch (error) {
-            Debug.error(`Error handling form element change: ${error.message}`);
-        }
-    }
-    /**
-     * Gets all relevant forms for an element (target, parent, and children)
-     * @param {HTMLElement} element - The element to get forms for
-     * @returns {Set<HTMLFormElement>} - Set of unique form elements
-     */
-    function getAllRelevantForms(element) {
-        const forms = new Set();
-        // Add the target if it's a form
-        if (element instanceof HTMLFormElement) {
-            forms.add(element);
-        }
-        // Add parent forms
-        const parentForm = element.closest("form");
-        if (parentForm) {
-            forms.add(parentForm);
-        }
-        // Add child forms
-        const childForms = element.getElementsByTagName("form");
-        Array.from(childForms).forEach((form) => forms.add(form));
-        return forms;
-    }
-    /**
-     * Sets up form submission handlers to clear state on submit
-     * @param {HTMLElement} element - The container element
-     * @param {string} [source] - The source of the call to setupFormSubmitHandlers
-     */
-    function setupFormSubmitHandlers(element, source) {
-        try {
-            Debug.debug("Setting up form submit handlers for element:", element);
-            // Get all relevant forms
-            const forms = getAllRelevantForms(element);
-            Debug.debug(`Found ${forms.size} forms`);
-            forms.forEach((form) => {
-                setupSingleFormHandlers(form, source || "setupFormSubmitHandlers");
-            });
-        }
-        catch (error) {
-            Debug.error(`Error setting up form submit handlers: ${error.message}`);
-        }
-    }
-    function setupSingleFormHandlers(form, source) {
-        if (!form.id) {
-            Debug.debug("Skipping form without ID");
-            return;
-        }
-        // Always set up handlers for forms that have been updated by HTMX
-        Debug.debug(`Setting up handlers for form: ${form.id}`);
-        // Remove existing listener if any
-        form.removeEventListener("submit", handleFormSubmit);
-        // Add new listener
-        form.addEventListener("submit", handleFormSubmit);
-        // Set up change listeners for form elements
-        setupFormChangeListeners(form);
-        // Mark form as having handlers set up
-        form._fpHandlersSetup = true;
-        // Check if form restoration is needed
-        if (shouldRestoreForm(form)) {
-            Debug.debug(`Restoring state for form: ${form.id}`);
-            restoreSingleFormState(form, source || "setupSingleFormHandlers");
-        }
-        else {
-            Debug.debug(`Skipping form restoration - no persistent elements: ${form.id}`);
-        }
-    }
-    function handleFormSubmit(event) {
-        try {
-            const form = event.target.closest("form");
-            if (form && form.id) {
-                clearFormState(form.id);
-            }
-        }
-        catch (error) {
-            Debug.error(`Error handling form submit: ${error.message}`);
-        }
-    }
-    function setupDynamicFormObserver(container) {
-        try {
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    mutation.addedNodes.forEach((node) => {
-                        if (node instanceof HTMLFormElement) {
-                            setupFormSubmitHandlers(node, "setupDynamicFormObserver");
-                        }
-                    });
-                });
-            });
-            observer.observe(container, {
-                childList: true,
-                subtree: true,
-            });
-            return observer;
-        }
-        catch (error) {
-            Debug.error(`Error setting up dynamic form observer: ${error.message}`);
-            return null;
-        }
-    }
-    /**
-     * Checks if form restoration should be performed for a form or its elements
-     * @param {HTMLElement} element - The form or container element to check
-     * @returns {boolean} - Whether form restoration should be performed
-     */
-    function shouldRestoreForm(element) {
-        return FormStateManager.shouldRestoreForm(element);
-    }
-
-    /**
      * Checks if a string looks like a CSS selector
      * @param {string} str - String to check
      * @returns {boolean} True if the string looks like a CSS selector
@@ -3146,6 +2592,18 @@ var FlowPlater = (function () {
         return finalInstance || null;
     }
 
+    function animate(element, callback) {
+        var shouldAnimate = AttributeMatcher._getRawAttribute(element, "animation") ||
+            _state.defaults.animation;
+        if (!shouldAnimate) {
+            callback();
+            return;
+        }
+        else {
+            document.startViewTransition(callback);
+        }
+    }
+
     // Determine debug level based on environment
     const isDevEnvironment = DEFAULTS.URL.WEBFLOW_DOMAINS.some(domain => window.location.hostname.endsWith(domain)) || window.location.hostname.includes(DEFAULTS.URL.LOCALHOST);
     const defaultConfig = {
@@ -3482,260 +2940,564 @@ var FlowPlater = (function () {
     }
 
     /**
-     * @module FormStateManager
-     * @description Manages form state restoration and persistence
+     * Helper function to collect debug information consistently
      */
-    const FormStateManager = {
-        /** @type {boolean} Flag to prevent multiple form state restorations */
-        isRestoringFormStates: false,
-        /**
-         * Restores form states within an element
-         * @param {HTMLElement} element - The container element
-         * @param {string} [source] - The source of the call to restoreFormStates
-         */
-        restoreFormStates(element, source) {
-            try {
-                // Skip if already restoring
-                if (this.isRestoringFormStates) {
-                    Debug.debug("Already restoring form states, skipping");
-                    return;
-                }
-                this.isRestoringFormStates = true;
-                const forms = element.getElementsByTagName("form");
-                Array.from(forms).forEach((form) => this.restoreSingleFormState(form, source || "unknown"));
-            }
-            catch (error) {
-                Debug.error(`Error restoring form states: ${error.message}`);
-            }
-            finally {
-                this.isRestoringFormStates = false;
-            }
-        },
-        /**
-         * Restores the state of a single form from storage
-         * @param {HTMLFormElement} form - The form to restore state for
-         * @param {string} [source] - The source of the call to restoreSingleFormState
-         * @returns {boolean} - Whether state was restored
-         */
-        restoreSingleFormState(form, source) {
-            if (!form.id)
-                return false;
-            // Try to get state from storage
-            const formState = this.handleFormStorage(form, {}, "load");
-            if (!formState) {
-                Debug.debug(`No stored state found for form: ${form.id}`);
-                return false;
-            }
-            const debugInfo = this.collectDebugInfo(form, "restore", {
-                restoredElements: [],
-                customVisualUpdates: [],
-                skippedElements: [],
-                storageType: this.shouldUseLocalStorage(form)
-                    ? "localStorage"
-                    : "sessionStorage",
-            });
-            // Restore state directly for this form
-            this.processFormElements(form, (input) => {
-                if (!(input.name in formState))
-                    return;
-                debugInfo.restoredElements.push({
-                    name: input.name,
-                    value: formState[input.name],
-                });
-                this.restoreElementValue(input, formState[input.name]);
-            });
-            // Single debug log with all information
-            Debug.debug(`Form state restoration summary for ${form.id}`, {
-                storageType: debugInfo.storageType,
-                source: source || "unknown",
-                restoredElements: debugInfo.restoredElements.map((el) => ({
-                    name: el.name,
-                    value: el.value,
-                })),
-                updatedCustomVisualStates: debugInfo.customVisualUpdates,
-                skippedElements: debugInfo.skippedElements,
-            });
-            // Emit event after restoration
-            EventSystem.publish("formState:afterRestore", {
-                formId: form.id,
-                formElement: form,
-                state: formState,
-                source: source || "unknown",
-            });
-            return true;
-        },
-        /**
-         * Clears stored form state
-         * @param {string} formId - ID of the form to clear
-         */
-        clearFormState(formId) {
-            try {
-                const form = document.getElementById(formId);
-                if (!form)
-                    return;
-                this.handleFormStorage(form, {}, "clear");
-                EventSystem.publish("formState:clear", {
-                    formId,
-                    formElement: form,
-                });
-            }
-            catch (error) {
-                Debug.error(`Error clearing form state: ${error.message}`);
-            }
-        },
-        /**
-         * Helper function to collect debug information consistently
-         */
-        collectDebugInfo(form, type, details = {}) {
-            return {
-                formId: form.id,
-                type,
-                persistenceEnabled: this.isPersistenceEnabledForElement(form),
-                restoredElements: details.restoredElements || [],
-                customVisualUpdates: details.customVisualUpdates || [],
-                skippedElements: details.skippedElements || [],
-                storageType: details.storageType
-            };
-        },
-        /**
-         * Helper function to handle storage operations
-         */
-        handleFormStorage(form, state, operation = "save") {
-            const useLocal = this.shouldUseLocalStorage(form);
-            const key = `fp_form_${form.id}`;
-            if (operation === "save") {
-                if (useLocal) {
-                    saveToLocalStorage(form.id, state, "form");
-                }
-                else {
-                    sessionStorage.setItem(key, JSON.stringify(state));
-                }
-            }
-            else if (operation === "load") {
-                return useLocal
-                    ? loadFromLocalStorage(form.id, "form")
-                    : JSON.parse(sessionStorage.getItem(key) || "{}");
-            }
-            else if (operation === "clear") {
-                if (useLocal)
-                    localStorage.removeItem(key);
-                sessionStorage.removeItem(key);
-            }
-        },
-        /**
-         * Helper function to process form elements consistently
-         */
-        processFormElements(form, callback) {
-            Array.from(form.elements).forEach((element) => {
-                if (!element.name || element.type === "file")
-                    return;
-                if (!this.isPersistenceEnabledForElement(element))
-                    return;
-                callback(element);
-            });
-        },
-        /**
-         * Helper function to restore element values
-         */
-        restoreElementValue(element, value) {
-            if (element.type === "checkbox" || element.type === "radio") {
-                element.checked = value === "true";
-                this.updateCustomVisualState(element);
-            }
-            else if (element instanceof HTMLSelectElement && element.multiple) {
-                Array.from(element.options).forEach((option) => {
-                    option.selected = value.includes(option.value);
-                });
+    function collectDebugInfo(form, type, details = {}) {
+        return {
+            formId: form.id,
+            type,
+            persistenceEnabled: isPersistenceEnabledForElement(form),
+            restoredElements: details.restoredElements || [],
+            customVisualUpdates: details.customVisualUpdates || [],
+            skippedElements: details.skippedElements || [],
+            storageType: details.storageType
+        };
+    }
+    /**
+     * Helper function to handle storage operations
+     */
+    function handleFormStorage(form, state = {}, operation = "save") {
+        const useLocal = shouldUseLocalStorage(form);
+        const key = `fp_form_${form.id}`;
+        if (operation === "save") {
+            if (useLocal) {
+                saveToLocalStorage(form.id, state, "form");
             }
             else {
-                element.value = value;
+                sessionStorage.setItem(key, JSON.stringify(state));
             }
-        },
-        /**
-         * Helper function to update custom visual state
-         */
-        updateCustomVisualState(element) {
-            const wrapper = element.closest(element.type === "checkbox" ? ".w-checkbox" : ".w-radio");
-            if (!wrapper)
+        }
+        else if (operation === "load") {
+            return useLocal
+                ? loadFromLocalStorage(form.id, "form")
+                : JSON.parse(sessionStorage.getItem(key) || "{}");
+        }
+        else if (operation === "clear") {
+            if (useLocal)
+                localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
+        }
+    }
+    /**
+     * Helper function to process form elements consistently
+     */
+    function processFormElements(form, callback) {
+        Array.from(form.elements).forEach((element) => {
+            if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement))
                 return;
-            const customInput = wrapper.querySelector(`.w-${element.type}-input`);
-            if (customInput) {
-                customInput.checked = element.checked;
+            if (!element.name || element.type === "file")
+                return;
+            if (!isPersistenceEnabledForElement(element))
+                return;
+            callback(element);
+        });
+    }
+    /**
+     * Helper function to manage event listeners
+     */
+    function manageEventListener(element, eventType, handler, operation = "add") {
+        const events = eventType === "change"
+            ? [
+                "change",
+                element.type !== "checkbox" && element.type !== "radio"
+                    ? "input"
+                    : null,
+            ]
+            : [eventType];
+        events.filter(Boolean).forEach((event) => {
+            const method = operation === "add" ? "addEventListener" : "removeEventListener";
+            element[method](event, handler);
+        });
+    }
+    /**
+     * Helper function to restore element values
+     */
+    function restoreElementValue(element, value) {
+        if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
+            element.checked = value === "true";
+            updateCustomVisualState(element);
+        }
+        else if (element instanceof HTMLSelectElement && element.multiple) {
+            Array.from(element.options).forEach((option) => {
+                option.selected = value.includes(option.value);
+            });
+        }
+        else {
+            element.value = value;
+        }
+    }
+    /**
+     * Helper function to update custom visual state
+     */
+    function updateCustomVisualState(element) {
+        const wrapper = element.closest(element.type === "checkbox" ? ".w-checkbox" : ".w-radio");
+        if (!wrapper)
+            return;
+        const customInput = wrapper.querySelector(`.w-${element.type}-input`);
+        if (customInput) {
+            customInput.classList.toggle("w--redirected-checked", element.checked);
+        }
+    }
+    /**
+     * Gets persistence settings for an element
+     * @param {HTMLElement} element - The element to check
+     * @returns {Object} - Object containing persistence settings
+     */
+    function getPersistenceSettings(element) {
+        let shouldPersist = false;
+        let useLocalStorage = false;
+        // Check persistence settings
+        if (AttributeMatcher._hasAttribute(element, "persist")) {
+            shouldPersist =
+                AttributeMatcher._getRawAttribute(element, "persist") !== "false";
+            useLocalStorage =
+                AttributeMatcher._getRawAttribute(element, "persist") === "true";
+        }
+        else {
+            const form = element.closest("form");
+            if (form && AttributeMatcher._hasAttribute(form, "persist")) {
+                shouldPersist =
+                    AttributeMatcher._getRawAttribute(form, "persist") !== "false";
+                useLocalStorage =
+                    AttributeMatcher._getRawAttribute(form, "persist") === "true";
             }
-        },
-        /**
-         * Checks if persistence is enabled for an element
-         * @param {HTMLElement} element - The element to check
-         * @returns {boolean} - Whether persistence is enabled
-         */
-        isPersistenceEnabledForElement(element) {
-            // Use AttributeMatcher to check for inherited persistence setting
-            const inheritedValue = AttributeMatcher.findAttribute(element, "persist");
-            if (inheritedValue !== null) {
-                return inheritedValue !== "false";
+            else if (ConfigManager.getConfig().storage?.enabled &&
+                !ConfigManager.getConfig().persistForm) {
+                shouldPersist = false;
+                useLocalStorage = false;
             }
-            // Default to global setting
-            return ConfigManager.getConfig().persistForm !== false;
-        },
-        /**
-         * Determines if localStorage should be used for a form
-         * @param {HTMLElement} element - The form element
-         * @returns {boolean} - Whether to use localStorage
-         */
-        shouldUseLocalStorage(element) {
-            return (AttributeMatcher._hasAttribute(element, "persist-local") ||
-                ConfigManager.getConfig().storage?.enabled === true);
-        },
-        /**
-         * Checks if form restoration should be performed for a form or its elements
-         * @param {HTMLElement} element - The form or container element to check
-         * @returns {boolean} - Whether form restoration should be performed
-         */
-        shouldRestoreForm(element) {
-            // First check if there are any explicitly persistent elements
-            // These override any parent fp-persist="false" settings
-            const explicitlyPersistentInputs = AttributeMatcher.findMatchingElements("persist", "true", true, element);
-            if (explicitlyPersistentInputs && explicitlyPersistentInputs.length > 0) {
-                return true;
+            else {
+                shouldPersist = ConfigManager.getConfig().persistForm;
+                useLocalStorage =
+                    ConfigManager.getConfig().storage?.enabled &&
+                        ConfigManager.getConfig().persistForm;
             }
-            // Check if element itself is a form with explicit persistence setting
-            if (element.tagName === "FORM" &&
-                AttributeMatcher._hasAttribute(element, "persist")) {
-                return AttributeMatcher._getRawAttribute(element, "persist") !== "false";
+        }
+        // For forms, check if any elements have explicit persistence
+        if (element instanceof HTMLFormElement) {
+            const hasPersistentElements = Array.from(element.elements).some((input) => AttributeMatcher._getRawAttribute(input, "persist") === "true");
+            if (hasPersistentElements) {
+                useLocalStorage = ConfigManager.getConfig().storage?.enabled;
             }
-            // Check parent form if exists
-            const parentForm = element.closest("form");
-            if (parentForm) {
-                // If parent form explicitly disables persistence, skip it
-                if (AttributeMatcher._getRawAttribute(parentForm, "persist") === "false") {
-                    return false;
-                }
-                // Check all form elements in parent form
-                const formElements = parentForm.elements;
-                for (const input of formElements) {
-                    // Skip elements without name or file inputs
-                    if (!input.name || input.type === "file")
-                        continue;
-                    // Check if input is inside an element with fp-persist="false"
-                    const persistFalseParent = AttributeMatcher.findClosestParent("persist", input, "false", true);
-                    if (persistFalseParent) {
-                        continue;
-                    }
-                    // If input has a name and isn't a file input, and isn't inside a fp-persist="false" element,
-                    // it should be persisted by default when persistForm is true
-                    return true;
-                }
-            }
-            // For forms or elements containing forms, check each form
+        }
+        return {
+            shouldPersist,
+            useLocalStorage: useLocalStorage && ConfigManager.getConfig().storage?.enabled,
+        };
+    }
+    /**
+     * Checks if persistence is enabled for an element
+     * @param {HTMLElement} element - The element to check
+     * @returns {boolean} - Whether persistence is enabled for this element
+     */
+    function isPersistenceEnabledForElement(element) {
+        return getPersistenceSettings(element).shouldPersist;
+    }
+    /**
+     * Determines which storage to use based on configuration
+     * @param {HTMLElement} element - The element to check
+     * @returns {boolean} - true for localStorage, false for sessionStorage
+     */
+    function shouldUseLocalStorage(element) {
+        return getPersistenceSettings(element).useLocalStorage;
+    }
+    /**
+     * Captures the state of all forms within an element
+     * @param {HTMLElement} element - The container element
+     * @returns {Object} - Map of form states by form ID
+     */
+    function captureFormStates(element) {
+        try {
             const forms = element.getElementsByTagName("form");
-            for (const form of forms) {
-                if (this.shouldRestoreForm(form)) {
-                    return true;
+            const formStates = {};
+            Array.from(forms).forEach((form) => {
+                if (!form.id)
+                    return;
+                const formState = {};
+                const formElements = form.elements;
+                Array.from(formElements).forEach((input) => {
+                    if (!input.name || input.type === "file")
+                        return;
+                    // Skip if persistence is disabled for this element
+                    if (!isPersistenceEnabledForElement(input))
+                        return;
+                    if (input.type === "checkbox" || input.type === "radio") {
+                        formState[input.name] = input.checked;
+                    }
+                    else if (input instanceof HTMLSelectElement) {
+                        if (input.multiple) {
+                            formState[input.name] = Array.from(input.selectedOptions).map((opt) => opt.value);
+                        }
+                        else {
+                            formState[input.name] = input.value;
+                        }
+                    }
+                    else {
+                        formState[input.name] = input.value;
+                    }
+                });
+                // Only store if there are elements to store
+                if (Object.keys(formState).length > 0) {
+                    // Emit event before storing
+                    EventSystem.publish("formState:beforeCapture", {
+                        formId: form.id,
+                        formElement: form,
+                        state: formState,
+                    });
+                    formStates[form.id] = formState;
+                    // Store based on configuration
+                    if (shouldUseLocalStorage(form)) {
+                        saveToLocalStorage(form.id, formState, "form");
+                    }
+                    else {
+                        sessionStorage.setItem(`fp_form_${form.id}`, JSON.stringify(formState));
+                    }
                 }
-            }
+            });
+            return formStates;
+        }
+        catch (error) {
+            Debug.error(`Error capturing form states: ${error.message}`);
+            return {};
+        }
+    }
+    /**
+     * Restores the state of a single form from storage
+     * @param {HTMLFormElement} form - The form to restore state for
+     * @param {string} [source] - The source of the call to restoreSingleFormState
+     * @returns {boolean} - Whether state was restored
+     */
+    function restoreSingleFormState(form, source) {
+        if (!form.id)
             return false;
-        },
-    };
+        // Try to get state from storage
+        const formState = handleFormStorage(form, {}, "load");
+        if (!formState) {
+            Debug.debug(`No stored state found for form: ${form.id}`);
+            return false;
+        }
+        const debugInfo = collectDebugInfo(form, "restore", {
+            restoredElements: [],
+            customVisualUpdates: [],
+            skippedElements: [],
+            storageType: shouldUseLocalStorage(form)
+                ? "localStorage"
+                : "sessionStorage",
+        });
+        // Restore state directly for this form
+        processFormElements(form, (input) => {
+            if (!(input.name in formState))
+                return;
+            debugInfo.restoredElements.push({
+                name: input.name,
+                value: formState[input.name],
+            });
+            restoreElementValue(input, formState[input.name]);
+        });
+        // Single debug log with all information
+        Debug.debug(`Form state restoration summary for ${form.id}`, {
+            storageType: debugInfo.storageType,
+            source: source || "unknown",
+            restoredElements: debugInfo.restoredElements.map((el) => ({
+                name: el.name,
+                value: el.value,
+            })),
+            updatedCustomVisualStates: debugInfo.customVisualUpdates,
+            skippedElements: debugInfo.skippedElements,
+        });
+        // Emit event after restoration
+        EventSystem.publish("formState:afterRestore", {
+            formId: form.id,
+            formElement: form,
+            state: formState,
+            source: source || "unknown",
+        });
+        return true;
+    }
+    /**
+     * Restores form states within an element
+     * @param {HTMLElement} element - The container element
+     * @param {string} [source] - The source of the call to restoreFormStates
+     */
+    function restoreFormStates(element, source) {
+    }
+    /**
+     * Clears stored form state
+     * @param {string} formId - ID of the form to clear
+     */
+    function clearFormState(formId) {
+    }
+    /**
+     * Sets up change event listeners for form elements
+     * @param {HTMLElement} form - The form element to set up listeners for
+     */
+    function setupFormChangeListeners(form) {
+        try {
+            if (!form.id) {
+                Debug.debug("Skipping form without ID");
+                return;
+            }
+            const debugInfo = collectDebugInfo(form, "setup", {
+                formElements: form.elements.length,
+                checkboxWrappers: form.querySelectorAll(".w-checkbox").length,
+                listenersAdded: [],
+                skippedElements: [],
+            });
+            // Initialize new listeners array if it doesn't exist
+            if (!form._fpChangeListeners) {
+                form._fpChangeListeners = [];
+            }
+            // Handle regular form elements
+            processFormElements(form, (element) => {
+                // Skip if element already has a listener
+                if (form._fpChangeListeners.some(({ element: el }) => el === element)) {
+                    return;
+                }
+                const changeHandler = (event) => handleFormElementChange(event);
+                manageEventListener(element, "change", changeHandler);
+                // Store the handler reference
+                form._fpChangeListeners.push({ element, handler: changeHandler });
+                debugInfo.listenersAdded?.push(element.name);
+            });
+            // Output collected debug information
+            Debug.debug(`Form setup summary for ${form.id}`, {
+                totalFormElements: debugInfo.formElements,
+                checkboxWrappers: debugInfo.checkboxWrappers,
+                formPersistence: debugInfo.persistenceEnabled ? "enabled" : "disabled",
+                listenersAdded: debugInfo.listenersAdded?.join(", "),
+                skippedElements: debugInfo.skippedElements.join(", "),
+            });
+        }
+        catch (error) {
+            Debug.error(`Error setting up form change listeners: ${error.message}`);
+        }
+    }
+    /**
+     * Cleans up change event listeners for form elements
+     * @param {HTMLElement} form - The form element to clean up listeners for
+     */
+    function cleanupFormChangeListeners(form) {
+        try {
+            if (!form._fpChangeListeners)
+                return;
+            form._fpChangeListeners.forEach(({ element, handler }) => {
+                element.removeEventListener("change", handler);
+                element.removeEventListener("input", handler);
+            });
+            form._fpChangeListeners = [];
+        }
+        catch (error) {
+            Debug.error(`Error cleaning up form change listeners: ${error.message}`);
+        }
+    }
+    function handleFormElementChange(event) {
+        try {
+            const element = event.target;
+            const form = element.closest("form");
+            if (!form || !form.id) {
+                Debug.debug("Skipping change handler - no form or form ID");
+                return;
+            }
+            const debugInfo = collectDebugInfo(form, "change", {
+                changedValues: {},
+                skippedElements: [],
+            });
+            // Helper function to check if a value is a template
+            function isTemplateValue(value) {
+                if (typeof value !== "string")
+                    return false;
+                // Check for Handlebars syntax
+                if (value.includes("{{") || value.includes("}}"))
+                    return true;
+                // Check for alternative syntax
+                if (value.includes("[[") || value.includes("]]"))
+                    return true;
+                // Check for this. references which indicate template binding
+                if (value.includes("this."))
+                    return true;
+                return false;
+            }
+            // Helper function to check if an input is template-bound
+            function isTemplateInput(input) {
+                // Check if the input name itself is a template
+                if (isTemplateValue(input.name))
+                    return true;
+                // Check if the input has a template value
+                if (isTemplateValue(input.value))
+                    return true;
+                // Check for data-binding attributes that indicate template usage
+                if (AttributeMatcher._hasAttribute(input, "bind"))
+                    return true;
+                return false;
+            }
+            // Capture the current state of the form
+            const formState = {};
+            processFormElements(form, (input) => {
+                // First check if this is a template-bound input
+                if (isTemplateInput(input)) {
+                    debugInfo.skippedElements.push({
+                        name: input.name,
+                        reason: "Template binding detected",
+                        value: input.value,
+                    });
+                    return;
+                }
+                const value = input.type === "checkbox" || input.type === "radio"
+                    ? input.checked
+                    : input instanceof HTMLSelectElement && input.multiple
+                        ? Array.from(input.selectedOptions).map((opt) => opt.value)
+                        : input.value;
+                formState[input.name] = value;
+                if (!debugInfo.changedValues)
+                    debugInfo.changedValues = {};
+                debugInfo.changedValues[input.name] = value;
+            });
+            // Only store if there are elements to store
+            if (Object.keys(formState).length > 0) {
+                handleFormStorage(form, formState, "save");
+                // Output collected debug information
+                Debug.debug("Form state update for " + form.id + ":", {
+                    "Changed element": element.name,
+                    "Storage type": shouldUseLocalStorage(form)
+                        ? "localStorage"
+                        : "sessionStorage",
+                    "Updated values": debugInfo.changedValues,
+                    "Skipped elements": debugInfo.skippedElements,
+                });
+                // Find instance that contains this form or whose elements are contained by this form
+                let instance = null;
+                // @ts-ignore
+                for (const [instanceName, inst] of Object.entries(_state.instances)) {
+                    if (Array.from(inst.elements).some((el) => el.contains(form) || form.contains(el) || el === form)) {
+                        instance = inst;
+                        break;
+                    }
+                }
+                // Execute updateForm hook
+                PluginManager.executeHook("updateForm", instance, {
+                    element: form,
+                    id: form.id,
+                    data: formState,
+                    changedElement: element,
+                });
+                // Emit event
+                EventSystem.publish("formState:changed", {
+                    formId: form.id,
+                    formElement: form,
+                    state: formState,
+                    changedElement: element,
+                });
+            }
+        }
+        catch (error) {
+            Debug.error(`Error handling form element change: ${error.message}`);
+        }
+    }
+    /**
+     * Gets all relevant forms for an element (target, parent, and children)
+     * @param {HTMLElement} element - The element to get forms for
+     * @returns {Set<HTMLFormElement>} - Set of unique form elements
+     */
+    function getAllRelevantForms(element) {
+        const forms = new Set();
+        // Add the target if it's a form
+        if (element instanceof HTMLFormElement) {
+            forms.add(element);
+        }
+        // Add parent forms
+        const parentForm = element.closest("form");
+        if (parentForm) {
+            forms.add(parentForm);
+        }
+        // Add child forms
+        const childForms = element.getElementsByTagName("form");
+        Array.from(childForms).forEach((form) => forms.add(form));
+        return forms;
+    }
+    /**
+     * Sets up form submission handlers to clear state on submit
+     * @param {HTMLElement} element - The container element
+     * @param {string} [source] - The source of the call to setupFormSubmitHandlers
+     */
+    function setupFormSubmitHandlers(element, source) {
+        try {
+            Debug.debug("Setting up form submit handlers for element:", element);
+            // Get all relevant forms
+            const forms = getAllRelevantForms(element);
+            Debug.debug(`Found ${forms.size} forms`);
+            forms.forEach((form) => {
+                setupSingleFormHandlers(form, source || "setupFormSubmitHandlers");
+            });
+        }
+        catch (error) {
+            Debug.error(`Error setting up form submit handlers: ${error.message}`);
+        }
+    }
+    function setupSingleFormHandlers(form, source) {
+        if (!form.id) {
+            Debug.debug("Skipping form without ID");
+            return;
+        }
+        // Always set up handlers for forms that have been updated by HTMX
+        Debug.debug(`Setting up handlers for form: ${form.id}`);
+        // Remove existing listener if any
+        form.removeEventListener("submit", handleFormSubmit);
+        // Add new listener
+        form.addEventListener("submit", handleFormSubmit);
+        // Set up change listeners for form elements
+        setupFormChangeListeners(form);
+        // Mark form as having handlers set up
+        form._fpHandlersSetup = true;
+        // Check if form restoration is needed
+        if (shouldRestoreForm()) {
+            Debug.debug(`Restoring state for form: ${form.id}`);
+            restoreSingleFormState(form, source || "setupSingleFormHandlers");
+        }
+        else {
+            Debug.debug(`Skipping form restoration - no persistent elements: ${form.id}`);
+        }
+    }
+    function handleFormSubmit(event) {
+        try {
+            const form = event.target.closest("form");
+            if (form && form.id) {
+                clearFormState(form.id);
+            }
+        }
+        catch (error) {
+            Debug.error(`Error handling form submit: ${error.message}`);
+        }
+    }
+    function setupDynamicFormObserver(container) {
+        try {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node instanceof HTMLFormElement) {
+                            setupFormSubmitHandlers(node, "setupDynamicFormObserver");
+                        }
+                    });
+                });
+            });
+            observer.observe(container, {
+                childList: true,
+                subtree: true,
+            });
+            return observer;
+        }
+        catch (error) {
+            Debug.error(`Error setting up dynamic form observer: ${error.message}`);
+            return null;
+        }
+    }
+    /**
+     * Checks if form restoration should be performed for a form or its elements
+     * @param {HTMLElement} element - The form or container element to check
+     * @returns {boolean} - Whether form restoration should be performed
+     */
+    function shouldRestoreForm(element) {
+        return shouldRestoreForm();
+    }
 
     /**
      * Virtual DOM implementation for efficient DOM diffing and batched updates
@@ -4407,7 +4169,6 @@ var FlowPlater = (function () {
                 // Only restore form values if we have captured states and verification failed
                 if (capturedFormStates && Object.keys(capturedFormStates).length > 0) {
                     Debug.debug(`VirtualDOM: Restoring form states after integrity fix`);
-                    FormStateManager.restoreFormStates(container, 'VirtualDOM.verifyDOMIntegrity');
                 }
                 Debug.debug(`VirtualDOM: DOM integrity restored via innerHTML`);
             }
@@ -4766,7 +4527,7 @@ var FlowPlater = (function () {
     /**
      * Main update function with performance tracking and error handling
      */
-    async function updateDOM(element, newHTML, animate = false, instance = null) {
+    async function updateDOM(element, newHTML, animate$1 = false, instance = null) {
         Performance.start("updateDOM");
         const forceFullUpdate = AttributeMatcher._hasAttribute(element, "force-full-update");
         const config = ConfigManager.getConfig();
@@ -4799,7 +4560,7 @@ var FlowPlater = (function () {
                 Debug.debug(`UpdateDOM: newHTML preview (first 200 chars): ${newHTML.substring(0, 200)}`);
             }
             // Check form persistence requirements
-            const shouldHandleFormState = config.persistForm && FormStateManager.shouldRestoreForm(element);
+            const shouldHandleFormState = config.persistForm && shouldRestoreForm(element);
             // Only capture and restore form state manually when doing force update
             // Virtual DOM already preserves form element state during normal updates
             const needsManualStatePreservation = shouldHandleFormState && forceFullUpdate;
@@ -4823,7 +4584,7 @@ var FlowPlater = (function () {
                     EventSystem.publish("beforeDomUpdate", {
                         element,
                         newHTML,
-                        animate,
+                        animate: animate$1,
                         formStates,
                     });
                     // Execute beforeDomUpdate plugin hook if instance is provided
@@ -4831,7 +4592,7 @@ var FlowPlater = (function () {
                         PluginManager.executeHook("beforeDomUpdate", instance, {
                             element,
                             newHTML,
-                            animate,
+                            animate: animate$1,
                             formStates,
                         });
                     }
@@ -4842,7 +4603,7 @@ var FlowPlater = (function () {
                         if (needsManualStatePreservation && formStates) {
                             Debug.debug("Restoring form states after update (manual preservation)");
                             await domBatcher.write(() => {
-                                FormStateManager.restoreFormStates(element, "updateDOM - form state restoration - restoreFormStates");
+                                restoreFormStates(element, "updateDOM - form state restoration - restoreFormStates");
                             }, `restore-form-${elementId}-${timestamp}`);
                         }
                         // Always set up form submit handlers when form persistence is enabled
@@ -4856,7 +4617,7 @@ var FlowPlater = (function () {
                         PluginManager.executeHook("afterDomUpdate", instance, {
                             element,
                             newHTML,
-                            animate,
+                            animate: animate$1,
                             formStates,
                         });
                     }
@@ -4864,19 +4625,19 @@ var FlowPlater = (function () {
                     EventSystem.publish("afterDomUpdate", {
                         element,
                         newHTML,
-                        animate,
+                        animate: animate$1,
                         formStates,
                     });
                     resolve();
                 });
             };
             // Handle view transitions for animations
-            if (document.startViewTransition && animate) {
-                await document.startViewTransition(() => updateContent()).finished;
-            }
-            else {
-                await updateContent();
-            }
+            await new Promise(resolve => {
+                animate(element, async () => {
+                    await updateContent();
+                    resolve();
+                });
+            });
             if (formObserver) {
                 Debug.debug("Disconnecting form observer");
                 formObserver.disconnect();
@@ -6350,7 +6111,6 @@ var FlowPlater = (function () {
                             }
                         }
                         RequestHandler.handleRequest(triggeringElt, requestId, "cleanup");
-                        restoreFormIfNecessary(triggeringElt, true, evt);
                         break;
                     case "htmx:afterSettle":
                         executeHtmxHook("afterSettle", triggeringElt, evt);
@@ -6371,22 +6131,6 @@ var FlowPlater = (function () {
                 PluginManager.executeHook(hookName, instance, event?.detail);
             }
         }
-    }
-    /**
-     * Helper function to restore form states if necessary
-     * @param {HTMLElement} target - The target element
-     * @param {boolean} [checkFailed=true] - Whether to check if the request failed
-     * @param {Object} [event] - The event object containing failure status
-     */
-    function restoreFormIfNecessary(target, checkFailed = true, event) {
-        if (FormStateManager.isRestoringFormStates) {
-            Debug.debug("Already restoring form states, skipping");
-            return;
-        }
-        if (checkFailed && event?.detail?.failed) {
-            return;
-        }
-        FormStateManager.restoreFormStates(target);
     }
 
     // prettier-ignore

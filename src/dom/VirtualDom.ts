@@ -1,5 +1,5 @@
 import { Performance } from "../utils/Performance";
-import { FormStateManager } from "../forms/FormStateManager";
+import { restoreFormStates } from "../forms/FormPersistence";
 import { Debug } from "../core/Debug";
 
 interface VNode {
@@ -835,7 +835,7 @@ class VirtualDOM {
       // Only restore form values if we have captured states and verification failed
       if (capturedFormStates && Object.keys(capturedFormStates).length > 0) {
         Debug.debug(`VirtualDOM: Restoring form states after integrity fix`);
-        FormStateManager.restoreFormStates(container, 'VirtualDOM.verifyDOMIntegrity');
+        restoreFormStates(container, 'VirtualDOM.verifyDOMIntegrity');
       }
       
       Debug.debug(`VirtualDOM: DOM integrity restored via innerHTML`);

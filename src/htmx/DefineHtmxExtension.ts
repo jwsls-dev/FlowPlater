@@ -6,7 +6,7 @@ import {
   setupFormSubmitHandlers,
   cleanupFormChangeListeners,
   getAllRelevantForms,
-  FormStateManager
+  restoreFormStates
 } from "../forms";
 import { PluginManager } from "../core/PluginManager";
 import { InstanceManager } from "../instance";
@@ -387,14 +387,9 @@ function executeHtmxHook(hookName: string, target: FlowPlaterElement, event: any
  * @param {Object} [event] - The event object containing failure status
  */
 function restoreFormIfNecessary(target: FlowPlaterElement, checkFailed: boolean = true, event: any) {
-  if (FormStateManager.isRestoringFormStates) {
-    Debug.debug("Already restoring form states, skipping");
-    return;
-  }
-
   if (checkFailed && event?.detail?.failed) {
     return;
   }
 
-  FormStateManager.restoreFormStates(target);
+  restoreFormStates(target, 'htmx.restoreFormIfNecessary');
 }

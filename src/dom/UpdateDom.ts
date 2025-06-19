@@ -8,12 +8,12 @@ import {
   captureFormStates,
   setupFormSubmitHandlers,
   setupDynamicFormObserver,
-  FormStateManager
 } from "../forms";
 import { AttributeMatcher } from "../dom";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterInstance } from "../types";
 import { animate as runAnimation } from "../template";
+import { shouldRestoreForm, restoreFormStates } from '../forms/FormPersistence';
 
 /**
  * Performs the actual DOM update logic
@@ -145,7 +145,7 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
     }
 
     // Check form persistence requirements
-    const shouldHandleFormState = config.persistForm && FormStateManager.shouldRestoreForm(element);
+    const shouldHandleFormState = config.persistForm && shouldRestoreForm(element);
     
     // Only capture and restore form state manually when doing force update
     // Virtual DOM already preserves form element state during normal updates
@@ -201,7 +201,7 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
             Debug.debug("Restoring form states after update (manual preservation)");
             await domBatcher.write(
               () => {
-                FormStateManager.restoreFormStates(
+                restoreFormStates(
                   element,
                   "updateDOM - form state restoration - restoreFormStates",
                 );

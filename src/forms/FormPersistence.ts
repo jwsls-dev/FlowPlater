@@ -3,7 +3,6 @@ import { EventSystem } from "../events";
 import { saveToLocalStorage, loadFromLocalStorage } from "../storage";
 import { Debug } from "../core/Debug";
 import { PluginManager } from "../core/PluginManager";
-import { FormStateManager } from "./FormStateManager";
 import { AttributeMatcher } from "../dom";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterElement } from "../types";
@@ -457,7 +456,7 @@ function restoreSingleFormState(form: HTMLFormElement, source: string): boolean 
  * @param {string} [source] - The source of the call to restoreFormStates
  */
 export function restoreFormStates(element: HTMLElement, source: string) {
-  FormStateManager.restoreFormStates(element, source);
+  restoreFormStates(element, source);
 }
 
 /**
@@ -465,7 +464,7 @@ export function restoreFormStates(element: HTMLElement, source: string) {
  * @param {string} formId - ID of the form to clear
  */
 export function clearFormState(formId: string) {
-  FormStateManager.clearFormState(formId);
+  clearFormState(formId);
 }
 
 /**
@@ -768,5 +767,7 @@ export function setupDynamicFormObserver(container: HTMLElement) {
  * @returns {boolean} - Whether form restoration should be performed
  */
 export function shouldRestoreForm(element: HTMLElement): boolean {
-  return FormStateManager.shouldRestoreForm(element);
+  return shouldRestoreForm(element);
 }
+
+export { handleFormStorage, isPersistenceEnabledForElement };
