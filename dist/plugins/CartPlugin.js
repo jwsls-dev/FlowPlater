@@ -74,15 +74,8 @@ var CartPlugin = (function () {
             return Object.keys(this.INHERITABLE_ATTRIBUTES);
         },
         _normalizeAttributeName(attributeName) {
-            // Remove any existing prefix
             return attributeName.replace(/^(hx-|fp-)/, "").replace(/^data-/, "");
         },
-        /**
-         * Gets all possible attribute names for a given attribute
-         * @private
-         * @param {string} attributeName - The base attribute name
-         * @returns {string[]} Array of all possible attribute names
-         */
         _getAllAttributeNames(attributeName) {
             const normalizedName = this._normalizeAttributeName(attributeName);
             const names = [];
@@ -92,13 +85,6 @@ var CartPlugin = (function () {
             }
             return names;
         },
-        /**
-         * Gets the raw attribute value, checking all possible attribute names
-         * @private
-         * @param {Element} element - The element to check
-         * @param {string} name - The attribute name
-         * @returns {string|null} The attribute value or null if not found
-         */
         _getRawAttribute(element, name, defaultValue = null) {
             for (const attrName of this._getAllAttributeNames(name)) {
                 const value = element.getAttribute(attrName);
@@ -108,26 +94,9 @@ var CartPlugin = (function () {
             }
             return defaultValue;
         },
-        /**
-         * Checks if an element has an attribute, checking all possible attribute names
-         * @private
-         * @param {Element} element - The element to check
-         * @param {string} name - The attribute name
-         * @returns {boolean} Whether the element has the attribute
-         */
         _hasAttribute(element, name) {
             return this._getAllAttributeNames(name).some((attrName) => element.hasAttribute(attrName));
         },
-        /**
-         * Finds elements with a given attribute and optional value
-         * @param {string} attributeName - The attribute to look for
-         * @param {string} [value] - Optional value to match
-         * @param {boolean} [exactMatch=true] - Whether to match the value exactly or just include it
-         * @param {Element} [element=document] - The element to search within
-         * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
-         * @param {boolean} [getFirst=false] - Whether to return the first matching element or all matching elements
-         * @returns {Element[]|Element|null} Array of elements if no value specified, first matching element if value specified
-         */
         findMatchingElements(attributeName, value = null, exactMatch = true, element = document, includeSelf = true, getFirst = false) {
             const attrNames = this._getAllAttributeNames(attributeName);
             let selector = attrNames.map((name) => `[${name}]`).join(",");
@@ -169,7 +138,6 @@ var CartPlugin = (function () {
                 selector = attrNames.map((name) => `[${name}${valueSelector}]`).join(",");
             }
             let closestElement = element.closest(selector);
-            // check if there is no disinherit attribute on the closest element
             if (closestElement && this.isInheritable(normalizedName)) {
                 const disinherit = this._getRawAttribute(closestElement, "disinherit");
                 if (disinherit &&
@@ -179,13 +147,6 @@ var CartPlugin = (function () {
             }
             return closestElement;
         },
-        /**
-         * Gets the first element with a given attribute
-         * @param {string} attributeName - The attribute to look for
-         * @param {Element} [element=document] - The element to search within
-         * @param {boolean} [includeSelf=true] - Whether to include the element itself in the search
-         * @returns {Element|null} The first element with the attribute or null if none found
-         */
         getElementWithAttribute(attributeName, element = document, includeSelf = true) {
             if (includeSelf &&
                 element instanceof Element &&
@@ -197,12 +158,6 @@ var CartPlugin = (function () {
                 .join(",");
             return element.querySelector(selectors);
         },
-        /**
-         * Gets the parent element, handling Shadow DOM
-         * @private
-         * @param {Node} element - The element to get the parent of
-         * @returns {Node|null} The parent element or null if none
-         */
         _parentElement(element) {
             const parent = element.parentElement;
             if (!parent && element.parentNode instanceof ShadowRoot) {
@@ -210,23 +165,9 @@ var CartPlugin = (function () {
             }
             return parent;
         },
-        /**
-         * Gets the root node of an element, handling Shadow DOM
-         * @private
-         * @param {HTMLElement} element - The element to get the root of
-         * @param {boolean} [composed=false] - Whether to get the composed root
-         * @returns {Node} The root node
-         */
         _getRootNode(element, composed = false) {
             return element.getRootNode ? element.getRootNode({ composed }) : document;
         },
-        /**
-         * Finds the closest element matching a condition
-         * @private
-         * @param {Node} element - The element to start from
-         * @param {function(Node): boolean} condition - The condition to match
-         * @returns {Node|null} The closest matching element or null if none
-         */
         _getClosestMatch(element, condition) {
             while (element && !condition(element)) {
                 element = this._parentElement(element);
@@ -234,21 +175,12 @@ var CartPlugin = (function () {
             return element || null;
         },
         _attributeMatchesNormalizedName(attributeName, normalizedName) {
-            // Remove any existing prefix
             const name = attributeName
                 .replace(/^data-/, "")
                 .replace(/^hx-/, "")
                 .replace(/^fp-/, "");
             return name === normalizedName;
         },
-        /**
-         * Gets an attribute value with inheritance and disinheritance
-         * @private
-         * @param {Element} startElement - The element to start from
-         * @param {Element} ancestor - The ancestor element to check
-         * @param {string} attributeName - The attribute name
-         * @returns {string|null} The attribute value or null if not found
-         */
         _getAttributeValueWithInheritance(startElement, ancestor, attributeName) {
             const attributeValue = this._getRawAttribute(ancestor, attributeName);
             const disinherit = this._getRawAttribute(ancestor, "disinherit");
@@ -268,12 +200,6 @@ var CartPlugin = (function () {
             }
             return attributeValue;
         },
-        /**
-         * Finds the value of an inheritable attribute
-         * @param {HTMLElement} element - The element to start searching from
-         * @param {string} attributeName - The name of the attribute to find
-         * @returns {string|null} The attribute value or null if not found
-         */
         findInheritedAttribute(element, attributeName) {
             const normalizedName = this._normalizeAttributeName(attributeName);
             let closestValue = null;
@@ -289,14 +215,12 @@ var CartPlugin = (function () {
         },
         findAttribute(element, attributeName) {
             const normalizedName = this._normalizeAttributeName(attributeName);
-            // First check direct attributes
             for (const prefix of this._prefixes()) {
                 const value = this._getRawAttribute(element, `${prefix}${normalizedName}`);
                 if (value) {
                     return value;
                 }
             }
-            // Then check inherited attributes
             return this.findInheritedAttribute(element, normalizedName) || null;
         },
         _validateAttributeName(attributeName) {
@@ -311,23 +235,12 @@ var CartPlugin = (function () {
             }
             return true;
         },
-        /**
-         * Adds an inheritable attribute to the list
-         * @param {string} prefix - The prefix to use (hx- or fp-)
-         * @param {string} attributeName - The name of the attribute to add
-         */
         addInheritableAttribute(prefix, attributeName) {
             if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
                 this.INHERITABLE_ATTRIBUTES[prefix] = [];
             }
             this.INHERITABLE_ATTRIBUTES[prefix].push(attributeName);
         },
-        /**
-         * Removes an inheritable attribute from the list
-         * @param {string} prefix - The prefix to use (hx- or fp-)
-         * @param {string} attributeName - The name of the attribute to remove
-         * @returns {boolean} True if the attribute was removed, false if it wasn't found
-         */
         removeInheritableAttribute(prefix, attributeName) {
             if (!this.INHERITABLE_ATTRIBUTES[prefix]) {
                 return false;
@@ -345,7 +258,199 @@ var CartPlugin = (function () {
                 .flat()
                 .includes(normalizedName);
         },
+        findTemplateElementByInstanceName(instanceName) {
+            if (instanceName.startsWith("#")) {
+                const elementId = instanceName.slice(1);
+                const element = document.getElementById(elementId);
+                if (element && this._hasAttribute(element, "template")) {
+                    return element;
+                }
+                return null;
+            }
+            const allTemplateElements = this.findMatchingElements("template");
+            if (!Array.isArray(allTemplateElements)) {
+                return null;
+            }
+            const templateElement = allTemplateElements.find((element) => {
+                const elementInstanceName = this._getRawAttribute(element, "instance");
+                return elementInstanceName === instanceName;
+            });
+            return templateElement || null;
+        },
+        findElementByInstanceName(instanceName) {
+            if (instanceName.startsWith("#")) {
+                const elementId = instanceName.slice(1);
+                const element = document.getElementById(elementId);
+                return element;
+            }
+            const element = this.findMatchingElements("instance", instanceName, false, document, false, true);
+            return element;
+        },
     };
+
+    const DEFAULTS = {
+        TEMPLATE: {
+            CACHE_SIZE: 100,
+            PRECOMPILE: true,
+            ANONYMOUS_INSTANCE_NAME: "anonymous",
+            SELF_TEMPLATE_ID: "self",
+        },
+        ANIMATION: {
+            ENABLED: true,
+            DURATION: 300,
+        },
+        DEBUG: {
+            LEVEL: 1,
+            DEVELOPMENT_LEVEL: 3,
+        },
+        HTMX: {
+            TIMEOUT: 10000,
+            SWAP_STYLE: "innerHTML",
+            SELF_REQUESTS_ONLY: false,
+            IGNORE_TITLE: true,
+            DEFAULT_TRIGGER: "mouseover",
+            SWAP_DELAY: 0,
+            SETTLE_DELAY: 0,
+            TRANSITION: false,
+        },
+        STORAGE: {
+            ENABLED: false,
+            TTL: 30 * 24 * 60 * 60,
+            INFINITE_TTL: -1,
+        },
+        PERFORMANCE: {
+            BATCH_DOM_UPDATES: true,
+            BATCHING_DELAY: 0,
+            DEBOUNCE_DELAY: 0,
+        },
+        FORMS: {
+            PERSIST_FORMS: true,
+            DEFAULT_SOURCE: "unknown",
+            TRIGGER_EVENTS: "change",
+            EXCLUDED_INPUT_TYPES: ["file"],
+            CHECKBOX_RADIO_TYPES: ["checkbox", "radio"],
+            TEXT_INPUT_TYPES: ["text"],
+            FORM_INPUT_TYPES: ["INPUT", "SELECT", "TEXTAREA"],
+        },
+        PLUGINS: {
+            DEFAULT_PRIORITY: 0,
+            DEFAULT_VERSION: "1.0.0",
+            DEBUG: false,
+        },
+        CART: {
+            ENABLED: true,
+            PRIORITY: 50,
+            DATA_ATTRIBUTE: "product",
+            GROUP_NAME: "cart",
+            REQUIRED_KEYS: ["id", "name"],
+            CURRENCY: {
+                NAME: "USD",
+                SYMBOL: "$",
+                PRECISION: 2,
+                SEPARATOR: ",",
+                DECIMAL: ".",
+            },
+            TAX_RATES: [{ name: "VAT", value: 1.21 }],
+            LOCALE: "en-US",
+            STOCK: {
+                INFINITE: Infinity,
+                MIN_AMOUNT: 0,
+            },
+        },
+        FILTER: {
+            ENABLED: true,
+            PRIORITY: 0,
+            DEFAULT_SELECT_OPTION: "Select tags...",
+            PRESERVE_DEFAULT: false,
+        },
+        DATA_EXTRACTOR: {
+            VALUE_SOURCES: {
+                ATTRIBUTE: "attribute",
+                TEXT: "text",
+            },
+        },
+        PROXY: {
+            DEFAULT_URL: "",
+        },
+        MATH: {
+            OPERATORS: {
+                ADD: "+",
+                SUBTRACT: "-",
+                MULTIPLY: "*",
+                DIVIDE: "/",
+            },
+        },
+        DOM: {
+            UPDATE_COUNTER_INITIAL: 0,
+            UNKNOWN_ELEMENT_ID: "unknown",
+            INTEGRITY_CHECK_ENABLED: true,
+            VOID_ELEMENTS: [
+                'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+                'link', 'meta', 'param', 'source', 'track', 'wbr'
+            ],
+            SVG_NAMESPACE: 'http://www.w3.org/2000/svg',
+            SVG_ELEMENTS: [
+                'svg', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'rect', 'path',
+                'g', 'text', 'tspan', 'defs', 'use', 'symbol', 'marker', 'clipPath',
+                'mask', 'pattern', 'image', 'foreignObject'
+            ],
+            WEBFLOW_CLASSES: [
+                'w-checkbox', 'w-radio', 'w-checkbox-input', 'w-radio-input',
+                'w-form', 'w-input', 'w-select', 'w-textarea'
+            ],
+            SIMILARITY_THRESHOLD: 0.5,
+            LENGTH_RATIO_THRESHOLD: 0.5,
+        },
+        INSTANCES: {
+            DUPLICATE_INIT_WINDOW: 100,
+        },
+        EVENTS: {
+            HTTP_METHODS: ["get", "post", "put", "patch", "delete"],
+            HTTP_TRIGGER_ATTRIBUTES: ["trigger", "boost", "ws", "sse"],
+        },
+        HELPERS: {
+            EACH: {
+                START_AT: 0,
+                SORT_KEY: "",
+                DESCENDING: false,
+                SORT_BEFORE_LIMIT: true,
+            },
+            COMPARISON: {
+                DEFAULT_OPERATOR: "==",
+            },
+        },
+        CONTENT_TYPES: {
+            UNKNOWN: "unknown",
+            JSON: "json",
+            HTML: "html",
+            XML: "xml",
+        },
+        ERRORS: {
+            XML_PARSER_ERROR: "Unknown parser error",
+        },
+        URL: {
+            WEBFLOW_DOMAINS: [".webflow.io", ".canvas.webflow.com"],
+            LOCALHOST: "localhost",
+        },
+        SELECTORS: {
+            FP_ATTRIBUTES: [
+                "template", "get", "post", "put", "delete", "patch",
+                "persist", "instance", "data", "local", "group",
+                "target", "swap", "trigger", "dynamic"
+            ],
+            TEMPLATE_ELEMENTS: ["template", "fptemplate"],
+            EXTENSION_ATTRIBUTE: "hx-ext",
+        },
+        SECURITY: {
+            ALLOW_EXECUTE: true,
+            FORBIDDEN_REGISTRATIONS: new Set([
+                "if", "unless", "each", "with", "lookup", "log", "blockHelperMissing", "helperMissing"
+            ]),
+        },
+    };
+    function withDefault(value, defaultValue) {
+        return value ?? defaultValue;
+    }
 
     /*!
      * currency.js - v2.0.4
@@ -600,19 +705,7 @@ var CartPlugin = (function () {
       }
     };
 
-    /**
-     * @module CartPlugin
-     * @description Plugin for managing shopping cart functionality in FlowPlater
-     */
-    /**
-     * Cart plugin for FlowPlater that handles shopping cart operations
-     *
-     * @function CartPlugin
-     * @returns {Object} Plugin object containing configuration, state, methods, hooks, and helpers
-     */
     const CartPlugin = (customConfig = {}) => {
-        // <<< Configure storage early when plugin function is executed >>>
-        // This ensures storage is enabled before GroupManager might need it.
         FlowPlater.config({
             storage: {
                 enabled: true,
@@ -621,64 +714,59 @@ var CartPlugin = (function () {
         FlowPlater.log(FlowPlater.logLevels.INFO, "[CartPlugin] Early config executed: Storage enabled.");
         const config = {
             name: "cart",
-            enabled: true,
-            priority: 50,
-            version: "1.0.0",
+            enabled: DEFAULTS.CART.ENABLED,
+            priority: DEFAULTS.CART.PRIORITY,
+            version: DEFAULTS.PLUGINS.DEFAULT_VERSION,
             dependencies: ["data-extractor"],
             optionalDependencies: [],
             settings: {
-                debug: false,
-                dataAttribute: "product", // Default data attribute to look for
-                group: "cart",
-                requiredKeys: ["id", "name"], // Required keys in product data
+                debug: DEFAULTS.PLUGINS.DEBUG,
+                dataAttribute: DEFAULTS.CART.DATA_ATTRIBUTE,
+                group: DEFAULTS.CART.GROUP_NAME,
+                requiredKeys: DEFAULTS.CART.REQUIRED_KEYS,
             },
             description: "Shopping cart functionality for FlowPlater",
             author: "FlowPlater Team",
             currency: {
-                name: "USD",
-                symbol: "$",
-                precision: 2,
-                separator: ",", // default thousands separator
-                decimal: ".", // default decimal separator
+                name: DEFAULTS.CART.CURRENCY.NAME,
+                symbol: DEFAULTS.CART.CURRENCY.SYMBOL,
+                precision: DEFAULTS.CART.CURRENCY.PRECISION,
+                separator: DEFAULTS.CART.CURRENCY.SEPARATOR,
+                decimal: DEFAULTS.CART.CURRENCY.DECIMAL,
                 ...customConfig.currency,
             },
-            taxRates: [{ name: "VAT", value: 1.21 }],
-            locale: customConfig.locale || "en-US",
+            taxRates: DEFAULTS.CART.TAX_RATES,
+            locale: withDefault(customConfig.locale, DEFAULTS.CART.LOCALE),
         };
         Object.assign(config, customConfig);
-        // --- Helper function to generate Composite Cart Item ID ---
         const _generateCartItemId = (productData, actionElement) => {
             const baseId = productData?.id;
             if (baseId === undefined || baseId === null) {
                 FlowPlater.log(FlowPlater.logLevels.ERROR, "[CartPlugin] Cannot generate cart item ID: Base product ID is missing.", productData);
-                return null; // Cannot generate ID without base ID
+                return null;
             }
-            // Use _getRawAttribute to reliably get the variant key attribute
             const variantKeyAttr = actionElement
                 ? AttributeMatcher._getRawAttribute(actionElement, "cart-variant-key", null)
                 : null;
             if (!variantKeyAttr) {
-                return baseId.toString(); // No variant keys, use base ID
+                return baseId.toString();
             }
             const variantKeys = variantKeyAttr
                 .split(",")
                 .map((k) => k.trim())
                 .sort();
             if (variantKeys.length === 0) {
-                return baseId.toString(); // Empty variant keys, use base ID
+                return baseId.toString();
             }
             const variantParts = [];
             let hasAnyValue = false;
             for (const key of variantKeys) {
-                // Skip if key is not in product data - this is expected for unselected variants
                 if (!productData.hasOwnProperty(key)) {
                     continue;
                 }
                 const value = productData[key];
-                // Only include the variant if it has a valid value
                 if (value !== null && value !== undefined && value !== "") {
                     hasAnyValue = true;
-                    // Ensure value is suitable for ID (string/number)
                     if (typeof value === "string" || typeof value === "number") {
                         variantParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
                     }
@@ -687,17 +775,14 @@ var CartPlugin = (function () {
                     }
                 }
             }
-            // If no variants had values, just return the base ID
-            // This handles the case where all variants are unselected
             if (!hasAnyValue) {
                 return baseId.toString();
             }
             return `${baseId}::${variantParts.join(";")}`;
         };
-        // --- End Helper ---
         const state = {
             cart: {
-                items: new Map(), // Store items by ID for quick lookup
+                items: new Map(),
                 totalItems: 0,
                 totalPrice: 0,
                 totalDiscount: 0,
@@ -709,13 +794,11 @@ var CartPlugin = (function () {
                 totalTaxFmt: "",
                 totalAmountFmt: "",
             },
-            observers: new Map(), // Store MutationObservers for product elements
+            observers: new Map(),
         };
-        // Move updateAllProductStates above updateCartTotals so it is defined before use
         const updateAllProductStates = () => {
             const elements = AttributeMatcher.findMatchingElements("data", config.settings.dataAttribute);
             (Array.isArray(elements) ? elements : elements ? [elements] : []).forEach((productElement) => {
-                // Skip button state management for cart items
                 if (productElement.closest(`[fp-group="${config.settings.group}"]`)) {
                     return;
                 }
@@ -731,23 +814,18 @@ var CartPlugin = (function () {
                 const stock = productData.stock === undefined || productData.stock === null
                     ? Infinity
                     : productData.stock;
-                // Get total amount across all variants
                 const totalInCart = getTotalAmountForProduct(productData.id);
-                // Check if we've reached max stock across all variants
                 const atMaxStock = totalInCart >= stock;
                 const atMinStock = currentAmount <= 0;
                 if (amountInput) {
                     amountInput.value = currentAmount;
                     amountInput.min = "0";
-                    // Max amount should be remaining stock plus current amount
                     const remainingStock = Math.max(0, stock - (totalInCart - currentAmount));
                     amountInput.max = remainingStock;
                 }
                 if (addButton) {
-                    // Special case: if stock is 1 and a different variant is in the cart, allow add (for replacement)
                     let disableAdd = atMaxStock;
                     if (stock === 1 && totalInCart === 1) {
-                        // Check if the item in the cart is a different variant
                         const baseId = productData.id?.toString();
                         const cartHasDifferentVariant = Array.from(state.cart.items.keys()).some((id) => id.split("::")[0] === baseId && id !== cartItemId);
                         if (cartHasDifferentVariant) {
@@ -755,7 +833,6 @@ var CartPlugin = (function () {
                         }
                     }
                     addButton.disabled = disableAdd;
-                    // Toggle fp-disabled class
                     if (addButton.disabled) {
                         addButton.classList.add("fp-disabled");
                     }
@@ -763,12 +840,9 @@ var CartPlugin = (function () {
                         addButton.classList.remove("fp-disabled");
                     }
                 }
-                // --- NEW: Show remove button for baseId (no variant) items ---
                 if (removeButton) {
                     let showRemove = !atMinStock;
-                    // If the cart contains a baseId-only item (no variant), and this product has no variant selected, show remove
                     const hasBaseIdOnly = state.cart.items.has(productData.id?.toString());
-                    // Check if this product element has no variant selected (cartItemId === baseId)
                     const isBaseIdOnly = cartItemId === productData.id?.toString();
                     if (hasBaseIdOnly && isBaseIdOnly) {
                         showRemove = true;
@@ -782,12 +856,9 @@ var CartPlugin = (function () {
                     }
                 }
             });
-            // Broadcast product states updated
             FlowPlater.trigger("cart:productStatesUpdated", null, {});
         };
-        // Ensure serializeCart and deserializeCart are defined here
         const serializeCart = () => {
-            // Return items as an array of the map's values (item objects)
             const items = Array.from(state.cart.items.values()).map((item) => ({
                 ...item,
                 amountFmt: item.amountFmt,
@@ -812,7 +883,6 @@ var CartPlugin = (function () {
             };
         };
         const deserializeCart = (data) => {
-            // Reset state if data is null/undefined
             if (!data) {
                 state.cart.items = new Map();
                 state.cart.totalItems = 0;
@@ -823,25 +893,19 @@ var CartPlugin = (function () {
                 FlowPlater.log(FlowPlater.logLevels.DEBUG, "[CartPlugin] State reset in deserializeCart (no data).");
                 return;
             }
-            // Rebuild the internal Map from the items array (if it exists and is an array)
             const newItemsMap = new Map();
             if (Array.isArray(data.items)) {
                 data.items.forEach((item) => {
-                    // Use the stored composite cartItemId as the key
                     if (item && item.cartItemId !== undefined) {
                         newItemsMap.set(item.cartItemId, item);
                     }
                     else if (item && item.id !== undefined) {
-                        // Fallback for older data or items without variants? Generate ID?
-                        // For now, let's log a warning and potentially still use base id
-                        // or attempt to regenerate - regenerating is complex here.
                         FlowPlater.log(FlowPlater.logLevels.WARN, "[CartPlugin] Cart item missing cartItemId during deserialization. Using base id as fallback key.", item);
-                        newItemsMap.set(item.id, item); // Fallback, might cause issues with variants
+                        newItemsMap.set(item.id, item);
                     }
                 });
             }
             state.cart.items = newItemsMap;
-            // Set other totals from the loaded data
             state.cart.totalItems = data.totalItems || 0;
             state.cart.totalPrice = data.totalPrice || 0;
             state.cart.totalDiscount = data.totalDiscount || 0;
@@ -849,29 +913,17 @@ var CartPlugin = (function () {
             state.cart.totalAmount = data.totalAmount || 0;
             FlowPlater.log(FlowPlater.logLevels.DEBUG, "[CartPlugin] State after deserializeCart:", state.cart);
         };
-        /**
-         * Helper function to find product element from a target element
-         * @param {HTMLElement} target - The target element to start searching from
-         * @returns {HTMLElement|null} The found product element or null
-         */
         const findProductElement = (target) => {
             let productElement = AttributeMatcher.findClosestParent("data", target, config.settings.dataAttribute, true);
             return productElement;
         };
-        /**
-         * Locale-aware price sanitizer using currency.js
-         * @param {string|number} price
-         * @returns {number}
-         */
         function sanitizePrice(price) {
             if (typeof price === "number")
                 return price;
             if (!price)
                 return 0;
             let priceStr = price.toString().trim();
-            // Remove currency symbols and whitespace
             priceStr = priceStr.replace(/[^\d.,\- ]/g, "");
-            // Use currency.js to parse
             try {
                 return currency(priceStr, {
                     separator: config.currency.separator,
@@ -882,12 +934,6 @@ var CartPlugin = (function () {
                 return 0;
             }
         }
-        /**
-         * Calculate price with discount
-         * @param {number} price - Original price
-         * @param {string} discount - Discount value (e.g. "10%" or "5")
-         * @returns {number} Final price after discount
-         */
         const calculateDiscountedPrice = (price, discount) => {
             const sanitizedPrice = sanitizePrice(price);
             if (!discount)
@@ -898,21 +944,13 @@ var CartPlugin = (function () {
             }
             return Math.max(0, sanitizedPrice - sanitizePrice(discount));
         };
-        // Returns the amount in the cart for a given cartItemId
         const getCartItemAmount = (cartItemId) => {
             const item = state.cart.items.get(cartItemId);
             return item ? item.amount : 0;
         };
-        /**
-         * Get total amount in cart for all variants of a product
-         * @param {string} baseId - Base product ID without variants
-         * @returns {number} Total amount across all variants
-         */
         const getTotalAmountForProduct = (baseId) => {
             let totalAmount = 0;
             state.cart.items.forEach((item) => {
-                // Check if this item is a variant of the base product
-                // Items will either be baseId or baseId::variants
                 const itemBaseId = item.cartItemId.split("::")[0];
                 if (itemBaseId === baseId.toString()) {
                     totalAmount += item.amount;
@@ -920,9 +958,6 @@ var CartPlugin = (function () {
             });
             return totalAmount;
         };
-        /**
-         * Update cart totals
-         */
         const updateCartTotals = () => {
             let totalItems = 0;
             let totalPrice = 0;
@@ -942,14 +977,12 @@ var CartPlugin = (function () {
                 totalDiscount += (itemPrice - discountedPrice) * item.amount;
                 totalTax += itemTotalWithTax - itemTotalWithoutTax;
             });
-            // Update cart totals
             totalAmount = totalPrice - totalDiscount + totalTax;
             state.cart.totalItems = totalItems;
             state.cart.totalPrice = totalPrice;
             state.cart.totalDiscount = totalDiscount;
             state.cart.totalTax = totalTax;
             state.cart.totalAmount = totalAmount;
-            // Set formatted values AFTER raw values are set
             state.cart.totalItemsFmt = state.cart.totalItems.toString();
             state.cart.totalPriceFmt = formatNumber(state.cart.totalPrice, {
                 currencySymbol: config.currency.symbol,
@@ -963,12 +996,9 @@ var CartPlugin = (function () {
             state.cart.totalAmountFmt = formatNumber(state.cart.totalAmount, {
                 currencySymbol: config.currency.symbol,
             });
-            // Update all product elements on the page that are NOT in the cart
             const elementsNotInCart = AttributeMatcher.findMatchingElements("data", config.settings.dataAttribute);
             (Array.isArray(elementsNotInCart) ? elementsNotInCart : elementsNotInCart ? [elementsNotInCart] : []).forEach((productElement) => {
-                // Skip if this is a cart item
                 if (productElement.closest(`[fp-group="${config.settings.group}"]`)) {
-                    // For cart items, store the cartItemId
                     const productData = processHtml(productElement);
                     if (productData) {
                         const cartItem = Array.from(state.cart.items.values()).find((item) => item.id === productData.id &&
@@ -1004,7 +1034,6 @@ var CartPlugin = (function () {
                     amountInput.max = stock;
                 }
             });
-            // Update display elements
             const cartTotalCountElements = AttributeMatcher.findMatchingElements("cart-total-count");
             (Array.isArray(cartTotalCountElements) ? cartTotalCountElements : cartTotalCountElements ? [cartTotalCountElements] : []).forEach((el) => {
                 el.textContent = totalItems.toString();
@@ -1028,15 +1057,12 @@ var CartPlugin = (function () {
             const cartData = serializeCart();
             FlowPlater.updateGroup(config.settings.group, cartData);
             FlowPlater.trigger("cart:updated", null, { cart: state.cart });
-            // Never disable remove buttons in cart
             document
                 .querySelectorAll(`[fp-group="${config.settings.group}"] [fp-cart-remove]`)
                 .forEach((removeButton) => {
                 removeButton.disabled = false;
             });
-            // At the end, update product element states
             updateAllProductStates();
-            // Broadcast cart amount updated if item count changed
             if (prevTotalItems !== totalItems) {
                 FlowPlater.trigger("cart:amountUpdated", null, {
                     oldCount: prevTotalItems,
@@ -1058,11 +1084,6 @@ var CartPlugin = (function () {
                     : config.currency.precision,
             }).format();
         }
-        /**
-         * Add product to cart
-         * @param {Object} product - Product data
-         * @param {number} amount - Amount to add
-         */
         const addToCart = (product, amount = 1, actionElement = null) => {
             const missingFields = config.settings.requiredKeys
                 .filter((key) => !(key in product))
@@ -1078,11 +1099,8 @@ var CartPlugin = (function () {
             const maxStock = product.stock === undefined || product.stock === null
                 ? Infinity
                 : product.stock;
-            // Get total amount across all variants
             const totalInCart = getTotalAmountForProduct(product.id);
-            // Special handling for stock of 1
             if (maxStock === 1 && totalInCart === 1 && !existingItem) {
-                // Find the existing variant in cart
                 let existingVariantId = null;
                 state.cart.items.forEach((item, id) => {
                     if (id.split("::")[0] === product.id.toString()) {
@@ -1090,10 +1108,8 @@ var CartPlugin = (function () {
                     }
                 });
                 if (existingVariantId) {
-                    // Remove the existing variant
                     const oldVariant = state.cart.items.get(existingVariantId);
                     state.cart.items.delete(existingVariantId);
-                    // Add the new variant
                     state.cart.items.set(cartItemId, {
                         ...product,
                         cartItemId: cartItemId,
@@ -1112,7 +1128,6 @@ var CartPlugin = (function () {
                         taxRate: oldVariant.taxRate || config.taxRates[0].name,
                     });
                     FlowPlater.log(FlowPlater.logLevels.INFO, `[CartPlugin] Replaced variant ${existingVariantId} with ${cartItemId} (stock: 1)`);
-                    // Trigger a custom event for variant replacement
                     FlowPlater.trigger("cart:variantReplaced", null, {
                         oldVariantId: existingVariantId,
                         newVariantId: cartItemId,
@@ -1122,18 +1137,15 @@ var CartPlugin = (function () {
                     return;
                 }
             }
-            // Calculate how many more we can add considering total across variants
             const remainingStock = Math.max(0, maxStock - totalInCart);
             if (existingItem) {
                 const currentAmount = existingItem.amount;
-                // Only allow adding up to remaining stock
                 const newAmount = Math.min(currentAmount + amount, currentAmount + remainingStock);
                 if (newAmount === currentAmount)
-                    return; // No change possible
+                    return;
                 existingItem.amount = newAmount;
             }
             else {
-                // For new items, only allow adding up to remaining stock
                 const initialAmount = Math.min(amount, remainingStock);
                 if (initialAmount <= 0)
                     return;
@@ -1157,72 +1169,56 @@ var CartPlugin = (function () {
                     taxFmt: formatNumber((unitPrice * initialAmount - discount * initialAmount) * (tax - 1)),
                     taxRate: product.taxRate || config.taxRates[0].name,
                 });
-                // Broadcast product added
                 FlowPlater.trigger("cart:productAdded", null, { product, cartItemId });
             }
             updateCartTotals();
         };
-        /**
-         * Remove product from cart
-         * @param {string} productId - Product ID to remove
-         */
         const removeFromCart = (productData, actionElement = null) => {
             const cartItemId = _generateCartItemId(productData, actionElement);
             if (!cartItemId)
                 return;
             state.cart.items.delete(cartItemId);
-            // Broadcast product removed
             FlowPlater.trigger("cart:productRemoved", null, {
                 productData,
                 cartItemId,
             });
             updateCartTotals();
         };
-        // --- Start of Variant Merging Logic (Moved from DataExtractor) ---
         const _performVariantMerge = (baseData) => {
-            // Use settings directly from this plugin's config
             const settings = config.settings;
-            const variantKey = settings.variantKey || "variant"; // Use defaults if not set
+            const variantKey = settings.variantKey || "variant";
             const variantIdKey = settings.variantIdKey || "id";
             const variantSelectorKey = settings.variantSelectorKey || "selected-variant";
             const variants = baseData[variantKey];
             const selectorValue = baseData[variantSelectorKey];
-            // Check if variants array exists
             if (!Array.isArray(variants) || variants.length === 0) {
-                // If no variants, just remove the selector key if it exists and return
                 if (baseData.hasOwnProperty(variantSelectorKey)) {
                     delete baseData[variantSelectorKey];
                 }
                 return baseData;
             }
-            // Validate selector value (must be string or number)
             if (typeof selectorValue !== "string" &&
                 typeof selectorValue !== "number") {
                 FlowPlater.log(FlowPlater.logLevels.WARN, `[CartPlugin] Invalid or missing value for selector key '${variantSelectorKey}'. Expected string or number, got:`, selectorValue);
-                // Return base data without variants/selector key
                 delete baseData[variantKey];
                 if (baseData.hasOwnProperty(variantSelectorKey)) {
                     delete baseData[variantSelectorKey];
                 }
                 return baseData;
             }
-            // Find the selected variant
             const selectedVariant = variants.find((variant) => variant &&
                 variant[variantIdKey]?.toString() === selectorValue.toString());
             if (!selectedVariant) {
                 FlowPlater.log(FlowPlater.logLevels.WARN, `[CartPlugin] No variant found with ${variantIdKey} matching selector value:`, selectorValue);
-                // Return base data without variants/selector key
                 delete baseData[variantKey];
                 if (baseData.hasOwnProperty(variantSelectorKey)) {
                     delete baseData[variantSelectorKey];
                 }
                 return baseData;
             }
-            // Perform the merge
-            const mergedData = { ...baseData }; // Start with base data
-            delete mergedData[variantKey]; // Remove the variant array
-            delete mergedData[variantSelectorKey]; // Remove the selector key
-            // Merge selected variant properties, overwriting base properties
+            const mergedData = { ...baseData };
+            delete mergedData[variantKey];
+            delete mergedData[variantSelectorKey];
             Object.assign(mergedData, selectedVariant);
             FlowPlater.log(FlowPlater.logLevels.DEBUG, "[CartPlugin] Variant merged", {
                 baseData,
@@ -1231,7 +1227,6 @@ var CartPlugin = (function () {
             });
             return mergedData;
         };
-        // --- End of Variant Merging Logic ---
         const processHtml = (html) => {
             FlowPlater.log(FlowPlater.logLevels.INFO, "Processing HTML", html);
             let productData = null;
@@ -1241,38 +1236,25 @@ var CartPlugin = (function () {
             }
             catch (e) {
                 FlowPlater.log(FlowPlater.logLevels.ERROR, "[CartPlugin] Failed to extract data using DataExtractorPlugin.", e);
-                return null; // Return null if extraction fails
+                return null;
             }
             if (!productData || Object.keys(productData).length === 0) {
                 FlowPlater.log(FlowPlater.logLevels.WARN, "[CartPlugin] Data extraction yielded no data.", html);
                 return null;
             }
-            // --- Unwrap data based on configured attribute ---
-            // DataExtractor returns { [dataAttribute]: { ...actual data... } }
-            // We want the inner object for cart operations.
             const dataToProcess = productData[config.settings.dataAttribute] || productData;
-            // --- End Unwrap ---
-            // Perform variant merge *after* initial extraction by DataExtractor
-            // Pass the unwrapped data to the merge function
             const mergedData = _performVariantMerge(dataToProcess);
-            return mergedData; // Return the potentially merged data
+            return mergedData;
         };
-        /**
-         * Update product amount in cart
-         * @param {string} productId - Product ID
-         * @param {number} amount - New amount
-         */
         const updateAmount = (productData, amount, actionElement = null) => {
             const cartItemId = _generateCartItemId(productData, actionElement);
             if (!cartItemId)
                 return;
             const item = state.cart.items.get(cartItemId);
-            // If item doesn't exist, DO NOTHING (don't add it here)
             if (!item) {
                 FlowPlater.log(FlowPlater.logLevels.DEBUG, `[CartPlugin] updateAmount called for non-existent item: ${cartItemId}. No action taken.`);
                 return;
             }
-            // Item exists, proceed with update/remove logic
             const maxAmount = item.stock === undefined || item.stock === null ? Infinity : item.stock;
             const newAmount = Math.min(Math.max(0, amount), maxAmount);
             if (newAmount === 0) {
@@ -1288,10 +1270,6 @@ var CartPlugin = (function () {
                 FlowPlater.log(FlowPlater.logLevels.DEBUG, `[CartPlugin] updateAmount: Item ${cartItemId} amount (${item.amount}) unchanged.`);
             }
         };
-        /**
-         * Setup MutationObserver for product element
-         * @param {HTMLElement} element - Product element to observe
-         */
         const setupProductObserver = (element) => {
             if (state.observers.has(element))
                 return;
@@ -1304,7 +1282,6 @@ var CartPlugin = (function () {
                         const productData = processHtml(element);
                         const cartItem = state.cart.items.get(productData.id);
                         if (cartItem) {
-                            // Update cart item with new data
                             Object.assign(cartItem, productData);
                             updateCartTotals();
                         }
@@ -1320,10 +1297,7 @@ var CartPlugin = (function () {
             state.observers.set(element, observer);
         };
         const hooks = {
-            /**
-             * Called after FlowPlater has fully initialized
-             */
-            initComplete: function (flowplater, instances) {
+            initComplete: function (flowplater) {
                 const group = FlowPlater.getOrCreateGroup(config.settings.group, {});
                 if (group && group.data) {
                     FlowPlater.log(FlowPlater.logLevels.DEBUG, "[CartPlugin] Calling deserializeCart with group data:", group.data);
@@ -1333,12 +1307,9 @@ var CartPlugin = (function () {
                     FlowPlater.log(FlowPlater.logLevels.WARN, "[CartPlugin] No group or group data found in initComplete.");
                     deserializeCart(null);
                 }
-                // --- NEW: Select first radio in each group if none selected ---
                 const radioElements = AttributeMatcher.findMatchingElements("data", config.settings.dataAttribute);
                 (Array.isArray(radioElements) ? radioElements : radioElements ? [radioElements] : []).forEach((productElement) => {
-                    // Find all radio inputs in this product
                     const radios = Array.from(productElement.querySelectorAll('input[type="radio"]'));
-                    // Group radios by name
                     const radioGroups = {};
                     radios.forEach((radio) => {
                         if (!radio.name)
@@ -1347,16 +1318,13 @@ var CartPlugin = (function () {
                             radioGroups[radio.name] = [];
                         radioGroups[radio.name].push(radio);
                     });
-                    // For each group, if none checked, check the first one
                     Object.values(radioGroups).forEach((group) => {
                         if (!group.some((radio) => radio.checked)) {
                             group[0].checked = true;
                         }
                     });
                 });
-                // --- END NEW ---
                 const setupCartEventListeners = () => {
-                    // Remove old direct event listeners if they exist
                     document
                         .querySelectorAll("[fp-cart-add], [fp-cart-remove], [fp-cart-item-amount]")
                         .forEach((element) => {
@@ -1364,17 +1332,14 @@ var CartPlugin = (function () {
                         element.removeEventListener("change", handleCartChange);
                         element.removeEventListener("input", handleCartInput);
                     });
-                    // Add delegated event listeners to document
                     document.removeEventListener("click", handleDelegatedClick);
                     document.removeEventListener("change", handleDelegatedChange);
                     document.removeEventListener("input", handleDelegatedInput);
                     document.addEventListener("click", handleDelegatedClick);
                     document.addEventListener("change", handleDelegatedChange);
                     document.addEventListener("input", handleDelegatedInput);
-                    // Initialize input values/button states
                     updateAllProductStates();
                 };
-                // Delegated event handlers
                 const handleDelegatedClick = (e) => {
                     const element = e.target.closest("[fp-cart-add], [fp-cart-remove]");
                     if (!element)
@@ -1387,23 +1352,18 @@ var CartPlugin = (function () {
                         const productElement = findProductElement(element);
                         if (!productElement)
                             return;
-                        // Check if this is a cart item
                         const isInCart = productElement.closest(`[fp-group="${config.settings.group}"]`);
                         if (isRemove && isInCart) {
-                            // For cart items, first try to get the stored cartItemId
                             let cartItemId = productElement.getAttribute("fp-data-cart-item-id");
-                            // If no stored cartItemId, try to generate one from the product data
                             if (!cartItemId) {
                                 const productData = processHtml(productElement);
                                 if (productData) {
-                                    // For cart items, we need to include all non-standard properties as variant keys
                                     const variantKeys = Object.keys(productData).filter((key) => key !== "id" &&
                                         key !== "amount" &&
                                         key !== "price" &&
                                         key !== "stock" &&
                                         key !== "cartItemId" &&
                                         !config.settings.requiredKeys.includes(key));
-                                    // Create a mock add button with the variant keys
                                     const mockAddButton = document.createElement("button");
                                     mockAddButton.setAttribute("fp-cart-variant-key", variantKeys.join(","));
                                     cartItemId = _generateCartItemId(productData, mockAddButton);
@@ -1416,14 +1376,12 @@ var CartPlugin = (function () {
                                 return;
                             }
                         }
-                        // Regular product card handling
                         const productData = processHtml(productElement);
                         if (!productData) {
                             FlowPlater.log(FlowPlater.logLevels.ERROR, "[CartPlugin] Could not extract product data.", { element: productElement });
                             return;
                         }
                         const addButton = productElement.querySelector("[fp-cart-add]");
-                        // --- NEW: Require all variant keys to be selected before adding ---
                         const variantKeyAttr = addButton
                             ? AttributeMatcher._getRawAttribute(addButton, "cart-variant-key", null)
                             : null;
@@ -1434,18 +1392,15 @@ var CartPlugin = (function () {
                                 .filter(Boolean);
                             const missingVariant = variantKeys.some((key) => !productData[key]);
                             if (missingVariant) {
-                                // Optionally show feedback here
                                 FlowPlater.log(FlowPlater.logLevels.WARN, `[CartPlugin] Cannot add to cart: Not all variant options are selected.`, { variantKeys, productData });
-                                // Optionally, add a visual cue to the productElement or addButton
                                 addButton.classList.add("fp-variant-missing");
                                 setTimeout(() => addButton.classList.remove("fp-variant-missing"), 1000);
                                 return;
                             }
                         }
                         if (isAdd) {
-                            // Read amount from the specific input for this product
                             const amountInput = productElement.querySelector("[fp-cart-item-amount]");
-                            let amountToAdd = 1; // Default to 1 if input not found or invalid
+                            let amountToAdd = 1;
                             if (amountInput) {
                                 const parsedAmount = parseInt(amountInput.value);
                                 if (!isNaN(parsedAmount) && parsedAmount > 0) {
@@ -1482,7 +1437,6 @@ var CartPlugin = (function () {
                         }
                         return;
                     }
-                    // For any other change inside a product element, update product states
                     const productElement = findProductElement(e.target);
                     if (productElement) {
                         updateAllProductStates();
@@ -1503,7 +1457,6 @@ var CartPlugin = (function () {
                         updateAmount(productData, parseInt(element.value) || 0, addButton);
                     }
                 };
-                // Remove old handlers
                 const handleCartClick = () => { };
                 const handleCartChange = () => { };
                 const handleCartInput = () => { };
@@ -1520,10 +1473,6 @@ var CartPlugin = (function () {
                 return flowplater;
             },
         };
-        /**
-         * Returns cart items as a comma-separated string: "name (variantKey: variantValue, ...), ..."
-         * @param {string[]} [includeKeys] - Optional array of keys to include. If not provided, only variant keys from cartItemId and price are included.
-         */
         const getCartItemsAsString = (includeKeys) => {
             const items = Array.from(state.cart.items.values());
             return items
@@ -1533,7 +1482,6 @@ var CartPlugin = (function () {
                     keysToInclude = includeKeys;
                 }
                 else {
-                    // Only variant keys as defined in cartItemId (after '::'), plus price
                     const cartItemId = item.cartItemId || "";
                     let variantKeys = [];
                     if (cartItemId.includes("::")) {
@@ -1543,7 +1491,6 @@ var CartPlugin = (function () {
                             .map((pair) => decodeURIComponent(pair.split("=")[0]))
                             .filter(Boolean);
                     }
-                    // Always include price by default
                     keysToInclude = [...variantKeys, "price"];
                 }
                 let variantString = "";
@@ -1557,7 +1504,6 @@ var CartPlugin = (function () {
             })
                 .join(", ");
         };
-        // Attach to FlowPlater global if not already present
         if (typeof FlowPlater.getCartItemsAsString !== "function") {
             FlowPlater.getCartItemsAsString = getCartItemsAsString;
         }
