@@ -1,3 +1,4 @@
+
 /**
  * Returns the first non-falsy value from the arguments
  * @param {*} value - The primary value to check
@@ -5,8 +6,8 @@
  * @returns {*} - The first non-falsy value or the defaultValue
  */
 export function defaultHelper() {
-  const Handlebars = (window as any).Handlebars;
-  Handlebars.registerHelper("default", function (this: any, value: any, defaultValue: any) {
+  const Handlebars = window.Handlebars;
+  Handlebars.registerHelper("default", function (this: Handlebars.HelperDelegate, value: any, defaultValue: any) {
     return value || defaultValue;
   });
 }

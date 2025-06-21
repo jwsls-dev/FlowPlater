@@ -134,8 +134,8 @@ export function getRegisteredFunctions(): string[] {
 }
 
 export function executeHelper() {
-  const Handlebars = (window as any).Handlebars;
-  Handlebars.registerHelper("execute", function (this: any, fn: string, ...args: any[]) {
+  const Handlebars = window.Handlebars;
+  Handlebars.registerHelper("execute", function (this: Handlebars.HelperDelegate, fn: string, ...args: any[]) {
 
     if (!ConfigManager.getConfig().allowExecute) {
       Debug.error("execute is disabled. Cannot execute functions.");

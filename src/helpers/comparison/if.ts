@@ -3,9 +3,9 @@ import { Debug, TemplateError } from "../../core/Debug";
 import { DEFAULTS } from "../../core/DefaultConfig";
 
 export function ifHelper() {
-  const Handlebars = (window as any).Handlebars;
+  const Handlebars = window.Handlebars;
   Handlebars.unregisterHelper("if");
-  Handlebars.registerHelper("if", function (this: any, expressionString: string, options: any) {
+  Handlebars.registerHelper("if", function (this: Handlebars.HelperDelegate, expressionString: string, options: any) {
     function resolveValue(token: string, dataContext: any, currentContext: any) {
       // Handle string literals
       if (

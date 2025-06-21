@@ -2,9 +2,9 @@ import { sortFunction } from "./_sort";
 import { DEFAULTS } from "../../core/DefaultConfig";
 
 export function eachHelper() {
-  const Handlebars = (window as any).Handlebars;
+  const Handlebars = window.Handlebars;
   Handlebars.unregisterHelper("each");
-  Handlebars.registerHelper("each", function (this: any, context: any, options: any) {
+  Handlebars.registerHelper("each", function (this: Handlebars.HelperDelegate, context: any, options: any) {
     // Accepts an array or object and iterates through it
     // Returns the value of the current iteration
     // Example: {{#each myArray}} returns the current item in the array
