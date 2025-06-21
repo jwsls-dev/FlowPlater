@@ -14,6 +14,11 @@ const Performance = {
     Debug.debug(`${label} took ${duration.toFixed(2)}ms`);
     return duration;
   },
+
+  getDuration: function (label: string) {
+    if (!this.marks[label]) return 0;
+    return performance.now() - this.marks[label];
+  },
 };
 
 export { Performance };
