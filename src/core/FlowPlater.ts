@@ -1,20 +1,23 @@
-import { EventSystem } from "../events";
+import { EventSystem } from "../events/EventSystem";
 import { Debug, FlowPlaterError, TemplateError } from "./Debug";
 import { Performance } from "../utils/Performance";
 import { _state, getInstance, getInstances } from "./State";
 import { _readyState } from "./ReadyState";
 
-import { InstanceManager, GroupManager } from "../instance";
+import { InstanceManager } from "../instance/InstanceManager";
+import { GroupManager } from "../instance/GroupManager";
 import { PluginManager } from "./PluginManager";
 
-import { loadFromLocalStorage } from "../storage";
-import { AttributeMatcher } from "../dom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { ConfigManager } from "./ConfigManager";
 import { DEFAULTS } from "./DefaultConfig";
 
-import { compileTemplate, render, replaceCustomTags, setCustomTags, TemplateCache } from "../template";
+import { compileTemplate } from "../template/TemplateCompiler";
+import { render } from "../template/Template";
+import { replaceCustomTags, setCustomTags } from "../template/ReplaceCustomTags";
+import { TemplateCache } from "../template/TemplateCache";
 import { registerHelpers } from "../helpers/index";
-import { RequestHandler } from "../events";
+import { RequestHandler } from "../events/RequestHandler";
 import { 
   defineHtmxExtension, 
   processPreload, 
@@ -22,14 +25,15 @@ import {
   processUrlAffixes, 
   addHtmxExtensionAttribute 
 } from "../htmx";
-import { setupAnimation } from "../dom";
+import { setupAnimation } from "../dom/SetupAnimation";
 import { 
   FlowPlaterElement, 
   ProcessingResult, 
   Processor, 
   FlowPlaterObj, 
   TransformerFunction, 
-  RequestTransformerFunction
+  RequestTransformerFunction,
+  FlowPlaterWindow
 } from "../types";
 
 import htmxLib from "htmx.org";
@@ -39,8 +43,8 @@ import "../types";
 
 const htmx = htmxLib;
 if (typeof window !== 'undefined') {
-  (window as any).htmx = htmx;
-  (window as any).Handlebars = Handlebars;
+  window.htmx = htmx;
+  window.Handlebars = Handlebars;
   registerHelpers();
 }
 
@@ -400,6 +404,10 @@ const FlowPlaterObj: FlowPlaterObj = {
     Performance.start("init");
     Debug.info("Initializing FlowPlater...");
 
+    // Process forms and other elements FIRST
+    // This ensures filters and other components are initialized before any rendering
+    process(element);
+
     // Find all templates
     const templatesResult = AttributeMatcher.findMatchingElements("template");
     const templates = Array.isArray(templatesResult) ? templatesResult.filter(Boolean) : (templatesResult ? [templatesResult] : []);
@@ -472,42 +480,14 @@ const FlowPlaterObj: FlowPlaterObj = {
             template,
           );
 
-          // Create/update instance with template regardless of render decision
-          // Important: skipRender should be true when hasRequestMethod is true
+          // Create/update instance with template regardless of render decision  
+          // InstanceManager will now handle stored data loading automatically
           render({
             template: templateId,
             data: {},
             target: template,
-            skipRender: hasRequestMethod, // Skip render if has HTMX/FP methods
+            skipRender: false, // Always render - if we have stored data, show it immediately; if not, show empty state
           });
-
-          // Use ConfigManager to check storage config
-          if (hasRequestMethod && ConfigManager.getConfig().storage?.enabled) {
-            const instanceName =
-              AttributeMatcher._getRawAttribute(template, "instance") ||
-              template.id ||
-              templateId;
-            const storedData = loadFromLocalStorage(instanceName, "instance");
-            if (storedData) {
-              Debug.info(
-                `Found stored data for instance: ${instanceName}, rendering with stored data`,
-              );
-              // Instead of directly setting data, use render with the stored data
-              // This ensures proper rendering with the stored data
-              render({
-                template: templateId,
-                data: storedData,
-                target: template,
-                instanceName: instanceName,
-                skipRender: false, // Explicitly render with stored data
-                isStoredDataRender: true, // Flag to bypass redundant init check
-              });
-            } else {
-              Debug.debug(
-                `Skipping initial render for instance: ${instanceName} - no stored data found`,
-              );
-            }
-          }
         }
       } else {
         Debug.error(
@@ -517,8 +497,6 @@ const FlowPlaterObj: FlowPlaterObj = {
         );
       }
     });
-
-    process(element);
 
     // Mark as initialized and ready
     _state.initialized = true;
@@ -817,6 +795,36 @@ const FlowPlaterObj: FlowPlaterObj = {
 };
 
 EventSystem.publish("loaded");
+
+/* -------------------------------------------------------------------------- */
+/* ANCHOR                   Process Pre-loaded Queue                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @description Processes any callbacks that were queued before FlowPlater loaded.
+ * This supports the pattern: FlowPlater = FlowPlater || []; FlowPlater.push(callback);
+ */
+if (typeof window !== 'undefined') {
+  const queuedCallbacks = (window as unknown as FlowPlaterWindow).FlowPlater;
+  if (Array.isArray(queuedCallbacks) && queuedCallbacks.length > 0) {
+    Debug.info(`Processing ${queuedCallbacks.length} pre-loaded FlowPlater callbacks`);
+    
+    // Process each queued callback
+    queuedCallbacks.forEach((callback: any) => {
+      if (typeof callback === 'function') {
+        // Add to ready queue - will be processed after initialization
+        _readyState.queue.push(() => callback(FlowPlaterObj));
+      } else {
+        Debug.warn('Invalid callback in FlowPlater queue:', callback);
+      }
+    });
+  }
+}
+
+// Make FlowPlater globally available
+if (typeof window !== 'undefined') {
+  (window as unknown as FlowPlaterWindow).FlowPlater = FlowPlaterObj;
+}
 
 /* -------------------------------------------------------------------------- */
 /* ANCHOR                          Auto init                                  */
