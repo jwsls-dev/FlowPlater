@@ -4191,13 +4191,6 @@ var FlowPlater = (function () {
                     Debug.error("Instance not found: " + instanceName);
                     return;
                 }
-                Debug.debug(`[InstanceMethods] _updateDOM called for ${instanceName}`, {
-                    instanceName,
-                    hasTemplate: !!instance.template,
-                    templateId: instance.templateId,
-                    rawDataKeys: Object.keys(instance.data || {}),
-                    rawDataType: typeof instance.data
-                });
                 try {
                     let rendered;
                     if (instance.templateId === "self" || instance.templateId === null) {
@@ -4232,13 +4225,9 @@ var FlowPlater = (function () {
                                 getData: instance.getData(),
                             });
                             const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
-                            Debug.debug(`[InstanceMethods] After transformation - data for template rendering`, {
+                            Debug.debug("After transformation - transformed data:", {
                                 instanceName: instance.instanceName,
                                 transformedData,
-                                transformedDataType: typeof transformedData,
-                                transformedDataKeys: transformedData && typeof transformedData === 'object' ? Object.keys(transformedData) : 'not object',
-                                coursesArray: transformedData?.courses,
-                                coursesArrayLength: Array.isArray(transformedData?.courses) ? transformedData.courses.length : 'not array',
                                 isNull: transformedData === null,
                                 isUndefined: transformedData === undefined,
                                 type: typeof transformedData,
@@ -4260,20 +4249,10 @@ var FlowPlater = (function () {
                         Debug.error("No active elements found for instance", instance.instanceName);
                         return;
                     }
-                    Debug.debug(`[InstanceMethods] About to update DOM elements`, {
-                        instanceName: instance.instanceName,
-                        activeElementsCount: activeElements.length,
-                        renderedContent: rendered
-                    });
                     // Batch DOM updates to reduce layout thrashing
                     const updatePromises = activeElements.map((element) => domBatcher.write(() => updateDOM(element, rendered, instance.animate, instance), `update-${instance.instanceName}-${Date.now()}`));
                     // Wait for all batched element updates to complete
                     const results = await Promise.all(updatePromises);
-                    Debug.debug(`[InstanceMethods] DOM update completed`, {
-                        instanceName: instance.instanceName,
-                        updateResults: results,
-                        finalElementHTML: activeElements[0]?.innerHTML?.substring(0, 200) + '...'
-                    });
                     return results;
                 }
                 catch (error) {
@@ -4396,22 +4375,9 @@ var FlowPlater = (function () {
                 const promises = [];
                 instance.elements.forEach(async function (element) {
                     try {
-                        Debug.debug("Instance.refresh - Element processing", {
-                            instanceName,
-                            elementId: element.id || 'no-id',
-                            optionsRemote: options.remote,
-                            hasLocalVarUpdate,
-                            shouldCheckHtmx: options.remote && !hasLocalVarUpdate
-                        });
                         if (options.remote && !hasLocalVarUpdate) {
                             const htmxMethods = ["get", "post", "put", "patch", "delete"];
                             const hasHtmxMethod = htmxMethods.some((method) => element.getAttribute(`hx-${method}`));
-                            Debug.debug("Instance.refresh - HTMX check", {
-                                instanceName,
-                                elementId: element.id || 'no-id',
-                                hasHtmxMethod,
-                                htmxMethods: htmxMethods.filter(method => element.getAttribute(`hx-${method}`))
-                            });
                             if (hasHtmxMethod) {
                                 const method = htmxMethods.find((method) => element.getAttribute(`hx-${method}`));
                                 const url = element.getAttribute(`hx-${method}`);
@@ -4432,14 +4398,6 @@ var FlowPlater = (function () {
                                     return data;
                                 });
                                 promises.push(promise);
-                            }
-                            else {
-                                Debug.debug("Instance.refresh - No HTMX methods found, using _updateDOM", {
-                                    instanceName,
-                                    elementId: element.id || 'no-id'
-                                });
-                                // No HTMX methods, use _updateDOM for local update
-                                promises.push(instance._updateDOM());
                             }
                         }
                         else {
@@ -5255,23 +5213,7 @@ var FlowPlater = (function () {
                     Array.from(instance.elements).forEach((element) => {
                         // Apply plugin transformations to the data before rendering
                         const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
-                        Debug.debug(`[Template] About to render and update DOM for element`, {
-                            instanceName: instance.instanceName,
-                            elementId: element.id || 'no-id',
-                            transformedData,
-                            transformedDataKeys: transformedData && typeof transformedData === 'object' ? Object.keys(transformedData) : 'not object',
-                            coursesArray: transformedData?.courses,
-                            coursesArrayLength: Array.isArray(transformedData?.courses) ? transformedData.courses.length : 'not array'
-                        });
-                        const renderedHTML = compiledTemplate(transformedData);
-                        Debug.debug(`[Template] Template compiled result`, {
-                            instanceName: instance.instanceName,
-                            elementId: element.id || 'no-id',
-                            renderedHTMLLength: renderedHTML ? renderedHTML.length : 0,
-                            renderedHTMLPreview: renderedHTML ? renderedHTML.substring(0, 300) + '...' : 'null/undefined',
-                            hasContent: renderedHTML && renderedHTML.includes('course-card')
-                        });
-                        updateDOM(element, renderedHTML, animate, instance);
+                        updateDOM(element, compiledTemplate(transformedData), animate, instance);
                     });
                 }
                 catch (error) {
