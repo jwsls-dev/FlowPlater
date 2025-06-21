@@ -3,7 +3,6 @@
  * @description Plugin for filtering data based on form inputs
  */
 
-import { EventSystem } from "../events";
 import { DEFAULTS } from "../core/DefaultConfig";
 import { FlowPlaterObj, FlowPlaterInstance, TransformerDataType } from "../types";
 import { handleFormStorage, isPersistenceEnabledForElement } from '../forms/FormPersistence';
@@ -309,32 +308,26 @@ const FilterPlugin = (customConfig = {}) => {
   function setupFilterForm(form: HTMLFormElement, instanceName: string) {
     if (!form || !instanceName) return;
 
-    // Create a debounced refresh function
-    let refreshTimeout: NodeJS.Timeout;
-    const debouncedRefresh = (instance: any) => {
+    let refreshTimeout: NodeJS.Timeout | number;
+    const debouncedRefresh = (instance: FlowPlaterInstance) => {
       clearTimeout(refreshTimeout);
       refreshTimeout = setTimeout(() => {
-        instance.refresh({ source: "filter" });
+        instance._updateDOM();
       }, 25);
     };
 
-    // Get trigger events from attribute or default to "change"
-    // Support both space and comma separation (like htmx)
     const triggers = (form.getAttribute("fp-filter-triggers") || "change")
-      .split(/[\s,]+/) // Split on one or more spaces or commas
-      .filter(Boolean); // Remove empty strings
+      .split(/[\s,]+/)
+      .filter(Boolean);
 
-    // Helper function to handle form updates
     const handleFormUpdate = (e: Event) => {
-      if (!e.isTrusted) return;
-
-      // Prevent form submission
-      if (e.type === "submit") {
-        e.preventDefault();
+      if (!e.isTrusted) {
+        return;
       }
 
-      // Capture form state
-      const formState: { [key: string]: any } = {};
+      const formState: Record<string, any> = {};
+
+      // Collect current form state
       form.querySelectorAll("[fp-filter-key]").forEach((element) => {
         const key = element.getAttribute("fp-filter-key");
         if (!key) return;
@@ -346,20 +339,18 @@ const FilterPlugin = (customConfig = {}) => {
 
         if (inputs.length === 0) return;
 
-        if (inputs.some((input) => (input as HTMLInputElement).type === "checkbox")) {
-          // Group checkboxes by key
-          const checkboxes = inputs.filter(
+        if (
+          inputs.some(
             (input) => (input as HTMLInputElement).type === "checkbox",
+          )
+        ) {
+          // Handle checkboxes - collect checked values
+          const checkedInputs = inputs.filter(
+            (input) => (input as HTMLInputElement).checked,
           );
-          if (checkboxes.length > 1) {
-            // Multiple checkboxes with same key - store checked values
-            formState[key as string] = checkboxes
-              .filter((cb) => (cb as HTMLInputElement).checked)
-              .map((cb) => (cb as HTMLInputElement).value);
-          } else {
-            // Single checkbox - store boolean state
-            formState[key as string] = (checkboxes[0] as HTMLInputElement).checked;
-          }
+          formState[key as string] = checkedInputs.map(
+            (input) => (input as HTMLInputElement).value,
+          );
         } else if (inputs.some((input) => (input as HTMLInputElement).type === "radio")) {
           // For radio buttons, ensure we have an entry even if none are checked
           const checkedRadio = inputs.find((input) => (input as HTMLInputElement).checked);
@@ -392,7 +383,7 @@ const FilterPlugin = (customConfig = {}) => {
       });
 
       // Save form state and trigger events
-      EventSystem.publish("formState:beforeCapture", {
+      FlowPlater.trigger("formState:beforeCapture", form, {
         formId: form.id,
         formElement: form,
         state: formState,
@@ -400,7 +391,7 @@ const FilterPlugin = (customConfig = {}) => {
 
       handleFormStorage(form, formState, "save");
 
-      EventSystem.publish("formState:changed", {
+      FlowPlater.trigger("formState:changed", form, {
         formId: form.id,
         formElement: form,
         state: formState,
@@ -415,127 +406,104 @@ const FilterPlugin = (customConfig = {}) => {
         updateUrl(form, formState);
       }
 
-      // Log form state for debugging
-      FlowPlater.log(
-        FlowPlater.logLevels.DEBUG,
-        `[FilterPlugin] Form state captured`,
-        { formState },
-      );
-
-      // Trigger debounced instance refresh
       const instance = FlowPlater.getInstance(instanceName);
       if (instance) {
         debouncedRefresh(instance);
-      } else {
-        FlowPlater.log(
-          FlowPlater.logLevels.ERROR,
-          `[FilterPlugin] Could not find instance for refresh`,
-          {
-            instanceName,
-            formId: form.id,
-          },
-        );
       }
-
-      // Trigger after filters are applied
-      FlowPlater.trigger("filter:applied", form, { formState, instanceName });
     };
 
-    // Helper function to reset filters
-    const handleFilterReset = (e: Event) => {
-      e.preventDefault();
-
-      // Trigger before reset
-      FlowPlater.trigger("filter:beforeReset", form, { instanceName });
-
-      // Reset all form elements
-      form.reset();
-
-      // Clear form state
-      handleFormStorage(form, {}, "save");
-
-      // Trigger form update to refresh the view
-      handleFormUpdate({ isTrusted: true, type: "reset", target: e.target } as any);
-
-      // Trigger after reset
-      FlowPlater.trigger("filter:reset", form, { instanceName });
-    };
-
-    // Remove any existing event listeners
-    form.removeEventListener("submit", handleFormUpdate);
-    triggers.forEach((trigger) => {
-      form.removeEventListener(trigger, handleFormUpdate);
-    });
-
-    // Add event listeners for specified triggers
-    form.addEventListener("submit", handleFormUpdate);
+    // Set up event listeners for all specified triggers
     triggers.forEach((trigger) => {
       form.addEventListener(trigger, handleFormUpdate);
     });
 
-    // Set up reset button if it exists
-    const resetButton = form.querySelector("[fp-filter-reset]");
-    if (resetButton) {
-      resetButton.removeEventListener("click", handleFilterReset);
-      resetButton.addEventListener("click", handleFilterReset);
-    }
-
-    // Set up event listener for formState:loaded
-    EventSystem.subscribe("formState:loaded", (event: any) => {
-      if (
-        event.formElement === form &&
-        form.hasAttribute("fp-filter-usequery")
-      ) {
-        const formState = getFormStateFromUrl();
-        if (formState && Object.keys(formState).length > 0) {
-          // Find all elements with fp-filter-key that are inputs or contain inputs
-          form.querySelectorAll("[fp-filter-key]").forEach((element) => {
-            const key = element.getAttribute("fp-filter-key");
-            if (!key || !(key in formState)) return;
-
-            // Get all inputs within this element (or the element itself if it's an input)
-            const inputs = element.matches("input, select, textarea")
-              ? [element]
-              : Array.from(element.querySelectorAll("input, select, textarea"));
-
-            if (inputs.length === 0) return;
-
-            const value = formState[key];
-            inputs.forEach((input) => {
-              if ((input as HTMLInputElement).type === "checkbox") {
-                if (Array.isArray(value)) {
-                  (input as HTMLInputElement).checked = value.includes((input as HTMLInputElement).value);
-                } else {
-                  (input as HTMLInputElement).checked = value;
-                }
-              } else if ((input as HTMLInputElement).type === "radio") {
-                // Handle empty values correctly by comparing with empty string
-                (input as HTMLInputElement).checked = ((input as HTMLInputElement).value || "") === (value || "");
-              } else if (input instanceof HTMLSelectElement && (input as HTMLSelectElement).multiple) {
-                Array.from((input as HTMLSelectElement).options).forEach((option) => {
-                  option.selected = Array.isArray(value)
-                    ? value.includes(option.value)
-                    : value === option.value;
-                });
-              } else {
-                // Handle text inputs, textareas, and dates
-                (input as HTMLInputElement).value = value;
+    // Set up form handlers only once
+    if (!state.formObservers.has(instanceName)) {
+      // Add observer for dynamic content changes within the form
+      const observer = new MutationObserver((mutations) => {
+        let shouldUpdate = false;
+        mutations.forEach((mutation) => {
+          if (mutation.type === "childList") {
+            mutation.addedNodes.forEach((node) => {
+              if (
+                node instanceof HTMLElement &&
+                (node.matches("[fp-filter-key]") ||
+                  node.querySelector("[fp-filter-key]"))
+              ) {
+                shouldUpdate = true;
               }
             });
+          }
+        });
+        if (shouldUpdate) {
+          // Re-set up event listeners for new elements
+          triggers.forEach((trigger) => {
+            form.addEventListener(trigger, handleFormUpdate);
           });
-
-          // Trigger initial update to apply filters
-          const handleFormUpdate = (e: Event) => {
-            if (!e.isTrusted) return;
-            const instance = FlowPlater.getInstance(instanceName);
-            if (instance) {
-              instance.refresh();
-            }
-          };
-          handleFormUpdate({ isTrusted: true, type: "init", target: form } as any);
         }
+      });
+
+      observer.observe(form, {
+        childList: true,
+        subtree: true,
+      });
+
+      state.formObservers.set(instanceName, observer);
+    }
+
+
+    if (form.hasAttribute("fp-filter-usequery")) {
+      const formState = getFormStateFromUrl();
+      if (formState && Object.keys(formState).length > 0) {
+        // Apply URL parameter values to form inputs
+        form.querySelectorAll("[fp-filter-key]").forEach((element) => {
+          const key = element.getAttribute("fp-filter-key");
+          if (!key || !(key in formState)) return;
+
+          const inputs = element.matches("input, select, textarea")
+            ? [element]
+            : Array.from(element.querySelectorAll("input, select, textarea"));
+
+          if (inputs.length === 0) return;
+
+          const value = formState[key];
+          inputs.forEach((input) => {
+            if ((input as HTMLInputElement).type === "checkbox") {
+              if (Array.isArray(value)) {
+                (input as HTMLInputElement).checked = value.includes((input as HTMLInputElement).value);
+              } else {
+                (input as HTMLInputElement).checked = value;
+              }
+            } else if ((input as HTMLInputElement).type === "radio") {
+              // Handle empty values correctly by comparing with empty string
+              (input as HTMLInputElement).checked = ((input as HTMLInputElement).value || "") === (value || "");
+            } else if (input instanceof HTMLSelectElement && (input as HTMLSelectElement).multiple) {
+              Array.from((input as HTMLSelectElement).options).forEach((option) => {
+                option.selected = Array.isArray(value)
+                  ? value.includes(option.value)
+                  : value === option.value;
+              });
+            } else {
+              // Handle text inputs, textareas, and dates
+              (input as HTMLInputElement).value = value;
+            }
+          });
+        });
+
+        // Mark as initial load to prevent URL updates
+        form.dataset.fpFilterInitialLoad = "true";
+
+        // Save the restored state to form storage
+        handleFormStorage(form, formState, "save");
+
+        // Remove initial load flag after a brief delay
+        setTimeout(() => {
+          delete form.dataset.fpFilterInitialLoad;
+        }, 100);
       }
-    });
+    }
+
+
   }
 
   const hooks = {
@@ -637,6 +605,42 @@ const FilterPlugin = (customConfig = {}) => {
     },
 
     /**
+     * Called after DOM updates to ensure filter forms are set up
+     */
+    afterDomUpdate: function (instance: FlowPlaterInstance, _context: any) {
+      if (!instance) return instance;
+
+      // Set up filter forms after DOM update to ensure they're available
+      const filterForms = document.querySelectorAll(
+        `[fp-filter-instance="${instance.instanceName}"]`,
+      );
+
+      if (filterForms.length === 0) return instance;
+
+      filterForms.forEach((form) => {
+        const path = form.getAttribute("fp-filter");
+        if (!path) return;
+
+        // Set up form and dynamic filters if not already done
+        if (!state.formTemplates.has(instance.instanceName)) {
+          state.formTemplates.set(instance.instanceName, {
+            formElement: form,
+            originalHTML: form.innerHTML,
+          });
+
+          // Set up form handlers only once
+          setupFilterForm(form as HTMLFormElement, instance.instanceName);
+        }
+
+        // Always update dynamic filters with new data
+        const data = instance.getData();
+        setupDynamicFilters(form as HTMLFormElement, path, data);
+      });
+
+      return instance;
+    },
+
+    /**
      * Clean up when plugin is disabled
      */
     cleanup: function () {
@@ -712,123 +716,62 @@ const FilterPlugin = (customConfig = {}) => {
     );
   }
 
-  function handleCheckboxFilter(inputs: HTMLInputElement[], itemValue: string | number | Date) {
-    const checkedBoxes = inputs.filter(
-      (input) => input.type === "checkbox" && input.checked,
-    );
 
-    // If no checkboxes are checked, don't filter
-    if (checkedBoxes.length === 0) {
-      return true;
-    }
 
-    // For single values (like difficulty), check if any checked checkbox matches the value
-    const result = checkedBoxes.some((checkbox) => {
-      const matches = checkbox.value === itemValue;
-      return matches;
-    });
 
-    return result;
-  }
 
-  function handleRadioFilter(inputs: HTMLInputElement[], itemValue: string | number | Date) {
-    const selectedRadio = inputs.find(
-      (input) => input.type === "radio" && input.checked,
-    );
-
-    // Show all items if no radio is selected or if the selected value is empty
-    if (!selectedRadio || !selectedRadio.value) return true;
-
-    return itemValue === selectedRadio.value;
-  }
-
-  // Modify the handleTextFilter function to use simple date parsing
-  function handleTextFilter(inputs: (HTMLInputElement | HTMLSelectElement)[], itemValue: string | number | Date) {
-    const input = inputs.find(
-      (input) => input.type === "text" || input.tagName === "SELECT",
-    );
-    if (!input) return true;
-
-    // Handle select elements
-    if (input.tagName === "SELECT") {
-      // If no value is selected or default option is selected, show all
-      if (!input.value || input.value === "") return true;
-
-      // For multiple select
-      if (input instanceof HTMLSelectElement && input.multiple) {
-        const selectedValues = Array.from(input.selectedOptions).map(
-          (opt) => opt.value,
-        );
-        if (selectedValues.length === 0) return true;
-
-        // If itemValue is an array (like tags), check if any selected value exists in the array
-        if (Array.isArray(itemValue)) {
-          return selectedValues.some((selectedValue) =>
-            itemValue.some(
-              (v) => v.toString().toLowerCase() === selectedValue.toLowerCase(),
-            ),
-          );
-        }
-        // For non-array values, check if any selected value matches
-        return selectedValues.some(
-          (selectedValue) =>
-            itemValue.toString().toLowerCase() === selectedValue.toLowerCase(),
-        );
+  function applyFiltersWithFormState(item: any, formState: any) {
+    return Object.entries(formState).every(([key, filterValue]: [string, any]) => {
+      // Skip empty/undefined filter values
+      if (filterValue === undefined || filterValue === null || filterValue === '' || 
+          (Array.isArray(filterValue) && filterValue.length === 0)) {
+        return true;
       }
 
-      // For single select
-      // If itemValue is an array (like tags), check if the selected value exists in the array
-      if (Array.isArray(itemValue)) {
-        return itemValue.some(
-          (v) => v.toString().toLowerCase() === input.value.toLowerCase(),
-        );
-      }
-      return itemValue.toString().toLowerCase() === input.value.toLowerCase();
-    }
-
-    // Handle text input
-    if (!input.value) return true;
-
-    // Check if this is a date filter
-    const filterType = input.getAttribute("fp-filter-type");
-    if (filterType === "date") {
-      const itemDate = parseDate(itemValue);
-      const inputDate = parseDate(input.value);
-
-      if (!itemDate || !inputDate) return true; // Skip invalid dates
-      return itemDate.getTime() === inputDate.getTime();
-    }
-
-    // Regular text filter logic for non-array values
-    return itemValue
-      .toString()
-      .toLowerCase()
-      .includes(input.value.toLowerCase());
-  }
-
-  function applyFilters(item: any, filterGroups: any) {
-    return Object.entries(filterGroups).every(([key, inputs]: [string, any]) => {
       const [fieldName, operator] = key.split(":");
       const itemValue = getValueFromPath(item, fieldName);
 
-      // If we have an operator, use the appropriate filter handler
+      // Handle range filters (min/max operators)
       if (operator) {
-        return handleRangeFilter(itemValue, operator, (inputs[0] as HTMLInputElement).value as string | number | Date);
+        return handleRangeFilter(itemValue, operator, filterValue);
       }
 
-      // Otherwise, determine the filter type based on input type
-      if (inputs.some((input: any) => input.type === "checkbox")) {
-        return handleCheckboxFilter(inputs as HTMLInputElement[], itemValue);
+      // Handle array filter values (checkboxes)
+      if (Array.isArray(filterValue)) {
+        // If no values selected, show all
+        if (filterValue.length === 0) return true;
+        
+        // If itemValue is an array (like tags), check if any selected value exists in the array
+        if (Array.isArray(itemValue)) {
+          return filterValue.some((selectedValue) =>
+            itemValue.some((v) => v.toString().toLowerCase() === selectedValue.toLowerCase())
+          );
+        }
+        
+        // For non-array values, check if any selected value matches
+        return filterValue.some((selectedValue) =>
+          itemValue.toString().toLowerCase() === selectedValue.toLowerCase()
+        );
       }
 
-      if (inputs.some((input: any) => input.type === "radio")) {
-        return handleRadioFilter(inputs as HTMLInputElement[], itemValue);
+      // Handle single string filter values (radio buttons, text inputs, selects)
+      if (typeof filterValue === 'string') {
+        // If itemValue is an array (like tags), check if the filter value exists in the array
+        if (Array.isArray(itemValue)) {
+          return itemValue.some((v) => v.toString().toLowerCase().includes(filterValue.toLowerCase()));
+        }
+        
+        // For text search, use includes (partial match)
+        // For exact matches like radio buttons, this will work too since "intermediate" includes "intermediate"
+        return itemValue.toString().toLowerCase().includes(filterValue.toLowerCase());
       }
 
-      // Handle both text inputs and select elements
-      return handleTextFilter(inputs as (HTMLInputElement | HTMLSelectElement)[], itemValue);
+      // Default: show all if we can't determine the filter type
+      return true;
     });
   }
+
+
 
   const transformers = {
     /**
@@ -870,48 +813,62 @@ const FilterPlugin = (customConfig = {}) => {
         const path = form.getAttribute("fp-filter");
         if (!path) return;
 
-        // Group inputs by their filter key
-        const filterGroups: { [key: string]: any[] } = {};
-        form.querySelectorAll("input, select").forEach((element) => {
-          // Get the filter key from fp-filter-key or use the name attribute
-          const key = element.getAttribute("fp-filter-key") || (element as HTMLInputElement).name;
-          if (!key) return;
+        // Get the saved form state instead of reading from DOM
+        const formState = handleFormStorage(form as HTMLFormElement, {}, "load") || {};
 
-          // Find all inputs inside this element (or the element itself if it's an input)
-          const inputs = element.matches("input, select")
-            ? [element]
-            : Array.from(element.querySelectorAll("input, select"));
+        // If no form state is saved, fall back to reading current DOM values
+        if (Object.keys(formState).length === 0) {
+          
+          // Capture current form state from DOM
+          form.querySelectorAll("[fp-filter-key]").forEach((element) => {
+            const key = element.getAttribute("fp-filter-key");
+            if (!key) return;
 
-          if (inputs.length === 0) return;
+            const inputs = element.matches("input, select, textarea")
+              ? [element]
+              : Array.from(element.querySelectorAll("input, select, textarea"));
 
-          const [field, operator] = key.split(":");
-          const groupKey = operator ? `${field}:${operator}` : field;
+            if (inputs.length === 0) return;
 
-          if (!filterGroups[groupKey]) filterGroups[groupKey] = [];
-          filterGroups[groupKey].push(...inputs);
+            if (inputs.some((input) => (input as HTMLInputElement).type === "checkbox")) {
+              const checkedInputs = inputs.filter((input) => (input as HTMLInputElement).checked);
+              formState[key] = checkedInputs.map((input) => (input as HTMLInputElement).value);
+            } else if (inputs.some((input) => (input as HTMLInputElement).type === "radio")) {
+              const checkedRadio = inputs.find((input) => (input as HTMLInputElement).checked);
+              formState[key] = checkedRadio ? (checkedRadio as HTMLInputElement).value || "" : "";
+            } else if (inputs.some((input) => input instanceof HTMLSelectElement && input.multiple)) {
+              const select = inputs.find((input) => input instanceof HTMLSelectElement && input.multiple);
+              if (select) {
+                formState[key] = Array.from((select as HTMLSelectElement).selectedOptions).map(
+                  (opt) => (opt as HTMLOptionElement).value,
+                );
+              } else {
+                formState[key] = [];
+              }
+            } else {
+              formState[key] = (inputs[0] as HTMLInputElement).value || "";
+            }
+          });
+        }
 
-          FlowPlater.log(
-            FlowPlater.logLevels.DEBUG,
-            `[FilterPlugin] Found inputs for filter key`,
-            {
-              key,
-              inputCount: inputs.length,
-              inputTypes: inputs.map((i: any) => i.type),
-            },
-          );
+        // Apply filters using form state directly - much simpler!
+        const filteredArray = filteredData[path].filter((item: any) => {
+          return applyFiltersWithFormState(item, formState);
         });
 
-        // Filter the array
-        const filteredArray = filteredData[path].filter((item: any) =>
-          applyFilters(item, filterGroups),
-        );
-
-        // Update the filtered data
-        let current = filteredData;
-        for (let i = 0; i < path.split(".").length - 1; i++) {
-          current = current[path.split(".")[i]];
+        // Update the filtered data - simplified for better reliability
+        if (path.includes(".")) {
+          // Handle nested paths
+          const pathParts = path.split(".");
+          let current = filteredData;
+          for (let i = 0; i < pathParts.length - 1; i++) {
+            current = current[pathParts[i]];
+          }
+          current[pathParts[pathParts.length - 1]] = filteredArray;
+        } else {
+          // Handle simple top-level paths
+          filteredData[path] = filteredArray;
         }
-        current[path.split(".")[path.split(".").length - 1]] = filteredArray;
       });
 
       instanceElements.forEach((element) => {
@@ -934,3 +891,4 @@ const FilterPlugin = (customConfig = {}) => {
 };
 
 export default FilterPlugin;
+
