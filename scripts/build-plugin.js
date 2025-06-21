@@ -5,15 +5,18 @@ const uglify = require("uglify-js");
 const fs = require("fs");
 const path = require("path");
 
+// Get the project root directory (one level up from scripts)
+const projectRoot = path.join(__dirname, "..");
+
 // Ensure plugins directory exists
-const pluginsDir = path.join(__dirname, "dist", "plugins");
+const pluginsDir = path.join(projectRoot, "dist", "plugins");
 if (!fs.existsSync(pluginsDir)) {
   fs.mkdirSync(pluginsDir, { recursive: true });
 }
 
 async function buildPlugin(pluginFile) {
   const pluginName = path.basename(pluginFile, path.extname(pluginFile));
-  const input = path.join(__dirname, "src", "plugins", pluginFile);
+  const input = path.join(projectRoot, "src", "plugins", pluginFile);
   const outputFile = path.join(pluginsDir, `${pluginName}.js`);
   const outputMinFile = path.join(pluginsDir, `${pluginName}.min.js`);
 
@@ -23,7 +26,7 @@ async function buildPlugin(pluginFile) {
       input,
       plugins: [
         typescript({
-          tsconfig: "./tsconfig.json",
+          tsconfig: path.join(projectRoot, "tsconfig.json"),
           declaration: false,
           declarationMap: false,
         }),
@@ -87,7 +90,7 @@ if (args.length === 0) {
 }
 
 const pluginFile = args[0];
-if (!fs.existsSync(path.join(__dirname, "src", "plugins", pluginFile))) {
+if (!fs.existsSync(path.join(projectRoot, "src", "plugins", pluginFile))) {
   console.error(`Plugin file ${pluginFile} not found in src/plugins`);
   process.exit(1);
 }
