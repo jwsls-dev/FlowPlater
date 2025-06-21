@@ -1,7 +1,8 @@
 import { _state } from "../core/State";
 import { Debug } from "../core/Debug";
-import { createDeepProxy, deepMerge, saveToLocalStorage, loadFromLocalStorage } from "../storage";
-import { EventSystem } from "../events";
+import { saveToLocalStorage, loadFromLocalStorage } from "../storage/LocalStorage";
+import { createDeepProxy, deepMerge } from "../storage/DataTransformers";
+import { EventSystem } from "../events/EventSystem";
 import { PluginManager } from "../core/PluginManager";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterGroup, FlowPlaterInstance, FlowPlaterElement } from "../types";

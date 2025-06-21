@@ -1,4 +1,5 @@
-import { RequestHandler, EventSystem } from "../events";
+import { RequestHandler } from "../events/RequestHandler";
+import { EventSystem } from "../events/EventSystem";
 import { Debug } from "../core/Debug";
 import { parseXmlToJson } from "../utils/ParseXmlToJson";
 import { _state } from "../core/State";
@@ -7,10 +8,10 @@ import {
   cleanupFormChangeListeners,
   getAllRelevantForms,
   restoreFormStates
-} from "../forms";
+} from "../forms/FormPersistence";
 import { PluginManager } from "../core/PluginManager";
-import { InstanceManager } from "../instance";
-import { AttributeMatcher } from "../dom";
+import { InstanceManager } from "../instance/InstanceManager";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
 

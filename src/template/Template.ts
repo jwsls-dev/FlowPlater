@@ -1,11 +1,14 @@
 import { Debug, TemplateError } from "../core/Debug";
-import { EventSystem } from "../events";
+import { EventSystem } from "../events/EventSystem";
 import { _state } from "../core/State";
 import { Performance } from "../utils/Performance";
-import { InstanceManager, GroupManager } from "../instance";
-import { extractLocalData } from "../forms";
-import { updateDOM, AttributeMatcher } from "../dom";
-import { loadFromLocalStorage, saveToLocalStorage, createDeepProxy, deepMerge } from "../storage";
+import { InstanceManager } from "../instance/InstanceManager";
+import { GroupManager } from "../instance/GroupManager";
+import { extractLocalData } from "../forms/LocalVariableExtractor";
+import { updateDOM } from "../dom/UpdateDom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
+import { loadFromLocalStorage, saveToLocalStorage } from "../storage/LocalStorage";
+import { createDeepProxy, deepMerge } from "../storage/DataTransformers";
 import { compileTemplate } from "./TemplateCompiler";
 import { PluginManager } from "../core/PluginManager";
 import { ConfigManager } from "../core/ConfigManager";
@@ -230,7 +233,11 @@ export function render({
 
   if (!instanceName || !_state.instances[instanceName] || !_state.instances[instanceName].data) {
     // Load persisted data if available and not skipped
-    if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
+    // Only load from localStorage if InstanceManager hasn't already loaded it
+    const existingInstance = instanceName ? _state.instances[instanceName] : null;
+    const hasInstanceData = existingInstance && existingInstance.data && Object.keys(existingInstance.data).length > 0;
+    
+    if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled && !hasInstanceData) {
       persistedData = loadFromLocalStorage(instanceName || "", "instance");
       if (persistedData) {
         // Check if stored data is HTML

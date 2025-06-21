@@ -1,5 +1,5 @@
 import { Debug } from "../core/Debug";
-import { AttributeMatcher } from "../dom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { FlowPlaterElement } from "../types";
 
 function preloadUrl(url: string) {

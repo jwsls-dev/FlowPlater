@@ -3,9 +3,11 @@ import { _state } from "../core/State";
 import { PluginManager } from "../core/PluginManager";
 import { instanceMethods } from "./InstanceMethods";
 import { GroupManager } from "./GroupManager";
-import { deepMerge } from "../storage";
-import { AttributeMatcher } from "../dom";
+import { deepMerge } from "../storage/DataTransformers";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
+import { ConfigManager } from "../core/ConfigManager";
+import { loadFromLocalStorage } from "../storage/LocalStorage";
 
 export const InstanceManager = {
   /**
@@ -35,6 +37,16 @@ export const InstanceManager = {
       return null;
     }
 
+    // Check for stored data and merge with initialData
+    let finalInitialData = { ...initialData };
+    if (ConfigManager.getConfig().storage?.enabled) {
+      const storedData = loadFromLocalStorage(instanceName, "instance");
+      if (storedData) {
+        Debug.info(`Found stored data for instance: ${instanceName}, merging with initial data`);
+        finalInitialData = { ...storedData, ...initialData };
+      }
+    }
+
     // Check if this element belongs to a group
     const groupName = AttributeMatcher._getRawAttribute(element, "group");
 
@@ -52,7 +64,7 @@ export const InstanceManager = {
           Debug.debug(
             `Found parent template element for instance ${instanceName}`,
           );
-          return this.getOrCreateInstance(parentTemplateElement, initialData);
+          return this.getOrCreateInstance(parentTemplateElement, finalInitialData);
         } else {
           Debug.error(`No template element found for instance ${instanceName}`);
           return null;
@@ -66,7 +78,7 @@ export const InstanceManager = {
         template: null, // Template will be assigned by caller
         templateId: AttributeMatcher._getRawAttribute(element, "template") || "",
         templateElement: element, // Store direct reference to the template element
-        data: initialData as ProxyConstructor & Record<string, any>, // Assign initial data, caller MUST replace with Proxy
+        data: finalInitialData as ProxyConstructor & Record<string, any>, // Assign initial data (including stored data), caller MUST replace with Proxy
         cleanup: () => {
           // Remove from group if part of one
           if (instance.groupName) {

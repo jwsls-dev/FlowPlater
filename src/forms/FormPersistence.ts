@@ -1,9 +1,9 @@
 import { _state } from "../core/State";
-import { EventSystem } from "../events";
-import { saveToLocalStorage, loadFromLocalStorage } from "../storage";
+import { EventSystem } from "../events/EventSystem";
+import { saveToLocalStorage, loadFromLocalStorage } from "../storage/LocalStorage";
 import { Debug } from "../core/Debug";
 import { PluginManager } from "../core/PluginManager";
-import { AttributeMatcher } from "../dom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterElement } from "../types";
 
@@ -36,10 +36,12 @@ function collectDebugInfo(form: HTMLFormElement, type: string, details: Record<s
   };
 }
 
+type FormStorageOperation = "save" | "load" | "clear";
+
 /**
  * Helper function to handle storage operations
  */
-function handleFormStorage(form: HTMLFormElement, state: Record<string, any> = {}, operation: string = "save") {
+function handleFormStorage(form: HTMLFormElement, state: Record<string, any> = {}, operation: FormStorageOperation = "save") {
   const useLocal = shouldUseLocalStorage(form);
   const key = `fp_form_${form.id}`;
 
@@ -767,7 +769,26 @@ export function setupDynamicFormObserver(container: HTMLElement) {
  * @returns {boolean} - Whether form restoration should be performed
  */
 export function shouldRestoreForm(element: HTMLElement): boolean {
-  return shouldRestoreForm(element);
+  // Check if the element itself has persistence enabled
+  if (isPersistenceEnabledForElement(element)) {
+    return true;
+  }
+
+  // Check if it's a form and has persistent elements
+  if (element instanceof HTMLFormElement) {
+    const persistentElements = element.querySelectorAll('[data-persist="true"]');
+    if (persistentElements.length > 0) {
+      return true;
+    }
+  }
+
+  // Check for child elements with persistence enabled
+  const persistentChildren = element.querySelectorAll('[data-persist="true"]');
+  if (persistentChildren.length > 0) {
+    return true;
+  }
+
+  return false;
 }
 
 export { handleFormStorage, isPersistenceEnabledForElement };

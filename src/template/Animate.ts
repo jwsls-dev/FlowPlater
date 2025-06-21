@@ -1,4 +1,4 @@
-import { AttributeMatcher } from "../dom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { _state } from "../core/State";
 import { FlowPlaterElement } from "../types";
 

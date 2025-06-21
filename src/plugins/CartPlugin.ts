@@ -3,7 +3,7 @@
  * @description Plugin for managing shopping cart functionality in FlowPlater
  */
 
-import { AttributeMatcher } from "../dom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { DEFAULTS, withDefault } from "../core/DefaultConfig";
 import currency from "currency.js";
 

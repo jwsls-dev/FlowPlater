@@ -1,17 +1,16 @@
 import { Debug, FlowPlaterError } from "./Debug";
 import { _state } from "./State";
 import { _readyState } from "./ReadyState";
-import { AttributeMatcher } from "../dom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { 
   FlowPlaterPlugin, 
-  FlowPlaterObj, 
   FlowPlaterInstance, 
   FlowPlaterPluginTransformers, 
   FlowPlaterPluginHooks,
   TransformerFunction,
   RequestTransformerFunction,
   TransformerDataType,
-  NamedTransformer
+  NamedTransformer,
 } from "../types";
 
 // Version management utilities
@@ -49,11 +48,28 @@ export const PluginManager = {
   instanceMethods: new Map(),
   customTransformers: new Map(), // Store custom transformers by type (Map<string, NamedTransformer[]>)
 
+  // Helper method to execute initComplete hook for a plugin
+  _executeInitCompleteHook(pluginInstance: FlowPlaterPlugin) {
+    if (pluginInstance.hooks?.initComplete) {
+      try {
+        pluginInstance.hooks.initComplete(
+          window.FlowPlater ? window.FlowPlater : undefined,
+          Object.values(_state.instances),
+        );
+      } catch (error) {
+        Debug.error(
+          `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
+          error,
+        );
+      }
+    }
+  },
+
   registerPlugin(plugin: FlowPlaterPlugin | string | Function, config = {}) {
     let pluginFunction: Function;
     
     if (typeof plugin === "string") {
-      pluginFunction = (window as any)[plugin];
+      pluginFunction = window[plugin];
     } else {
       pluginFunction = plugin as Function;
     }
@@ -165,8 +181,8 @@ export const PluginManager = {
           method,
           plugin: pluginInstance.config.name,
         });
-        if (typeof window !== "undefined" && (window as any).FlowPlater) {
-          (window as any).FlowPlater[methodName as keyof FlowPlaterObj] = (...args: any[]) =>
+        if (window.FlowPlater) {
+          window.FlowPlater[methodName] = (...args: any[]) =>
             this.executeGlobalMethod(methodName, ...args);
         }
       }
@@ -231,19 +247,7 @@ export const PluginManager = {
         // Update existing instances with new plugin methods
         this.updateExistingInstances();
         // Execute initComplete hook
-        if (pluginInstance.hooks?.initComplete) {
-          try {
-            pluginInstance.hooks.initComplete(
-              (window as any).FlowPlater,
-              Object.values(_state.instances),
-            );
-          } catch (error) {
-            Debug.error(
-              `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
-              error,
-            );
-          }
-        }
+        this._executeInitCompleteHook(pluginInstance);
       });
     } else {
       // Initialize immediately if FlowPlater is ready
@@ -254,19 +258,7 @@ export const PluginManager = {
         pluginInstance.init();
       }
       this.updateExistingInstances();
-      if (pluginInstance.hooks?.initComplete) {
-        try {
-          pluginInstance.hooks.initComplete(
-            (window as any).FlowPlater,
-            Object.values(_state.instances),
-          );
-        } catch (error) {
-          Debug.error(
-            `Plugin ${pluginInstance.config.name} failed executing initComplete:`,
-            error,
-          );
-        }
-      }
+      this._executeInitCompleteHook(pluginInstance);
     }
 
     return pluginInstance;
@@ -329,8 +321,8 @@ export const PluginManager = {
       if (methodInfo.plugin === name) {
         this.globalMethods.delete(methodName);
         // Remove method from FlowPlater object
-        if (typeof window !== "undefined" && (window as any).FlowPlater) {
-          delete (window as any).FlowPlater[methodName as keyof FlowPlaterObj];
+        if (window.FlowPlater) {
+          delete window.FlowPlater[methodName];
         }
       }
     }

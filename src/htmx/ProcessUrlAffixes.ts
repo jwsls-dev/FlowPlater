@@ -1,5 +1,5 @@
 import { Debug } from "../core/Debug";
-import { AttributeMatcher } from "../dom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 
 export function processUrlAffixes(element: HTMLElement): HTMLElement {
   try {

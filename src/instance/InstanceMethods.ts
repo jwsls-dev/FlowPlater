@@ -1,11 +1,13 @@
 import { _state } from "../core/State";
 import { Debug } from "../core/Debug";
-import { EventSystem } from "../events";
-import { compileTemplate } from "../template";
-import { updateDOM, domBatcher } from "../dom";
-import { saveToLocalStorage, deepMerge } from "../storage";
+import { EventSystem } from "../events/EventSystem";
+import { compileTemplate } from "../template/TemplateCompiler";
+import { updateDOM } from "../dom/UpdateDom";
+import { domBatcher } from "../dom/DomBatcher";
+import { saveToLocalStorage } from "../storage/LocalStorage";
+import { deepMerge } from "../storage/DataTransformers";
 import { Performance } from "../utils/Performance";
-import { extractLocalData } from "../forms";
+import { extractLocalData } from "../forms/LocalVariableExtractor";
 import { PluginManager } from "../core/PluginManager";
 import { ConfigManager } from "../core/ConfigManager";
 
@@ -123,11 +125,17 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
 
             // Use transformed data for reactive rendering
             rendered = instance.template(transformedData);
-            Debug.debug("Rendered template with data:", {
-              template: instance.templateId,
-              data: transformedData,
-              rendered: rendered,
-            });
+            
+            Debug.debug(
+              `[InstanceMethods] Template rendered result`,
+              {
+                instanceName: instance.instanceName,
+                template: instance.templateId,
+                renderedLength: rendered ? rendered.length : 0,
+                renderedPreview: rendered ? rendered.substring(0, 200) + '...' : 'null/undefined',
+                hasContent: rendered && rendered.trim().length > 0
+              }
+            );
           }
         }
 
@@ -363,30 +371,13 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
               promises.push(promise);
             }
           } else {
-            // Apply transformations before updating DOM
-            const transformedData = PluginManager.applyTransformations(
-              instance,
-              instance.data,
-              "transformDataBeforeRender",
-              "json",
-            );
-
             Debug.debug(
-              "Instance.refresh - Transformed data:",
-              transformedData,
+              "Instance.refresh - Using _updateDOM for proper data flow",
+              { instanceName, elementId: element.id || 'no-id' }
             );
 
-            promises.push(
-              domBatcher.write(
-                () => updateDOM(
-                  element,
-                  instance.template(transformedData),
-                  instance.animate,
-                  instance,
-                ),
-                `refresh-${instanceName}-${Date.now()}`
-              )
-            );
+            // Use the instance's _updateDOM method for proper data transformation pipeline
+            promises.push(instance._updateDOM());
           }
         } catch (error) {
           element.innerHTML = `<div class="fp-error">Error refreshing template: ${(error as Error).message}</div>`;

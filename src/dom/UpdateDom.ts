@@ -1,18 +1,19 @@
 import { Debug } from "../core/Debug";
 import { Performance } from "../utils/Performance";
 import { _state } from "../core/State";
-import { EventSystem } from "../events";
+import { EventSystem } from "../events/EventSystem";
 import { PluginManager } from "../core/PluginManager";
-import { domBatcher, VirtualDOM } from "../dom";
+import { domBatcher } from "../dom/DomBatcher";
+import { VirtualDOM } from "../dom/VirtualDom";
 import {
   captureFormStates,
   setupFormSubmitHandlers,
   setupDynamicFormObserver,
-} from "../forms";
-import { AttributeMatcher } from "../dom";
+} from "../forms/FormPersistence";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { ConfigManager } from "../core/ConfigManager";
 import { FlowPlaterInstance } from "../types";
-import { animate as runAnimation } from "../template";
+import { animate as runAnimation } from "../template/Animate";
 import { shouldRestoreForm, restoreFormStates } from '../forms/FormPersistence';
 
 /**
@@ -105,12 +106,13 @@ async function performDomUpdate(
  * Main update function with performance tracking and error handling
  */
 async function updateDOM(element: HTMLElement, newHTML: string, animate = false, instance: FlowPlaterInstance | null = null) {
-  Performance.start("updateDOM");
-
+  
   const forceFullUpdate = AttributeMatcher._hasAttribute(element, "force-full-update");
   const config = ConfigManager.getConfig();
   const elementId = element.id || 'unknown';
   const timestamp = Date.now();
+
+  Performance.start("updateDOM_" + instance?.instanceName || element.id);
   
   Debug.debug(`UpdateDOM: ===== STARTING UPDATE for ${elementId} at ${timestamp} =====`);
 
@@ -263,8 +265,10 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
     throw error;
   } finally {
     element.removeAttribute("fp-restoring");
+    
+    Performance.end("updateDOM_" + instance?.instanceName || element.id);
+    
     Debug.debug(`UpdateDOM: ===== COMPLETED UPDATE #${updateCounter} for ${elementId} =====`);
-    Performance.end("updateDOM");
   }
 }
 

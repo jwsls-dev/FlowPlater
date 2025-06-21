@@ -3,7 +3,7 @@ import { _state } from "../core/State";
 import { Performance } from "../utils/Performance";
 import { memoize } from "../utils/Memoize";
 import { currentCustomTags } from "./ReplaceCustomTags";
-import { AttributeMatcher } from "../dom";
+import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { TemplateCache } from "./TemplateCache";
 
 export function compileTemplate(templateId: string, recompile: boolean = false) {
