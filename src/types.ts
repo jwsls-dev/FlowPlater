@@ -149,6 +149,7 @@ export interface FlowPlaterObj {
   removeTransformer: (transformationType: string, transformerName: string) => boolean;
   clearTransformers: (transformationType?: string) => FlowPlaterObj;
   listTransformers: (transformationType?: string) => Record<string, NamedTransformer[]> | NamedTransformer[];
+  [key: string]: any;
 }
 
 export interface FlowPlaterInstance {
@@ -305,3 +306,15 @@ export interface FlowPlaterPlugin {
   helpers?: FlowPlaterPluginHelpers;
   inheritableAttributes?: string[];
 }
+
+// Type-safe window interface for FlowPlater
+declare global {
+  interface Window {
+    FlowPlater?: FlowPlaterObj;
+    Handlebars?: typeof Handlebars;
+    htmx?: any;
+    [key: string]: any;
+  }
+}
+
+export type FlowPlaterWindow = Window;
