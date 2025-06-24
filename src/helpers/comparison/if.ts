@@ -1,6 +1,7 @@
 import { compare } from "./_compare";
 import { Debug, TemplateError } from "../../core/Debug";
 import { DEFAULTS } from "../../core/DefaultConfig";
+import { verifyContext } from "../utility/VerifyContext";
 
 export function ifHelper() {
   const Handlebars = window.Handlebars;
@@ -55,6 +56,8 @@ export function ifHelper() {
             // Property exists, return the value even if falsy
             continue;
           }
+          // Property doesn't exist in root context, check if it exists in current context
+          verifyContext(part, value, dataContext, currentContext);
           return undefined;
         } else {
           return undefined;
@@ -67,10 +70,10 @@ export function ifHelper() {
     try {
       // If expressionString is a simple property name (no operators)
       if (!expressionString.match(/\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/)) {
-        // Get the value and check if property exists
+        // Get the value and check if it's truthy (assume second argument is "true")
         const value = resolveValue(expressionString, options.data.root, this);
-        // Return true if the property exists, regardless of its value
-        return value !== undefined ? options.fn(this) : options.inverse(this);
+        // Return true if the value is truthy
+        return value ? options.fn(this) : options.inverse(this);
       }
 
       // Parse expression for complex conditions
