@@ -47,12 +47,23 @@ import "../types";
 
 /**
  * Prevent FlowPlater from being loaded multiple times.
- * Since this is compiled to an IIFE, we check early and skip heavy initialization.
+ * Since this is compiled to an IIFE, we can use an early return to stop execution.
  */
-const ALREADY_LOADED = typeof window !== 'undefined' && window.FlowPlater && window.FlowPlater.VERSION;
-
-if (ALREADY_LOADED) {
+if (typeof window !== 'undefined' && window.FlowPlater && window.FlowPlater.VERSION) {
   console.warn('FlowPlater is already loaded. Skipping duplicate load to prevent state loss and conflicts.');
+  
+  // Still set up HTMX and Handlebars globals in case they weren't set by the first load
+  if (typeof window.htmx === 'undefined') {
+    window.htmx = htmxLib;
+  }
+  if (typeof window.Handlebars === 'undefined') {
+    window.Handlebars = Handlebars;
+    registerHelpers();
+  }
+  
+  // Early return - stops all further execution (works in compiled IIFE)
+  // @ts-ignore - TypeScript doesn't know this will be in a function context after compilation
+  return window.FlowPlater;
 }
 
 const htmx = htmxLib;
@@ -836,35 +847,26 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Determine what to export based on whether FlowPlater was already loaded
-let FlowPlaterExport: any;
+// Normal initialization path - this code only runs if not already loaded
+// (due to the early return above)
 
-if (ALREADY_LOADED) {
-  // Use the existing FlowPlater instance
-  FlowPlaterExport = window.FlowPlater;
-} else {
-  // Normal initialization path - create and set up new FlowPlater instance
-  
-  // Make FlowPlater globally available
-  if (typeof window !== 'undefined') {
-    (window as unknown as FlowPlaterWindow).FlowPlater = FlowPlaterObj;
-  }
-
-  /* -------------------------------------------------------------------------- */
-  /* ANCHOR                          Auto init                                  */
-  /* -------------------------------------------------------------------------- */
-
-  /**
-   * @description Automatically initializes FlowPlater when the DOM is ready.
-   * Uses the ready state system to ensure proper initialization order.
-   */
-  if (document.readyState === "complete" || document.readyState === "interactive") {
-    FlowPlaterObj.init();
-  } else {
-    document.addEventListener("DOMContentLoaded", () => FlowPlaterObj.init());
-  }
-
-  FlowPlaterExport = FlowPlaterObj;
+// Make FlowPlater globally available
+if (typeof window !== 'undefined') {
+  (window as unknown as FlowPlaterWindow).FlowPlater = FlowPlaterObj;
 }
 
-export default FlowPlaterExport;
+/* -------------------------------------------------------------------------- */
+/* ANCHOR                          Auto init                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @description Automatically initializes FlowPlater when the DOM is ready.
+ * Uses the ready state system to ensure proper initialization order.
+ */
+if (document.readyState === "complete" || document.readyState === "interactive") {
+  FlowPlaterObj.init();
+} else {
+  document.addEventListener("DOMContentLoaded", () => FlowPlaterObj.init());
+}
+
+export default FlowPlaterObj;

@@ -49,7 +49,8 @@
             <li>FlowPlater is loaded once in the first script tag below</li>
             <li>Click "Load FlowPlater Again" to simulate loading it a second time</li>
             <li>Check the console output to see the protection warning</li>
-            <li>Verify that the original FlowPlater instance is preserved</li>
+            <li>Verify that the original FlowPlater instance is preserved (early return prevents new instance creation)</li>
+            <li>Note: HTMX and Handlebars globals are still updated even on duplicate loads</li>
         </ol>
     </div>
 
