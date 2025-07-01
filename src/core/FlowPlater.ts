@@ -10,7 +10,6 @@ import { PluginManager } from "./PluginManager";
 
 import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { ConfigManager } from "./ConfigManager";
-import { DEFAULTS } from "./DefaultConfig";
 
 import { compileTemplate } from "../template/TemplateCompiler";
 import { render } from "../template/Template";
@@ -408,95 +407,13 @@ const FlowPlaterObj: FlowPlaterObj = {
     // This ensures filters and other components are initialized before any rendering
     process(element);
 
-    // Find all templates
-    const templatesResult = AttributeMatcher.findMatchingElements("template");
-    const templates = Array.isArray(templatesResult) ? templatesResult.filter(Boolean) : (templatesResult ? [templatesResult] : []);
+    // Create all instances from templates
+    InstanceManager.createAllInstances(element);
 
-    // Initialize each template
-    templates.forEach((template) => {
-      let templateId = AttributeMatcher._getRawAttribute(template, "template");
-              if (templateId === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID || templateId === "") {
-        templateId = template.id;
-      }
-
-      if (templateId) {
-        // Transform template content before compiling
-        const templateElement = document.querySelector(templateId);
-        if (templateElement) {
-          Debug.info("replacing template content", templateElement);
-
-          const scriptTags = templateElement.getElementsByTagName("script");
-          const scriptContents: string[] = Array.from(scriptTags).map(
-            (script) => (script as HTMLScriptElement).innerHTML,
-          );
-
-          // Temporarily replace script contents with placeholders
-          Array.from(scriptTags).forEach((script, i) => {
-            (script as HTMLScriptElement).innerHTML = `##FP_SCRIPT_${i}##`;
-          });
-
-          // Do the replacement on the template
-          templateElement.innerHTML = templateElement.innerHTML.replace(
-            /\[\[(.*?)\]\]/g,
-            "{{$1}}",
-          );
-
-          // Restore script contents
-          Array.from(templateElement.getElementsByTagName("script")).forEach(
-            (script, i) => {
-              (script as HTMLScriptElement).innerHTML = scriptContents[i];
-            },
-          );
-        }
-
-        // Compile the template using the templateId from the attribute for the template cache
-        compileTemplate(templateId, true);
-
-        // Only render if options.render is true AND element doesn't have HTMX/FP methods
-        if (options.render) {
-          // Enhanced method detection - check for any fp- or hx- attribute that would trigger requests
-          const methods = ["get", "post", "put", "patch", "delete"];
-
-          // More comprehensive check for request-triggering attributes
-          let hasRequestMethod = false;
-
-          // Check for specific HTTP method attributes
-          hasRequestMethod = methods.some((method) =>
-            AttributeMatcher._hasAttribute(template, method),
-          );
-
-          // Also check for other trigger attributes that would cause loading
-          if (!hasRequestMethod) {
-            // Check for any attribute that would trigger an HTTP request
-            const httpTriggerAttributes = ["trigger", "boost", "ws", "sse"];
-
-            hasRequestMethod = httpTriggerAttributes.some((attr) =>
-              AttributeMatcher._hasAttribute(template, attr),
-            );
-          }
-
-          Debug.debug(
-            `[Template ${templateId}] Has request method: ${hasRequestMethod}`,
-            template,
-          );
-
-          // Create/update instance with template regardless of render decision  
-          // InstanceManager will now handle stored data loading automatically
-          render({
-            template: templateId,
-            data: {},
-            target: template,
-            skipRender: false, // Always render - if we have stored data, show it immediately; if not, show empty state
-          });
-        }
-      } else {
-        Debug.error(
-          `No template ID found for element: ${template.id}`,
-          template,
-          "Make sure your template has an ID attribute",
-        );
-      }
-    });
+    // Perform initial rendering if requested
+    if (options.render) {
+      InstanceManager.renderAll();
+    }
 
     // Mark as initialized and ready
     _state.initialized = true;

@@ -83,9 +83,6 @@ export interface RenderOptions {
   instanceName?: string;
   animate?: boolean;
   recompile?: boolean;
-  skipLocalStorageLoad?: boolean;
-  skipRender?: boolean;
-  isStoredDataRender?: boolean;
 }
 
 /**
