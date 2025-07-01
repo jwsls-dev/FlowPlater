@@ -52,15 +52,6 @@ import "../types";
 if (typeof window !== 'undefined' && window.FlowPlater && window.FlowPlater.VERSION) {
   console.warn('FlowPlater is already loaded. Skipping duplicate load to prevent state loss and conflicts.');
   
-  // Still set up HTMX and Handlebars globals in case they weren't set by the first load
-  if (typeof window.htmx === 'undefined') {
-    window.htmx = htmxLib;
-  }
-  if (typeof window.Handlebars === 'undefined') {
-    window.Handlebars = Handlebars;
-    registerHelpers();
-  }
-  
   // Early return - stops all further execution (works in compiled IIFE)
   // @ts-ignore - TypeScript doesn't know this will be in a function context after compilation
   return window.FlowPlater;
