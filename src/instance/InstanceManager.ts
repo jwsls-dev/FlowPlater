@@ -3,11 +3,15 @@ import { _state } from "../core/State";
 import { PluginManager } from "../core/PluginManager";
 import { instanceMethods } from "./InstanceMethods";
 import { GroupManager } from "./GroupManager";
-import { deepMerge } from "../storage/DataTransformers";
+import { deepMerge, createDeepProxy } from "../storage/DataTransformers";
 import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
 import { ConfigManager } from "../core/ConfigManager";
-import { loadFromLocalStorage } from "../storage/LocalStorage";
+import { loadFromLocalStorage, saveToLocalStorage } from "../storage/LocalStorage";
+import { Performance } from "../utils/Performance";
+import { compileTemplate } from "../template/TemplateCompiler";
+import { DEFAULTS } from "../core/DefaultConfig";
+import { EventSystem } from "../events/EventSystem";
 
 export const InstanceManager = {
   /**
@@ -248,4 +252,255 @@ export const InstanceManager = {
     // No explicit re-render needed here, proxy handler should trigger _updateDOM
     // No explicit save needed here, proxy handler should save
   },
+
+  /**
+   * Discovers and creates all instances from template elements
+   * @param {Document | FlowPlaterElement} rootElement - Root element to search within
+   */
+  createAllInstances(rootElement: Document | FlowPlaterElement = document) {
+    Performance.start("createAllInstances");
+    
+    // Find all templates using existing discovery logic
+    const templatesResult = AttributeMatcher.findMatchingElements("template", null, true, rootElement);
+    const templates = Array.isArray(templatesResult) 
+      ? templatesResult.filter(Boolean) 
+      : (templatesResult ? [templatesResult] : []);
+
+    Debug.info(`Found ${templates.length} templates to process`);
+
+    templates.forEach((template) => {
+      let templateId = AttributeMatcher._getRawAttribute(template, "template");
+      if (templateId === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID || templateId === "") {
+        templateId = template.id;
+      }
+
+      if (templateId) {
+        // Transform template content (moved from init)
+        this._transformTemplateContent(templateId);
+        
+        // Compile template
+        const compiledTemplate = compileTemplate(templateId, true);
+        
+        // Create instance (this handles data loading, groups, etc.)
+        const instance = this.getOrCreateInstance(template, {});
+        
+        // Set up the instance with template and proxy
+        if (instance && compiledTemplate) {
+          this._setupInstanceProxy(instance, compiledTemplate, templateId);
+        }
+        
+        Debug.debug(`Created instance for template: ${templateId}`);
+      } else {
+        Debug.error(`No template ID found for element: ${template.id}`, template);
+      }
+    });
+
+    Performance.end("createAllInstances");
+  },
+
+  /**
+   * Performs initial rendering for all instances based on their configuration
+   */
+  renderAll() {
+    Performance.start("renderAll");
+    
+    const instances = Object.values(_state.instances);
+    Debug.info(`Rendering ${instances.length} instances`);
+
+    instances.forEach((instance) => {
+      if (this._shouldSkipInitialRender(instance)) {
+        Debug.debug(`Skipping initial render for ${instance.instanceName} (has request method)`);
+        return;
+      }
+
+      // Use existing _updateDOM which handles all the transformation pipeline
+      if (instance._updateDOM) {
+        instance._updateDOM();
+        Debug.debug(`Rendered instance: ${instance.instanceName}`);
+      } else {
+        Debug.warn(`Instance ${instance.instanceName} missing _updateDOM method`);
+      }
+    });
+
+    Performance.end("renderAll");
+  },
+
+  /**
+   * Determines if an instance should skip initial rendering
+   * @private
+   */
+  _shouldSkipInitialRender(instance: FlowPlaterInstance): boolean {
+    const template = instance.templateElement;
+    if (!template) return false;
+
+    // Check for HTTP method attributes that would trigger requests
+    const methods = ["get", "post", "put", "patch", "delete"];
+    const hasRequestMethod = methods.some((method) =>
+      AttributeMatcher._hasAttribute(template, method)
+    );
+
+    if (hasRequestMethod) return true;
+
+    // Check for other trigger attributes
+    const httpTriggerAttributes = ["trigger", "boost", "ws", "sse"];
+    return httpTriggerAttributes.some((attr) =>
+      AttributeMatcher._hasAttribute(template, attr)
+    );
+  },
+
+  /**
+   * Transforms template content (moved from init method)
+   * @private
+   */
+  _transformTemplateContent(templateId: string) {
+    const templateElement = document.querySelector(templateId);
+    if (!templateElement) return;
+
+    Debug.info("Transforming template content", templateElement);
+
+    const scriptTags = templateElement.getElementsByTagName("script");
+    const scriptContents: string[] = Array.from(scriptTags).map(
+      (script) => (script as HTMLScriptElement).innerHTML
+    );
+
+    // Temporarily replace script contents with placeholders
+    Array.from(scriptTags).forEach((script, i) => {
+      (script as HTMLScriptElement).innerHTML = `##FP_SCRIPT_${i}##`;
+    });
+
+    // Do the replacement on the template
+    templateElement.innerHTML = templateElement.innerHTML.replace(
+      /\[\[(.*?)\]\]/g,
+      "{{$1}}"
+    );
+
+    // Restore script contents
+    Array.from(templateElement.getElementsByTagName("script")).forEach(
+      (script, i) => {
+        (script as HTMLScriptElement).innerHTML = scriptContents[i];
+      }
+    );
+  },
+
+  /**
+   * Sets up the instance with compiled template and data proxy
+   * @private
+   */
+  _setupInstanceProxy(instance: FlowPlaterInstance, compiledTemplate: any, templateId: string) {
+    // Set the compiled template
+    instance.template = compiledTemplate;
+    instance.templateId = templateId;
+
+    // Get the current data (which may already include stored data from getOrCreateInstance)
+    const currentData = instance.data || {};
+
+    // Check if this instance is part of a group
+    const groupName = instance.groupName;
+
+    if (groupName) {
+      // Get or create the group and add this instance
+      const group = GroupManager.getOrCreateGroup(groupName, currentData);
+      
+      // Use the group's proxy for this instance
+      instance.data = group.data;
+      
+      // Add instance to the group
+      GroupManager.addInstanceToGroup(instance, groupName);
+      
+      Debug.info(`Instance ${instance.instanceName} is using group ${groupName} data`);
+    } else {
+      // Create individual proxy with debounced update handler
+      const DEBOUNCE_DELAY = DEFAULTS.PERFORMANCE.DEBOUNCE_DELAY;
+
+      // Set up debounce tracking properties
+      if (!instance._updateTimer) {
+        instance._updateTimer = null;
+      }
+      if (!instance._stateBeforeDebounce) {
+        instance._stateBeforeDebounce = null;
+      }
+
+      const proxy = createDeepProxy(currentData, () => {
+        if (instance) {
+          // Skip if we're currently evaluating a template
+          if (instance._isEvaluating) {
+            return;
+          }
+
+          // Clear existing timer
+          if (instance._updateTimer) {
+            clearTimeout(instance._updateTimer);
+          }
+
+          // Schedule the update
+          instance._updateTimer = setTimeout(() => {
+            try {
+              // Set flag to prevent recursive updates during evaluation
+              instance._isEvaluating = true;
+
+              // Get the current rendered output
+              const transformedData = PluginManager.applyTransformations(
+                instance,
+                instance.getData(),
+                "transformDataBeforeRender",
+                "json",
+              );
+
+              const newRenderedOutput = instance.template(transformedData);
+
+              // Compare with previous render
+              if (instance._lastRenderedOutput !== newRenderedOutput) {
+                Debug.info(
+                  `[Debounced Update] Output changed for ${instance.instanceName}. Firing updateData hook.`,
+                );
+
+                // Execute hooks with current state
+                PluginManager.executeHook("updateData", instance, {
+                  newData: proxy,
+                  source: "proxy",
+                });
+                EventSystem.publish("updateData", {
+                  instanceName: instance.instanceName,
+                  newData: proxy,
+                  source: "proxy",
+                });
+
+                // Update DOM since output changed
+                Debug.debug(
+                  `[Debounced Update] Triggering _updateDOM for ${instance.instanceName}`,
+                );
+                instance._updateDOM();
+
+                // Save the new rendered output
+                instance._lastRenderedOutput = newRenderedOutput;
+
+                // Save to storage if enabled
+                if (ConfigManager.getConfig().storage?.enabled) {
+                  const storageId = instance.instanceName.replace("#", "");
+                  Debug.debug(
+                    `[Debounced Update] Saving data for ${storageId}`,
+                  );
+                  saveToLocalStorage(storageId, proxy, "instance");
+                }
+              } else {
+                Debug.debug(
+                  `[Debounced Update] No output change for ${instance.instanceName}. Skipping update.`,
+                );
+              }
+            } finally {
+              // Always clear the evaluation flag
+              instance._isEvaluating = false;
+              // Clear timer
+              instance._updateTimer = null;
+            }
+          }, DEBOUNCE_DELAY);
+        }
+      });
+
+      // Assign the proxy to the instance
+      instance.data = proxy;
+    }
+
+    Debug.debug(`Set up proxy for instance: ${instance.instanceName}`);
+  }
 };
