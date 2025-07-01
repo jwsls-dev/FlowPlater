@@ -47,17 +47,17 @@ import "../types";
 
 /**
  * Prevent FlowPlater from being loaded multiple times.
- * This check happens before any significant code execution to prevent
- * state loss and conflicts from double loading.
+ * Since this is compiled to an IIFE, we check early and skip heavy initialization.
  */
-if (typeof window !== 'undefined' && window.FlowPlater && window.FlowPlater.VERSION) {
+const ALREADY_LOADED = typeof window !== 'undefined' && window.FlowPlater && window.FlowPlater.VERSION;
+
+if (ALREADY_LOADED) {
   console.warn('FlowPlater is already loaded. Skipping duplicate load to prevent state loss and conflicts.');
-  // Export the existing instance at the end of the file instead of creating a new one
-  (window as any).__FLOWPLATER_SKIP_INIT = true;
 }
 
 const htmx = htmxLib;
 if (typeof window !== 'undefined') {
+  // Always ensure HTMX and Handlebars are available globally, even on duplicate loads
   window.htmx = htmx;
   window.Handlebars = Handlebars;
   registerHelpers();
@@ -836,16 +836,15 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Determine what to export based on double loading check
-let exportedFlowPlater: any;
+// Determine what to export based on whether FlowPlater was already loaded
+let FlowPlaterExport: any;
 
-// Check if we should skip initialization due to double loading
-if (typeof window !== 'undefined' && (window as any).__FLOWPLATER_SKIP_INIT) {
-  // Clean up the flag
-  delete (window as any).__FLOWPLATER_SKIP_INIT;
-  // Use the existing FlowPlater instance instead of the new one
-  exportedFlowPlater = window.FlowPlater;
+if (ALREADY_LOADED) {
+  // Use the existing FlowPlater instance
+  FlowPlaterExport = window.FlowPlater;
 } else {
+  // Normal initialization path - create and set up new FlowPlater instance
+  
   // Make FlowPlater globally available
   if (typeof window !== 'undefined') {
     (window as unknown as FlowPlaterWindow).FlowPlater = FlowPlaterObj;
@@ -865,7 +864,7 @@ if (typeof window !== 'undefined' && (window as any).__FLOWPLATER_SKIP_INIT) {
     document.addEventListener("DOMContentLoaded", () => FlowPlaterObj.init());
   }
 
-  exportedFlowPlater = FlowPlaterObj;
+  FlowPlaterExport = FlowPlaterObj;
 }
 
-export default exportedFlowPlater;
+export default FlowPlaterExport;
