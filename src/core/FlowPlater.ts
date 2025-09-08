@@ -40,8 +40,25 @@ import Handlebars from "handlebars";
 
 import "../types";
 
+/* -------------------------------------------------------------------------- */
+/* ANCHOR                    Double Loading Protection                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Prevent FlowPlater from being loaded multiple times.
+ * Since this is compiled to an IIFE, we can use an early return to stop execution.
+ */
+if (typeof window !== 'undefined' && window.FlowPlater && window.FlowPlater.VERSION) {
+  console.warn('FlowPlater is already loaded. Skipping duplicate load to prevent state loss and conflicts.');
+  
+  // Early return - stops all further execution (works in compiled IIFE)
+  // @ts-ignore - TypeScript doesn't know this will be in a function context after compilation
+  return window.FlowPlater;
+}
+
 const htmx = htmxLib;
 if (typeof window !== 'undefined') {
+  // Always ensure HTMX and Handlebars are available globally, even on duplicate loads
   window.htmx = htmx;
   window.Handlebars = Handlebars;
   registerHelpers();
@@ -737,6 +754,9 @@ if (typeof window !== 'undefined') {
     });
   }
 }
+
+// Normal initialization path - this code only runs if not already loaded
+// (due to the early return above)
 
 // Make FlowPlater globally available
 if (typeof window !== 'undefined') {

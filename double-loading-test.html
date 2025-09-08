@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlowPlater Double Loading Protection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .console-output {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 3px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>FlowPlater Double Loading Protection Test</h1>
+    
+    <div class="test-section">
+        <h3>Test Instructions</h3>
+        <p>This test demonstrates FlowPlater's protection against double loading:</p>
+        <ol>
+            <li>FlowPlater is loaded once in the first script tag below</li>
+            <li>Click "Load FlowPlater Again" to simulate loading it a second time</li>
+            <li>Check the console output to see the protection warning</li>
+            <li>Verify that the original FlowPlater instance is preserved (early return prevents new instance creation)</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h3>Test Controls</h3>
+        <button onclick="loadFlowPlaterAgain()">Load FlowPlater Again</button>
+        <button onclick="checkFlowPlaterState()">Check FlowPlater State</button>
+        <button onclick="clearConsole()">Clear Console Output</button>
+        
+        <h4>Console Output:</h4>
+        <div id="consoleOutput" class="console-output">
+            Test initialized. Click buttons to test double loading protection.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>FlowPlater Test Element</h3>
+        <div fp-instance="test-instance" fp-template="test-template">
+            Loading...
+        </div>
+        
+        <template id="test-template">
+            <div>
+                <h4>FlowPlater Instance: {{instanceName}}</h4>
+                <p>Load Time: {{loadTime}}</p>
+                <p>Test Data: {{testValue}}</p>
+            </div>
+        </template>
+    </div>
+
+    <!-- First FlowPlater load -->
+    <script src="dist/flowplater.js"></script>
+    
+    <script>
+        // Capture console.warn to display in our test output
+        const originalWarn = console.warn;
+        const originalLog = console.log;
+        const consoleOutput = document.getElementById('consoleOutput');
+        
+        function logToOutput(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const output = `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+            consoleOutput.textContent += output;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            logToOutput(args.join(' '), 'warn');
+        };
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            logToOutput(args.join(' '), 'log');
+        };
+        
+        // Initialize test data
+        let originalFlowPlater = null;
+        let loadCount = 0;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.FlowPlater) {
+                originalFlowPlater = window.FlowPlater;
+                loadCount++;
+                
+                // Set up test instance
+                const instance = FlowPlater.getInstance('test-instance');
+                if (instance) {
+                    instance.setData({
+                        instanceName: 'test-instance',
+                        loadTime: new Date().toLocaleString(),
+                        testValue: 'Initial load #' + loadCount
+                    });
+                }
+                
+                logToOutput('FlowPlater loaded successfully (Load #' + loadCount + ')');
+                logToOutput('FlowPlater VERSION: ' + FlowPlater.VERSION);
+            } else {
+                logToOutput('ERROR: FlowPlater not found!', 'error');
+            }
+        });
+        
+        function loadFlowPlaterAgain() {
+            logToOutput('Attempting to load FlowPlater again...');
+            
+            // Simulate loading FlowPlater script again
+            const script = document.createElement('script');
+            script.src = 'dist/flowplater.js?' + Date.now(); // Add timestamp to bypass cache
+            script.onload = function() {
+                loadCount++;
+                logToOutput('Script loaded (Load #' + loadCount + ')');
+                
+                // Check if it's the same instance
+                if (window.FlowPlater === originalFlowPlater) {
+                    logToOutput('SUCCESS: Same FlowPlater instance preserved!', 'success');
+                } else {
+                    logToOutput('ERROR: FlowPlater instance was replaced!', 'error');
+                    originalFlowPlater = window.FlowPlater;
+                }
+                
+                checkFlowPlaterState();
+            };
+            script.onerror = function() {
+                logToOutput('ERROR: Failed to load FlowPlater script', 'error');
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        function checkFlowPlaterState() {
+            if (window.FlowPlater) {
+                logToOutput('FlowPlater VERSION: ' + window.FlowPlater.VERSION);
+                logToOutput('FlowPlater instances: ' + Object.keys(window.FlowPlater.getInstances()).length);
+                logToOutput('FlowPlater instance names: ' + Object.keys(window.FlowPlater.getInstances()).join(', '));
+                
+                // Check if our test instance still exists
+                const instance = window.FlowPlater.getInstance('test-instance');
+                if (instance) {
+                    logToOutput('Test instance still exists with data: ' + JSON.stringify(instance.data));
+                } else {
+                    logToOutput('ERROR: Test instance was lost!', 'error');
+                }
+            } else {
+                logToOutput('ERROR: FlowPlater not found!', 'error');
+            }
+        }
+        
+        function clearConsole() {
+            consoleOutput.textContent = 'Console cleared.\n';
+        }
+    </script>
+</body>
+</html>
