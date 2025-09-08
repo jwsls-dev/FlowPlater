@@ -19,9 +19,10 @@ export const InstanceManager = {
    * The data proxy should be assigned by the caller AFTER getting the instance.
    * @param {HTMLElement} element - The DOM element
    * @param {Object} initialData - Initial data object (will be replaced by proxy later)
+   * @param {FlowPlaterElement[]} [cachedElements] - Pre-cached elements to avoid DOM queries
    * @returns {Object} The instance
    */
-  getOrCreateInstance(element: FlowPlaterElement, initialData: Record<string, any> = {}) : FlowPlaterInstance | null {
+  getOrCreateInstance(element: FlowPlaterElement, initialData: Record<string, any> = {}, cachedElements?: FlowPlaterElement[]) : FlowPlaterInstance | null {
     // Skip if element is already indexed
     if (AttributeMatcher._hasAttribute(element, "indexed")) {
       Debug.debug(
@@ -112,8 +113,8 @@ export const InstanceManager = {
       PluginManager.executeHook("newInstance", instance);
       Debug.info(`Created new instance: ${instanceName}`);
 
-      // Find all elements with matching fp-instance attribute
-      const matchingElements = AttributeMatcher.findMatchingElements(
+      // Use cached elements if provided, otherwise find all elements with matching fp-instance attribute
+      const matchingElements = cachedElements || AttributeMatcher.findMatchingElements(
         "instance",
         instanceName,
       );
@@ -130,60 +131,46 @@ export const InstanceManager = {
           if (targetSelector) {
             let targetElements: FlowPlaterElement[] = [];
 
+            // Helper function for sibling traversal
+            const findSibling = (direction: 'next' | 'previous', selector?: string) => {
+              const prop = direction === 'next' ? 'nextElementSibling' : 'previousElementSibling';
+              let current = matchingElement[prop];
+              
+              if (!selector) return current ? [current as FlowPlaterElement] : [];
+              
+              while (current) {
+                if (current.matches(selector)) return [current as FlowPlaterElement];
+                current = current[prop];
+              }
+              return [];
+            };
+
             switch (true) {
               case targetSelector === "this":
                 targetElements = [matchingElement];
                 break;
 
               case targetSelector.startsWith("closest "):
-                const closestSelector = targetSelector.substring(8);
-                const closestElement = matchingElement.closest(closestSelector);
-                if (closestElement) targetElements = [closestElement as FlowPlaterElement];
+                const closest = matchingElement.closest(targetSelector.substring(8));
+                if (closest) targetElements = [closest as FlowPlaterElement];
                 break;
 
               case targetSelector.startsWith("find "):
-                const findSelector = targetSelector.substring(5);
-                const foundElement =
-                  matchingElement.querySelector(findSelector);
-                if (foundElement) targetElements = [foundElement as FlowPlaterElement];
+                const found = matchingElement.querySelector(targetSelector.substring(5));
+                if (found) targetElements = [found as FlowPlaterElement];
                 break;
 
-              case targetSelector === "next":
-                const nextElement = matchingElement.nextElementSibling;
-                if (nextElement) targetElements = [nextElement as FlowPlaterElement];
+              case targetSelector === "next" || targetSelector.startsWith("next "):
+                const nextSelector = targetSelector === "next" ? undefined : targetSelector.substring(5);
+                targetElements = findSibling('next', nextSelector);
                 break;
 
-              case targetSelector.startsWith("next "):
-                const nextSelector = targetSelector.substring(5);
-                let currentNext = matchingElement.nextElementSibling;
-                while (currentNext) {
-                  if (currentNext.matches(nextSelector)) {
-                    targetElements = [currentNext as FlowPlaterElement];
-                    break;
-                  }
-                  currentNext = currentNext.nextElementSibling;
-                }
-                break;
-
-              case targetSelector === "previous":
-                const prevElement = matchingElement.previousElementSibling;
-                if (prevElement) targetElements = [prevElement as FlowPlaterElement];
-                break;
-
-              case targetSelector.startsWith("previous "):
-                const prevSelector = targetSelector.substring(9);
-                let currentPrev = matchingElement.previousElementSibling;
-                while (currentPrev) {
-                  if (currentPrev.matches(prevSelector)) {
-                    targetElements = [currentPrev as FlowPlaterElement];
-                    break;
-                  }
-                  currentPrev = currentPrev.previousElementSibling;
-                }
+              case targetSelector === "previous" || targetSelector.startsWith("previous "):
+                const prevSelector = targetSelector === "previous" ? undefined : targetSelector.substring(9);
+                targetElements = findSibling('previous', prevSelector);
                 break;
 
               default:
-                // Regular CSS selector
                 targetElements = Array.from(document.querySelectorAll(targetSelector)) as FlowPlaterElement[];
             }
 
@@ -260,11 +247,14 @@ export const InstanceManager = {
   createAllInstances(rootElement: Document | FlowPlaterElement = document) {
     Performance.start("createAllInstances");
     
-    // Find all templates using existing discovery logic
+    // Pre-cache all instance elements in one DOM query to avoid redundant searches
+    const elementCache = this._cacheInstanceElements(rootElement);
+    
+    // Find all templates using AttributeMatcher
     const templatesResult = AttributeMatcher.findMatchingElements("template", null, true, rootElement);
-    const templates = Array.isArray(templatesResult) 
-      ? templatesResult.filter(Boolean) 
-      : (templatesResult ? [templatesResult] : []);
+    const templates = (Array.isArray(templatesResult) ? templatesResult : [templatesResult]).filter(el => 
+      el && !AttributeMatcher._hasAttribute(el as FlowPlaterElement, "indexed")
+    ) as FlowPlaterElement[];
 
     Debug.info(`Found ${templates.length} templates to process`);
 
@@ -275,14 +265,16 @@ export const InstanceManager = {
       }
 
       if (templateId) {
+        const instanceName = AttributeMatcher._getRawAttribute(template, "instance") || template.id;
+        
         // Transform template content (moved from init)
         this._transformTemplateContent(templateId);
         
         // Compile template
         const compiledTemplate = compileTemplate(templateId, true);
         
-        // Create instance (this handles data loading, groups, etc.)
-        const instance = this.getOrCreateInstance(template, {});
+        // Create instance with cached elements to avoid DOM queries
+        const instance = this.getOrCreateInstance(template, {}, elementCache.get(instanceName));
         
         // Set up the instance with template and proxy
         if (instance && compiledTemplate) {
@@ -296,6 +288,30 @@ export const InstanceManager = {
     });
 
     Performance.end("createAllInstances");
+  },
+
+  /**
+   * Pre-cache all instance elements to avoid redundant DOM queries
+   * @private
+   */
+  _cacheInstanceElements(rootElement: Document | FlowPlaterElement = document): Map<string, FlowPlaterElement[]> {
+    const cache = new Map<string, FlowPlaterElement[]>();
+    
+    // Use AttributeMatcher to properly find all instance elements
+    const allInstanceElements = AttributeMatcher.findMatchingElements("instance", null, true, rootElement) as FlowPlaterElement[];
+    
+    // Group by instance name
+    allInstanceElements.forEach((element) => {
+      const instanceName = AttributeMatcher._getRawAttribute(element, "instance") || element.id;
+      if (instanceName) {
+        if (!cache.has(instanceName)) {
+          cache.set(instanceName, []);
+        }
+        cache.get(instanceName)!.push(element);
+      }
+    });
+    
+    return cache;
   },
 
   /**

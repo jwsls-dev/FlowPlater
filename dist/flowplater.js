@@ -1641,15 +1641,6 @@ var FlowPlater = (function () {
             ]),
         },
     };
-    /**
-     * Helper function to check if a value should use a default
-     * @param value - The value to check
-     * @param defaultValue - The default value to use
-     * @returns The original value or the default if value is null/undefined
-     */
-    function withDefault(value, defaultValue) {
-        return value ?? defaultValue;
-    }
 
     // Determine debug level based on environment
     const isDevEnvironment = DEFAULTS.URL.WEBFLOW_DOMAINS.some(domain => window.location.hostname.endsWith(domain)) || window.location.hostname.includes(DEFAULTS.URL.LOCALHOST);
@@ -4653,9 +4644,10 @@ var FlowPlater = (function () {
          * The data proxy should be assigned by the caller AFTER getting the instance.
          * @param {HTMLElement} element - The DOM element
          * @param {Object} initialData - Initial data object (will be replaced by proxy later)
+         * @param {FlowPlaterElement[]} [cachedElements] - Pre-cached elements to avoid DOM queries
          * @returns {Object} The instance
          */
-        getOrCreateInstance(element, initialData = {}) {
+        getOrCreateInstance(element, initialData = {}, cachedElements) {
             // Skip if element is already indexed
             if (AttributeMatcher._hasAttribute(element, "indexed")) {
                 Debug.debug(`Element already indexed: ${element.id || AttributeMatcher._getRawAttribute(element, "instance")}`);
@@ -4721,8 +4713,8 @@ var FlowPlater = (function () {
                 // Execute newInstance hook
                 PluginManager.executeHook("newInstance", instance);
                 Debug.info(`Created new instance: ${instanceName}`);
-                // Find all elements with matching fp-instance attribute
-                const matchingElements = AttributeMatcher.findMatchingElements("instance", instanceName);
+                // Use cached elements if provided, otherwise find all elements with matching fp-instance attribute
+                const matchingElements = cachedElements || AttributeMatcher.findMatchingElements("instance", instanceName);
                 // Add matching elements to the instance's elements Array
                 matchingElements.forEach((matchingElement) => {
                     if (matchingElement !== element) {
@@ -4730,56 +4722,42 @@ var FlowPlater = (function () {
                         const targetSelector = AttributeMatcher.findInheritedAttribute(matchingElement, "target");
                         if (targetSelector) {
                             let targetElements = [];
+                            // Helper function for sibling traversal
+                            const findSibling = (direction, selector) => {
+                                const prop = direction === 'next' ? 'nextElementSibling' : 'previousElementSibling';
+                                let current = matchingElement[prop];
+                                if (!selector)
+                                    return current ? [current] : [];
+                                while (current) {
+                                    if (current.matches(selector))
+                                        return [current];
+                                    current = current[prop];
+                                }
+                                return [];
+                            };
                             switch (true) {
                                 case targetSelector === "this":
                                     targetElements = [matchingElement];
                                     break;
                                 case targetSelector.startsWith("closest "):
-                                    const closestSelector = targetSelector.substring(8);
-                                    const closestElement = matchingElement.closest(closestSelector);
-                                    if (closestElement)
-                                        targetElements = [closestElement];
+                                    const closest = matchingElement.closest(targetSelector.substring(8));
+                                    if (closest)
+                                        targetElements = [closest];
                                     break;
                                 case targetSelector.startsWith("find "):
-                                    const findSelector = targetSelector.substring(5);
-                                    const foundElement = matchingElement.querySelector(findSelector);
-                                    if (foundElement)
-                                        targetElements = [foundElement];
+                                    const found = matchingElement.querySelector(targetSelector.substring(5));
+                                    if (found)
+                                        targetElements = [found];
                                     break;
-                                case targetSelector === "next":
-                                    const nextElement = matchingElement.nextElementSibling;
-                                    if (nextElement)
-                                        targetElements = [nextElement];
+                                case targetSelector === "next" || targetSelector.startsWith("next "):
+                                    const nextSelector = targetSelector === "next" ? undefined : targetSelector.substring(5);
+                                    targetElements = findSibling('next', nextSelector);
                                     break;
-                                case targetSelector.startsWith("next "):
-                                    const nextSelector = targetSelector.substring(5);
-                                    let currentNext = matchingElement.nextElementSibling;
-                                    while (currentNext) {
-                                        if (currentNext.matches(nextSelector)) {
-                                            targetElements = [currentNext];
-                                            break;
-                                        }
-                                        currentNext = currentNext.nextElementSibling;
-                                    }
-                                    break;
-                                case targetSelector === "previous":
-                                    const prevElement = matchingElement.previousElementSibling;
-                                    if (prevElement)
-                                        targetElements = [prevElement];
-                                    break;
-                                case targetSelector.startsWith("previous "):
-                                    const prevSelector = targetSelector.substring(9);
-                                    let currentPrev = matchingElement.previousElementSibling;
-                                    while (currentPrev) {
-                                        if (currentPrev.matches(prevSelector)) {
-                                            targetElements = [currentPrev];
-                                            break;
-                                        }
-                                        currentPrev = currentPrev.previousElementSibling;
-                                    }
+                                case targetSelector === "previous" || targetSelector.startsWith("previous "):
+                                    const prevSelector = targetSelector === "previous" ? undefined : targetSelector.substring(9);
+                                    targetElements = findSibling('previous', prevSelector);
                                     break;
                                 default:
-                                    // Regular CSS selector
                                     targetElements = Array.from(document.querySelectorAll(targetSelector));
                             }
                             // Add all found target elements to the instance
@@ -4839,255 +4817,157 @@ var FlowPlater = (function () {
             // No explicit re-render needed here, proxy handler should trigger _updateDOM
             // No explicit save needed here, proxy handler should save
         },
-    };
-
-    function render({ template, data, target, returnHtml = false, instanceName, animate = _state.defaults.animation, recompile = false, skipLocalStorageLoad = false, skipRender = false, isStoredDataRender = false, }) {
-        Performance.start("render:" + withDefault(instanceName, DEFAULTS.TEMPLATE.ANONYMOUS_INSTANCE_NAME));
-        // Track initialization to prevent redundant initialization of the same instance
-        if (!_state._initTracking) {
-            _state._initTracking = {};
-        }
-        // Derive instance name early to use for tracking
-        let derivedInstanceName;
-        if (instanceName) {
-            derivedInstanceName = instanceName;
-        }
-        else if (target instanceof Element &&
-            AttributeMatcher._hasAttribute(target, "instance")) {
-            derivedInstanceName = AttributeMatcher._getRawAttribute(target, "instance");
-        }
-        else if (target instanceof Element && target.id) {
-            derivedInstanceName = target.id;
-        }
-        else if (typeof target === "string" && target.startsWith("#")) {
-            derivedInstanceName = target.substring(1);
-        }
-        // If this instance was recently initialized (within 100ms), skip
-        // BUT ONLY if this is not an explicit render with stored data
-        if (derivedInstanceName &&
-            _state._initTracking[derivedInstanceName] &&
-            !isStoredDataRender) {
-            const timeSinceLastInit = Date.now() - _state._initTracking[derivedInstanceName];
-            if (timeSinceLastInit < DEFAULTS.INSTANCES.DUPLICATE_INIT_WINDOW) {
-                // Prevent duplicate initializations within the configured window
-                Debug.warn(`[Template] Skipping redundant initialization for ${derivedInstanceName}, last init was ${timeSinceLastInit}ms ago`);
-                // Still return the existing instance
-                return _state.instances[derivedInstanceName] || null;
-            }
-        }
-        // Update tracking timestamp
-        if (derivedInstanceName) {
-            _state._initTracking[derivedInstanceName] = Date.now();
-        }
-        EventSystem.publish("beforeRender", {
-            instanceName,
-            template,
-            data,
-            target,
-            returnHtml,
-            recompile,
-        });
-        /* -------------------------------------------------------------------------- */
-        /*                                initial setup                               */
-        /* -------------------------------------------------------------------------- */
-        // Handle empty or "self" template
-        if (!template || template === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID) {
-            const targetElement = typeof target === "string" ? document.querySelector(target) : target;
-            if (targetElement) {
-                template = "#" + targetElement.id;
-            }
-        }
-        // First check for target attributes
-        let targetElements = [];
-        if (target instanceof Element) {
-            // Check for hx-target or fp-target attributes
-            const targetSelector = AttributeMatcher._getRawAttribute(target, "target");
-            if (targetSelector) {
-                if (targetSelector === "this") {
-                    targetElements = [target];
+        /**
+         * Discovers and creates all instances from template elements
+         * @param {Document | FlowPlaterElement} rootElement - Root element to search within
+         */
+        createAllInstances(rootElement = document) {
+            Performance.start("createAllInstances");
+            // Pre-cache all instance elements in one DOM query to avoid redundant searches
+            const elementCache = this._cacheInstanceElements(rootElement);
+            // Find all templates using AttributeMatcher
+            const templatesResult = AttributeMatcher.findMatchingElements("template", null, true, rootElement);
+            const templates = (Array.isArray(templatesResult) ? templatesResult : [templatesResult]).filter(el => el && !AttributeMatcher._hasAttribute(el, "indexed"));
+            Debug.info(`Found ${templates.length} templates to process`);
+            templates.forEach((template) => {
+                let templateId = AttributeMatcher._getRawAttribute(template, "template");
+                if (templateId === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID || templateId === "") {
+                    templateId = template.id;
+                }
+                if (templateId) {
+                    const instanceName = AttributeMatcher._getRawAttribute(template, "instance") || template.id;
+                    // Transform template content (moved from init)
+                    this._transformTemplateContent(templateId);
+                    // Compile template
+                    const compiledTemplate = compileTemplate(templateId, true);
+                    // Create instance with cached elements to avoid DOM queries
+                    const instance = this.getOrCreateInstance(template, {}, elementCache.get(instanceName));
+                    // Set up the instance with template and proxy
+                    if (instance && compiledTemplate) {
+                        this._setupInstanceProxy(instance, compiledTemplate, templateId);
+                    }
+                    Debug.debug(`Created instance for template: ${templateId}`);
                 }
                 else {
-                    targetElements = Array.from(document.querySelectorAll(targetSelector));
+                    Debug.error(`No template ID found for element: ${template.id}`, template);
                 }
-            }
-        }
-        // If no target elements found from attributes, use the normal target handling
-        if (targetElements.length === 0) {
-            if (target instanceof NodeList) {
-                targetElements = Array.from(target);
-            }
-            else if (typeof target === "string") {
-                targetElements = Array.from(document.querySelectorAll(target));
-            }
-            else if (target instanceof Element) {
-                targetElements = [target];
-            }
-        }
-        if (targetElements.length === 0) {
-            Debug.error("No target elements found");
-            return;
-        }
-        // Get the instance name
-        if (instanceName) {
-            instanceName = instanceName;
-        }
-        else if (AttributeMatcher._hasAttribute(targetElements[0], "instance")) {
-            instanceName = AttributeMatcher._getRawAttribute(targetElements[0], "instance") || undefined;
-        }
-        else if (targetElements[0].id) {
-            instanceName = targetElements[0].id;
-        }
-        else {
-            instanceName = _state.length.toString();
-        }
-        /* -------------------------------------------------------------------------- */
-        /*                              Compile template                              */
-        /* -------------------------------------------------------------------------- */
-        var compiledTemplate = compileTemplate(template, recompile);
-        _state.length++;
-        if (!compiledTemplate) {
-            Debug.error("Template not found: " + template);
-            return;
-        }
-        if (targetElements.length === 0) {
-            Debug.error("Target not found: " + target);
-            return;
-        }
-        /* -------------------------------------------------------------------------- */
-        /*                               Proxy creation                               */
-        /* -------------------------------------------------------------------------- */
-        // Initialize finalInitialData outside the if block so it's available throughout the function
-        let finalInitialData = data || {};
-        let persistedData = null;
-        let proxy = null; // Initialize proxy at function level
-        // Check for local variable at instance level first
-        const localVarName = AttributeMatcher._getRawAttribute(targetElements[0], "local");
-        let localData = null;
-        if (localVarName) {
-            // First check if it's a global variable
-            localData = extractLocalData(localVarName);
-            // If no global variable found, try as a selector
-            if (!localData) {
-                try {
-                    const selectorElement = document.querySelector(localVarName);
-                    if (selectorElement) {
-                        // Check if the element or its children have fp-data
-                        const hasDataElement = AttributeMatcher.findMatchingElements("data", null, false, selectorElement);
-                        if (hasDataElement) {
-                            const dataExtractor = PluginManager.getPlugin("data-extractor");
-                            if (dataExtractor) {
-                                localData =
-                                    dataExtractor.instanceMethods?.extractData?.(selectorElement);
-                            }
-                        }
+            });
+            Performance.end("createAllInstances");
+        },
+        /**
+         * Pre-cache all instance elements to avoid redundant DOM queries
+         * @private
+         */
+        _cacheInstanceElements(rootElement = document) {
+            const cache = new Map();
+            // Use AttributeMatcher to properly find all instance elements
+            const allInstanceElements = AttributeMatcher.findMatchingElements("instance", null, true, rootElement);
+            // Group by instance name
+            allInstanceElements.forEach((element) => {
+                const instanceName = AttributeMatcher._getRawAttribute(element, "instance") || element.id;
+                if (instanceName) {
+                    if (!cache.has(instanceName)) {
+                        cache.set(instanceName, []);
                     }
+                    cache.get(instanceName).push(element);
                 }
-                catch (e) {
-                    Debug.warn(`[Template] Invalid selector for fp-local: ${localVarName}`);
+            });
+            return cache;
+        },
+        /**
+         * Performs initial rendering for all instances based on their configuration
+         */
+        renderAll() {
+            Performance.start("renderAll");
+            const instances = Object.values(_state.instances);
+            Debug.info(`Rendering ${instances.length} instances`);
+            instances.forEach((instance) => {
+                if (this._shouldSkipInitialRender(instance)) {
+                    Debug.debug(`Skipping initial render for ${instance.instanceName} (has request method)`);
+                    return;
                 }
-            }
-            if (localData) {
-                finalInitialData = { ...finalInitialData, ...localData };
-            }
-            // Check if we should observe this local data
-            if (AttributeMatcher._hasAttribute(targetElements[0], "local-observe")) {
-                // Find all data elements within the instance
-                const dataElements = AttributeMatcher.findMatchingElements("data");
-                // Delegate observation to the DataExtractorPlugin
-                dataElements?.forEach((element) => {
-                    PluginManager.getPlugin("data-extractor")?.instanceMethods?.observeDataElement?.(element, localVarName, instanceName ? _state.instances[instanceName] : undefined);
-                });
-            }
-        }
-        if (!instanceName || !_state.instances[instanceName] || !_state.instances[instanceName].data) {
-            // Load persisted data if available and not skipped
-            // Only load from localStorage if InstanceManager hasn't already loaded it
-            const existingInstance = instanceName ? _state.instances[instanceName] : null;
-            const hasInstanceData = existingInstance && existingInstance.data && Object.keys(existingInstance.data).length > 0;
-            if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled && !hasInstanceData) {
-                persistedData = loadFromLocalStorage(instanceName || "", "instance");
-                if (persistedData) {
-                    // Check if stored data is HTML
-                    if (persistedData.isHtml === true ||
-                        (typeof persistedData === "string" &&
-                            typeof persistedData.trim === "function" &&
-                            (persistedData.trim().startsWith("<!DOCTYPE html") ||
-                                persistedData.trim().startsWith("<html")))) {
-                        // Get swap specification from element
-                        const swapStyle = AttributeMatcher._getRawAttribute(targetElements[0], "swap", "innerHTML");
-                        const swapSpec = {
-                            swapStyle: withDefault(swapStyle, DEFAULTS.HTMX.SWAP_STYLE),
-                            swapDelay: DEFAULTS.HTMX.SWAP_DELAY,
-                            settleDelay: DEFAULTS.HTMX.SETTLE_DELAY,
-                            transition: swapStyle?.includes("transition:true") || DEFAULTS.HTMX.TRANSITION,
-                        };
-                        // Use htmx.swap with proper swap specification
-                        if (returnHtml) {
-                            return persistedData; // HTML string is now stored directly
-                        }
-                        targetElements.forEach((element) => {
-                            htmx.swap(element, persistedData, swapSpec);
-                        });
-                        return instanceName ? _state.instances[instanceName] : undefined;
-                    }
-                    // Extract actual data - if persistedData has a 'data' property, use that
-                    const actualData = persistedData?.data || persistedData;
-                    finalInitialData = { ...actualData, ...finalInitialData };
-                    Debug.debug(`[Template] Merged persisted data for ${instanceName}:`, finalInitialData);
+                // Use existing _updateDOM which handles all the transformation pipeline
+                if (instance._updateDOM) {
+                    instance._updateDOM();
+                    Debug.debug(`Rendered instance: ${instance.instanceName}`);
                 }
-            }
-            // Find the template element (must have fp-template attribute)
-            const templateElement = targetElements.find((el) => AttributeMatcher._hasAttribute(el, "template"));
-            if (!templateElement) {
-                Debug.error("No template element found in target elements");
-                return null;
-            }
-            // 1. Get or create the instance shell using the template element
-            const instance = InstanceManager.getOrCreateInstance(templateElement, finalInitialData);
-            // If instance couldn't be created, exit
-            if (!instance) {
-                Debug.error("Failed to get or create instance: " + instanceName);
-                return null;
-            }
-            // Store local variable name if present
-            if (localVarName) {
-                instance.localVarName = localVarName;
-            }
-            // --- Debounce and Change Tracking Setup ---
-            // Store the timer ID on the instance
-            if (!instance._updateTimer) {
-                instance._updateTimer = null;
-            }
-            // Store the 'state before changes' within the current debounce cycle
-            if (!instance._stateBeforeDebounce) {
-                instance._stateBeforeDebounce = null;
-            }
-            // --- End Setup ---
+                else {
+                    Debug.warn(`Instance ${instance.instanceName} missing _updateDOM method`);
+                }
+            });
+            Performance.end("renderAll");
+        },
+        /**
+         * Determines if an instance should skip initial rendering
+         * @private
+         */
+        _shouldSkipInitialRender(instance) {
+            const template = instance.templateElement;
+            if (!template)
+                return false;
+            // Check for HTTP method attributes that would trigger requests
+            const methods = ["get", "post", "put", "patch", "delete"];
+            const hasRequestMethod = methods.some((method) => AttributeMatcher._hasAttribute(template, method));
+            if (hasRequestMethod)
+                return true;
+            // Check for other trigger attributes
+            const httpTriggerAttributes = ["trigger", "boost", "ws", "sse"];
+            return httpTriggerAttributes.some((attr) => AttributeMatcher._hasAttribute(template, attr));
+        },
+        /**
+         * Transforms template content (moved from init method)
+         * @private
+         */
+        _transformTemplateContent(templateId) {
+            const templateElement = document.querySelector(templateId);
+            if (!templateElement)
+                return;
+            Debug.info("Transforming template content", templateElement);
+            const scriptTags = templateElement.getElementsByTagName("script");
+            const scriptContents = Array.from(scriptTags).map((script) => script.innerHTML);
+            // Temporarily replace script contents with placeholders
+            Array.from(scriptTags).forEach((script, i) => {
+                script.innerHTML = `##FP_SCRIPT_${i}##`;
+            });
+            // Do the replacement on the template
+            templateElement.innerHTML = templateElement.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
+            // Restore script contents
+            Array.from(templateElement.getElementsByTagName("script")).forEach((script, i) => {
+                script.innerHTML = scriptContents[i];
+            });
+        },
+        /**
+         * Sets up the instance with compiled template and data proxy
+         * @private
+         */
+        _setupInstanceProxy(instance, compiledTemplate, templateId) {
+            // Set the compiled template
+            instance.template = compiledTemplate;
+            instance.templateId = templateId;
+            // Get the current data (which may already include stored data from getOrCreateInstance)
+            const currentData = instance.data || {};
             // Check if this instance is part of a group
-            const groupName = AttributeMatcher._getRawAttribute(templateElement, "group");
+            const groupName = instance.groupName;
             if (groupName) {
-                // Check for persisted group data
-                let groupData = finalInitialData; // Start with the current data
-                if (!skipLocalStorageLoad && ConfigManager.getConfig().storage?.enabled) {
-                    const persistedGroupData = loadFromLocalStorage(groupName, "group");
-                    if (persistedGroupData) {
-                        // Merge persisted group data with any instance-specific data
-                        groupData = deepMerge(persistedGroupData, finalInitialData);
-                        Debug.debug(`Loaded persisted data for group ${groupName}`, groupData);
-                    }
-                }
                 // Get or create the group and add this instance
-                const group = GroupManager.getOrCreateGroup(groupName, groupData);
+                const group = GroupManager.getOrCreateGroup(groupName, currentData);
                 // Use the group's proxy for this instance
-                proxy = group.data;
+                instance.data = group.data;
                 // Add instance to the group
                 GroupManager.addInstanceToGroup(instance, groupName);
-                Debug.info(`Instance ${instanceName} is using group ${groupName} data`);
+                Debug.info(`Instance ${instance.instanceName} is using group ${groupName} data`);
             }
             else {
-                // 2. Create the proxy with the final merged data and DEBOUNCED update handler
+                // Create individual proxy with debounced update handler
                 const DEBOUNCE_DELAY = DEFAULTS.PERFORMANCE.DEBOUNCE_DELAY;
-                proxy = createDeepProxy(finalInitialData, () => {
+                // Set up debounce tracking properties
+                if (!instance._updateTimer) {
+                    instance._updateTimer = null;
+                }
+                if (!instance._stateBeforeDebounce) {
+                    instance._stateBeforeDebounce = null;
+                }
+                const proxy = createDeepProxy(currentData, () => {
                     if (instance) {
                         // Skip if we're currently evaluating a template
                         if (instance._isEvaluating) {
@@ -5107,19 +4987,19 @@ var FlowPlater = (function () {
                                 const newRenderedOutput = instance.template(transformedData);
                                 // Compare with previous render
                                 if (instance._lastRenderedOutput !== newRenderedOutput) {
-                                    Debug.info(`[Debounced Update] Output changed for ${instanceName}. Firing updateData hook.`);
+                                    Debug.info(`[Debounced Update] Output changed for ${instance.instanceName}. Firing updateData hook.`);
                                     // Execute hooks with current state
                                     PluginManager.executeHook("updateData", instance, {
                                         newData: proxy,
                                         source: "proxy",
                                     });
                                     EventSystem.publish("updateData", {
-                                        instanceName,
+                                        instanceName: instance.instanceName,
                                         newData: proxy,
                                         source: "proxy",
                                     });
                                     // Update DOM since output changed
-                                    Debug.debug(`[Debounced Update] Triggering _updateDOM for ${instanceName}`);
+                                    Debug.debug(`[Debounced Update] Triggering _updateDOM for ${instance.instanceName}`);
                                     instance._updateDOM();
                                     // Save the new rendered output
                                     instance._lastRenderedOutput = newRenderedOutput;
@@ -5131,7 +5011,7 @@ var FlowPlater = (function () {
                                     }
                                 }
                                 else {
-                                    Debug.debug(`[Debounced Update] No output change for ${instanceName}. Skipping update.`);
+                                    Debug.debug(`[Debounced Update] No output change for ${instance.instanceName}. Skipping update.`);
                                 }
                             }
                             finally {
@@ -5143,95 +5023,83 @@ var FlowPlater = (function () {
                         }, DEBOUNCE_DELAY);
                     }
                 });
+                // Assign the proxy to the instance
+                instance.data = proxy;
             }
-            // 3. Assign the proxy and template to the instance
-            instance.template = compiledTemplate;
-            instance.templateId =
-                AttributeMatcher._getRawAttribute(templateElement, "template") ||
-                    template;
-            instance.data = proxy; // Assign the proxy!
-            // 4. Trigger initial render - This should be OUTSIDE the debounce logic
-            Debug.debug(`[Initial Render] ${skipRender ? "Skipping" : "Triggering"} _updateDOM for ${instanceName}`);
-            // Only call _updateDOM if not skipRender
-            if (!skipRender) {
-                instance._updateDOM();
-            }
-            // Optional: Initial save if needed, OUTSIDE debounce
-            if (ConfigManager.getConfig().storage?.enabled &&
-                !persistedData &&
-                !instance.groupName) {
-                // Only save if not loaded and not in a group (groups handle their own saving)
-                const storageId = instanceName?.replace("#", "") || "";
-                Debug.debug(`[Initial Save] Saving initial data for ${storageId}`);
-                saveToLocalStorage(storageId, finalInitialData, // Save the data directly, not wrapped in an object
-                "instance"); // Save the raw initial merged data
-            }
+            Debug.debug(`Set up proxy for instance: ${instance.instanceName}`);
         }
-        else {
-            // If the instance already exists, get its proxy
-            proxy = _state.instances[instanceName].data;
+    };
+
+    function render({ template, data, target, returnHtml = false, instanceName, recompile = false, }) {
+        Performance.start("render:" + (instanceName || "anonymous"));
+        // Simple validation
+        if (!template || !target) {
+            Debug.error("Template and target are required for render");
+            Performance.end("render:" + (instanceName || "anonymous"));
+            return null;
         }
-        // Return the instance from the state (might be the one just created or an existing one)
-        const finalInstance = instanceName ? _state.instances[instanceName] : undefined;
-        if (finalInstance) {
-            Debug.info("Final instance data: ", finalInstance.data);
+        // Resolve target elements
+        let targetElements = [];
+        if (target instanceof NodeList) {
+            targetElements = Array.from(target);
         }
-        /* -------------------------------------------------------------------------- */
-        /*                               Render template                              */
-        /* -------------------------------------------------------------------------- */
-        // Only create/setup instance if proxy is defined
-        if (proxy) {
-            // Find the template element (must have fp-template attribute)
-            const templateElement = targetElements.find((el) => AttributeMatcher._hasAttribute(el, "template"));
-            if (!templateElement) {
-                Debug.error("No template element found in target elements");
-                return null;
+        else if (typeof target === "string") {
+            targetElements = Array.from(document.querySelectorAll(target));
+        }
+        else if (target instanceof Element) {
+            targetElements = [target];
+        }
+        if (targetElements.length === 0) {
+            Debug.error("No target elements found for render");
+            Performance.end("render:" + (instanceName || "anonymous"));
+            return null;
+        }
+        // Determine instance name
+        if (!instanceName) {
+            if (AttributeMatcher._hasAttribute(targetElements[0], "instance")) {
+                instanceName = AttributeMatcher._getRawAttribute(targetElements[0], "instance") || undefined;
             }
-            // Create/get instance and set up proxy regardless of skipRender
-            const instance = InstanceManager.getOrCreateInstance(templateElement, finalInitialData);
-            if (!instance) {
-                Debug.error("Failed to get or create instance: " + instanceName);
-                return null;
-            }
-            // Set up the instance but don't render automatically
-            instance.template = compiledTemplate; // Always store the template
-            instance.templateId =
-                AttributeMatcher._getRawAttribute(templateElement, "template") ||
-                    template;
-            instance.data = proxy;
-            // At this point do NOT call instance._updateDOM() to avoid automatic rendering
-            // Only perform actual rendering if explicitly requested
-            if (!skipRender) {
-                Debug.debug(`[Render Template] Executing render for ${instanceName}`);
-                try {
-                    if (returnHtml) {
-                        // Apply plugin transformations to the data before rendering
-                        const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
-                        return compiledTemplate(transformedData);
-                    }
-                    // Update all elements in the instance
-                    Array.from(instance.elements).forEach((element) => {
-                        // Apply plugin transformations to the data before rendering
-                        const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
-                        updateDOM(element, compiledTemplate(transformedData), animate, instance);
-                    });
-                }
-                catch (error) {
-                    if (!(error instanceof TemplateError)) {
-                        Debug.error(`Failed to render template: ${error.message}`);
-                    }
-                    throw error;
-                }
+            else if (targetElements[0].id) {
+                instanceName = targetElements[0].id;
             }
             else {
-                Debug.debug(`[Render Template] Skipping render for ${instanceName} as requested`);
+                instanceName = "anonymous_" + Date.now();
             }
         }
-        else if (!skipRender) {
-            // Log a debug message that we're skipping render due to no data
-            Debug.debug(`[Template] Skipping render for ${instanceName} because no data is available yet.`);
+        // Get existing instance or return null
+        const instance = instanceName ? _state.instances[instanceName] : null;
+        if (!instance) {
+            Debug.error("Instance not found for render:", instanceName);
+            Performance.end("render:" + (instanceName || "anonymous"));
+            return null;
         }
-        return finalInstance || null;
+        // Compile template if needed
+        const compiledTemplate = compileTemplate(template, recompile);
+        if (!compiledTemplate) {
+            Debug.error("Failed to compile template:", template);
+            Performance.end("render:" + (instanceName || "anonymous"));
+            return null;
+        }
+        // Update instance data if provided
+        if (data && typeof data === "object") {
+            Object.assign(instance.data, data);
+        }
+        // Handle return HTML case
+        if (returnHtml) {
+            const transformedData = PluginManager.applyTransformations(instance, instance.getData(), "transformDataBeforeRender", "json");
+            const result = compiledTemplate(transformedData);
+            Performance.end("render:" + (instanceName || "anonymous"));
+            return result;
+        }
+        // Trigger DOM update
+        if (instance._updateDOM) {
+            instance._updateDOM();
+        }
+        else {
+            Debug.warn(`Instance ${instanceName} missing _updateDOM method`);
+        }
+        Performance.end("render:" + (instanceName || "anonymous"));
+        return instance;
     }
 
     function compare(left, operator, right) {
@@ -5302,6 +5170,25 @@ var FlowPlater = (function () {
         }
     }
 
+    /**
+     * Checks if a property exists in the current context when it doesn't exist in the global context
+     * and provides a helpful warning message to guide developers to use 'this.property' syntax
+     *
+     * @param propertyName - The property name being accessed
+     * @param currentValue - The current value being checked (should be dataContext for root level checks)
+     * @param dataContext - The root/global data context
+     * @param currentContext - The current template context (this)
+     */
+    function verifyContext(propertyName, currentValue, dataContext, currentContext) {
+        // Only check if we're at the root level of property resolution
+        if (currentValue === dataContext &&
+            currentContext &&
+            typeof currentContext === "object" &&
+            Object.prototype.hasOwnProperty.call(currentContext, propertyName)) {
+            Debug.warn(`The '${propertyName}' property does not exist in the global context. Did you mean 'this.${propertyName}'?`);
+        }
+    }
+
     function ifHelper() {
         const Handlebars = window.Handlebars;
         Handlebars.unregisterHelper("if");
@@ -5350,6 +5237,8 @@ var FlowPlater = (function () {
                             // Property exists, return the value even if falsy
                             continue;
                         }
+                        // Property doesn't exist in root context, check if it exists in current context
+                        verifyContext(part, value, dataContext, currentContext);
                         return undefined;
                     }
                     else {
@@ -5361,10 +5250,10 @@ var FlowPlater = (function () {
             try {
                 // If expressionString is a simple property name (no operators)
                 if (!expressionString.match(/\s*(==|!=|<=|>=|<|>|\|\||&&)\s*/)) {
-                    // Get the value and check if property exists
+                    // Get the value and check if it's truthy (assume second argument is "true")
                     const value = resolveValue(expressionString, options.data.root, this);
-                    // Return true if the property exists, regardless of its value
-                    return value !== undefined ? options.fn(this) : options.inverse(this);
+                    // Return true if the value is truthy
+                    return value ? options.fn(this) : options.inverse(this);
                 }
                 // Parse expression for complex conditions
                 const expression = expressionString.trim();
@@ -20137,64 +20026,12 @@ var FlowPlater = (function () {
             // Process forms and other elements FIRST
             // This ensures filters and other components are initialized before any rendering
             process(element);
-            // Find all templates
-            const templatesResult = AttributeMatcher.findMatchingElements("template");
-            const templates = Array.isArray(templatesResult) ? templatesResult.filter(Boolean) : (templatesResult ? [templatesResult] : []);
-            // Initialize each template
-            templates.forEach((template) => {
-                let templateId = AttributeMatcher._getRawAttribute(template, "template");
-                if (templateId === DEFAULTS.TEMPLATE.SELF_TEMPLATE_ID || templateId === "") {
-                    templateId = template.id;
-                }
-                if (templateId) {
-                    // Transform template content before compiling
-                    const templateElement = document.querySelector(templateId);
-                    if (templateElement) {
-                        Debug.info("replacing template content", templateElement);
-                        const scriptTags = templateElement.getElementsByTagName("script");
-                        const scriptContents = Array.from(scriptTags).map((script) => script.innerHTML);
-                        // Temporarily replace script contents with placeholders
-                        Array.from(scriptTags).forEach((script, i) => {
-                            script.innerHTML = `##FP_SCRIPT_${i}##`;
-                        });
-                        // Do the replacement on the template
-                        templateElement.innerHTML = templateElement.innerHTML.replace(/\[\[(.*?)\]\]/g, "{{$1}}");
-                        // Restore script contents
-                        Array.from(templateElement.getElementsByTagName("script")).forEach((script, i) => {
-                            script.innerHTML = scriptContents[i];
-                        });
-                    }
-                    // Compile the template using the templateId from the attribute for the template cache
-                    compileTemplate(templateId, true);
-                    // Only render if options.render is true AND element doesn't have HTMX/FP methods
-                    if (options.render) {
-                        // Enhanced method detection - check for any fp- or hx- attribute that would trigger requests
-                        const methods = ["get", "post", "put", "patch", "delete"];
-                        // More comprehensive check for request-triggering attributes
-                        let hasRequestMethod = false;
-                        // Check for specific HTTP method attributes
-                        hasRequestMethod = methods.some((method) => AttributeMatcher._hasAttribute(template, method));
-                        // Also check for other trigger attributes that would cause loading
-                        if (!hasRequestMethod) {
-                            // Check for any attribute that would trigger an HTTP request
-                            const httpTriggerAttributes = ["trigger", "boost", "ws", "sse"];
-                            hasRequestMethod = httpTriggerAttributes.some((attr) => AttributeMatcher._hasAttribute(template, attr));
-                        }
-                        Debug.debug(`[Template ${templateId}] Has request method: ${hasRequestMethod}`, template);
-                        // Create/update instance with template regardless of render decision  
-                        // InstanceManager will now handle stored data loading automatically
-                        render({
-                            template: templateId,
-                            data: {},
-                            target: template,
-                            skipRender: false, // Always render - if we have stored data, show it immediately; if not, show empty state
-                        });
-                    }
-                }
-                else {
-                    Debug.error(`No template ID found for element: ${template.id}`, template, "Make sure your template has an ID attribute");
-                }
-            });
+            // Create all instances from templates
+            InstanceManager.createAllInstances(element);
+            // Perform initial rendering if requested
+            if (options.render) {
+                InstanceManager.renderAll();
+            }
             // Mark as initialized and ready
             _state.initialized = true;
             _readyState.isReady = true;

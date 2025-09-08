@@ -12,7 +12,6 @@ export function render({
   target,
   returnHtml = false,
   instanceName,
-  animate = _state.defaults.animation,
   recompile = false,
 }: {
   template: string;
@@ -20,7 +19,6 @@ export function render({
   target: FlowPlaterElement | string;
   returnHtml?: boolean;
   instanceName?: string;
-  animate?: boolean;
   recompile?: boolean;
 }) {
   Performance.start("render:" + (instanceName || "anonymous"));
