@@ -763,6 +763,24 @@ class VirtualDOM {
   static patch(container: HTMLElement, patches: PatchOperation[], expectedVNodes?: VNode[], capturedFormStates?: Record<string, Record<string, any>>): void {
     Performance.start('VirtualDOM.patch');
     
+    // Configurable threshold fallback: if patch volume is huge, prefer full innerHTML update
+    // This caps worst-case performance for massive changes
+    const configThreshold = (window?.FlowPlater?.getConfig()?.dom?.maxPatchesThreshold) ?? undefined;
+    const MAX_PATCHES = typeof configThreshold === 'number' ? configThreshold : 2000;
+    if (patches.length > MAX_PATCHES && expectedVNodes && expectedVNodes.length > 0) {
+      try {
+        const expectedHTML = this.vNodesToHTML(expectedVNodes);
+        container.innerHTML = expectedHTML;
+        if (capturedFormStates && Object.keys(capturedFormStates).length > 0) {
+          restoreFormStates(container, 'VirtualDOM.patch:threshold-fallback');
+        }
+        Performance.end('VirtualDOM.patch');
+        return;
+      } catch (e) {
+        Debug.error('VirtualDOM: Threshold fallback failed, continuing with patches', e);
+      }
+    }
+
     // Group patches by type for optimal batching
     const patchGroups = {
       replaces: [] as PatchOperation[],

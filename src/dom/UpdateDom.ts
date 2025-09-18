@@ -38,24 +38,6 @@ async function performDomUpdate(
     return;
   }
 
-  // For non-forced updates, check if HTML is empty
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = newHTML;
-  const hasElements = tempDiv.children.length > 0;
-  const hasNonWhitespaceText = tempDiv.textContent && tempDiv.textContent.trim().length > 0;
-  
-  if (!hasElements && !hasNonWhitespaceText) {
-    // Clear the container for empty HTML
-    Debug.debug(`performDomUpdate: Empty newHTML detected, clearing container for element ${elementId}`);
-    await domBatcher.write(
-      () => {
-        element.innerHTML = '';
-      },
-      `clear-empty-${elementId}-${timestamp}`
-    );
-    return;
-  }
-
   // Use Virtual DOM for efficient diffing and patching
   Debug.debug(`performDomUpdate: Using Virtual DOM for element ${elementId} with ${element.childNodes.length} child nodes`);
   Debug.debug(`performDomUpdate: Element innerHTML length: ${element.innerHTML.length}`);
@@ -68,12 +50,27 @@ async function performDomUpdate(
     typeof vn === 'string' ? `${i}: "${vn}"` : `${i}: <${vn.tag}${vn.attrs.class ? ` class="${vn.attrs.class}"` : ''}>`
   ));
   
-  // Parse new HTML and compare
+  // Parse new HTML once and reuse
   const newVNodes = VirtualDOM.parseHTML(newHTML) || [];
   Debug.debug(`performDomUpdate: Parsed new HTML into ${newVNodes.length} nodes`);
   Debug.debug(`performDomUpdate: New DOM nodes:`, newVNodes.map((vn, i) => 
     typeof vn === 'string' ? `${i}: "${vn}"` : `${i}: <${vn.tag}${vn.attrs.class ? ` class="${vn.attrs.class}"` : ''}>`
   ));
+  
+  // Determine emptiness efficiently: elements present OR any non-whitespace text in HTML
+  const hasElements = newVNodes.length > 0;
+  const hasNonWhitespaceText = newHTML.replace(/<[^>]*>/g, '').trim().length > 0;
+  const hasRenderableContent = hasElements || hasNonWhitespaceText;
+  if (!hasRenderableContent) {
+    Debug.debug(`performDomUpdate: Empty newVNodes detected, clearing container for element ${elementId}`);
+    await domBatcher.write(
+      () => {
+        element.innerHTML = '';
+      },
+      `clear-empty-${elementId}-${timestamp}`
+    );
+    return;
+  }
   
   // Capture form states before making any changes (for integrity check fallback)
   const formStates = await domBatcher.read(

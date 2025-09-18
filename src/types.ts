@@ -48,6 +48,9 @@ export interface FlowPlaterConfig {
     batchDomUpdates: boolean;
     batchingDelay: number; // 0 uses requestAnimationFrame, >0 uses setTimeout with delay
   };
+  dom: {
+    maxPatchesThreshold: number;
+  };
   persistForm: boolean;
   allowExecute: boolean;
 }

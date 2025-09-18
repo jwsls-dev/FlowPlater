@@ -431,6 +431,17 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
 
     getData: function () {
       const proxy = _state.instances[instanceName].data;
+      try {
+        // Prefer structuredClone when available for performance and correctness
+        // @ts-ignore - structuredClone is available in modern browsers
+        if (typeof structuredClone === 'function') {
+          // Avoid cloning proxies directly by reading through JSON if necessary
+          return structuredClone(proxy);
+        }
+      } catch (_) {
+        // Fallback below
+      }
+      // Fallback: JSON deep clone
       return JSON.parse(JSON.stringify(proxy));
     },
 

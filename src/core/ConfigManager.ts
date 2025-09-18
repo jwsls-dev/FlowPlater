@@ -43,6 +43,9 @@ const defaultConfig: FlowPlaterConfig = {
     batchDomUpdates: DEFAULTS.PERFORMANCE.BATCH_DOM_UPDATES,
     batchingDelay: DEFAULTS.PERFORMANCE.BATCHING_DELAY,
   },
+  dom: {
+    maxPatchesThreshold: DEFAULTS.DOM.MAX_PATCHES_THRESHOLD,
+  },
   persistForm: DEFAULTS.FORMS.PERSIST_FORMS,
   allowExecute: DEFAULTS.SECURITY.ALLOW_EXECUTE,
 };

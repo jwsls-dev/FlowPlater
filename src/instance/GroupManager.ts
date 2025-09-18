@@ -80,7 +80,16 @@ export const GroupManager = {
       _lastRenderedOutputs: new Map(),
       data: {}, // Will be replaced with proxy
       getData: () => {
-        return JSON.parse(JSON.stringify(_state.groups[groupName].data));
+        const data = _state.groups[groupName].data;
+        try {
+          // @ts-ignore prefer structuredClone when available
+          if (typeof structuredClone === 'function') {
+            return structuredClone(data);
+          }
+        } catch (_) {
+          // fallback
+        }
+        return JSON.parse(JSON.stringify(data));
       },
       update: (data: Record<string, any>) => {
         deepMerge(group.data, data);
