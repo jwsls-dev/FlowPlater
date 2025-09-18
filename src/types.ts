@@ -178,6 +178,7 @@ export interface FlowPlaterInstance {
   _observers?: Set<MutationObserver>;
   _isEvaluating?: boolean;
   _lastRenderedOutput?: string;
+  _hasPendingUpdate?: boolean;
 }
 
 export interface FlowPlaterPluginConfig {

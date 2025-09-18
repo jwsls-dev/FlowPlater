@@ -70,6 +70,13 @@ export function setupInstanceProxy(instance: FlowPlaterInstance, compiledTemplat
 
   const proxy = createDeepProxy(currentData, () => {
     if (!instance) return;
+    // Mark that we have pending changes during/after evaluation
+    (instance as any)._hasPendingUpdate = true;
+    // If currently evaluating, defer to the completion handler in _updateDOM
+    if ((instance as any)._isEvaluating) {
+      return;
+    }
+    // Otherwise debounce an update now
     if (instance._updateTimer) clearTimeout(instance._updateTimer);
     instance._updateTimer = setTimeout(() => {
       instance._updateDOM();

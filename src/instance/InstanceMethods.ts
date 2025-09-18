@@ -73,9 +73,13 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
         // Prevent re-entrancy during evaluation
         if (instance._isEvaluating) {
           Debug.debug("_updateDOM skipped during evaluation", instance.instanceName);
+          // Ensure we mark there is pending work to process right after
+          (instance as any)._hasPendingUpdate = true;
           return;
         }
         instance._isEvaluating = true;
+        // Clear pending flag at start; new writes during eval will set it again
+        (instance as any)._hasPendingUpdate = false;
 
         let rendered;
         if (instance.templateId === "self" || instance.templateId === null) {
@@ -210,6 +214,17 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
       } finally {
         // Clear evaluation flag
         instance._isEvaluating = false;
+        // If updates occurred during evaluation, schedule another pass
+        if ((instance as any)._hasPendingUpdate) {
+          Debug.debug("Pending updates detected post-eval, scheduling another _updateDOM", instance.instanceName);
+          (instance as any)._hasPendingUpdate = false;
+          if (instance._updateTimer) clearTimeout(instance._updateTimer);
+          // Reuse debounce delay semantics by invoking the debounced path via timer 0
+          instance._updateTimer = setTimeout(() => {
+            instance._updateDOM();
+            instance._updateTimer = null;
+          }, 0);
+        }
       }
     },
 
