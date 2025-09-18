@@ -122,7 +122,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @returns {Object} Updated instance
      */
     exampleUpdateData(instance: FlowPlaterInstance, newData: any) {
-      instance.update({
+      instance.setData({
         ...instance.data,
         pluginData: {
           ...instance.data.pluginData,

@@ -160,7 +160,6 @@ export interface FlowPlaterInstance {
   localVarName?: string;
   cleanup: () => void;
   animate?: boolean;
-  update(data: Record<string, any>): void;
   refresh(): void;
   refreshTemplate: (templateId: string, recompile?: boolean) => boolean;
   remove: () => void;

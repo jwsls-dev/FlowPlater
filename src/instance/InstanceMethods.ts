@@ -70,6 +70,13 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
       }
 
       try {
+        // Prevent re-entrancy during evaluation
+        if (instance._isEvaluating) {
+          Debug.debug("_updateDOM skipped during evaluation", instance.instanceName);
+          return;
+        }
+        instance._isEvaluating = true;
+
         let rendered;
         if (instance.templateId === "self" || instance.templateId === null) {
           // For "self" template, use the first element as the template
@@ -139,6 +146,12 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
           }
         }
 
+        // Change detection: skip DOM work if output hasn't changed
+        if (rendered === instance._lastRenderedOutput) {
+          Debug.debug(`[InstanceMethods] No output change for ${instance.instanceName}. Skipping DOM update.`);
+          return;
+        }
+
         // Filter out elements that are no longer in the DOM
         const activeElements = Array.from(instance.elements).filter((el) =>
           document.body.contains(el),
@@ -152,6 +165,23 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
           return;
         }
 
+        // Before DOM update, for non-grouped instances emit hooks and events
+        if (!instance.groupName) {
+          try {
+            PluginManager.executeHook("updateData", instance, {
+              newData: instance.data,
+              source: "proxy",
+            });
+            EventSystem.publish("updateData", {
+              instanceName: instance.instanceName,
+              newData: instance.data,
+              source: "proxy",
+            });
+          } catch (e) {
+            Debug.error("Error executing updateData hooks/events", e);
+          }
+        }
+
         // Batch DOM updates to reduce layout thrashing
         const updatePromises = activeElements.map((element) =>
           domBatcher.write(
@@ -163,6 +193,13 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
         // Wait for all batched element updates to complete
         const results = await Promise.all(updatePromises);
 
+        // Persist last rendered output and optionally save to storage (for non-grouped instances)
+        instance._lastRenderedOutput = rendered;
+        if (!instance.groupName && ConfigManager.getConfig().storage?.enabled) {
+          const storageId = instance.instanceName.replace("#", "");
+          saveToLocalStorage(storageId, instance.data, "instance");
+        }
+
         return results;
       } catch (error) {
         Debug.error(
@@ -170,6 +207,9 @@ export function instanceMethods(instanceName: string): Partial<FlowPlaterInstanc
           instance.instanceName,
           error,
         );
+      } finally {
+        // Clear evaluation flag
+        instance._isEvaluating = false;
       }
     },
 

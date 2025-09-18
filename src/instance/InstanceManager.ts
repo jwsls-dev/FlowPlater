@@ -1,17 +1,16 @@
 import { Debug } from "../core/Debug";
 import { _state } from "../core/State";
 import { PluginManager } from "../core/PluginManager";
-import { instanceMethods } from "./InstanceMethods";
-import { GroupManager } from "./GroupManager";
-import { deepMerge, createDeepProxy } from "../storage/DataTransformers";
+import { createInstance, setupInstanceProxy } from "./Instance";
+import { deepMerge } from "../storage/DataTransformers";
 import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
 import { ConfigManager } from "../core/ConfigManager";
-import { loadFromLocalStorage, saveToLocalStorage } from "../storage/LocalStorage";
+import { loadFromLocalStorage } from "../storage/LocalStorage";
 import { Performance } from "../utils/Performance";
 import { compileTemplate } from "../template/TemplateCompiler";
 import { DEFAULTS } from "../core/DefaultConfig";
-import { EventSystem } from "../events/EventSystem";
+// import { EventSystem } from "../events/EventSystem";
 
 export const InstanceManager = {
   /**
@@ -76,37 +75,15 @@ export const InstanceManager = {
         }
       }
 
-      // Create new instance with the template element
-      const baseInstance = {
-        instanceName: instanceName,
-        elements: [element],
-        template: null, // Template will be assigned by caller
+      // Create new instance via factory (no proxy yet)
+      instance = createInstance({
+        instanceName,
+        templateElement: element,
         templateId: AttributeMatcher._getRawAttribute(element, "template") || "",
-        templateElement: element, // Store direct reference to the template element
-        data: finalInitialData as ProxyConstructor & Record<string, any>, // Assign initial data (including stored data), caller MUST replace with Proxy
-        cleanup: () => {
-          // Remove from group if part of one
-          if (instance.groupName) {
-            GroupManager.removeInstanceFromGroup(instance);
-          }
-
-          instance.elements = [];
-        },
-      };
-
-      // Add instance methods to complete the FlowPlaterInstance interface
-      const instanceMethodsObj = instanceMethods(instanceName);
-      
-      // Create the complete instance by merging base properties with methods
-      instance = Object.assign(baseInstance, instanceMethodsObj) as FlowPlaterInstance;
-
-      // Add plugin instance methods
-      const methods = PluginManager.instanceMethods;
-      for (const [methodName] of methods.entries()) {
-        // Add method to instance
-        (instance as any)[methodName] = (...args: any[]) =>
-          PluginManager.executeInstanceMethod(methodName, instance, ...args);
-      }
+        initialData: finalInitialData,
+        groupName: groupName || undefined,
+        elements: [element]
+      });
 
       _state.instances[instanceName] = instance;
       // Execute newInstance hook
@@ -194,13 +171,7 @@ export const InstanceManager = {
       // Mark the template element as indexed
       element.setAttribute("fp-indexed", "true");
 
-      // Handle group membership, but don't set data proxy here - that happens in Template.js
-      if (groupName) {
-        instance.groupName = groupName;
-        Debug.info(
-          `Instance ${instanceName} will be added to group ${groupName}`,
-        );
-      }
+      // Group membership is handled in the factory/proxy setup
     } else {
       // If instance exists, add the new element to its array (if not already present)
       if (!instance.elements.includes(element)) {
@@ -278,7 +249,7 @@ export const InstanceManager = {
         
         // Set up the instance with template and proxy
         if (instance && compiledTemplate) {
-          this._setupInstanceProxy(instance, compiledTemplate, templateId);
+          setupInstanceProxy(instance, compiledTemplate, templateId);
         }
         
         Debug.debug(`Created instance for template: ${templateId}`);
@@ -398,125 +369,5 @@ export const InstanceManager = {
     );
   },
 
-  /**
-   * Sets up the instance with compiled template and data proxy
-   * @private
-   */
-  _setupInstanceProxy(instance: FlowPlaterInstance, compiledTemplate: any, templateId: string) {
-    // Set the compiled template
-    instance.template = compiledTemplate;
-    instance.templateId = templateId;
-
-    // Get the current data (which may already include stored data from getOrCreateInstance)
-    const currentData = instance.data || {};
-
-    // Check if this instance is part of a group
-    const groupName = instance.groupName;
-
-    if (groupName) {
-      // Get or create the group and add this instance
-      const group = GroupManager.getOrCreateGroup(groupName, currentData);
-      
-      // Use the group's proxy for this instance
-      instance.data = group.data;
-      
-      // Add instance to the group
-      GroupManager.addInstanceToGroup(instance, groupName);
-      
-      Debug.info(`Instance ${instance.instanceName} is using group ${groupName} data`);
-    } else {
-      // Create individual proxy with debounced update handler
-      const DEBOUNCE_DELAY = DEFAULTS.PERFORMANCE.DEBOUNCE_DELAY;
-
-      // Set up debounce tracking properties
-      if (!instance._updateTimer) {
-        instance._updateTimer = null;
-      }
-      if (!instance._stateBeforeDebounce) {
-        instance._stateBeforeDebounce = null;
-      }
-
-      const proxy = createDeepProxy(currentData, () => {
-        if (instance) {
-          // Skip if we're currently evaluating a template
-          if (instance._isEvaluating) {
-            return;
-          }
-
-          // Clear existing timer
-          if (instance._updateTimer) {
-            clearTimeout(instance._updateTimer);
-          }
-
-          // Schedule the update
-          instance._updateTimer = setTimeout(() => {
-            try {
-              // Set flag to prevent recursive updates during evaluation
-              instance._isEvaluating = true;
-
-              // Get the current rendered output
-              const transformedData = PluginManager.applyTransformations(
-                instance,
-                instance.getData(),
-                "transformDataBeforeRender",
-                "json",
-              );
-
-              const newRenderedOutput = instance.template(transformedData);
-
-              // Compare with previous render
-              if (instance._lastRenderedOutput !== newRenderedOutput) {
-                Debug.info(
-                  `[Debounced Update] Output changed for ${instance.instanceName}. Firing updateData hook.`,
-                );
-
-                // Execute hooks with current state
-                PluginManager.executeHook("updateData", instance, {
-                  newData: proxy,
-                  source: "proxy",
-                });
-                EventSystem.publish("updateData", {
-                  instanceName: instance.instanceName,
-                  newData: proxy,
-                  source: "proxy",
-                });
-
-                // Update DOM since output changed
-                Debug.debug(
-                  `[Debounced Update] Triggering _updateDOM for ${instance.instanceName}`,
-                );
-                instance._updateDOM();
-
-                // Save the new rendered output
-                instance._lastRenderedOutput = newRenderedOutput;
-
-                // Save to storage if enabled
-                if (ConfigManager.getConfig().storage?.enabled) {
-                  const storageId = instance.instanceName.replace("#", "");
-                  Debug.debug(
-                    `[Debounced Update] Saving data for ${storageId}`,
-                  );
-                  saveToLocalStorage(storageId, proxy, "instance");
-                }
-              } else {
-                Debug.debug(
-                  `[Debounced Update] No output change for ${instance.instanceName}. Skipping update.`,
-                );
-              }
-            } finally {
-              // Always clear the evaluation flag
-              instance._isEvaluating = false;
-              // Clear timer
-              instance._updateTimer = null;
-            }
-          }, DEBOUNCE_DELAY);
-        }
-      });
-
-      // Assign the proxy to the instance
-      instance.data = proxy;
-    }
-
-    Debug.debug(`Set up proxy for instance: ${instance.instanceName}`);
-  }
+  // Proxy setup is centralized in src/instance/Instance.ts
 };
