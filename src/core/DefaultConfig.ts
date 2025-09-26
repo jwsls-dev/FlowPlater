@@ -143,7 +143,7 @@ export const DEFAULTS = {
     ],
     SIMILARITY_THRESHOLD: 0.5, // For text similarity comparison
     LENGTH_RATIO_THRESHOLD: 0.5, // For content length comparison
-    MAX_PATCHES_THRESHOLD: 2000, // Above this, prefer full innerHTML update
+    MAX_PATCHES_THRESHOLD: 2000, // @deprecated - We now use Morphdom for efficient DOM reconciliation
   },
   
   // Instance management
