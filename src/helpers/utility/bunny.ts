@@ -1,4 +1,5 @@
 import { FlowPlaterWindow } from "../../types";
+import { Debug } from "../../core/Debug";
 
 /**
  * Registers a Handlebars helper that creates an animated bunny ASCII art.
@@ -21,7 +22,7 @@ import { FlowPlaterWindow } from "../../types";
 export function bunnyHelper() {
   const Handlebars = (window as unknown as FlowPlaterWindow).Handlebars;
   if (typeof Handlebars === "undefined") {
-    console.error("Handlebars is not loaded yet!");
+    Debug.error("Handlebars is not loaded yet!");
     return;
   }
 

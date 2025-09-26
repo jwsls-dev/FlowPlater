@@ -1,5 +1,5 @@
 import { Debug } from "../../core/Debug";
-import { ConfigManager } from "../../core/ConfigManager";
+import { ConfigService } from "../../core/ConfigService";
 
 // Registry for user-allowed functions
 const ALLOWED_FUNCTIONS: Map<string, Function> = new Map<string, Function>();
@@ -137,7 +137,7 @@ export function executeHelper() {
   const Handlebars = window.Handlebars;
   Handlebars.registerHelper("execute", function (this: Handlebars.HelperDelegate, fn: string, ...args: any[]) {
 
-    if (!ConfigManager.getConfig().allowExecute) {
+    if (!ConfigService.isExecuteAllowed()) {
       Debug.error("execute is disabled. Cannot execute functions.");
       return '';
     }
