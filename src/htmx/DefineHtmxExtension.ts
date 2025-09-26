@@ -1,6 +1,6 @@
 import { RequestHandler } from "../events/RequestHandler";
 import { EventSystem } from "../events/EventSystem";
-import { Debug } from "../core/Debug";
+import { Debug, FlowPlaterError } from "../core/Debug";
 import { parseXmlToJson } from "../utils/ParseXmlToJson";
 import { _state } from "../core/State";
 import {
@@ -32,7 +32,7 @@ export function defineHtmxExtension() {
         try {
           // First validate that we have valid XML content
           if (!text || typeof text !== 'string') {
-            throw new Error('Invalid XML content: empty or non-string response');
+            throw new FlowPlaterError('Invalid XML content: empty or non-string response');
           }
 
           // Parse the XML string using DOMParser
@@ -42,12 +42,12 @@ export function defineHtmxExtension() {
           // Check for XML parsing errors - DOMParser doesn't throw, but creates error documents
           const parserError = xmlDoc.querySelector("parsererror");
           if (parserError) {
-            throw new Error(`XML parsing failed: ${parserError.textContent || 'Unknown parser error'}`);
+            throw new FlowPlaterError(`XML parsing failed: ${parserError.textContent || 'Unknown parser error'}`);
           }
 
           // Validate that we have a valid document with a root element
           if (!xmlDoc.documentElement) {
-            throw new Error('XML parsing failed: no document element found');
+            throw new FlowPlaterError('XML parsing failed: no document element found');
           }
 
           // Convert XML to JSON using our utility function (which expects the original string)
@@ -266,18 +266,6 @@ export function defineHtmxExtension() {
       if (!evt.detail.requestId) evt.detail.requestId = requestId;
 
       switch (name) {
-        case "htmx:confirm":
-          if (AttributeMatcher._hasAttribute(triggeringElt, "template")) {
-            const instance = InstanceManager.getOrCreateInstance(triggeringElt);
-            // Apply plugin transformations to the confirm event
-            evt = PluginManager.applyTransformations(
-              instance as FlowPlaterInstance,
-              evt,
-              "confirm",
-              "json",
-            );
-          }
-          break;
 
         case "htmx:configRequest":
           // Apply transformations regardless of fp-template attribute
