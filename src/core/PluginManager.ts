@@ -11,7 +11,9 @@ import {
   RequestTransformerFunction,
   TransformerDataType,
   NamedTransformer,
+  TransformationType,
 } from "../types";
+import { MethodRegistry } from "./MethodRegistry";
 
 // Version management utilities
 const VersionManager = {
@@ -34,8 +36,7 @@ const VersionManager = {
     if (!required || !actual) return false;
 
     // Handle @ syntax (e.g., "plugin@2.1")
-    // @ts-ignore
-    const [pluginName, version] = required.split("@");
+    const version = required.split("@")[1];
     if (!version) return true; // No version requirement
 
     return this.compareVersions(actual, version) >= 0;
@@ -44,8 +45,10 @@ const VersionManager = {
 
 export const PluginManager = {
   plugins: new Map(),
-  globalMethods: new Map(),
-  instanceMethods: new Map(),
+  // Deprecated: kept for compatibility within this module; delegate to MethodRegistry
+  get globalMethods() { return MethodRegistry.globalMethods; },
+  get instanceMethods() { return MethodRegistry.instanceMethods; },
+  get groupMethods() { return MethodRegistry.groupMethods; },
   customTransformers: new Map(), // Store custom transformers by type (Map<string, NamedTransformer[]>)
 
   // Helper method to execute initComplete hook for a plugin
@@ -65,7 +68,7 @@ export const PluginManager = {
     }
   },
 
-  registerPlugin(plugin: FlowPlaterPlugin | string | Function, config = {}) {
+  registerPlugin(plugin: FlowPlaterPlugin | string | Function, config = {}) : FlowPlaterPlugin {
     let pluginFunction: Function;
     
     if (typeof plugin === "string") {
@@ -84,11 +87,24 @@ export const PluginManager = {
 
     const pluginInstance = pluginFunction(config);
 
-    // Validate required config fields
-    const requiredFields = ["name", "enabled", "priority", "version"];
-    for (const field of requiredFields) {
-      if (!(field in pluginInstance.config)) {
-        throw new FlowPlaterError(`Plugin config must contain '${field}'`);
+    // Validate required config properties
+    const requiredConfigProperties = ["name", "enabled", "priority", "version"];
+    for (const property of requiredConfigProperties) {
+      if (!pluginInstance.config) {
+        throw new FlowPlaterError(`Plugin config object is required`);
+      }
+      if (!(property in pluginInstance.config)) {
+        throw new FlowPlaterError(`Plugin config must contain '${property}'`);
+      }
+    }
+
+    const requiredStateProperties = ["initialized"];
+    for (const property of requiredStateProperties) {
+      if (!pluginInstance.state) {
+        throw new FlowPlaterError(`Plugin state object is required`);
+      }
+      if (!(property in pluginInstance.state)) {
+        throw new FlowPlaterError(`Plugin state must contain '${property}'`);
       }
     }
 
@@ -174,17 +190,10 @@ export const PluginManager = {
         if (this.globalMethods.has(methodName)) {
           const existing = this.globalMethods.get(methodName);
           throw new FlowPlaterError(
-            `Global method ${methodName} already registered by plugin ${existing.plugin}`,
+            `Global method ${methodName} already registered by plugin ${existing?.plugin || "unknown"}`,
           );
         }
-        this.globalMethods.set(methodName, {
-          method,
-          plugin: pluginInstance.config.name,
-        });
-        if (window.FlowPlater) {
-          window.FlowPlater[methodName] = (...args: any[]) =>
-            this.executeGlobalMethod(methodName, ...args);
-        }
+        MethodRegistry.registerPluginMethod("global", methodName, method, pluginInstance.config.name);
       }
     }
 
@@ -200,14 +209,32 @@ export const PluginManager = {
         if (this.instanceMethods.has(methodName)) {
           const existing = this.instanceMethods.get(methodName);
           throw new FlowPlaterError(
-            `Instance method ${methodName} already registered by plugin ${existing.plugin}`,
+            `Instance method ${methodName} already registered by plugin ${existing?.plugin || "unknown"}`,
           );
         }
-        this.instanceMethods.set(methodName, {
-          method,
-          plugin: pluginInstance.config.name,
-        });
+        MethodRegistry.registerPluginMethod("instance", methodName, method, pluginInstance.config.name);
       }
+    }
+
+    if (pluginInstance.groupMethods) {
+      for (const [methodName, method] of Object.entries(
+        pluginInstance.groupMethods as Record<string, Function>,
+      )) {
+        if (typeof method !== "function") {
+          throw new FlowPlaterError(
+            `Group method ${methodName} must be a function`,
+          );
+        }
+        if (this.groupMethods.has(methodName)) {
+          const existing = this.groupMethods.get(methodName);
+          throw new FlowPlaterError(
+            `Group method ${methodName} already registered by plugin ${existing?.plugin || "unknown"}`,
+          );
+        }
+        MethodRegistry.registerPluginMethod("group", methodName, method, pluginInstance.config.name);
+      }
+      // Bind group methods onto existing groups
+      this.updateExistingGroups();
     }
 
     if (pluginInstance.helpers && typeof pluginInstance.helpers === "object") {
@@ -240,9 +267,12 @@ export const PluginManager = {
       _readyState.queue.push(() => {
         if (
           pluginInstance.config?.enabled &&
-          typeof pluginInstance.init === "function"
+          typeof pluginInstance.init === "function" &&
+          !pluginInstance.state?.initialized
         ) {
           pluginInstance.init();
+          // Mark initialized to prevent double-init via queued+immediate flows
+          (pluginInstance.state || (pluginInstance.state = {})).initialized = true;
         }
         // Update existing instances with new plugin methods
         this.updateExistingInstances();
@@ -253,9 +283,11 @@ export const PluginManager = {
       // Initialize immediately if FlowPlater is ready
       if (
         pluginInstance.config?.enabled &&
-        typeof pluginInstance.init === "function"
+        typeof pluginInstance.init === "function" &&
+        !pluginInstance.state?.initialized
       ) {
         pluginInstance.init();
+        (pluginInstance.state || (pluginInstance.state = {})).initialized = true;
       }
       this.updateExistingInstances();
       this._executeInitCompleteHook(pluginInstance);
@@ -270,11 +302,22 @@ export const PluginManager = {
 
     // For each instance, add any missing plugin methods
     instances.forEach((instance) => {
-      // @ts-ignore
+      // @ts-ignore - Ignore unused variable error
       for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
         if (!instance[methodName as keyof FlowPlaterInstance]) {
           instance[methodName as keyof FlowPlaterInstance] = (...args: any[]) =>
             this.executeInstanceMethod(methodName, instance, ...args);
+        }
+      }
+    });
+  },
+
+  updateExistingGroups() {
+    const groups = Object.values(_state.groups);
+    groups.forEach((group: any) => {
+      for (const [methodName] of this.groupMethods.entries()) {
+        if (!group[methodName]) {
+          group[methodName] = (...args: any[]) => this.executeGroupMethod(methodName, group, ...args);
         }
       }
     });
@@ -310,9 +353,16 @@ export const PluginManager = {
 
     // Store methods to remove before deleting from maps
     const methodsToRemove = new Set();
+    const groupMethodsToRemove = new Set();
     for (const [methodName, methodInfo] of this.instanceMethods.entries()) {
       if (methodInfo.plugin === name) {
         methodsToRemove.add(methodName);
+      }
+    }
+
+    for (const [methodName, methodInfo] of this.groupMethods.entries()) {
+      if (methodInfo.plugin === name) {
+        groupMethodsToRemove.add(methodName);
       }
     }
 
@@ -320,10 +370,6 @@ export const PluginManager = {
     for (const [methodName, methodInfo] of this.globalMethods.entries()) {
       if (methodInfo.plugin === name) {
         this.globalMethods.delete(methodName);
-        // Remove method from FlowPlater object
-        if (window.FlowPlater) {
-          delete window.FlowPlater[methodName];
-        }
       }
     }
 
@@ -339,6 +385,14 @@ export const PluginManager = {
     instances.forEach((instance) => {
       methodsToRemove.forEach((methodName) => {
         delete instance[methodName as keyof FlowPlaterInstance];
+      });
+    });
+
+    // Remove group methods from all groups
+    const groups = Object.values(_state.groups);
+    groups.forEach((group: any) => {
+      groupMethodsToRemove.forEach((methodName: any) => {
+        delete group[methodName];
       });
     });
 
@@ -405,7 +459,7 @@ export const PluginManager = {
   },
 
   // Apply transformations from all enabled plugins in priority order
-  applyTransformations(instance: FlowPlaterInstance, data: any, transformationType: string, dataType: TransformerDataType = "json") {
+  applyTransformations(instance: FlowPlaterInstance, data: any, transformationType: TransformationType, dataType: TransformerDataType = "json") {
     // Validate instance
     if (!instance || typeof instance !== "object") {
       Debug.error("Invalid instance provided to applyTransformations");
@@ -556,7 +610,7 @@ export const PluginManager = {
   },
 
   // Add a custom transformer function for a specific transformation type
-  addTransformer(transformationType: string, transformerFn: TransformerFunction | RequestTransformerFunction, transformerName?: string) {
+  addTransformer(transformationType: TransformationType, transformerFn: TransformerFunction | RequestTransformerFunction, transformerName?: string) {
     if (typeof transformerFn !== "function") {
       throw new FlowPlaterError("Transformer must be a function");
     }
@@ -568,24 +622,35 @@ export const PluginManager = {
       transformerName = `${transformationType}_${existingTransformers.length + 1}_${Date.now()}`;
     }
 
-    // Validate transformer function signature based on type
-    const fnStr = transformerFn.toString();
+    // Validate transformer function arity in a minification-safe way
+    const paramCount = typeof (transformerFn as Function).length === "number" ? (transformerFn as Function).length : 0;
     if (transformationType === "transformRequest") {
-      if (!fnStr.includes("instance") || !fnStr.includes("evt")) {
+      // Expect at least (instance, evt)
+      if (paramCount < 2) {
         Debug.warn(
-          "Request transformer function should accept (instance, evt) parameters",
+          `Request transformer should accept at least (instance, evt). Got ${paramCount} parameter(s).`,
         );
       }
     } else if (transformationType === "transformResponse") {
-      if (!fnStr.includes("instance") || !(fnStr.includes("response") || fnStr.includes("data"))) {
+      // Expect at least (instance, response); third (dataType) is optional
+      if (paramCount < 2) {
         Debug.warn(
-          "Response transformer function should accept (instance, response, dataType) parameters",
+          `Response transformer should accept at least (instance, response). Got ${paramCount} parameter(s).`,
+        );
+      } else if (paramCount < 3) {
+        Debug.debug(
+          "Response transformer can optionally accept a third (dataType) parameter",
         );
       }
     } else {
-      if (!fnStr.includes("instance") || !fnStr.includes("data")) {
+      // General transformers expect at least (instance, data); third (dataType) is optional
+      if (paramCount < 2) {
         Debug.warn(
-          "Transformer function should accept (instance, data, dataType) parameters",
+          `Transformer should accept at least (instance, data). Got ${paramCount} parameter(s).`,
+        );
+      } else if (paramCount < 3) {
+        Debug.debug(
+          "Transformer can optionally accept a third (dataType) parameter",
         );
       }
     }
@@ -613,7 +678,7 @@ export const PluginManager = {
   },
 
   // Remove a custom transformer function by name
-  removeTransformer(transformationType: string, transformerName: string) {
+  removeTransformer(transformationType: TransformationType, transformerName: string) {
     if (!this.customTransformers.has(transformationType)) {
       return false;
     }
@@ -638,7 +703,7 @@ export const PluginManager = {
   },
 
   // Clear all custom transformers for a specific type
-  clearTransformers(transformationType: string) {
+  clearTransformers(transformationType?: TransformationType) {
     if (!transformationType) {
       // Clear all transformers if no type specified
       this.customTransformers.clear();
@@ -651,7 +716,7 @@ export const PluginManager = {
   },
 
   // List all custom transformers
-  listTransformers(transformationType?: string): Record<string, NamedTransformer[]> | NamedTransformer[] {
+  listTransformers(transformationType?: TransformationType): Record<string, NamedTransformer[]> | NamedTransformer[] {
     if (transformationType) {
       return this.customTransformers.get(transformationType) as NamedTransformer[] || [];
     } else {
@@ -706,12 +771,15 @@ export const PluginManager = {
       throw new FlowPlaterError(`Global method ${methodName} not found`);
     }
 
-    const plugin = this.getPlugin(methodInfo.plugin);
-    if (!plugin || !plugin.config?.enabled) {
-      throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+    if (methodInfo.origin === "plugin") {
+      const plugin = this.getPlugin(methodInfo.plugin as string);
+      if (!plugin || !plugin.config?.enabled) {
+        throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+      }
+      return methodInfo.method.call(plugin, ...args);
     }
-
-    return methodInfo.method.call(plugin, ...args);
+    // Custom (non-plugin) global method
+    return methodInfo.method(...args);
   },
 
   // Execute an instance method
@@ -721,12 +789,51 @@ export const PluginManager = {
       throw new FlowPlaterError(`Instance method ${methodName} not found`);
     }
 
-    const plugin = this.getPlugin(methodInfo.plugin);
-    if (!plugin || !plugin.config?.enabled) {
-      throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+    if (methodInfo.origin === "plugin") {
+      const plugin = this.getPlugin(methodInfo.plugin as string);
+      if (!plugin || !plugin.config?.enabled) {
+        throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+      }
+      return methodInfo.method(instance, ...args);
     }
-
+    // Custom (non-plugin) instance method
     return methodInfo.method(instance, ...args);
+  },
+
+  // Execute a group method
+  executeGroupMethod(methodName: string, group: any, ...args: any[]) {
+    const methodInfo = this.groupMethods.get(methodName);
+    if (!methodInfo) {
+      throw new FlowPlaterError(`Group method ${methodName} not found`);
+    }
+    if (methodInfo.origin === "plugin") {
+      const plugin = this.getPlugin(methodInfo.plugin as string);
+      if (!plugin || !plugin.config?.enabled) {
+        throw new FlowPlaterError(`Plugin ${methodInfo.plugin} is not enabled`);
+      }
+      return methodInfo.method(group, ...args);
+    }
+    return methodInfo.method(group, ...args);
+  },
+
+  // Unified method registration API (delegates to MethodRegistry)
+  registerMethod(type: "global" | "instance" | "group", name: string, fn: Function, override: boolean = false) {
+    MethodRegistry.registerMethod(type, name, fn, override);
+    if (type === "instance") {
+      // Rebind instance methods on all existing instances to ensure override takes effect
+      const instances = Object.values(_state.instances);
+      instances.forEach((instance: any) => {
+        instance[name] = (...args: any[]) => this.executeInstanceMethod(name, instance, ...args);
+      });
+    }
+    if (type === "group") {
+      // Rebind group methods on all existing groups to ensure override takes effect
+      const groups = Object.values(_state.groups);
+      groups.forEach((group: any) => {
+        group[name] = (...args: any[]) => this.executeGroupMethod(name, group, ...args);
+      });
+    }
+    return true;
   },
 
   async destroyPlugin(name: string) {
