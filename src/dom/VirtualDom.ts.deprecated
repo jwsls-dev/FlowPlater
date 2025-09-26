@@ -1,6 +1,9 @@
+// ! DEPRECATED: UpdateDom now uses morphdom instead
+
 import { Performance } from "../utils/Performance";
 import { restoreFormStates } from "../forms/FormPersistence";
 import { Debug } from "../core/Debug";
+import { ConfigService } from "../core/ConfigService";
 
 interface VNode {
   tag: string;
@@ -765,8 +768,7 @@ class VirtualDOM {
     
     // Configurable threshold fallback: if patch volume is huge, prefer full innerHTML update
     // This caps worst-case performance for massive changes
-    const configThreshold = (window?.FlowPlater?.getConfig()?.dom?.maxPatchesThreshold) ?? undefined;
-    const MAX_PATCHES = typeof configThreshold === 'number' ? configThreshold : 2000;
+    const MAX_PATCHES = ConfigService.getDomMaxPatchesThreshold();
     if (patches.length > MAX_PATCHES && expectedVNodes && expectedVNodes.length > 0) {
       try {
         const expectedHTML = this.vNodesToHTML(expectedVNodes);

@@ -1,6 +1,6 @@
 import { Debug } from "../core/Debug";
 import { Performance } from "../utils/Performance";
-import { ConfigManager } from "../core/ConfigManager";
+import { ConfigService } from "../core/ConfigService";
 
 interface DomOperation {
   id: string;
@@ -25,7 +25,7 @@ class DomBatcher {
    */
   read<T>(operation: () => T, id?: string): Promise<T> {
     // If batching is disabled, execute immediately
-    if (!ConfigManager.getConfig().performance?.batchDomUpdates) {
+    if (!ConfigService.isDomBatchingEnabled()) {
       return Promise.resolve(operation());
     }
 
@@ -46,7 +46,7 @@ class DomBatcher {
    */
   write<T>(operation: () => T, id?: string): Promise<T> {
     // If batching is disabled, execute immediately
-    if (!ConfigManager.getConfig().performance?.batchDomUpdates) {
+    if (!ConfigService.isDomBatchingEnabled()) {
       return Promise.resolve(operation());
     }
 
@@ -106,8 +106,7 @@ class DomBatcher {
    * Helper function to schedule execution based on configuration
    */
   private conditionalFrameSchedule(callback: () => void): void {
-    const config = ConfigManager.getConfig();
-    const batchingDelay = config.performance?.batchingDelay ?? 0;
+    const batchingDelay = ConfigService.getBatchingDelay();
     
     if (batchingDelay > 0) {
       // Use setTimeout with specified delay
@@ -124,8 +123,7 @@ class DomBatcher {
   private conditionalFrameCancel(): void {
     if (!this.frameId) return;
     
-    const config = ConfigManager.getConfig();
-    const batchingDelay = config.performance?.batchingDelay ?? 0;
+    const batchingDelay = ConfigService.getBatchingDelay();
     
     if (batchingDelay > 0) {
       clearTimeout(this.frameId as any);

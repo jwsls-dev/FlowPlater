@@ -1,17 +1,16 @@
-import { Debug } from "../core/Debug";
+import { Debug, RenderError } from "../core/Debug";
 import { Performance } from "../utils/Performance";
-import { _state } from "../core/State";
 import { EventSystem } from "../events/EventSystem";
 import { PluginManager } from "../core/PluginManager";
 import { domBatcher } from "../dom/DomBatcher";
-import { VirtualDOM } from "../dom/VirtualDom";
+import morphdom from "morphdom";
 import {
   captureFormStates,
   setupFormSubmitHandlers,
   setupDynamicFormObserver,
 } from "../forms/FormPersistence";
 import { AttributeMatcher } from "../dom/AttributeMatcher";
-import { ConfigManager } from "../core/ConfigManager";
+import { ConfigService } from "../core/ConfigService";
 import { FlowPlaterInstance } from "../types";
 import { animate as runAnimation } from "../template/Animate";
 import { shouldRestoreForm, restoreFormStates } from '../forms/FormPersistence';
@@ -38,27 +37,13 @@ async function performDomUpdate(
     return;
   }
 
-  // Use Virtual DOM for efficient diffing and patching
-  Debug.debug(`performDomUpdate: Using Virtual DOM for element ${elementId} with ${element.childNodes.length} child nodes`);
+  // Use morphdom for efficient DOM reconciliation
+  Debug.debug(`performDomUpdate: Using morphdom for element ${elementId} with ${element.childNodes.length} child nodes`);
   Debug.debug(`performDomUpdate: Element innerHTML length: ${element.innerHTML.length}`);
   Debug.debug(`performDomUpdate: Element innerHTML preview:`, element.innerHTML.substring(0, 200));
-  
-  // Read phase: capture current DOM state
-  const oldVNodes = VirtualDOM.domToVNodes(element) || [];
-  Debug.debug(`performDomUpdate: Captured initial DOM state with ${oldVNodes.length} nodes`);
-  Debug.debug(`performDomUpdate: Initial DOM nodes:`, oldVNodes.map((vn, i) => 
-    typeof vn === 'string' ? `${i}: "${vn}"` : `${i}: <${vn.tag}${vn.attrs.class ? ` class="${vn.attrs.class}"` : ''}>`
-  ));
-  
-  // Parse new HTML once and reuse
-  const newVNodes = VirtualDOM.parseHTML(newHTML) || [];
-  Debug.debug(`performDomUpdate: Parsed new HTML into ${newVNodes.length} nodes`);
-  Debug.debug(`performDomUpdate: New DOM nodes:`, newVNodes.map((vn, i) => 
-    typeof vn === 'string' ? `${i}: "${vn}"` : `${i}: <${vn.tag}${vn.attrs.class ? ` class="${vn.attrs.class}"` : ''}>`
-  ));
-  
-  // Determine emptiness efficiently: elements present OR any non-whitespace text in HTML
-  const hasElements = newVNodes.length > 0;
+
+  // Determine emptiness efficiently: any non-whitespace text or any element tags
+  const hasElements = /<\w+[^>]*>/.test(newHTML);
   const hasNonWhitespaceText = newHTML.replace(/<[^>]*>/g, '').trim().length > 0;
   const hasRenderableContent = hasElements || hasNonWhitespaceText;
   if (!hasRenderableContent) {
@@ -71,32 +56,99 @@ async function performDomUpdate(
     );
     return;
   }
-  
-  // Capture form states before making any changes (for integrity check fallback)
-  const formStates = await domBatcher.read(
-    () => captureFormStates(element),
-    `capture-form-integrity-${elementId}-${timestamp}`
-  );
-  Debug.debug(`performDomUpdate: Captured form states for integrity check:`, formStates);
-  
-  // Write phase: diff and apply patches
-  await domBatcher.batch([
-    {
-      type: 'write',
-      operation: () => {
-        const patches = VirtualDOM.diff(oldVNodes, newVNodes);
-        Debug.debug(`performDomUpdate: Generated ${patches.length} patches`);
-        
-        if (patches.length > 0) {
-          // Pass the expected newVNodes and captured form states for post-update verification
-          VirtualDOM.patch(element, patches, newVNodes, formStates);
-        } else {
-          Debug.debug(`performDomUpdate: No patches to apply - content is identical`);
+
+  // Write phase: morph current DOM to the new HTML
+  await domBatcher.write(
+    () => {
+      morphdom(element, newHTML, {
+        childrenOnly: true,
+        getNodeKey: (node: Node) => {
+          if (!(node instanceof Element)) return undefined;
+          const el = node as HTMLElement;
+          const id = el.id;
+          const key = el.getAttribute('data-key');
+          return id || key || undefined;
+        },
+        onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
+          // Merge Webflow classes (w-*) from existing element into the new one
+          const from = fromEl as HTMLElement;
+          const to = toEl as HTMLElement;
+
+          const fromClasses = (from.className || '').split(' ').filter(Boolean);
+          const webflowClasses = fromClasses.filter(cls => cls.startsWith('w-'));
+          if (webflowClasses.length > 0) {
+            const toClasses = (to.className || '').split(' ').filter(Boolean);
+            const merged = Array.from(new Set([...toClasses, ...webflowClasses]));
+            to.className = merged.join(' ');
+          }
+
+          // Preserve Webflow-specific attributes (w-*) present on the existing element
+          Array.from(from.attributes).forEach(attr => {
+            if (attr.name.startsWith('w-') && !to.hasAttribute(attr.name)) {
+              to.setAttribute(attr.name, attr.value);
+            }
+          });
+
+          // Form elements: preserve user state (value/checked/selection)
+          if (from instanceof HTMLInputElement && to instanceof HTMLInputElement) {
+            if (from.type === 'checkbox' || from.type === 'radio') {
+              to.checked = from.checked;
+            } else if (from.type !== 'file') {
+              to.value = from.value;
+            }
+          } else if (from instanceof HTMLTextAreaElement && to instanceof HTMLTextAreaElement) {
+            to.value = from.value;
+          } else if (from instanceof HTMLSelectElement && to instanceof HTMLSelectElement) {
+            if (from.multiple) {
+              const selectedValues = Array.from(from.selectedOptions).map(o => o.value);
+              Array.from(to.options).forEach(opt => { opt.selected = selectedValues.includes(opt.value); });
+            } else {
+              to.value = from.value;
+            }
+          }
+
+          // Skip updates if nodes are identical
+          if ((from as HTMLElement).isEqualNode(to as Node)) {
+            return false;
+          }
+          return true;
+        },
+        onElUpdated: (el: Element) => {
+          // Sync Webflow visual state for checkbox/radio wrappers
+          if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
+            const wrapper = el.closest(el.type === 'checkbox' ? '.w-checkbox' : '.w-radio');
+            if (wrapper) {
+              const custom = wrapper.querySelector(`.w-${el.type}-input`);
+              if (custom) {
+                if (el.checked) {
+                  custom.classList.add('w--redirected-checked');
+                } else {
+                  custom.classList.remove('w--redirected-checked');
+                }
+              }
+            }
+          }
+        },
+        onNodeAdded: (node: Node) => {
+          // Ensure newly added inputs reflect correct Webflow visual state
+          if (node instanceof HTMLInputElement && (node.type === 'checkbox' || node.type === 'radio')) {
+            const wrapper = node.closest(node.type === 'checkbox' ? '.w-checkbox' : '.w-radio');
+            if (wrapper) {
+              const custom = wrapper.querySelector(`.w-${node.type}-input`);
+              if (custom) {
+                if (node.checked) {
+                  custom.classList.add('w--redirected-checked');
+                } else {
+                  custom.classList.remove('w--redirected-checked');
+                }
+              }
+            }
+          }
         }
-      },
-      id: `vdom-patch-${elementId}-${timestamp}`
-    }
-  ]);
+      });
+    },
+    `morphdom-${elementId}-${timestamp}`
+  );
 }
 
 /**
@@ -105,7 +157,7 @@ async function performDomUpdate(
 async function updateDOM(element: HTMLElement, newHTML: string, animate = false, instance: FlowPlaterInstance | null = null) {
   
   const forceFullUpdate = AttributeMatcher._hasAttribute(element, "force-full-update");
-  const config = ConfigManager.getConfig();
+  const config = ConfigService.getConfig();
   const elementId = element.id || 'unknown';
   const timestamp = Date.now();
 
@@ -129,11 +181,11 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
 
   try {
     if (!element || !(element instanceof HTMLElement)) {
-      throw new Error("Invalid target element");
+      throw new RenderError("Invalid target element", undefined);
     }
 
     if (typeof newHTML !== "string") {
-      throw new Error("newHTML must be a string");
+      throw new RenderError("newHTML must be a string", undefined);
     }
     
     Debug.debug(`UpdateDOM called for element ${elementId} with newHTML length: ${newHTML.length}`);
@@ -258,7 +310,6 @@ async function updateDOM(element: HTMLElement, newHTML: string, animate = false,
     }
   } catch (error) {
     Debug.error("Error in updateDOM:", error);
-    console.error("UpdateDOM error:", error);
     throw error;
   } finally {
     element.removeAttribute("fp-restoring");
