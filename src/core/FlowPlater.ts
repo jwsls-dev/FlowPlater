@@ -75,7 +75,7 @@ if (typeof window !== 'undefined' && !__FP_ALREADY_LOADED) {
  * @author JWSLS
  */
 
-const VERSION = "2.0.0";
+const VERSION = "1.6.0";
 const AUTHOR = "JWSLS";
 const LICENSE = "Flowplater standard licence";
 
