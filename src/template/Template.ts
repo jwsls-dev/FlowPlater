@@ -65,7 +65,7 @@ export function render({
     return null;
   }
 
-  // Compile template if needed
+  // Compile template if needed (cache managed centrally)
   const compiledTemplate = compileTemplate(template, recompile);
   if (!compiledTemplate) {
     Debug.error("Failed to compile template:", template);
@@ -86,7 +86,15 @@ export function render({
       "transformDataBeforeRender",
       "json"
     );
-    const result = compiledTemplate(transformedData);
+    let result = compiledTemplate(transformedData);
+    // Allow string-based HTML transformation before returning
+    // IMPORTANT: This operates on a STRING, not a DOM tree, and must return a STRING
+    result = PluginManager.applyTransformations(
+      instance,
+      result,
+      "transformCompiledHtml",
+      "html"
+    );
     Performance.end("render:" + (instanceName || "anonymous"));
     return result;
   }

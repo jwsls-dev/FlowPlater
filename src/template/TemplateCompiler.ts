@@ -68,6 +68,49 @@ export const memoizedCompile = memoize(function (templateId) {
       return `<${tagName}${attributes}>`;
     }
 
+    function decodeEntities(input: string) {
+      if (!input) return "";
+      return input
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">");
+    }
+
+    function tokenizeArgs(fp: string): string {
+      if (!fp) return "";
+      const s = decodeEntities(fp);
+      const tokens: string[] = [];
+      let current = "";
+      let quote: string | null = null;
+      for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (quote) {
+          if (ch === quote) {
+            quote = null;
+            current += ch;
+          } else {
+            current += ch;
+          }
+        } else {
+          if (ch === '"' || ch === "'") {
+            quote = ch;
+            current += ch;
+          } else if (ch === ' ') {
+            if (current.length > 0) {
+              tokens.push(current);
+              current = "";
+            }
+          } else {
+            current += ch;
+          }
+        }
+      }
+      if (current.length > 0) tokens.push(current);
+      return tokens.join(" ");
+    }
+
     function processNode(node: HTMLElement) {
       let result = "";
 
@@ -82,28 +125,34 @@ export const memoizedCompile = memoize(function (templateId) {
           if (fpTag) {
             childTagName = fpTag;
           }
-          if (element.hasAttribute("fp") || childTagName in helpers) {
+          // Special-case else first
+          if (childTagName === "else") {
+            const innerElse = processNode(element);
+            result += `{{else}}${innerElse}`;
+          } else if (element.hasAttribute("fp") || childTagName in helpers) {
             // Process as a Handlebars helper
             const helperName = childTagName;
             const fpAttr = element.getAttribute("fp");
-            const args = fpAttr
-              ? fpAttr
-                  .split(" ")
-                  .map((arg: string) => arg.replace(/&quot;/g, '"'))
-                  .join(" ")
-              : "";
+            const args = fpAttr ? tokenizeArgs(fpAttr) : "";
 
             const innerContent = processNode(element);
+            const rawInnerHtml = element.innerHTML || "";
 
             switch (helperName) {
               case "log":
+                if (args && args.trim().length > 0) {
+                  result += `{{${helperName} ${args}}}`;
+                } else if (rawInnerHtml && rawInnerHtml.trim().length > 0) {
+                  const escaped = decodeEntities(rawInnerHtml).replace(/"/g, '\\"');
+                  result += `{{${helperName} "${escaped}"}}`;
+                } else {
+                  result += `{{${helperName}}}`;
+                }
+                break;
+
               case "lookup":
               case "execute":
-                if (innerContent) {
-                  result += `{{${helperName} ${innerContent} ${args}}}`;
-                } else {
-                  result += `{{${helperName} ${args}}}`;
-                }
+                result += `{{${helperName} ${args}}}`;
                 break;
 
               case "comment":
@@ -111,12 +160,13 @@ export const memoizedCompile = memoize(function (templateId) {
                 break;
 
               case "if":
-                const escapedArgs = args.replace(/"/g, '\\"');
+                const escapedArgs = args.replace(/\"/g, '\\"').replace(/"/g, '\\"');
                 result += `{{#${helperName} "${escapedArgs}"}}${innerContent}{{/${helperName}}}`;
                 break;
 
-              case "else":
-                result += `{{${helperName}}}${innerContent}`;
+              case "unless":
+                const escapedUnless = args.replace(/\"/g, '\\"').replace(/"/g, '\\"');
+                result += `{{#${helperName} "${escapedUnless}"}}${innerContent}{{/${helperName}}}`;
                 break;
 
               case "math":
@@ -125,16 +175,14 @@ export const memoizedCompile = memoize(function (templateId) {
                     `FlowPlater: The <${helperName}> helper does not accept inner content.`,
                   );
                 }
-                result += `{{#${helperName} "${args}"}}`;
+                const escapedMath = args.replace(/\"/g, '\\"').replace(/"/g, '\\"');
+                result += `{{${helperName} "${escapedMath}"}}`;
                 break;
 
               default:
                 result += `{{#${helperName} ${args}}}${innerContent}{{/${helperName}}}`;
                 break;
             }
-          } else if (element.tagName === "else") {
-            const innerContent = processNode(element);
-            result += `{{${element.tagName.toLowerCase()}}}${innerContent}`;
           } else if (
             element.tagName === "template" ||
             element.tagName === "fptemplate" ||
