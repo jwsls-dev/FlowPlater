@@ -1,6 +1,8 @@
+// ! DEPRECATED: Use IDBStorage instead
+
 import { _state } from "../core/State";
 import { Debug } from "../core/Debug";
-import { ConfigManager } from "../core/ConfigManager";
+import { ConfigService } from "../core/ConfigService";
 
 // Helper function to handle Map serialization
 // @ts-ignore
@@ -36,8 +38,8 @@ function reviver(key: string, value: any): any {
  * @returns {boolean} True if save was successful, false otherwise
  */
 export function saveToLocalStorage(key: string, data: any, type = ""): boolean {
-  const config = ConfigManager.getConfig().storage;
-  if (!config?.enabled) {
+  const enabled = ConfigService.isStorageEnabled();
+  if (!enabled) {
     Debug.debug(
       `[LocalStorage] Storage is disabled, skipping save for key: ${key}`,
     );
@@ -59,7 +61,7 @@ export function saveToLocalStorage(key: string, data: any, type = ""): boolean {
 
     const item = {
       data: dataToStore, // Store the stringified data
-      expiry: config.ttl === -1 ? null : Date.now() + config.ttl * 1000,
+      expiry: ConfigService.getStorageTtl() === -1 ? null : Date.now() + ConfigService.getStorageTtl() * 1000,
     };
 
     Debug.debug(`[LocalStorage] Saving to localStorage:`, {
