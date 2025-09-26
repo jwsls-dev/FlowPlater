@@ -43,6 +43,26 @@ export const EventSystem = (function () {
     },
 
     /**
+     * Subscribe to an event once
+     * @param {string} event - The event name to subscribe to
+     * @param {Function} callback - The callback function to execute when the event is published
+     * @param {any} [context=null] - The context (this) to use when executing the callback
+     * @returns {Function} Unsubscribe function
+     */
+    once(event: string, callback: Function, context: any = null): () => void {
+      const wrapped = (data: any) => {
+        try {
+          callback.call(context, data);
+        } finally {
+          this.unsubscribe(event, wrapped);
+        }
+      };
+      return this.subscribe(event, wrapped, context);
+    },
+
+    
+
+    /**
      * Unsubscribe from an event
      * @param {string} event - The event name to unsubscribe from
      * @param {Function} callback - The callback function to remove
