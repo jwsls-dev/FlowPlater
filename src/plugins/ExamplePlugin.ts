@@ -1,4 +1,4 @@
-import { FlowPlaterInstance, FlowPlaterObj, FlowPlaterPlugin, TransformerDataType } from "../types";
+import { FlowPlaterInstance, FlowPlaterObj, FlowPlaterPlugin, FlowPlaterPluginHooks, TransformerDataType, FlowPlaterPluginInstanceMethods, FlowPlaterPluginGlobalMethods, FlowPlaterPluginTransformers, FlowPlaterPluginHelpers, FlowPlaterPluginConfig, FlowPlaterPluginState } from "../types";
 
 declare const FlowPlater: FlowPlaterObj;
 
@@ -12,9 +12,9 @@ declare const FlowPlater: FlowPlaterObj;
  * FlowPlater expects an immediately-invoked function expression (IIFE) to be returned from the plugin function.
  *
  * @function ExamplePlugin
- * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, and helpers
+ * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, helpers, and init function
  */
-const ExamplePlugin = (customConfig = {}) => {
+const ExamplePlugin = (customConfig = {}) : FlowPlaterPlugin => {
   /**
    * Plugin configuration object
    * @type {Object}
@@ -28,7 +28,7 @@ const ExamplePlugin = (customConfig = {}) => {
    * @property {string} description - Description of the plugin.
    * @property {string} author - Author of the plugin.
    */
-  const config = {
+  const config : FlowPlaterPluginConfig = {
     // Name of the plugin. No special characters or spaces.
     name: "example",
 
@@ -68,7 +68,7 @@ const ExamplePlugin = (customConfig = {}) => {
    * @property {boolean} initialized - Whether the plugin has been initialized
    * @property {Object} data - Plugin-specific data
    */
-  let state = {
+  let state : FlowPlaterPluginState = {
     initialized: false,
     data: {},
   };
@@ -77,13 +77,13 @@ const ExamplePlugin = (customConfig = {}) => {
    * Global methods that can be called from FlowPlater
    * @type {Object}
    */
-  const globalMethods = {
+  const globalMethods : FlowPlaterPluginGlobalMethods = {
     /**
      * Get all instances using this plugin
      * @param {Object} plugin - The plugin instance
      * @returns {Array} Array of all instances using this plugin
      */
-    exampleGetInstances(plugin: FlowPlaterPlugin) {
+    exampleGetInstances(plugin: FlowPlaterPlugin) : any {
       return Object.values(plugin.state?.data || {});
     },
 
@@ -92,7 +92,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} plugin - The plugin instance
      * @returns {Object} Statistics about the plugin
      */
-    exampleGetStats(plugin: FlowPlaterPlugin) {
+    exampleGetStats(plugin: FlowPlaterPlugin) : any {
       return {
         totalInstances: Object.keys(plugin.state?.data || {}).length,
         enabled: plugin.config.enabled,
@@ -105,13 +105,13 @@ const ExamplePlugin = (customConfig = {}) => {
    * Instance methods that can be called from instances
    * @type {Object}
    */
-  const instanceMethods = {
+  const instanceMethods : FlowPlaterPluginInstanceMethods = {
     /**
      * Get instance-specific data
      * @param {Object} instance - The FlowPlater instance
      * @returns {Object} Instance data
      */
-    exampleGetData(instance: FlowPlaterInstance) {
+    exampleGetData(instance: FlowPlaterInstance) : any {
       return instance.data;
     },
 
@@ -121,7 +121,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} newData - New data to update the instance with
      * @returns {Object} Updated instance
      */
-    exampleUpdateData(instance: FlowPlaterInstance, newData: any) {
+    exampleUpdateData(instance: FlowPlaterInstance, newData: any) : FlowPlaterInstance {
       instance.setData({
         ...instance.data,
         pluginData: {
@@ -137,14 +137,14 @@ const ExamplePlugin = (customConfig = {}) => {
    * Plugin hooks that are called throughout the FlowPlater lifecycle
    * @type {Object}
    */
-  const hooks = {
+  const hooks : FlowPlaterPluginHooks   = {
     /**
      * Called before an htmx request is made
      * @param {Object} instance - The FlowPlater instance making the request
      * @param {Object} evt - The HTMX event object
      * @returns {Object} The instance
      */
-    beforeRequest: function (instance: FlowPlaterInstance, evt: any) {
+    beforeRequest: function (instance: FlowPlaterInstance, evt: any) : FlowPlaterInstance {
       // Called before an htmx request is made.
       // instance: The FlowPlater instance making the request
       // evt: The HTMX event object
@@ -158,7 +158,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} evt - The HTMX event object
      * @returns {Object} The instance
      */
-    afterRequest: function (instance: FlowPlaterInstance, evt: any) {
+    afterRequest: function (instance: FlowPlaterInstance, evt: any) : FlowPlaterInstance {
       // Called after an htmx request is made.
       // instance: The FlowPlater instance that made the request
       // evt: The HTMX event object
@@ -172,7 +172,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} evt - The HTMX event object
      * @returns {Object} The instance
      */
-    beforeSwap: function (instance: FlowPlaterInstance, evt: any) {
+    beforeSwap: function (instance: FlowPlaterInstance, evt: any) : FlowPlaterInstance {
       // Called before the response is swapped into the DOM.
       // instance: The FlowPlater instance that will receive the swap
       // evt: The HTMX event object
@@ -190,7 +190,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} context.formStates - The captured form states (if any)
      * @returns {Object} The instance
      */
-    beforeDomUpdate: function (instance: FlowPlaterInstance, context: any) {
+    beforeDomUpdate: function (instance: FlowPlaterInstance, context: any) : FlowPlaterInstance {
       // Called before a DOM update begins.
       // instance: The FlowPlater instance being updated
       // context: Object containing:
@@ -217,7 +217,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} context.formStates - The captured form states (if any)
      * @returns {Object} The instance
      */
-    afterDomUpdate: function (instance: FlowPlaterInstance, context: any) {
+    afterDomUpdate: function (instance: FlowPlaterInstance, context: any) : FlowPlaterInstance {
       // Called after a DOM update is complete.
       // instance: The FlowPlater instance that was updated
       // context: Object containing:
@@ -240,7 +240,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} evt - The HTMX event object
      * @returns {Object} The instance
      */
-    afterSwap: function (instance: FlowPlaterInstance, evt: any) {
+    afterSwap: function (instance: FlowPlaterInstance, evt: any) : FlowPlaterInstance {
       // Called after the response is swapped into the DOM.
       // instance: The FlowPlater instance that received the swap
       // evt: The HTMX event object
@@ -253,7 +253,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} instance - The newly created FlowPlater instance
      * @returns {Object} The instance
      */
-    newInstance: function (instance: FlowPlaterInstance) {
+    newInstance: function (instance: FlowPlaterInstance) : FlowPlaterInstance {
       // Called when a new instance is created.
       // instance: The newly created FlowPlater instance
       FlowPlater.log(FlowPlater.logLevels.INFO, "newInstance", instance);
@@ -270,7 +270,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {HTMLElement} form.changedElement - The element that triggered the change
      * @returns {Object} The instance
      */
-    updateForm: function (instance: FlowPlaterInstance, form: any) {
+    updateForm: function (instance: FlowPlaterInstance, form: any) : FlowPlaterInstance {
       // Called when a form is updated.
       // instance: The FlowPlater instance containing the form
       // form: Object containing:
@@ -291,7 +291,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {string} data.source - The source of the update
      * @returns {Object} The instance
      */
-    updateData: function (instance: FlowPlaterInstance, data: any) {
+    updateData: function (instance: FlowPlaterInstance, data: any) : FlowPlaterInstance {
       // Called when the instance data is updated.
       // instance: The FlowPlater instance being updated
       // data: Object containing:
@@ -308,7 +308,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Array} instances - An array of all instances that were created
      * @returns {Object} The FlowPlater object
      */
-    initComplete: function (flowplater: FlowPlaterObj, instances: FlowPlaterInstance[]) {
+    initComplete: function (flowplater: FlowPlaterObj, instances: FlowPlaterInstance[]) : FlowPlaterObj {
       // Called after FlowPlater has fully initialized
       // flowplater: The full FlowPlater object
       // instances: An array of all instances that were created
@@ -333,7 +333,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} evt - The HTMX event object
      * @returns {Object} The instance
      */
-    afterSettle: function (instance: FlowPlaterInstance, evt: any) {
+    afterSettle: function (instance: FlowPlaterInstance, evt: any) : FlowPlaterInstance {
       // Called after HTMX settles (all animations complete)
       // instance: The FlowPlater instance
       // evt: The HTMX event object
@@ -346,7 +346,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {Object} instance - The FlowPlater instance
      * @returns {Object} The instance
      */
-    destroy: function (instance: FlowPlaterInstance) {
+    destroy: function (instance: FlowPlaterInstance) : FlowPlaterInstance {
       // Called when an instance is destroyed
       // instance: The FlowPlater instance
       FlowPlater.log(FlowPlater.logLevels.INFO, "destroy", instance);
@@ -358,7 +358,7 @@ const ExamplePlugin = (customConfig = {}) => {
    * Transformers that apply changes to data in various points in the FlowPlater lifecycle
    * @type {Object}
    */
-  const transformers = {
+  const transformers : FlowPlaterPluginTransformers  = {
     /**
      * Transform an HTMX request before it's made
      * This runs during the htmx:configRequest event
@@ -374,7 +374,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @returns {Object} The modified event object
      */
     // @ts-ignore
-    transformRequest: function (instance: FlowPlaterInstance, evt: any) {
+    transformRequest: function (instance: FlowPlaterInstance, evt: any) : any {
       // Example: Add a timestamp to every request
       if (evt && evt.detail && evt.detail.parameters) {
         evt.detail.parameters["request_timestamp"] = Date.now();
@@ -391,7 +391,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @param {string} dataType - The type of data being transformed ("html", "xml", or "json")
      * @returns {Object} The modified response object
      */
-    transformResponse: function (instance: FlowPlaterInstance, response: any, dataType: TransformerDataType) {
+    transformResponse: function (instance: FlowPlaterInstance, response: any, dataType: TransformerDataType) : any {
       // Example: Add processing metadata to the response
       if (response) {
         response.metadata = {
@@ -413,7 +413,7 @@ const ExamplePlugin = (customConfig = {}) => {
      * @returns {Object} The modified data object
      */
     // @ts-ignore
-    transformDataBeforeRender: function (instance: FlowPlaterInstance, data: any, dataType: TransformerDataType) {
+    transformDataBeforeRender: function (instance: FlowPlaterInstance, data: any, dataType: TransformerDataType) : any {
       // Example: Add a timestamp to the data
       if (data) {
         return {
@@ -432,7 +432,7 @@ const ExamplePlugin = (customConfig = {}) => {
    * Arguments are passed in the order they are defined in the helper function.
    * @type {Object}
    */
-  const helpers = {
+  const helpers : FlowPlaterPluginHelpers = {
     /**
      * Custom helper that checks if a value is in an array
      * @param {*} value - The value to check
@@ -455,8 +455,41 @@ const ExamplePlugin = (customConfig = {}) => {
   };
 
   /**
+   * Initialize the plugin (runs when FlowPlater registers the plugin)
+   * Demonstrates replacing an existing instance method at runtime using FlowPlater.registerMethod.
+   * This is different from declaring instanceMethods above, because it overrides an already-registered method.
+   */
+  const init = function () {
+    // Keep a reference to the originally registered method (from instanceMethods above)
+    const originalExampleGetData = instanceMethods.exampleGetData;
+
+    // Replace the implementation globally for all instances using FlowPlater.registerMethod
+    FlowPlater.registerMethod(
+      "instance",
+      "exampleGetData",
+      function (instance: FlowPlaterInstance) {
+        FlowPlater.log(
+          FlowPlater.logLevels.INFO,
+          "[example] Overriding instance method 'exampleGetData' via registerMethod(...)",
+          instance,
+        );
+
+        // Call the original method to preserve base behavior, then augment the result
+        const base = originalExampleGetData(instance);
+        return {
+          ...base,
+          overriddenBy: `${config.name}@${config.version}`,
+          overriddenAt: new Date().toISOString(),
+        };
+      },
+      // Pass override=true to intentionally replace any existing implementation
+      true,
+    );
+  };
+
+  /**
    * Return the plugin object
-   * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, and helpers
+   * @returns {Object} Plugin object containing configuration, state, methods, hooks, transformers, helpers, and init function
    */
   return {
     config,
@@ -466,6 +499,7 @@ const ExamplePlugin = (customConfig = {}) => {
     hooks,
     transformers,
     helpers,
+    init,
   };
 };
 

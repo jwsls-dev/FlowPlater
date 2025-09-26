@@ -441,7 +441,7 @@ const MathPlugin = (customConfig = {}) => {
       // First pass: resolve forced variable references like @{max}
       const resolvedForced = expression.replace(
         /@{([^}]+)}/g,
-        // @ts-ignore
+        // @ts-ignore - Ignore unused variable error
         (match: string, varPath: string) => {
           try {
             let value;
@@ -454,7 +454,7 @@ const MathPlugin = (customConfig = {}) => {
             }
             return value;
           } catch (error) {
-            console.warn(`Could not resolve ${varPath}`);
+            Debug.warn(`Could not resolve ${varPath}`);
             return NaN;
           }
         },
@@ -481,7 +481,7 @@ const MathPlugin = (customConfig = {}) => {
             }
             return value;
           } catch (error) {
-            console.warn(`Could not resolve ${match}`);
+            Debug.warn(`Could not resolve ${match}`);
             return NaN;
           }
         },

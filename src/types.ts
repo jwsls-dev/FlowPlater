@@ -15,7 +15,6 @@ export interface FlowPlaterGroup {
   destroy(): void;
   getData(): Record<string, any>;
   _isEvaluating: boolean;
-  _lastRenderedOutputs: Map<string, any>;
 }
 
 export interface FlowPlaterConfig {
@@ -123,7 +122,8 @@ export interface FlowPlaterObj {
   enablePlugin: (name: string) => boolean;
   disablePlugin: (name: string) => boolean;
   pluginConfig: (name: string) => FlowPlaterPluginConfig | null;
-  on: (eventName: string, callback: Function) => void;
+  on: (eventName: string, callback: Function) => () => void;
+  once: (eventName: string, callback: Function) => () => void;
   off: (eventName: string, callback: Function) => void;
   emit: (eventName: string, ...args: any[]) => void;
   debug: (level: number) => FlowPlaterObj;
@@ -145,12 +145,26 @@ export interface FlowPlaterObj {
   destroy: () => void;
   create: (instanceName: string, options?: { refresh: boolean }) => FlowPlaterInstance;
   findAttribute: (element: FlowPlaterElement, attributeName: string) => string | null;
-  addTransformer: (transformationType: string, transformerFn: TransformerFunction | RequestTransformerFunction, transformerName?: string) => FlowPlaterObj;
-  removeTransformer: (transformationType: string, transformerName: string) => boolean;
-  clearTransformers: (transformationType?: string) => FlowPlaterObj;
-  listTransformers: (transformationType?: string) => Record<string, NamedTransformer[]> | NamedTransformer[];
+  invalidateHtmlCache: (instanceName?: string) => FlowPlaterObj;
+  addTransformer: (transformationType: TransformationType, transformerFn: TransformerFunction | RequestTransformerFunction, transformerName?: string) => FlowPlaterObj;
+  removeTransformer: (transformationType: TransformationType, transformerName: string) => boolean;
+  clearTransformers: (transformationType?: TransformationType) => FlowPlaterObj;
+  listTransformers: (transformationType?: TransformationType) => Record<string, NamedTransformer[]> | NamedTransformer[];
+  registerMethod: (type: "global" | "instance" | "group", name: string, fn: Function, override?: boolean) => FlowPlaterObj;
+  callGlobal: (name: string, ...args: any[]) => any;
   [key: string]: any;
 }
+
+import type { _updateDOM as updateInstanceDOMFn } from "./instance/methods/_updateDOM";
+import type { setData as setDataFn } from "./instance/methods/setData";
+import type { getData as getDataFn } from "./instance/methods/getData";
+import type { get as getFn } from "./instance/methods/get";
+import type { getElements as getElementsFn } from "./instance/methods/getElements";
+import type { getTemplateElement as getTemplateElementFn } from "./instance/methods/getTemplateElement";
+import type { refresh as refreshFn } from "./instance/methods/refresh";
+import type { remove as removeFn } from "./instance/methods/remove";
+import type { refreshTemplate as refreshTemplateFn } from "./instance/methods/refreshTemplate";
+import type { invalidateHtmlCache as invalidateHtmlCacheFn } from "./instance/methods/invalidateHtmlCache";
 
 export interface FlowPlaterInstance {
   instanceName: string;
@@ -163,15 +177,15 @@ export interface FlowPlaterInstance {
   localVarName?: string;
   cleanup: () => void;
   animate?: boolean;
-  refresh(): void;
-  refreshTemplate: (templateId: string, recompile?: boolean) => boolean;
-  remove: () => void;
-  get: (path: string) => any;
-  getData(): Record<string, any>;
-  setData(data: Record<string, any>): void;
-  getElements(): FlowPlaterElement[];
-  getTemplateElement(): FlowPlaterElement;
-  _updateDOM: () => Promise<void[] | undefined>;
+  refresh: typeof refreshFn;
+  refreshTemplate: typeof refreshTemplateFn;
+  remove: typeof removeFn;
+  get: typeof getFn;
+  getData: typeof getDataFn;
+  setData: typeof setDataFn;
+  getElements: typeof getElementsFn;
+  getTemplateElement: typeof getTemplateElementFn;
+  _updateDOM: typeof updateInstanceDOMFn;
   _htmxUpdateInProgress?: boolean;
   _updateTimer?: NodeJS.Timeout | null;
   _stateBeforeDebounce?: Record<string, any> | null;
@@ -179,6 +193,7 @@ export interface FlowPlaterInstance {
   _isEvaluating?: boolean;
   _lastRenderedOutput?: string;
   _hasPendingUpdate?: boolean;
+  invalidateHtmlCache: typeof invalidateHtmlCacheFn;
 }
 
 export interface FlowPlaterPluginConfig {
@@ -204,6 +219,10 @@ export interface FlowPlaterPluginGlobalMethods {
 
 export interface FlowPlaterPluginInstanceMethods {
   [methodName: string]: (instance: FlowPlaterInstance, ...args: any[]) => any;
+}
+
+export interface FlowPlaterPluginGroupMethods {
+  [methodName: string]: (group: FlowPlaterGroup, ...args: any[]) => any;
 }
 
 export interface FlowPlaterPluginHooks {
@@ -244,6 +263,23 @@ export interface FlowPlaterPluginHooks {
  * Valid data types for transformer functions
  */
 export type TransformerDataType = "json" | "html" | "xml";
+/**
+ * Valid transformation types supported by FlowPlater
+ * - "transformRequest": Modify HTMX request event/details before sending.
+ *     - Use this to modify the request parameters, headers, or body.
+ * - "transformResponse": Modify response payload/text before processing or rendering.
+ *     - Use this to modify the response payload/text.
+ * - "transformDataBeforeRender": Modify instance/group data prior to template rendering.
+ *     - Use this to modify the data before it is rendered in templates.  
+ * - "transformCompiledHtml": Modify the compiled HTML string before it is applied to the DOM.
+ *     - IMPORTANT: The input is a STRING of HTML, NOT a live DOM tree; return a STRING.
+ * (Removed) transformConfirmEvent: Confirmation UI should be handled by apps/plugins directly using htmx:confirm.
+ */
+export type TransformationType =
+  | "transformRequest"
+  | "transformResponse"
+  | "transformDataBeforeRender"
+  | "transformCompiledHtml";
 
 /**
  * Standard transformer function signature
@@ -280,6 +316,8 @@ export interface TransformerFunctions {
   transformResponse: TransformerFunction;
   /** Transform data before it's rendered in templates */
   transformDataBeforeRender: TransformerFunction;
+  /** Transform compiled HTML string before DOM update (must return a string) */
+  transformCompiledHtml: TransformerFunction;
   /** Custom transformer functions */
   [customTransformerName: string]: TransformerFunction | RequestTransformerFunction;
 }
@@ -288,6 +326,7 @@ export interface FlowPlaterPluginTransformers {
   transformRequest?: (instance: FlowPlaterInstance, evt: any) => any;
   transformResponse?: (instance: FlowPlaterInstance, response: any, dataType: TransformerDataType) => any;
   transformDataBeforeRender?: (instance: FlowPlaterInstance, data: any, dataType: TransformerDataType) => any;
+  transformCompiledHtml?: (instance: FlowPlaterInstance, html: string, dataType: TransformerDataType) => string;
 }
 
 export interface FlowPlaterPluginHelpers {
@@ -295,15 +334,49 @@ export interface FlowPlaterPluginHelpers {
 }
 
 export interface FlowPlaterPlugin {
+  /**
+   * Initialize the plugin (runs when FlowPlater registers the plugin)
+   */
   init: () => void;
+  /**
+   * Destroy the plugin (runs when FlowPlater unregisters the plugin)
+   */
   destroy?: () => Promise<void>;
+  /**
+   * Plugin configuration
+   */
   config: FlowPlaterPluginConfig;
+  /**
+   * Plugin state
+   */
   state?: FlowPlaterPluginState;
+  /**
+   * Plugin global methods
+   */
   globalMethods?: FlowPlaterPluginGlobalMethods;
+  /**
+   * Plugin instance methods
+   */
   instanceMethods?: FlowPlaterPluginInstanceMethods;
+  /**
+   * Plugin group methods
+   */
+  groupMethods?: FlowPlaterPluginGroupMethods;
+  /**
+   * Plugin hooks
+   */
   hooks?: FlowPlaterPluginHooks;
+  /**
+   * Plugin transformers
+   */
   transformers?: FlowPlaterPluginTransformers;
+  /**
+   * Plugin helpers
+   */
   helpers?: FlowPlaterPluginHelpers;
+  /**
+   * Plugin inheritable attributes
+   */
   inheritableAttributes?: string[];
 }
 
