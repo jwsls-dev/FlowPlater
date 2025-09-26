@@ -1,11 +1,12 @@
 import { _state } from "../core/State";
 import { Debug } from "../core/Debug";
-import { saveToLocalStorage, loadFromLocalStorage } from "../storage/LocalStorage";
+import { saveToLocalStorage, loadFromLocalStorage } from "../storage/IDBStorage";
 import { createDeepProxy, deepMerge } from "../storage/DataTransformers";
 import { EventSystem } from "../events/EventSystem";
 import { PluginManager } from "../core/PluginManager";
-import { ConfigManager } from "../core/ConfigManager";
+import { ConfigService } from "../core/ConfigService";
 import { FlowPlaterGroup, FlowPlaterInstance, FlowPlaterElement } from "../types";
+import { MethodRegistry } from "../core/MethodRegistry";
 
 export const GroupManager = {
   getOrCreateGroup(groupName: string, initialData: Record<string, any> = {}): FlowPlaterGroup {
@@ -26,7 +27,7 @@ export const GroupManager = {
     // --- Group doesn't exist in state, attempt to load from storage ---
     let baseData = {}; // Start with empty base
 
-    if (ConfigManager.getConfig().storage?.enabled) {
+    if (ConfigService.isStorageEnabled()) {
       // Check if storage is currently enabled
       try {
         const loadedData = loadFromLocalStorage(groupName, "group");
@@ -77,7 +78,6 @@ export const GroupManager = {
       },
       instances: new Set<FlowPlaterInstance>(),
       _isEvaluating: false,
-      _lastRenderedOutputs: new Map(),
       data: {}, // Will be replaced with proxy
       getData: () => {
         const data = _state.groups[groupName].data;
@@ -102,6 +102,12 @@ export const GroupManager = {
       },
     } as unknown as FlowPlaterGroup;
 
+    // Attach any registered group methods to the new group (plugins + custom)
+    for (const [methodName] of MethodRegistry.groupMethods.entries()) {
+      // @ts-ignore dynamic assignment
+      (group as any)[methodName] = (...args: any[]) => PluginManager.executeGroupMethod(methodName, group, ...args);
+    }
+
     // Create proxy for group data using the final baseData
     group.data = createDeepProxy(baseData, async () => {
       // Skip if already evaluating to prevent circular updates
@@ -113,68 +119,32 @@ export const GroupManager = {
           `[Group Update] Updating all instances in group: ${groupName}`,
         );
 
-        // Get array of instances that are ready for updates
+        // Get array of instances (filter for readiness)
         const instances = Array.from(group.instances).filter(
           (instance: FlowPlaterInstance) =>
-            instance.template &&
-            typeof instance.template === "function" &&
-            !instance._htmxUpdateInProgress,
+            instance.template && typeof instance.template === "function",
         );
 
-        // Create update promises for all instances
-        const updatePromises = instances.map(async (instance) => {
+        // Publish update events for each instance; DataStore handles DOM updates
+        instances.forEach((instance) => {
           try {
-            // Get transformed data
-            const transformedData = PluginManager.applyTransformations(
-              instance,
-              group.getData(),
-              "transformDataBeforeRender",
-              "json",
-            );
-
-            // Render template
-            const newRenderedOutput = instance.template(transformedData);
-            const previousOutput = group._lastRenderedOutputs.get(
-              instance.instanceName,
-            );
-
-            // Only update if output changed
-            if (previousOutput !== newRenderedOutput) {
-              // Execute hooks
-              PluginManager.executeHook("updateData", instance, {
-                newData: group.data,
-                source: "group",
-              });
-
-              EventSystem.publish("updateData", {
-                instanceName: instance.instanceName,
-                groupName: groupName,
-                newData: group.data,
-                source: "group",
-              });
-
-              // Update DOM
-              Debug.debug(
-                `[Group Update] Updating DOM for ${instance.instanceName}`,
-              );
-              return instance._updateDOM().then(() => {
-                // Store rendered output
-                group._lastRenderedOutputs.set(
-                  instance.instanceName,
-                  newRenderedOutput,
-                );
-              });
-            }
+            PluginManager.executeHook("updateData", instance, {
+              newData: group.data,
+              source: "group",
+            });
+            EventSystem.publish("updateData", {
+              instanceName: instance.instanceName,
+              groupName: groupName,
+              newData: group.data,
+              source: "group",
+            });
           } catch (error) {
-            Debug.error(`Error updating ${instance.instanceName}:`, error);
+            Debug.error(`Error publishing update for ${instance.instanceName}:`, error);
           }
         });
 
-        // Wait for all instance updates to complete
-        await Promise.all(updatePromises);
-
         // Save to storage if enabled - dynamically checks ConfigManager.getConfig
-        if (ConfigManager.getConfig().storage?.enabled) {
+        if (ConfigService.isStorageEnabled()) {
           Debug.debug(`[Group Update] Saving group data for ${groupName}`);
           saveToLocalStorage(groupName, group.data, "group");
         }
@@ -234,28 +204,14 @@ export const GroupManager = {
       // Add instance to group
       (group as FlowPlaterGroup).instances.add(instance);
 
-      // Only try to render if the template is actually a function
+      // Notify via centralized event instead of direct DOM update
       if (instance.template && typeof instance.template === "function") {
-        // Store instance's initial rendered output
-        const transformedData = PluginManager.applyTransformations(
-          instance,
-          group.getData(),
-          "transformDataBeforeRender",
-          "json",
-        );
-
-        try {
-          const renderedOutput = instance.template(transformedData);
-          group._lastRenderedOutputs.set(instance.instanceName, renderedOutput);
-        } catch (error: any) {
-          Debug.error(
-            `Error rendering template for group member: ${error.message}`,
-          );
-        }
-      } else {
-        Debug.debug(
-          `Skipping initial render for group member: template not ready for ${instance.instanceName}`,
-        );
+        EventSystem.publish("updateData", {
+          instanceName: instance.instanceName,
+          groupName: groupName,
+          newData: group.data,
+          source: "group",
+        });
       }
 
       Debug.debug(
@@ -276,7 +232,6 @@ export const GroupManager = {
     const group = _state.groups[instance.groupName];
     if (group) {
       group.instances.delete(instance);
-      group._lastRenderedOutputs.delete(instance.instanceName);
 
       Debug.debug(
         `Removed instance ${instance.instanceName} from group ${instance.groupName}`,

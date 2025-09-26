@@ -1,14 +1,15 @@
 import { Debug } from "../core/Debug";
 import { _state } from "../core/State";
+import { DataStore } from "../core/DataStore";
 import { PluginManager } from "../core/PluginManager";
 import { createInstance, setupInstanceProxy } from "./Instance";
 import { deepMerge } from "../storage/DataTransformers";
 import { AttributeMatcher } from "../dom/AttributeMatcher";
 import { FlowPlaterElement, FlowPlaterInstance } from "../types";
-import { ConfigManager } from "../core/ConfigManager";
-import { loadFromLocalStorage } from "../storage/LocalStorage";
+import { ConfigService } from "../core/ConfigService";
+import { loadFromLocalStorage } from "../storage/IDBStorage";
 import { Performance } from "../utils/Performance";
-import { compileTemplate } from "../template/TemplateCompiler";
+// Removed eager compilation in favor of lazy compilation
 import { DEFAULTS } from "../core/DefaultConfig";
 // import { EventSystem } from "../events/EventSystem";
 
@@ -41,41 +42,24 @@ export const InstanceManager = {
       return null;
     }
 
-    // Check for stored data and merge with initialData
+    // Prepare initial data; async stored data will be merged after instance creation
     let finalInitialData = { ...initialData };
-    if (ConfigManager.getConfig().storage?.enabled) {
-      const storedData = loadFromLocalStorage(instanceName, "instance");
-      if (storedData) {
-        Debug.info(`Found stored data for instance: ${instanceName}, merging with initial data`);
-        finalInitialData = { ...storedData, ...initialData };
-      }
-    }
 
     // Check if this element belongs to a group
     const groupName = AttributeMatcher._getRawAttribute(element, "group");
 
     let instance = _state.instances[instanceName];
     if (!instance) {
-      // If this is not a template element, look for a parent template element
       if (!AttributeMatcher._hasAttribute(element, "template")) {
-        const parentTemplateElement = (AttributeMatcher.findMatchingElements(
-          "template",
-        ) as HTMLElement[])?.find(
-          (el: FlowPlaterElement) =>
-            AttributeMatcher._getRawAttribute(el, "instance") === instanceName,
-        );
+        const parentTemplateElement = this._findTemplateElementForInstance(instanceName);
         if (parentTemplateElement) {
-          Debug.debug(
-            `Found parent template element for instance ${instanceName}`,
-          );
+          Debug.debug(`Found parent template element for instance ${instanceName}`);
           return this.getOrCreateInstance(parentTemplateElement, finalInitialData);
-        } else {
-          Debug.error(`No template element found for instance ${instanceName}`);
-          return null;
         }
+        Debug.error(`No template element found for instance ${instanceName}`);
+        return null;
       }
 
-      // Create new instance via factory (no proxy yet)
       instance = createInstance({
         instanceName,
         templateElement: element,
@@ -86,108 +70,39 @@ export const InstanceManager = {
       });
 
       _state.instances[instanceName] = instance;
-      // Execute newInstance hook
+
+      this._mergeStoredData(instanceName, instance, "new");
+
       PluginManager.executeHook("newInstance", instance);
       Debug.info(`Created new instance: ${instanceName}`);
 
-      // Use cached elements if provided, otherwise find all elements with matching fp-instance attribute
       const matchingElements = cachedElements || AttributeMatcher.findMatchingElements(
         "instance",
         instanceName,
       );
 
-      // Add matching elements to the instance's elements Array
-      (matchingElements as FlowPlaterElement[]).forEach((matchingElement) => {
-        if (matchingElement !== element) {
-          // Check for target attributes, including inherited ones
-          const targetSelector = AttributeMatcher.findInheritedAttribute(
-            matchingElement,
-            "target",
-          );
+      this._addMatchingElementsToInstance(instance, element, matchingElements as FlowPlaterElement[]);
 
-          if (targetSelector) {
-            let targetElements: FlowPlaterElement[] = [];
-
-            // Helper function for sibling traversal
-            const findSibling = (direction: 'next' | 'previous', selector?: string) => {
-              const prop = direction === 'next' ? 'nextElementSibling' : 'previousElementSibling';
-              let current = matchingElement[prop];
-              
-              if (!selector) return current ? [current as FlowPlaterElement] : [];
-              
-              while (current) {
-                if (current.matches(selector)) return [current as FlowPlaterElement];
-                current = current[prop];
-              }
-              return [];
-            };
-
-            switch (true) {
-              case targetSelector === "this":
-                targetElements = [matchingElement];
-                break;
-
-              case targetSelector.startsWith("closest "):
-                const closest = matchingElement.closest(targetSelector.substring(8));
-                if (closest) targetElements = [closest as FlowPlaterElement];
-                break;
-
-              case targetSelector.startsWith("find "):
-                const found = matchingElement.querySelector(targetSelector.substring(5));
-                if (found) targetElements = [found as FlowPlaterElement];
-                break;
-
-              case targetSelector === "next" || targetSelector.startsWith("next "):
-                const nextSelector = targetSelector === "next" ? undefined : targetSelector.substring(5);
-                targetElements = findSibling('next', nextSelector);
-                break;
-
-              case targetSelector === "previous" || targetSelector.startsWith("previous "):
-                const prevSelector = targetSelector === "previous" ? undefined : targetSelector.substring(9);
-                targetElements = findSibling('previous', prevSelector);
-                break;
-
-              default:
-                targetElements = Array.from(document.querySelectorAll(targetSelector)) as FlowPlaterElement[];
-            }
-
-            // Add all found target elements to the instance
-            targetElements.forEach((targetElement: FlowPlaterElement) => {
-              if (!instance.elements.includes(targetElement)) {
-                instance.elements.push(targetElement);
-              }
-              targetElement.setAttribute("fp-indexed", "true");
-            });
-          } else {
-            if (!instance.elements.includes(matchingElement)) {
-              instance.elements.push(matchingElement);
-            }
-          }
-          // Mark the element as indexed
-          matchingElement.setAttribute("fp-indexed", "true");
-        }
-      });
-
-      // Mark the template element as indexed
       element.setAttribute("fp-indexed", "true");
-
-      // Group membership is handled in the factory/proxy setup
     } else {
-      // If instance exists, add the new element to its array (if not already present)
-      if (!instance.elements.includes(element)) {
-        instance.elements.push(element);
-      }
-      // Mark the element as indexed
-      element.setAttribute("fp-indexed", "true");
+      this._indexElement(instance, element);
       Debug.debug(`Added element to existing instance: ${instanceName}`);
 
-      // Check for group membership
       if (groupName && !instance.groupName) {
         instance.groupName = groupName;
-        Debug.info(
-          `Added existing instance ${instanceName} to group ${groupName}`,
-        );
+        // Ensure centralized membership handling on existing instances
+        try {
+          const group = DataStore.getOrCreateGroup(groupName);
+          if (group) {
+            DataStore.addInstanceToGroup(instance, groupName);
+          }
+        } catch (e) {
+          Debug.error(`Failed to add existing instance ${instanceName} to group ${groupName}:`, e);
+        }
+        Debug.info(`Added existing instance ${instanceName} to group ${groupName}`);
       }
+
+      this._mergeStoredData(instanceName, instance, "existing");
     }
 
     return instance;
@@ -241,15 +156,12 @@ export const InstanceManager = {
         // Transform template content (moved from init)
         this._transformTemplateContent(templateId);
         
-        // Compile template
-        const compiledTemplate = compileTemplate(templateId, true);
-        
         // Create instance with cached elements to avoid DOM queries
         const instance = this.getOrCreateInstance(template, {}, elementCache.get(instanceName));
         
         // Set up the instance with template and proxy
-        if (instance && compiledTemplate) {
-          setupInstanceProxy(instance, compiledTemplate, templateId);
+        if (instance) {
+          setupInstanceProxy(instance, templateId);
         }
         
         Debug.debug(`Created instance for template: ${templateId}`);
@@ -367,6 +279,119 @@ export const InstanceManager = {
         (script as HTMLScriptElement).innerHTML = scriptContents[i];
       }
     );
+  },
+
+  /**
+   * Find the template element corresponding to an instance name
+   * @private
+   */
+  _findTemplateElementForInstance(instanceName: string): FlowPlaterElement | null {
+    const templates = AttributeMatcher.findMatchingElements("template") as HTMLElement[];
+    if (!Array.isArray(templates)) return null;
+    const result = templates.find((el: FlowPlaterElement) =>
+      AttributeMatcher._getRawAttribute(el, "instance") === instanceName,
+    );
+    return (result || null) as FlowPlaterElement | null;
+  },
+
+  /**
+   * Non-blocking merge of stored data into an instance if storage is enabled
+   * @private
+   */
+  _mergeStoredData(instanceName: string, instance: FlowPlaterInstance, context: "new" | "existing" = "new") {
+    if (!ConfigService.isStorageEnabled()) return;
+    loadFromLocalStorage(instanceName, "instance")
+      .then((storedData: any) => {
+        if (storedData) {
+          const message = context === "new"
+            ? `Merging stored data for instance: ${instanceName}`
+            : `Merging stored data into existing instance: ${instanceName}`;
+          Debug.info(message);
+          deepMerge(instance.data, storedData);
+        }
+      })
+      .catch((e: any) => {
+        const message = context === "new"
+          ? `Error loading stored data for ${instanceName}: ${e?.message || e}`
+          : `Error loading stored data for existing ${instanceName}: ${e?.message || e}`;
+        Debug.error(message);
+      });
+  },
+
+  /**
+   * Add and index all matching elements for an instance
+   * @private
+   */
+  _addMatchingElementsToInstance(instance: FlowPlaterInstance, templateElement: FlowPlaterElement, matchingElements: FlowPlaterElement[]) {
+    (matchingElements || []).forEach((matchingElement: FlowPlaterElement) => {
+      if (matchingElement === templateElement) return;
+
+      const targetSelector = AttributeMatcher.findInheritedAttribute(matchingElement, "target");
+      if (targetSelector) {
+        const targetElements = this._getTargetElementsForElement(matchingElement, targetSelector);
+        targetElements.forEach((targetElement: FlowPlaterElement) => this._indexElement(instance, targetElement));
+      } else {
+        this._indexElement(instance, matchingElement);
+      }
+
+      matchingElement.setAttribute("fp-indexed", "true");
+    });
+  },
+
+  /**
+   * Compute target elements for a matching element based on a selector
+   * @private
+   */
+  _getTargetElementsForElement(matchingElement: FlowPlaterElement, targetSelector: string): FlowPlaterElement[] {
+    if (targetSelector === "this") return [matchingElement];
+
+    if (targetSelector.startsWith("closest ")) {
+      const closest = matchingElement.closest(targetSelector.substring(8));
+      return closest ? [closest as FlowPlaterElement] : [];
+    }
+
+    if (targetSelector.startsWith("find ")) {
+      const found = matchingElement.querySelector(targetSelector.substring(5));
+      return found ? [found as FlowPlaterElement] : [];
+    }
+
+    if (targetSelector === "next" || targetSelector.startsWith("next ")) {
+      const nextSelector = targetSelector === "next" ? undefined : targetSelector.substring(5);
+      return this._findSiblingElement(matchingElement, "next", nextSelector);
+    }
+
+    if (targetSelector === "previous" || targetSelector.startsWith("previous ")) {
+      const prevSelector = targetSelector === "previous" ? undefined : targetSelector.substring(9);
+      return this._findSiblingElement(matchingElement, "previous", prevSelector);
+    }
+
+    return Array.from(document.querySelectorAll(targetSelector)) as FlowPlaterElement[];
+  },
+
+  /**
+   * Find a sibling element in a direction, optionally matching a selector
+   * @private
+   */
+  _findSiblingElement(matchingElement: FlowPlaterElement, direction: "next" | "previous", selector?: string): FlowPlaterElement[] {
+    const prop = direction === "next" ? "nextElementSibling" : "previousElementSibling";
+    let current: Element | null = (matchingElement as any)[prop] as Element | null;
+    if (!selector) return current ? [current as FlowPlaterElement] : [];
+    while (current) {
+      if (current.matches(selector)) return [current as FlowPlaterElement];
+      current = (current as any)[prop] as Element | null;
+    }
+    return [];
+  },
+
+  /**
+   * Ensure element is registered on instance and marked as indexed
+   * @private
+   */
+  _indexElement(instance: FlowPlaterInstance, element: FlowPlaterElement) {
+    if (!instance.elements.includes(element)) {
+      instance.elements.push(element);
+    }
+    element.setAttribute("fp-indexed", "true");
   },
 
   // Proxy setup is centralized in src/instance/Instance.ts
