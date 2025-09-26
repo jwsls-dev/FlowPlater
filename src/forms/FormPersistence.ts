@@ -1,10 +1,10 @@
 import { _state } from "../core/State";
 import { EventSystem } from "../events/EventSystem";
-import { saveToLocalStorage, loadFromLocalStorage } from "../storage/LocalStorage";
+import { saveToLocalStorage, loadFromLocalStorage, removeFromLocalStorage } from "../storage/IDBStorage";
 import { Debug } from "../core/Debug";
 import { PluginManager } from "../core/PluginManager";
 import { AttributeMatcher } from "../dom/AttributeMatcher";
-import { ConfigManager } from "../core/ConfigManager";
+import { ConfigService } from "../core/ConfigService";
 import { FlowPlaterElement } from "../types";
 
 export interface DebugInfo {
@@ -56,7 +56,7 @@ function handleFormStorage(form: HTMLFormElement, state: Record<string, any> = {
       ? loadFromLocalStorage(form.id, "form")
       : JSON.parse(sessionStorage.getItem(key) || "{}");
   } else if (operation === "clear") {
-    if (useLocal) localStorage.removeItem(key);
+    if (useLocal) removeFromLocalStorage(form.id, "form");
     sessionStorage.removeItem(key);
   }
 }
@@ -96,17 +96,38 @@ function manageEventListener(element: HTMLInputElement | HTMLSelectElement | HTM
 
 /**
  * Helper function to restore element values
+ * Only assigns .value when the current value is null or an empty string
+ * Multi-selects are updated only when there is no current selection
  */
-function restoreElementValue(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: string) {
+function restoreElementValue(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: any) {
   if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
+    // Preserve behavior for checked state; the request targets .value updates
     element.checked = value === "true";
     updateCustomVisualState(element);
   } else if (element instanceof HTMLSelectElement && element.multiple) {
-    Array.from(element.options).forEach((option) => {
-      option.selected = value.includes(option.value);
-    });
+    // Only update selections if nothing is currently selected
+    const hasSelection = element.selectedOptions && element.selectedOptions.length > 0;
+    if (!hasSelection) {
+      const restoredValues: string[] = Array.isArray(value)
+        ? value
+        : typeof value === "string"
+          ? [value]
+          : [];
+      Array.from(element.options).forEach((option) => {
+        option.selected = restoredValues.includes(option.value);
+      });
+    }
+  } else if (element instanceof HTMLSelectElement) {
+    // Only update when current value is null or empty string
+    if ((element.value as any) == null || element.value === "") {
+      element.value = value != null ? String(value) : "";
+    }
   } else {
-    element.value = value;
+    // Inputs and textareas: only update when current value is null or empty string
+    const currentValue = (element as HTMLInputElement | HTMLTextAreaElement).value;
+    if ((currentValue as any) == null || currentValue === "") {
+      (element as HTMLInputElement | HTMLTextAreaElement).value = value != null ? String(value) : "";
+    }
   }
 }
 
@@ -148,16 +169,16 @@ function getPersistenceSettings(element: HTMLElement): { shouldPersist: boolean;
       useLocalStorage =
         AttributeMatcher._getRawAttribute(form, "persist") === "true";
     } else if (
-      ConfigManager.getConfig().storage?.enabled &&
-      !ConfigManager.getConfig().persistForm
+      ConfigService.isStorageEnabled() &&
+      !ConfigService.shouldPersistForms()
     ) {
       shouldPersist = false;
       useLocalStorage = false;
     } else {
-      shouldPersist = ConfigManager.getConfig().persistForm;
+      shouldPersist = ConfigService.shouldPersistForms();
       useLocalStorage =
-        ConfigManager.getConfig().storage?.enabled &&
-        ConfigManager.getConfig().persistForm;
+        ConfigService.isStorageEnabled() &&
+        ConfigService.shouldPersistForms();
     }
   }
 
@@ -167,14 +188,14 @@ function getPersistenceSettings(element: HTMLElement): { shouldPersist: boolean;
       (input) => AttributeMatcher._getRawAttribute(input as HTMLElement, "persist") === "true",
     );
     if (hasPersistentElements) {
-      useLocalStorage = ConfigManager.getConfig().storage?.enabled;
+      useLocalStorage = ConfigService.isStorageEnabled();
     }
   }
 
   return {
     shouldPersist,
     useLocalStorage:
-      useLocalStorage && ConfigManager.getConfig().storage?.enabled,
+      useLocalStorage && ConfigService.isStorageEnabled(),
   };
 }
 
@@ -458,7 +479,12 @@ function restoreSingleFormState(form: HTMLFormElement, source: string): boolean 
  * @param {string} [source] - The source of the call to restoreFormStates
  */
 export function restoreFormStates(element: HTMLElement, source: string) {
-  restoreFormStates(element, source);
+  try {
+    const forms = getAllRelevantForms(element);
+    forms.forEach((form) => restoreSingleFormState(form, source || "restoreFormStates"));
+  } catch (error: any) {
+    Debug.error(`Error restoring form states: ${error.message}`);
+  }
 }
 
 /**
@@ -466,7 +492,20 @@ export function restoreFormStates(element: HTMLElement, source: string) {
  * @param {string} formId - ID of the form to clear
  */
 export function clearFormState(formId: string) {
-  clearFormState(formId);
+  try {
+    const form = document.getElementById(formId) as HTMLFormElement | null;
+    if (form) {
+      handleFormStorage(form, {}, "clear");
+    } else {
+      const key = `fp_form_${formId}`;
+      sessionStorage.removeItem(key);
+      if (ConfigService.isStorageEnabled()) {
+        removeFromLocalStorage(formId, "form");
+      }
+    }
+  } catch (error: any) {
+    Debug.error(`Error clearing form state: ${error.message}`);
+  }
 }
 
 /**
@@ -617,7 +656,7 @@ function handleFormElementChange(event: Event) {
 
       // Find instance that contains this form or whose elements are contained by this form
       let instance = null;
-      // @ts-ignore
+      // @ts-ignore - Ignore unused variable error
       for (const [instanceName, inst] of Object.entries(_state.instances) as [string, { elements: FlowPlaterElement[] }][]) {
         if (
           Array.from(inst.elements).some(
